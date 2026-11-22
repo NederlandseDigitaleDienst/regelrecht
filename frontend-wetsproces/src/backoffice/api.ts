@@ -3,7 +3,7 @@
 // client only names the routes.
 import { gedeeldApi } from '../gedeeld/api';
 import { haal, stuur } from '../gedeeld/http';
-import type { Gram, Klok, Voorvertoning, Waarom } from '../gedeeld/types';
+import type { Gram, Klok, Vervolgstand, Voorvertoning, Waarom } from '../gedeeld/types';
 
 /** The chronicle of one cell. */
 export interface Kroniek {
@@ -83,6 +83,8 @@ export const backofficeApi = {
   vastleggen: (v: Vastlegging, sleutel: string) => stuur<Gram>('POST', '/api/backoffice/vastleggingen', v, sleutel),
   /** The requests the executor's policy made, and whether the answer came back. */
   verzoeken: () => haal<{ verzoeken: EigenVerzoek[] }>('/api/backoffice/verzoeken'),
+  /** Every grant of the executor and how far the acts that follow it are. */
+  vervolg: () => haal<{ vervolg: Vervolgstand[] }>('/api/backoffice/vervolg').then((v) => v.vervolg),
   klokZetten: (datum: string) => stuur<Klok>('PUT', '/api/backoffice/klok', { datum }),
   /** Empty the test setup, test mode only: every chronicle, the kept answers, the clock back on the start. */
   leegmaken: () => stuur<Klok>('POST', '/api/backoffice/testomgeving/leegmaken', {}),

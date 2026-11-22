@@ -650,7 +650,8 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     // objection revokes the refusal (Awb 7:11 lid 2, as an effect), so the
     // refusal does not count. The decision it put in its place is part of
     // it, and its step gives the card the cell counted, in the aggregate of
-    // the refusal.
+    // the refusal; article 6 makes the decision on the objection the record
+    // the acts after the grant refer to.
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
@@ -663,7 +664,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         "{spoor}"
     );
     assert!(
-        spoor.contains(&format!("{beslissing}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#4: kaart_geldig_tot: null -> ")),
+        spoor.contains(&format!("{beslissing}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#4, beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#6: kaart_geldig_tot: null -> ")),
         "{spoor}"
     );
 }
@@ -1633,4 +1634,24 @@ fn a_prefill_from_a_source_that_is_no_output_of_its_article_leaves_its_field_emp
         assert!(fout.contains(waarom), "{bron}: {fout}");
         assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4), "{bron}");
     }
+}
+
+#[test]
+fn parkeerkaart_an_act_after_a_grant_is_refused_without_a_grant() {
+    // The case names the acts after a grant (na_toekenning): the cell of the
+    // municipality records them only about a record that granted, in turn.
+    let mut spel = spel_met("gehandicaptenparkeerkaart");
+    let fout = spel
+        .vastleggen(
+            "gemeente_wilgendaal",
+            "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker",
+            &map(&json!({ "datum_bestelling": "2026-10-21" })),
+            dag("2026-10-21"),
+        )
+        .unwrap_err();
+    assert!(
+        fout.to_string()
+            .contains("refers to the record that granted"),
+        "{fout}"
+    );
 }

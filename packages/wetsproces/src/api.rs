@@ -21,7 +21,7 @@
 //! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
 //! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
 //! | `GET /api/ik` | citizen or employee | who is logged in, and what they may do ([`me`]) |
-//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell |
+//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell, and how far the acts after each of their grants are |
 //! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
 //! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle |
@@ -29,6 +29,7 @@
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
 //! | `GET /api/backoffice/verzoeken` | reader | the requests the executor's policy made, and whether an answer came back ([`requests`]) |
 //! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
+//! | `GET /api/backoffice/vervolg` | reader | every grant and how far the acts after it are ([`grants`]) |
 //! | `POST /api/backoffice/toezendingen` | handler; a decision of the executor | a copy of a decision ([`SendCopy`]) |
 //! | `POST /api/backoffice/besluiten` | decider; a submission of the executor | a decision ([`Decide`]) |
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
@@ -268,6 +269,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
         .route("/api/backoffice/verzoeken", get(requests))
         .route("/api/backoffice/vastleggingen", post(record))
+        .route("/api/backoffice/vervolg", get(grants))
         .route("/api/backoffice/toezendingen", post(send_copy))
         .route("/api/backoffice/klok", put(set_clock));
     // Emptying the setup exists only where the clock can be set: in test
@@ -494,7 +496,46 @@ async fn dossier(
 pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> CitizenResult {
     let citizen = principal.citizen(&state.subject_claim)?;
     let dossier = state.service.dossier(citizen.subject()).await?;
-    Ok(json!({ "grammen": dossier.grams }))
+    // How far the acts after a grant are, for the grants in this dossier only.
+    // It plays the aggregate over every grant and keeps this citizen's; when
+    // that fails, the dossier still loads, without it.
+    let standen: Vec<_> = match state.service.standen().await {
+        Ok(standen) => standen
+            .into_iter()
+            .filter(|s| dossier.holds(&s.toekenning))
+            .collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "how far the acts after a grant are does not play");
+            Vec::new()
+        }
+    };
+    Ok(json!({ "grammen": dossier.grams, "vervolg": standen }))
+}
+
+/// Every grant of the executor, with how far the acts that follow it are,
+/// for any employee: what a reader may see of the executor's chronicle.
+/// Each carries the day of the record that granted (`toegekend_op`) and
+/// whom it concerns (`aanvrager`, the login field of the decision), so a
+/// screen can name it without reading the chronicle.
+async fn grants(State(state): State<AppState>) -> ApiResult {
+    let service = &state.service;
+    let standen = service.standen().await?;
+    let kroniek = service.chronicle(service.executor()).await?;
+    let grams = kroniek["grammen"].as_array().cloned().unwrap_or_default();
+    let record = |id: &str| grams.iter().find(|g| g["id"] == id);
+    let mut vervolg = Vec::with_capacity(standen.len());
+    for stand in standen {
+        let toegekend_op = record(&stand.toekenning).map(|g| g["recorded_on"].clone());
+        let aanvrager = record(&stand.besluit)
+            .and_then(|g| g["fields"].get(service.login_field()))
+            .cloned();
+        let mut rij = serde_json::to_value(&stand)
+            .map_err(|e| ApiError::from(ServiceError::Internal(e.to_string())))?;
+        rij["toegekend_op"] = toegekend_op.unwrap_or(Value::Null);
+        rij["aanvrager"] = aanvrager.unwrap_or(Value::Null);
+        vervolg.push(rij);
+    }
+    Ok(Json(json!({ "vervolg": vervolg })))
 }
 
 /// Who is logged in, for a screen to show what they may do: their name,

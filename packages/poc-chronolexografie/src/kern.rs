@@ -224,7 +224,7 @@ impl Corpus {
             let naam = werk.versies.last().and_then(|(_, law)| law.name.clone());
             gelezen.push((id.clone(), naam, werk.map.clone()));
         }
-        Ok(Self {
+        let corpus = Self {
             casus,
             afleiding,
             regelwerken: gelezen,
@@ -234,7 +234,9 @@ impl Corpus {
             andere_dirs,
             files,
             ui_spec: crate::ui_spec::UiSpec::default(),
-        })
+        };
+        crate::vervolg::controleer(&corpus)?;
+        Ok(corpus)
     }
 
     /// Every case in `casus_dir` on the corpus at `root`, on disk.
@@ -468,6 +470,7 @@ impl Corpus {
             "begin": c.begin,
             "andere_cellen": c.andere_cellen,
             "inloggen": c.inloggen,
+            "na_toekenning": c.na_toekenning,
             "scenarios": c.scenarios,
             "artikel": c.artikel,
             "besluit": format!("{}#{}", a.decision_law, a.decision),
@@ -1338,7 +1341,7 @@ fn handelingen(
         uit.push(json!({
             "cel": cell.recording_actor(),
             "cel_naam": andere.cel_naam,
-            "handelingen": met_velden(service, feiten, on)?,
+            "handelingen": met_velden(service, &corpus.ui_spec, feiten, on)?,
         }));
     }
     Ok(uit)
@@ -1382,7 +1385,7 @@ fn eigen_handelingen(
     Ok(json!({
         "cel": eigen.recording_actor(),
         "cel_naam": corpus.casus.cel_naam,
-        "handelingen": met_velden(service, feiten, on)?,
+        "handelingen": met_velden(service, &corpus.ui_spec, feiten, on)?,
     }))
 }
 
@@ -1490,19 +1493,71 @@ fn is_ontvangst(
 /// Each fact of `feiten` with the fields the article that requires it lists.
 fn met_velden(
     service: &LawExecutionService,
+    spec: &crate::ui_spec::UiSpec,
     feiten: Vec<String>,
     on: NaiveDate,
 ) -> Result<Vec<Value>> {
     feiten
         .into_iter()
         .map(|feit| {
-            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
-                .iter()
-                .map(veld)
+            let velden = shape::fact_fields(service, &feit, on, None)?;
+            let systeem: Map<String, Value> = feit_door_het_systeem(spec, &velden, on)
+                .into_iter()
+                .map(|(naam, (soort, waarde))| (naam, json!({ "soort": soort, "waarde": waarde })))
                 .collect();
-            Ok(json!({ "feit": feit, "velden": velden }))
+            let velden: Vec<Value> = velden.iter().map(veld).collect();
+            Ok(json!({ "feit": feit, "velden": velden, "systeem": systeem }))
         })
         .collect()
+}
+
+/// Per field of a fact among `velden` that the UI spec `spec` has the
+/// system fill with what the system knows itself, its kind and its value on
+/// `on`: a fixed value (`waarde`), or the day the fact is recorded
+/// (`datum`, from `submission: date`). A fact is recorded by an employee,
+/// not by a citizen who logs in, so a fill from the login, from a source or
+/// from what else the system knows of a submission fills nothing here: the
+/// field stays the employee's.
+fn feit_door_het_systeem(
+    spec: &crate::ui_spec::UiSpec,
+    velden: &[shape::Field],
+    on: NaiveDate,
+) -> BTreeMap<String, (&'static str, Value)> {
+    use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
+    velden
+        .iter()
+        .filter_map(|f| {
+            let gevuld = match spec.systeem.get(&f.name)? {
+                Systeemvulling::Waarde(waarde) => ("waarde", waarde.clone()),
+                Systeemvulling::Indiening(Indieningsgegeven::Datum) => {
+                    ("datum", json!(on.to_string()))
+                }
+                _ => return None,
+            };
+            Some((f.name.clone(), gevuld))
+        })
+        .collect()
+}
+
+/// What the system fills in the fact `feit` recorded on `on`, as the UI
+/// spec of the case says ([`feit_door_het_systeem`]): per field, its value.
+/// A caller that takes a fact from someone refuses one that names such a
+/// field itself.
+///
+/// # Errors
+///
+/// When no article in force on `on` requires `feit`.
+pub fn feit_systeemvelden(
+    corpus: &Corpus,
+    feit: &str,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    let service = corpus.service()?;
+    let velden = shape::fact_fields(&service, feit, on, None)?;
+    Ok(feit_door_het_systeem(&corpus.ui_spec, &velden, on)
+        .into_iter()
+        .map(|(naam, (_, waarde))| (naam, waarde))
+        .collect())
 }
 
 /// The facts (`<regulation>#<article>#<fact>`) whose executograms a step or
@@ -1606,6 +1661,10 @@ pub fn vastleggen_verwijzend(
         None => None,
     };
     let refers_to = refers_to.as_deref();
+    // An act after a grant comes in its turn, once (crate::vervolg).
+    if eigen {
+        crate::vervolg::toets(corpus, cellen, feit, refers_to, on)?;
+    }
     // The fact and its receipt land together or not at all: the case's cell
     // can refuse the receipt after the other cell took the fact. Try it first.
     leg_vast(

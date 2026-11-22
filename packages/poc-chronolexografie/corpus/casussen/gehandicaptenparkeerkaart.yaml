@@ -122,6 +122,27 @@ bij_aanvraag:
     antwoord:
       feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
       datum: datum_onderzoek
+# Wat de gemeente na een toekenning met de kaart doet: bestellen bij de
+# drukker, de ontvangst door de postkamer en de uitreiking, in deze volgorde
+# en elk één keer (zoals in packages/wetsproces/casussen). Zonder deze lijst
+# zou de cel die feiten in elke volgorde vastleggen.
+na_toekenning:
+  aggregaat: reductie_geldige_gehandicaptenparkeerkaart#kaart
+  toekenning: toekenningsbesluit
+  stand: Uw kaart is toegekend. De gemeente bestelt haar bij de drukker.
+  handelingen:
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker
+      gedaan: datum_bestelling
+      knop: Kaart bestellen bij de drukker
+      stand: Uw kaart wordt gedrukt.
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#gedrukte_kaart_ontvangen
+      gedaan: datum_ontvangst
+      knop: Ontvangst van de gedrukte kaart vastleggen
+      stand: Uw kaart ligt klaar.
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_uitgereikt
+      gedaan: datum_uitreiking
+      knop: Kaart uitreiken
+      stand: Uw kaart is op {datum} aan u uitgereikt.
 
 # The scenarios, step by step. Each step says what the visitor does
 # (`stap`), on which play date, with which values (`invoer`, over the
