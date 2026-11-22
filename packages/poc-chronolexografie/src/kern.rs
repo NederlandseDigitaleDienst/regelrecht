@@ -2390,7 +2390,7 @@ pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
             .filter(|g| g.refers_to.as_deref() == Some(gram.id.as_str()))
             .map(|g| g.id.clone())
             .collect();
-        let waarom = if is_besluit(&service, gram)? {
+        let waarom = if crate::stand::is_besluit(&service, gram)? {
             Some(waarom(corpus, cell, &gram.id)?)
         } else {
             None
@@ -2402,20 +2402,6 @@ pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
         });
     }
     Ok(uit)
-}
-
-/// Whether `gram` is a decision: taken on what it refers to, of the legal
-/// character its article gives a decision. An executogram of a fact, such
-/// as the receipt of a judgment, refers to a decision and is none.
-fn is_besluit(service: &LawExecutionService, gram: &Gram) -> Result<bool> {
-    if gram.refers_to.is_none() || gram.kind == EXECUTOGRAM {
-        return Ok(false);
-    }
-    let (law_id, article) = gram
-        .basis
-        .split_once('#')
-        .ok_or_else(|| Error::Setup(format!("'{}' has no basis", gram.id)))?;
-    Ok(decision::derive(service, law_id, article, gram.recorded_on)?.kind == gram.kind)
 }
 
 /// The reductions the catalogues of `cells` name, each once, as `law`
@@ -2865,7 +2851,10 @@ pub fn beslissen(
 /// The decisions `besluit` took in turn: per output its article declares of
 /// type `decision`, the decision it holds, with the day of `besluit`. One
 /// act is one record, so these are no records of their own (`Cell::decide`).
-fn in_de_plaats(service: &LawExecutionService, besluit: &Gram) -> Result<Map<String, Value>> {
+pub(crate) fn in_de_plaats(
+    service: &LawExecutionService,
+    besluit: &Gram,
+) -> Result<Map<String, Value>> {
     let (law, article) = basis(&besluit.basis)?;
     let Some(artikel) = service
         .resolver()
@@ -3679,10 +3668,7 @@ pub fn toezenden(
     })?;
     let feit = corpus
         .afleiding
-        .indieningen
-        .iter()
-        .find(|i| i.besluit == afschrift.gram.basis)
-        .and_then(|i| i.ontvangst.as_deref())
+        .ontvangst_van(&afschrift.gram.basis)
         .ok_or_else(|| {
             Error::Refused(format!(
                 "no regelwerk of this case requires a fact for the receipt of a copy of a \
@@ -6784,6 +6770,122 @@ mod tests {
             .find(|i| i["besluiten_onder"] == json!("algemene_wet_bestuursrecht#7:11"))
             .unwrap();
         assert_eq!(op_bezwaar["rijen"].as_array().unwrap().len(), 2);
+    }
+
+    /// What answers each submission ([`crate::stand`]) through objection,
+    /// appeal and the decision taken again: an annulled decision on the
+    /// objection leaves the objection waiting, after the receipt of the
+    /// judgment, and the decision taken again puts a new decision in the
+    /// place of the refusal.
+    #[test]
+    fn the_standing_answer_follows_revocations_through_appeal_and_deciding_again() {
+        use crate::stand::{Antwoord, Rol, stand};
+        let corpus = corpus();
+        let service = corpus.service().unwrap();
+        let mut cell = corpus.cell().unwrap();
+        let voorbeeld = &corpus.casus.voorbeeld;
+        let app = aanvragen(&corpus, &mut cell, &voorbeeld.aanvraag, day("2026-10-14")).unwrap();
+        let s = stand(&service, cell.grams()).unwrap();
+        assert_eq!(s.antwoorden[&app.id], Antwoord::Open);
+        assert_eq!(s.open(cell.grams()).len(), 1);
+        let geweigerd = besluiten(
+            &corpus,
+            &mut cell,
+            &app.id,
+            &beroep(false),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        let bezwaar = kaart_bezwaar(&corpus, &mut cell, &geweigerd.id, "2026-11-01");
+        let ongegrond = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
+        let s = stand(&service, cell.grams()).unwrap();
+        assert!(s.is(&app.id, Rol::Indiening) && s.is(&bezwaar.id, Rol::Indiening));
+        assert!(s.is(&geweigerd.id, Rol::Besluit) && s.is(&op_bezwaar, Rol::Besluit));
+        let besloten = |id: &str| Antwoord::Besloten { besluit: id.into() };
+        assert_eq!(s.antwoorden[&app.id], besloten(&geweigerd.id));
+        assert_eq!(s.antwoorden[&bezwaar.id], besloten(&op_bezwaar));
+        assert!(s.open(cell.grams()).is_empty());
+
+        let mut velden = voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &op_bezwaar, &velden, day("2026-12-01")).unwrap();
+        let s = stand(&service, rechtbank(&cell).grams()).unwrap();
+        assert_eq!(s.antwoorden[&ingesteld.id], Antwoord::Open);
+        let gedaan = uitspraak_doen(
+            &corpus,
+            &mut cell,
+            &ingesteld.id,
+            &uitspraak_bevindingen(&corpus, &[]),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        let uitspraak = gedaan["uitspraak"]["id"].as_str().unwrap();
+        let s = stand(&service, rechtbank(&cell).grams()).unwrap();
+        assert_eq!(s.antwoorden[&ingesteld.id], besloten(uitspraak));
+        let ontvangst = toezenden(&corpus, &mut cell, uitspraak, day("2027-01-11")).unwrap();
+
+        // The receipt annuls the decision on the objection: the objection
+        // waits again, after the receipt, and the refusal stands again.
+        let s = stand(&service, cell.grams()).unwrap();
+        assert!(s.is(&ontvangst.id, Rol::Vastlegging));
+        assert_eq!(s.herroepen.get(&op_bezwaar), Some(&ontvangst.id));
+        assert_eq!(
+            s.antwoorden[&bezwaar.id],
+            Antwoord::Vervallen {
+                besluit: op_bezwaar.clone(),
+                door: ontvangst.id.clone(),
+                na: Some(ontvangst.id.clone()),
+            }
+        );
+        assert_eq!(s.antwoorden[&app.id], besloten(&geweigerd.id));
+        let open = s.open(cell.grams());
+        assert_eq!(open.len(), 1);
+        assert_eq!(
+            (open[0].stuk.id.as_str(), open[0].na),
+            (bezwaar.id.as_str(), Some(ontvangst.id.as_str()))
+        );
+
+        // Decided again, well founded: the refusal is revoked and the new
+        // decision the decision on the objection holds is what answers the
+        // application.
+        let opnieuw = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &ontvangst.id,
+            &ontvankelijk(&beroep(true)),
+            day("2027-01-18"),
+        )
+        .unwrap();
+        let tweede = opnieuw["beslissing"]["id"].as_str().unwrap();
+        let s = stand(&service, cell.grams()).unwrap();
+        assert_eq!(s.antwoorden[&bezwaar.id], besloten(tweede));
+        let Antwoord::InDePlaats {
+            besluit,
+            door,
+            uitvoer,
+            nieuw,
+        } = &s.antwoorden[&app.id]
+        else {
+            panic!("{:?}", s.antwoorden[&app.id]);
+        };
+        assert_eq!((besluit, door.as_str()), (&geweigerd.id, tweede));
+        assert_eq!(uitvoer, "nieuw_besluit");
+        assert_eq!(nieuw["outputs"]["verlof_verleend"], json!(true));
+        assert_eq!(nieuw["recorded_on"], json!("2027-01-18"));
+        assert!(s.open(cell.grams()).is_empty());
     }
 
     #[test]

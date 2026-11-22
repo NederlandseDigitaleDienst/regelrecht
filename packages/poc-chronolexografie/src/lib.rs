@@ -20,6 +20,7 @@ pub mod casus;
 pub mod inlogstap;
 pub mod kern;
 pub mod spel;
+pub mod stand;
 pub mod ui_spec;
 pub mod vervolg;
 #[cfg(feature = "wasm")]
