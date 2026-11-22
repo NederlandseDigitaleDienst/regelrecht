@@ -623,7 +623,19 @@ async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
     );
     let (status, ook) = beslisser.get(&format!("/api/backoffice/waarom/{id}")).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(ook, waarom);
+    // The same explanation, but the citizen does not see how far the
+    // municipality read its own chronicle: that names records of others.
+    assert_eq!(
+        ook["keten"].as_array().map(Vec::len),
+        waarom["keten"].as_array().map(Vec::len)
+    );
+    assert_eq!(ook["bevindingen"], waarom["bevindingen"]);
+    assert!(ook["antwoorden"][0].get("tot_en_met").is_some(), "{ook}");
+    assert!(
+        waarom["antwoorden"][0].get("tot_en_met").is_none(),
+        "{waarom}"
+    );
+    assert!(waarom.get("spoor").is_none() && ook.get("spoor").is_none());
 
     // Not for another citizen.
     let bram = citizen(&app, "bram", BRAM).await;
@@ -1519,4 +1531,133 @@ async fn no_answer_names_a_record_outside_what_its_reader_may_see() {
     }
     // The appeal sits with the court only; the municipality never sees it.
     assert!(!may_see.contains(beroep["id"].as_str().unwrap()));
+}
+
+/// The ids an employee of the municipality may see: its chronicle, and what
+/// reached it from another cell.
+async fn seen_by_the_municipality(app: &Router) -> std::collections::BTreeSet<String> {
+    let lezer = employee(app, "lezer-1", "wetsproces-lezer").await;
+    let (status, kroniek) = lezer
+        .get(&format!("/api/backoffice/cellen/{GEMEENTE}/kroniek"))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{kroniek}");
+    let grams = kroniek["grammen"].as_array().unwrap();
+    grams
+        .iter()
+        .map(|g| g["id"].as_str().unwrap().to_string())
+        .chain(
+            grams
+                .iter()
+                .filter_map(|g| g["received"]["id"].as_str().map(str::to_string)),
+        )
+        .collect()
+}
+
+#[tokio::test]
+async fn the_trace_an_employee_gets_holds_nothing_of_another_cells_own_chronicle() {
+    // The court annuls the decision on Anna's objection and the GGD advises;
+    // the municipality previews and takes the decision again, after the
+    // receipt of the judgment.
+    let app = server().await;
+    let op_bezwaar = anna_is_refused_on_objection(&app).await;
+    let bezwaar = op_bezwaar["refers_to"].clone();
+    let anna = citizen(&app, "anna", ANNA).await;
+    let admin = admin(&app).await;
+    let (status, beroep) = anna
+        .post(
+            "/api/indieningen",
+            json!({
+                "artikel": "algemene_wet_bestuursrecht#8:70",
+                "op": op_bezwaar["id"],
+                "velden": notice_of("het bezwaar is ten onrechte afgewezen"),
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{beroep}");
+    set_clock(&app, "2026-11-20").await;
+    let (status, uitspraak) = admin
+        .post(
+            "/api/backoffice/beheer/besluiten",
+            json!({ "op": beroep["id"], "bevindingen": {
+                "indiener_is_belanghebbende": true,
+                "indiener_beroepschrift_niet_in_verzuim": true,
+                "rechtsregel_geschonden": true,
+                "geschonden_rechtsregel": "artikel 7:12, eerste lid, van de Algemene wet bestuursrecht",
+                "rechtsgevolgen_in_stand": false,
+                "uitspraak_treedt_in_de_plaats": false,
+                "termijn_nieuw_besluit": "2026-12-18",
+            } }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{uitspraak}");
+    let (status, ontvangst) = admin
+        .post(
+            "/api/backoffice/beheer/toezendingen",
+            json!({ "besluit": uitspraak["besluit"]["id"] }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{ontvangst}");
+    ggd_advises(&app, ANNA).await;
+
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
+    let mut bevindingen = findings();
+    bevindingen["indiener_bezwaarschrift_is_belanghebbende"] = json!(true);
+    bevindingen["indiener_bezwaarschrift_niet_in_verzuim"] = json!(true);
+    let body = json!({ "op": bezwaar, "na": ontvangst["id"], "bevindingen": bevindingen });
+    let (status, preview) = beslisser
+        .post("/api/backoffice/voorvertoning", body.clone())
+        .await;
+    assert_eq!(status, StatusCode::OK, "{preview}");
+    // The preview carries the decision as it would be taken, with its chain.
+    let waarom = &preview["voorlopig"]["waarom"];
+    assert!(!waarom["keten"].as_array().unwrap().is_empty(), "{preview}");
+    let (status, genomen) = beslisser.post("/api/backoffice/besluiten", body).await;
+    assert_eq!(status, StatusCode::OK, "{genomen}");
+    let id = genomen["besluit"]["id"].as_str().unwrap().to_string();
+    let (status, uitleg) = beslisser.get(&format!("/api/backoffice/waarom/{id}")).await;
+    assert_eq!(status, StatusCode::OK, "{uitleg}");
+
+    // None of the three names a record the municipality may not see, nor
+    // holds the raw trace or how another cell read its chronicle. In this
+    // case the answers the decision reads are the municipality's own (its
+    // reductions over what reached it), so the last check holds for any
+    // answer of another cell that a later case adds; the unit test of
+    // `visibility` covers one.
+    let mut may_see = seen_by_the_municipality(&app).await;
+    // The decision the preview would take was never recorded: it is the
+    // municipality's own.
+    may_see.extend(
+        preview["voorlopig"]["besluit"]["id"]
+            .as_str()
+            .map(str::to_string),
+    );
+    for answer in [&preview, &genomen, &uitleg] {
+        let outside: Vec<_> = ids_in(answer).difference(&may_see).cloned().collect();
+        assert!(outside.is_empty(), "{outside:?} in {answer}");
+        let text = answer.to_string();
+        assert!(!text.contains("\"spoor\""), "{text}");
+        assert!(!text.contains(beroep["id"].as_str().unwrap()), "{text}");
+        let mut foreign = Vec::new();
+        answers_of_others(answer, &mut foreign);
+        assert!(foreign.is_empty(), "{foreign:?}");
+    }
+}
+
+/// Every answer in `v` of a cell other than the municipality that still says
+/// how far that cell read its chronicle.
+fn answers_of_others(v: &Value, into: &mut Vec<Value>) {
+    match v {
+        Value::Object(map) => {
+            let who = map.get("answerer").or_else(|| map.get("door"));
+            let read = ["records_read", "last_record", "gelezen", "tot_en_met"]
+                .iter()
+                .any(|k| map.contains_key(*k));
+            if read && who.and_then(Value::as_str).is_some_and(|w| w != GEMEENTE) {
+                into.push(v.clone());
+            }
+            map.values().for_each(|x| answers_of_others(x, into));
+        }
+        Value::Array(items) => items.iter().for_each(|x| answers_of_others(x, into)),
+        _ => {}
+    }
 }

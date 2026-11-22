@@ -181,12 +181,12 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/klok` | citizen or employee | Today's date, and whether it can be set |
 | `GET /api/ik` | citizen or employee | Who is logged in, what the account may do for the executor (`cellen`), and whether it may use the admin panel (`partijen_invoeren`) |
 | `GET /api/dossier` | citizen | The records about the citizen, from every cell, with their standing (`stand`, [below](#what-answers-a-submission)), and under `vervolg` how far the acts after each of their grants are |
-| `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did |
+| `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did, without how a cell read its chronicle or any record outside the dossier |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head and its standing (`stand`); an external party's answers `403` |
 | `GET /api/backoffice/werkvoorraad` | reader | The executor's submissions that wait for a decision (`open`), each with the record to decide after (`na`) when its last decision was revoked |
-| `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did |
-| `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to; records nothing |
+| `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did, with its chain of steps (`keten`); nothing of another cell's own chronicle but what reached the executor |
+| `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to, with why and its chain, read as for `waarom`; records nothing |
 | `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
 | `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
 | `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)) |

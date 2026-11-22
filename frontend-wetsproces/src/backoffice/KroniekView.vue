@@ -4,14 +4,18 @@
 // editor's library: the cells in the sidebar, the chronicle of the chosen one
 // in the main pane beside it. Every record opens in a sheet with what it
 // holds; a submission, or a decision on one, also leads to its panel in the
-// work queue.
-import { computed, onMounted, ref } from 'vue';
+// work queue. A decision of the executor shows the full chain of why it came
+// out so, as the server explains it (`GET /api/backoffice/waarom/{id}`).
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import Gegevens from '../gedeeld/Gegevens.vue';
+import { foutTekst } from '../gedeeld/http';
 import { artikelNaam, isBesluit, isIndiening, omschrijving, rolVan } from '../gedeeld/keten';
-import type { Gram } from '../gedeeld/types';
+import type { Gram, Waarom } from '../gedeeld/types';
+import VolledigeKeten from '../gedeeld/VolledigeKeten.vue';
+import { backofficeApi } from './api';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string }>();
@@ -45,6 +49,21 @@ const indieningVan = (g: Gram): Gram | undefined => {
   const op = k.grammen.find((x) => x.id === g.refers_to);
   return op && isIndiening(op, k.stand) ? op : undefined;
 };
+/** Why the decision in the sheet came out so, once loaded; for a decision of the executor only. */
+const waarom = ref<Waarom | null>(null);
+const waaromFout = ref('');
+watch(open, async (g) => {
+  waarom.value = null;
+  waaromFout.value = '';
+  const k = gekozen.value;
+  if (!g || !k || !isBesluit(g, k.stand) || g.recording_actor !== casus.value?.cel) return;
+  try {
+    const uitleg = await backofficeApi.waarom(g.id);
+    if (open.value?.id === g.id) waarom.value = uitleg;
+  } catch (e) {
+    if (open.value?.id === g.id) waaromFout.value = foutTekst(e);
+  }
+});
 function naarWerkvoorraad(g: Gram) {
   const op = indieningVan(g);
   open.value = null;
@@ -138,6 +157,8 @@ function naarWerkvoorraad(g: Gram) {
               <nldd-title size="display-6"><h3>Uitkomst</h3></nldd-title>
               <Gegevens :waarden="open.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
             </template>
+            <VolledigeKeten v-if="waarom?.keten" :keten="waarom.keten" :casus="casus" :teksten="vormen?.teksten" />
+            <nldd-inline-dialog v-if="waaromFout" icon="warning" text="De keten van dit besluit laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
             <nldd-button-group v-if="indieningVan(open)" orientation="horizontal">
               <nldd-button appearance="primary" text="Open in de werkvoorraad" @click="naarWerkvoorraad(open)"></nldd-button>
             </nldd-button-group>
