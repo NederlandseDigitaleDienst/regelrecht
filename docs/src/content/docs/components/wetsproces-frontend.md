@@ -75,7 +75,7 @@ A citizen sees only the date, read-only, with the day of submission under it. Th
 
 The form fields are shared with the chronolexography PoC, in `@regelrecht/frontend-shared/chronolex` ([Shared Frontend Package](/components/frontend-shared)).
 
-Two parts of the UI spec have no effect here yet: a prefill the applicant may change (`fill: {from: ...}` without `by: system`) and the views beside a decision (`answer`). Both need a route that computes them, and this case uses neither.
+The server computes no prefill the applicant may change (`fill: {from: ...}` without `by: system`), and refuses to start with a UI spec that has one, so a form never shows such a field empty without a reason. The views beside a decision (`answer`) have no effect here yet; they need a route that computes them, and this case uses none.
 
 ## The public side and the back office
 

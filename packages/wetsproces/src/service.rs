@@ -196,6 +196,14 @@ pub enum ServiceError {
          `fill: {{by: system}}` and no source); the server needs exactly one"
     )]
     LoginField(usize),
+    /// The UI spec prefills fields the applicant may change (`fill: {from}`
+    /// without `by: system`). This server computes no prefill, so the form
+    /// would show those fields empty without saying why.
+    #[error(
+        "the UI spec prefills {0:?} with `fill: {{from: ...}}`, which this server does not \
+         compute; fill such a field by the system (`by: system`) or leave it to the applicant"
+    )]
+    Prefill(Vec<String>),
 }
 
 impl From<regelrecht_cel::Error> for ServiceError {
@@ -327,6 +335,11 @@ impl Service {
     ) -> Result<Self, ServiceError> {
         let cells = corpus.cellen().map(str::to_string).collect();
         let login_field = login_field(&corpus)?;
+        if !corpus.ui_spec.prefill.is_empty() {
+            return Err(ServiceError::Prefill(
+                corpus.ui_spec.prefill.keys().cloned().collect(),
+            ));
+        }
         let service = Self {
             corpus: Arc::new(corpus),
             cells,
@@ -973,6 +986,60 @@ pub(crate) mod tests {
             .unwrap(),
             submitter: Some(submitter("DigiD")),
         })
+    }
+
+    #[tokio::test]
+    async fn a_ui_spec_that_prefills_a_field_stops_the_server() {
+        let (mut corpus, _) =
+            crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
+        corpus
+            .ui_spec
+            .prefill
+            .insert("adres_aanvrager".into(), "r#5#adres".into());
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        let e = Service::start(corpus, store, clock).await.unwrap_err();
+        assert!(
+            matches!(e, ServiceError::Prefill(ref f) if f == &["adres_aanvrager"]),
+            "{e}"
+        );
+    }
+
+    /// A field the UI spec fills from another claim of the login gets it.
+    #[tokio::test]
+    async fn a_field_filled_from_a_claim_of_the_login_records_that_claim() {
+        use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
+        let (mut corpus, _) =
+            crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
+        corpus.ui_spec.systeem.insert(
+            "adres_aanvrager".into(),
+            Systeemvulling::Inlogclaim("adres".into()),
+        );
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        let s = Service::start(corpus, store, clock).await.unwrap();
+        let mut indiener = submitter("DigiD");
+        indiener
+            .inlog
+            .insert("adres".into(), json!("Voorbeeldlaan 9"));
+        let step = Step::Submit(Submit {
+            article: None,
+            refers_to: None,
+            fields: serde_json::from_value(json!({
+                "kaart_als_bestuurder": true,
+                "kaart_als_passagier": false,
+            }))
+            .unwrap(),
+            submitter: Some(indiener),
+        });
+        let gram = s.perform(None, step, &actor()).await.unwrap();
+        assert_eq!(gram["fields"]["adres_aanvrager"], json!("Voorbeeldlaan 9"));
     }
 
     #[tokio::test]

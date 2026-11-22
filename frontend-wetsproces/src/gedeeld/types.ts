@@ -1,6 +1,7 @@
 // The shapes the server in packages/wetsproces answers with. Their keys are
 // those of the kern of the chronolexografie poc (`velden`, `bevindingen`,
 // `op`), as the API passes them on; only what the screens read is typed.
+import type { Systeemvulling } from '@regelrecht/frontend-shared/chronolex/voorinvulling';
 
 /** A field of a form, as the kern derives it from the law (`kern::veld`). */
 export interface Veld {
@@ -24,26 +25,8 @@ export interface Veldtekst {
   group?: string;
 }
 
-/**
- * Where the system takes the value of a field from (`kern::door_het_systeem`):
- * the login, the clock, a fixed value, the decision the law names, the means
- * of login, or a rule (`bron`).
- */
-export type Systeemsoort = 'inloggen' | 'datum' | 'waarde' | 'gevraagd_besluit' | 'inlogmiddel' | 'bron';
-
-/** How the system fills a field of the application (`fill: {by: system}`). */
-export interface Systeemvulling {
-  soort?: Systeemsoort;
-  /**
-   * The value: one the system knows itself, or for a citizen the value the
-   * server will record for them, whatever the kind.
-   */
-  waarde?: unknown;
-  /** The rule whose outcome fills it, `<regelwerk>#<article>#<output>`. */
-  bron?: string;
-  /** The claim of the login that fills it, when not the field's own. */
-  inlog?: string;
-}
+/** How the system fills a field of the application (`fill: {by: system}`): shared with the poc. */
+export type { Systeemsoort, Systeemvulling } from '@regelrecht/frontend-shared/chronolex/voorinvulling';
 
 /** The form of a submission under one article. */
 export interface Indieningsvorm {
