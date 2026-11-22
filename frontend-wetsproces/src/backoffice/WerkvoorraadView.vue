@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // The work queue of the executor, the one cell the employee works for: the
 // submissions on which no decision was taken yet, and the facts it records
-// itself. A decider opens a submission to decide on it; a handler records
-// facts. What the account may not do does not show. What an external party
+// itself. Every employee opens a submission to read it, and a decider
+// decides on it there; a handler records facts. What the account may not do does not show. What an external party
 // does, such as the GGD's advice, comes in through the admin panel. Laid out as the
 // editor's library: the queue in the sidebar, the submission being handled
 // in the main pane beside it (BehandelenPaneel.vue).
@@ -72,15 +72,13 @@ async function klaar(naam: string) {
                   v-for="g in c.open"
                   :key="g.id"
                   size="md"
-                  :button="c.recht.beslissen || undefined"
+                  button
                   :current="g.id === id || undefined"
-                  @click="c.recht.beslissen && router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: g.id } })"
+                  @click="router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: g.id } })"
                 >
                   <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
-                  <template v-if="c.recht.beslissen">
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </template>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                 </nldd-list-item>
               </nldd-list>
               <nldd-text v-else color="secondary">Geen open indieningen.</nldd-text>

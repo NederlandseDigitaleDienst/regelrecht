@@ -2,17 +2,21 @@
 // The chronicle of a cell the employee may read: every record, in the order
 // it was recorded. Nothing in it changes or goes away. Laid out as the
 // editor's library: the cells in the sidebar, the chronicle of the chosen one
-// in the main pane beside it.
-import { computed, onMounted } from 'vue';
+// in the main pane beside it. Every record opens in a sheet with what it
+// holds; a submission, or a decision on one, also leads to its panel in the
+// work queue.
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { artikelNaam, omschrijving } from '../gedeeld/keten';
+import Gegevens from '../gedeeld/Gegevens.vue';
+import { artikelNaam, isBesluit, isIndiening, omschrijving } from '../gedeeld/keten';
+import type { Gram } from '../gedeeld/types';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string }>();
 const router = useRouter();
-const { casus, kronieken, fout, laden, laad } = useBackoffice();
+const { casus, vormen, kronieken, fout, laden, laad } = useBackoffice();
 onMounted(laad);
 
 const gekozen = computed(() => kronieken.value.find((k) => k.cel === props.cel));
@@ -24,6 +28,24 @@ const noem = (id: string) => {
   if (!g) return 'een stuk in een andere kroniek';
   return casus.value ? `nr. ${i + 1}, ${omschrijving(g, casus.value).toLowerCase()}` : `nr. ${i + 1}`;
 };
+
+/** The record open in the sheet. */
+const open = ref<Gram | null>(null);
+/** The submission a record is or answers to, in this chronicle: what its panel in the work queue shows. */
+const indieningVan = (g: Gram): Gram | undefined => {
+  const c = casus.value;
+  if (!c) return undefined;
+  if (isIndiening(g, c)) return g;
+  // A decision leads to the submission it answers; a recorded fact to nothing.
+  if (!isBesluit(g, c)) return undefined;
+  const op = gekozen.value?.grammen.find((x) => x.id === g.refers_to);
+  return op && isIndiening(op, c) ? op : undefined;
+};
+function naarWerkvoorraad(g: Gram) {
+  const op = indieningVan(g);
+  open.value = null;
+  if (op && gekozen.value) void router.push({ name: 'behandelen', params: { cel: gekozen.value.cel, id: op.id } });
+}
 </script>
 
 <template>
@@ -70,12 +92,14 @@ const noem = (id: string) => {
           <nldd-title id="cel-kroniek-titel" size="display-3"><h3>{{ hoofdletter(gekozen.cel_naam) }}</h3></nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-list v-if="gekozen.grammen.length" appearance="box-base" :accessible-label="`Kroniek van ${gekozen.cel_naam}`">
-            <nldd-list-item v-for="(g, i) in gekozen.grammen" :key="g.id" size="sm">
+            <nldd-list-item v-for="(g, i) in gekozen.grammen" :key="g.id" size="sm" button @click="open = g">
               <nldd-text-cell
                 :overline="`${i + 1}`"
                 :text="omschrijving(g, casus)"
                 :supporting-text="`${longDate(g.recorded_on)} · ${artikelNaam(g.basis)}${g.refers_to ? ` · verwijst naar ${noem(g.refers_to)}` : ''}`"
               ></nldd-text-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
             </nldd-list-item>
           </nldd-list>
           <nldd-inline-dialog v-else icon="info" text="De kroniek is leeg"></nldd-inline-dialog>
@@ -88,4 +112,34 @@ const noem = (id: string) => {
       </nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
+
+  <Teleport to="body">
+    <nldd-sheet width="720px" :open="open ? true : undefined" @close="open = null">
+      <nldd-page>
+        <nldd-container slot="header" padding="16">
+          <nldd-top-title-bar
+            heading-level="2"
+            :text="open && casus ? `${omschrijving(open, casus)} van ${longDate(open.recorded_on)}` : ''"
+            dismiss-text="Sluiten"
+          ></nldd-top-title-bar>
+        </nldd-container>
+        <nldd-simple-section v-if="open && casus">
+          <nldd-container gap="16">
+            <nldd-text color="secondary">
+              {{ `${artikelNaam(open.basis)}${open.refers_to ? ` · verwijst naar ${noem(open.refers_to)}` : ''}` }}
+            </nldd-text>
+            <nldd-title size="display-6"><h3>Gegevens</h3></nldd-title>
+            <Gegevens :waarden="open.fields" :teksten="vormen?.teksten" :noem="noem" label="Gegevens van het stuk" />
+            <template v-if="open.outputs">
+              <nldd-title size="display-6"><h3>Uitkomst</h3></nldd-title>
+              <Gegevens :waarden="open.outputs" :teksten="vormen?.teksten" label="Uitkomst van het besluit" />
+            </template>
+            <nldd-button-group v-if="indieningVan(open)" orientation="horizontal">
+              <nldd-button appearance="primary" text="Open in de werkvoorraad" @click="naarWerkvoorraad(open)"></nldd-button>
+            </nldd-button-group>
+          </nldd-container>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-sheet>
+  </Teleport>
 </template>

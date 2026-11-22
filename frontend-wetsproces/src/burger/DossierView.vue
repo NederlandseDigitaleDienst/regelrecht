@@ -3,8 +3,9 @@
 // what answers to what: the application, the decision on it, an objection to
 // that decision and the decision on the objection. Derived by the server from
 // the chronicles on every request (`GET /api/dossier`). Laid out as the
-// editor's library: the dossier in the sidebar, a decision chosen from it in
-// the main pane beside it (BesluitPaneel.vue).
+// editor's library: the dossier in the sidebar, a record chosen from it in
+// the main pane beside it. Every row opens: a decision in BesluitPaneel.vue,
+// a submission or a recorded fact in StukPaneel.vue.
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
@@ -12,6 +13,7 @@ import { longDate } from '../gedeeld/datum';
 import { celNaam, isBesluit, ketens, omschrijving, plat, toegewezen } from '../gedeeld/keten';
 import type { Gram } from '../gedeeld/types';
 import BesluitPaneel from './BesluitPaneel.vue';
+import StukPaneel from './StukPaneel.vue';
 import { useBurger } from './useBurger';
 
 const props = defineProps<{ id?: string }>();
@@ -43,10 +45,15 @@ const lijsten = computed(() => {
       tekst: omschrijving(gram, c),
       regel: regel(gram, boven),
       stand: stand(gram),
-      besluit: isBesluit(gram, c),
       gekozen: gram.id === props.id,
     })),
   }));
+});
+
+/** Whether the record of the address is a decision, which has a pane of its own. */
+const gekozenIsBesluit = computed(() => {
+  const g = dossier.value.find((x) => x.id === props.id);
+  return !!g && !!casus.value && isBesluit(g, casus.value);
 });
 
 function regel(g: Gram, boven?: Gram): string {
@@ -94,18 +101,16 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
                   v-for="r in l.rijen"
                   :key="r.gram.id"
                   size="md"
-                  :button="r.besluit || undefined"
+                  button
                   :current="r.gekozen || undefined"
-                  @click="r.besluit && router.push({ name: 'besluit', params: { id: r.gram.id } })"
+                  @click="router.push({ name: 'stuk', params: { id: r.gram.id } })"
                 >
                   <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
                   <nldd-cell v-if="r.stand">
                     <nldd-tag :text="r.stand.tekst" :color="r.stand.kleur" size="sm"></nldd-tag>
                   </nldd-cell>
-                  <template v-if="r.besluit">
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </template>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                 </nldd-list-item>
               </nldd-list>
             </template>
@@ -115,10 +120,16 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
     </nldd-split-view-pane>
 
     <nldd-split-view-pane slot="main" :has-content="id || undefined">
-      <BesluitPaneel v-if="id && casus" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" />
+      <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" />
+      <StukPaneel v-else-if="id && casus && !laden" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" />
+      <nldd-page v-else-if="id && laden" landmarks="page">
+        <nldd-simple-section width="full">
+          <nldd-activity-indicator text="Het stuk laden" show-text></nldd-activity-indicator>
+        </nldd-simple-section>
+      </nldd-page>
       <nldd-page v-else landmarks="page">
         <nldd-simple-section width="full">
-          <nldd-inline-dialog text="Kies een besluit" supporting-text="Een besluit opent hier, naast uw dossier."></nldd-inline-dialog>
+          <nldd-inline-dialog text="Kies een stuk" supporting-text="Wat u kiest, opent hier, naast uw dossier."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>

@@ -25,6 +25,7 @@ describe('the routes of the citizen entry', () => {
 
   it('sends someone back to the screen of a link after getting in, and nowhere else', () => {
     expect(terugNaar('/burger/besluit/01a1', BURGER, '/burger')).toBe('/burger/besluit/01a1');
+    expect(terugNaar('/burger/dossier/01a1', BURGER, '/burger')).toBe('/burger/dossier/01a1');
     for (const elders of ['//voorbeeld.org/x', 'https://voorbeeld.org', '/backoffice', '/burgerX', undefined, ['/burger/x']]) {
       expect(terugNaar(elders, BURGER, '/burger')).toBe('/burger');
     }
