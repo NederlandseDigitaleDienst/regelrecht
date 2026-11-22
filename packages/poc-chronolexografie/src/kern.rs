@@ -1327,7 +1327,7 @@ fn handelingen(
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
         // A request of the case's cell arrives with the step that makes it.
         let ontvangsten =
-            crate::verzoek::ontvangsten(service, corpus, cellen.eigen.authority(), cell, on);
+            crate::verzoek::ontvangsten(service, corpus, cellen.eigen.authority(), cell, on)?;
         let mut feiten = gelezen_feiten(service, cell, on);
         for f in benoemde_feiten(service, corpus, cell, on) {
             if !feiten.contains(&f) {
@@ -1369,7 +1369,7 @@ fn eigen_handelingen(
         .collect();
     // A request the cell's policy makes when an application comes in is
     // recorded with the application, not by hand.
-    let verzonden = crate::verzoek::verzonden(service, corpus, eigen.authority(), on);
+    let verzonden = crate::verzoek::verzonden(service, corpus, eigen.authority(), on)?;
     let mut feiten = Vec::new();
     for feit in benoemde_feiten(service, corpus, eigen, on) {
         if !afschriften.contains(&feit.as_str())
@@ -1738,7 +1738,8 @@ fn ontvangen(service: &LawExecutionService, cell: &mut Cell, gram: &Gram) -> Res
 ///
 /// Refused when `artikel` establishes no submission a cell of the case
 /// decides on, when no cell holds `op`, and whatever the cell refuses
-/// ([`Cell::record_submission`], [`Cell::afschrift`]).
+/// ([`Cell::record_submission`], [`Cell::afschrift`]); for the case's
+/// application also what its policy refuses ([`indienen_volgens_beleid`]).
 pub fn indienen(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -1747,6 +1748,27 @@ pub fn indienen(
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
+    indienen_volgens_beleid(corpus, cellen, artikel, op, velden, on).map(|(gram, _)| gram)
+}
+
+/// [`indienen`], and the ids of the records the case's cell made by its own
+/// policy in the same step: for the case's application, what the articles of
+/// `bij_aanvraag` recorded, such as the request to the GGD and its receipt
+/// there ([`crate::verzoek`]). The application and those records land
+/// together or not at all: the step runs on a copy of the cells first.
+///
+/// # Errors
+///
+/// As [`indienen`], and what an article of `bij_aanvraag` refuses
+/// ([`crate::verzoek::na_aanvraag`]).
+pub fn indienen_volgens_beleid(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    artikel: &str,
+    op: Option<&str>,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<(Gram, Vec<String>)> {
     let cel = corpus.indiening(artikel)?.cel.clone();
     let (law, article) = basis(artikel)?;
     let mut service = corpus.service()?;
@@ -1763,14 +1785,24 @@ pub fn indienen(
         (None, Some(op)) => Some(Reference::Local(op)),
         (None, None) => None,
     };
-    let (cell, sfeer) = cellen.splits_voor(&cel)?;
-    let gram = cell.record_submission(&mut service, &sfeer, law, article, reference, velden, on)?;
     // What the case's cell does by its own policy when an application comes
     // in, such as asking the GGD for an examination, in the same step.
-    if artikel == corpus.casus.artikel {
-        crate::verzoek::na_aanvraag(&service, corpus, cellen, &gram, on)?;
+    let volgens_beleid = artikel == corpus.casus.artikel && !corpus.casus.bij_aanvraag.is_empty();
+    let mut stap = |cellen: &mut Cellen| -> Result<(Gram, Vec<String>)> {
+        let (cell, sfeer) = cellen.splits_voor(&cel)?;
+        let gram =
+            cell.record_submission(&mut service, &sfeer, law, article, reference, velden, on)?;
+        let beleid = if volgens_beleid {
+            crate::verzoek::na_aanvraag(&service, corpus, cellen, &gram, on)?
+        } else {
+            Vec::new()
+        };
+        Ok((gram, beleid))
+    };
+    if volgens_beleid {
+        stap(&mut cellen.sandbox())?;
     }
-    Ok(gram)
+    stap(cellen)
 }
 
 /// What the sources give for fields of the application before it is
@@ -7491,6 +7523,7 @@ mod tests {
             &mut cell,
             "ggd_wilgendaal",
             &ontvangen,
+            ADVIES,
             &gevonden,
             day("2026-10-16"),
         )
@@ -7507,6 +7540,7 @@ mod tests {
             &mut cell,
             "ggd_wilgendaal",
             &ontvangen,
+            ADVIES,
             &gevonden,
             day("2026-10-17"),
         )
@@ -7531,6 +7565,7 @@ mod tests {
             &mut cell,
             "ggd_wilgendaal",
             &ontvangen,
+            ADVIES,
             &advies(ZONDER_CRITERIUM, "2026-10-16", true),
             day("2026-10-16"),
         )
@@ -7543,6 +7578,7 @@ mod tests {
             &mut cell,
             "ggd_wilgendaal",
             &ontvangen,
+            ADVIES,
             &eerder,
             day("2026-10-16"),
         )
@@ -7553,6 +7589,7 @@ mod tests {
             &mut cell,
             "ggd_wilgendaal",
             "geen-verzoek",
+            ADVIES,
             &eerder,
             day("2026-10-16"),
         )
@@ -7582,5 +7619,35 @@ mod tests {
             .unwrap();
         assert!(!feiten(ggd).contains(&VERZOEK_ONTVANGEN.to_string()));
         assert!(feiten(ggd).contains(&ADVIES.to_string()));
+    }
+
+    #[test]
+    fn parkeerkaart_the_policy_reports_what_it_recorded_and_only_the_answer_fact_answers() {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        let (app, beleid) = indienen_volgens_beleid(
+            &corpus,
+            &mut cell,
+            &corpus.casus.artikel,
+            None,
+            &voorbeeld,
+            day("2026-10-13"),
+        )
+        .unwrap();
+        // The request and its receipt, not the application.
+        let ontvangen = cell.andere[0].grams()[0].id.clone();
+        assert_eq!(beleid, [cell.grams()[1].id.clone(), ontvangen.clone()]);
+        assert!(!beleid.contains(&app.id));
+        let e = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            &ontvangen,
+            VERZOEK_ONTVANGEN,
+            &Map::new(),
+            day("2026-10-16"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("does not answer"), "{e}");
     }
 }

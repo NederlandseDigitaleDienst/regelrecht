@@ -910,7 +910,7 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
                     "toe_te_zenden": [], "verzoeken": [],
                 },
             ],
-            "alleen_op_verzoek": [ADVICE],
+            "antwoord_op_verzoek": [ADVICE],
         })
     );
 
@@ -933,9 +933,9 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
     }
     assert_eq!(head(&app).await, 2);
 
-    // The GGD's advice answers a request: without one there is nothing to
-    // record, and a request that is no receipt in the GGD's chronicle is
-    // refused.
+    // The GGD's advice answers Anna's open request: recorded without it, it
+    // is refused, and so is a request that is no receipt in the GGD's
+    // chronicle.
     let (status, fout) = admin.post(PANEL_WRITES[0], advice(ANNA)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
     let mut elsewhere = advice(ANNA);
@@ -958,6 +958,12 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
     assert_eq!(advies["fields"]["bsn_aanvrager"], json!(ANNA));
     assert_eq!(head(&app).await, 3);
     assert!(open_request(&app, ANNA).await.is_none());
+    // Without an open request about the applicant, such as for one who had
+    // a card before (policy, art. 9, third paragraph), the advice is
+    // recorded as before, with the citizen number in the form.
+    let (status, advies) = admin.post(PANEL_WRITES[0], advice(BRAM)).await;
+    assert_eq!(status, StatusCode::OK, "{advies}");
+    assert_eq!(advies["fields"]["bsn_aanvrager"], json!(BRAM));
 
     // A decision of the executor cannot be sent from the panel.
     let (status, besluit) = beslisser

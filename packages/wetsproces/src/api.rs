@@ -34,7 +34,7 @@
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
 //! | `POST /api/backoffice/testomgeving/leegmaken` | admin; only in test mode, absent otherwise | empty every chronicle, the kept answers and the test clock ([`reset_test_environment`]) |
 //! | `GET /api/backoffice/beheer/partijen` | admin | per external party what waits for it ([`crate::service::ExternalParty`]) |
-//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records; an answer to a request only with `verzoek` |
+//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records; with `verzoek`, the answer to that open request |
 //! | `POST /api/backoffice/beheer/voorvertoning` | admin; a submission of an external party | what its decision would come to; records nothing |
 //! | `POST /api/backoffice/beheer/besluiten` | admin; a submission of an external party | its decision |
 //! | `POST /api/backoffice/beheer/toezendingen` | admin; a decision of an external party | a copy of it to the cell it concerns |
@@ -832,8 +832,8 @@ async fn requests(State(state): State<AppState>) -> ApiResult {
 /// received yet (`toe_te_zenden`), and the requests of the executor it has
 /// not answered (`verzoeken`), each with the fact that answers it. The facts
 /// it records and the decision forms come with the forms
-/// (`GET /api/formulier`); `alleen_op_verzoek` names those it records only
-/// in answer to a request.
+/// (`GET /api/formulier`); `antwoord_op_verzoek` names those that answer a
+/// request, which a party with an open request records from it.
 async fn external_parties(State(state): State<AppState>) -> ApiResult {
     let parties: Vec<Value> = state
         .service
@@ -859,7 +859,7 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
             "cel_naam": state.service.executor_name(),
         },
         "partijen": parties,
-        "alleen_op_verzoek": state.service.answer_facts(),
+        "antwoord_op_verzoek": state.service.answer_facts(),
     })))
 }
 
@@ -876,17 +876,6 @@ async fn record_external(
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
             format!("'{}' is no external party of this process", r.cell),
-        ));
-    }
-    // An answer to a request is recorded from that request, which says for
-    // whom it is: without one there is nothing to answer.
-    if r.request.is_none() && state.service.answers_requests(&r.fact) {
-        return Err(ApiError::new(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            format!(
-                "'{}' answers a request; record it from an open request (`verzoek`)",
-                r.fact
-            ),
         ));
     }
     perform(

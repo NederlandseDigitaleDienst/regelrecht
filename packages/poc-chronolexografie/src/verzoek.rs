@@ -54,24 +54,30 @@ impl Verzoek {
 
 /// Run the articles of `bij_aanvraag` for the application `aanvraag` of the
 /// case, received on `on`. Each article that says so has the case's cell
-/// record its request, and the cell it goes to its receipt. All of it lands,
-/// or the step is refused.
+/// record its request, and the cell it goes to its receipt. An article not
+/// in force on `on` asks nothing. The ids of every record made, in every
+/// cell, so the caller can tell them from the application. The caller runs
+/// the step on a copy first, so all of it lands or none
+/// ([`crate::kern::indienen_volgens_beleid`]).
 ///
 /// # Errors
 ///
-/// Refused when an article of `bij_aanvraag` is not in force on `on`, has
-/// no single boolean output, requires no single fact the case's cell
-/// establishes, or cannot run, and whatever the cells refuse to record.
+/// Refused when an article of `bij_aanvraag` has no single output or
+/// requires no single fact the case's cell establishes, or cannot run, and
+/// whatever the cells refuse to record.
 pub(crate) fn na_aanvraag(
     service: &LawExecutionService,
     corpus: &Corpus,
     cellen: &mut Cellen,
     aanvraag: &Gram,
     on: NaiveDate,
-) -> Result<()> {
+) -> Result<Vec<String>> {
+    let voor = ids(cellen);
     for opvolging in &corpus.casus.bij_aanvraag {
+        let Some((bron, feit)) = vorm(service, opvolging, cellen.eigen.authority(), on)? else {
+            continue;
+        };
         let invoer = invoer(opvolging, aanvraag, on);
-        let (bron, feit) = vorm(service, opvolging, cellen.eigen.authority(), on)?;
         let result = cellen
             .eigen
             .consult(service, &cellen.sfeer(), &bron, &invoer, on)
@@ -83,17 +89,24 @@ pub(crate) fn na_aanvraag(
             .map(stored::to_stored)
             .transpose()?
             .is_some_and(|v| v == Value::Bool(true));
-        if !doen {
-            continue;
+        if doen {
+            let velden = velden_van(service, &feit, &invoer, on)?;
+            let eigen = cellen.eigen.recording_actor().to_string();
+            leg_vast(service, cellen, &eigen, &feit, &velden, None, on)?;
         }
-        let velden = velden_van(service, &feit, &invoer, on)?;
-        let eigen = cellen.eigen.recording_actor().to_string();
-        // The request and its receipt land together or not at all.
-        let mut proef = cellen.sandbox();
-        leg_vast(service, &mut proef, &eigen, &feit, &velden, None, on)?;
-        leg_vast(service, cellen, &eigen, &feit, &velden, None, on)?;
     }
-    Ok(())
+    Ok(ids(cellen)
+        .into_iter()
+        .filter(|id| !voor.contains(id))
+        .collect())
+}
+
+/// The ids of every record in the cells.
+fn ids(cellen: &Cellen) -> Vec<String> {
+    std::iter::once(&cellen.eigen)
+        .chain(&cellen.andere)
+        .flat_map(|c| c.grams().iter().map(|g| g.id.clone()))
+        .collect()
 }
 
 /// What the article of `opvolging` runs on: the fields of the application,
@@ -116,25 +129,23 @@ fn invoer(opvolging: &Opvolging, aanvraag: &Gram, on: NaiveDate) -> Map<String, 
 
 /// The output of the article of `opvolging` that says whether the case's
 /// cell acts (`<regelwerk>#<article>#<output>`), and the fact it then
-/// records: the one fact of the article that `eigen` establishes.
+/// records: the one fact of the article that `eigen` establishes. `None`
+/// when the article is not in force on `on`.
 fn vorm(
     service: &LawExecutionService,
     opvolging: &Opvolging,
     eigen: &Authority,
     on: NaiveDate,
-) -> Result<(String, String)> {
+) -> Result<Option<(String, String)>> {
     let (law, nummer) = opvolging.artikel.split_once('#').ok_or_else(|| {
         Error::Setup(format!(
             "bij_aanvraag: '{}' names no article",
             opvolging.artikel
         ))
     })?;
-    let article = artikel_op(service, law, nummer, on).ok_or_else(|| {
-        Error::Refused(format!(
-            "bij_aanvraag: {} is not in force on {on}",
-            opvolging.artikel
-        ))
-    })?;
+    let Some(article) = artikel_op(service, law, nummer, on) else {
+        return Ok(None);
+    };
     let outputs = article.get_outputs();
     let [output] = outputs else {
         return Err(Error::Setup(format!(
@@ -151,10 +162,17 @@ fn vorm(
             feiten.len()
         )));
     };
-    Ok((
+    if opvolging.antwoord.is_some() && dagveld(opvolging).is_none() {
+        return Err(Error::Setup(format!(
+            "bij_aanvraag: {} names an answer but no parameter for the day of the request \
+             (`date`), which the answer is matched against",
+            opvolging.artikel
+        )));
+    }
+    Ok(Some((
         format!("{}#{}", opvolging.artikel, output.name),
         feit.clone(),
-    ))
+    )))
 }
 
 /// The article `nummer` of the regelwerk `law` in force on `on`.
@@ -186,37 +204,45 @@ fn velden_van(
 /// The facts in which `cell` records that it received a request of the
 /// case's cell: by hand it records none of them, since a request arrives
 /// with its step.
+///
+/// # Errors
+///
+/// When an article of `bij_aanvraag` is set up wrongly ([`vorm`]).
 pub(crate) fn ontvangsten(
     service: &LawExecutionService,
     corpus: &Corpus,
     eigen: &Authority,
     cell: &Cell,
     on: NaiveDate,
-) -> Vec<String> {
-    corpus
-        .casus
-        .bij_aanvraag
-        .iter()
-        .filter_map(|o| vorm(service, o, eigen, on).ok())
-        .filter_map(|(_, feit)| shape::receipt_of(service, &feit, on, cell.authority()).ok()?)
-        .collect()
+) -> Result<Vec<String>> {
+    let mut uit = Vec::new();
+    for feit in verzonden(service, corpus, eigen, on)? {
+        if let Some(ontvangst) = shape::receipt_of(service, &feit, on, cell.authority())? {
+            uit.push(ontvangst);
+        }
+    }
+    Ok(uit)
 }
 
 /// The facts of the case's cell that it records by its policy when an
 /// application comes in: by hand it records none of them.
+///
+/// # Errors
+///
+/// When an article of `bij_aanvraag` is set up wrongly ([`vorm`]).
 pub(crate) fn verzonden(
     service: &LawExecutionService,
     corpus: &Corpus,
     eigen: &Authority,
     on: NaiveDate,
-) -> Vec<String> {
-    corpus
-        .casus
-        .bij_aanvraag
-        .iter()
-        .filter_map(|o| vorm(service, o, eigen, on).ok())
-        .map(|(_, feit)| feit)
-        .collect()
+) -> Result<Vec<String>> {
+    let mut uit = Vec::new();
+    for opvolging in &corpus.casus.bij_aanvraag {
+        if let Some((_, feit)) = vorm(service, opvolging, eigen, on)? {
+            uit.push(feit);
+        }
+    }
+    Ok(uit)
 }
 
 /// Every request the case's cell made by `bij_aanvraag`, in the order of its
@@ -233,7 +259,9 @@ pub fn verzoeken(corpus: &Corpus, cellen: &Cellen) -> Result<Vec<Verzoek>> {
         for verzoek in eigen.grams().iter().filter(|g| {
             g.basis == opvolging.artikel
                 && vorm(&service, opvolging, eigen.authority(), g.recorded_on)
-                    .is_ok_and(|(_, feit)| is_feit(g, &feit))
+                    .ok()
+                    .flatten()
+                    .is_some_and(|(_, feit)| is_feit(g, &feit))
         }) {
             uit.push(volg(&service, opvolging, cellen, verzoek)?);
         }
@@ -354,7 +382,8 @@ fn hoort_bij(opvolging: &Opvolging, a: &Verzoekantwoord, verzoek: &Gram, antwoor
 /// # Errors
 ///
 /// Refused when `verzoek_id` is no receipt of an open request in the
-/// chronicle of `cel`, when `velden` gives a shared field another value than
+/// chronicle of `cel`, when `feit` is not the fact that answers it, when
+/// `velden` gives a shared field another value than
 /// the request, when the answer's day lies before the day of the request,
 /// and whatever the cells refuse to record.
 pub fn beantwoorden(
@@ -362,6 +391,7 @@ pub fn beantwoorden(
     cellen: &mut Cellen,
     cel: &str,
     verzoek_id: &str,
+    feit: &str,
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
@@ -391,6 +421,12 @@ pub fn beantwoorden(
             verzoek.artikel
         )));
     };
+    if a.feit != feit {
+        return Err(Error::Refused(format!(
+            "'{feit}' does not answer the request '{verzoek_id}'; {} does",
+            a.feit
+        )));
+    }
     let mut alle = velden.clone();
     for veld in shape::fact_fields(&service, &a.feit, on, None)? {
         let Some(waarde) = verzoek.verzoek.fields.get(&veld.name) else {
@@ -417,4 +453,32 @@ pub fn beantwoorden(
         )));
     }
     leg_vast(&service, cellen, cel, &a.feit, &alle, None, on)
+}
+
+/// The open request that `cel` received and that a record of `feit` with
+/// `velden` would answer: the fact that answers it, with the same values in
+/// every field the request and `velden` both hold. A party that has such a
+/// request answers it from the request ([`beantwoorden`]), so its answer
+/// cannot miss the request it belongs to.
+///
+/// # Errors
+///
+/// When the corpus does not load.
+pub fn open_voor(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    cel: &str,
+    feit: &str,
+    velden: &Map<String, Value>,
+) -> Result<Option<Verzoek>> {
+    Ok(verzoeken(corpus, cellen)?.into_iter().find(|v| {
+        v.open()
+            && v.aan == cel
+            && v.antwoordfeit.as_deref() == Some(feit)
+            && v.verzoek
+                .fields
+                .iter()
+                .filter(|(k, _)| velden.contains_key(*k))
+                .all(|(k, w)| velden.get(k) == Some(w))
+    }))
 }

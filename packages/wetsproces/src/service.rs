@@ -124,9 +124,25 @@ pub enum Step {
     SendCopy(SendCopy),
 }
 
+/// What a step came to in the kern: its answer, and the records the
+/// executor's policy made in it besides ([`Commit::by_policy`]).
+struct Applied {
+    response: Value,
+    by_policy: Vec<String>,
+}
+
+impl Applied {
+    fn only(response: Value) -> Self {
+        Self {
+            response,
+            by_policy: Vec::new(),
+        }
+    }
+}
+
 impl Step {
     /// Run the step of the kern on `cellen`, on `on`.
-    fn apply(&self, corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> kern::Result<Value> {
+    fn apply(&self, corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> kern::Result<Applied> {
         match self {
             Self::Submit(s) => {
                 let article = s.article.as_deref().unwrap_or(&corpus.casus.artikel);
@@ -140,9 +156,18 @@ impl Step {
                     let filled = kern::systeemvelden(corpus, cellen, submitter, &fields, on)?;
                     fields.extend(filled);
                 }
-                let gram =
-                    kern::indienen(corpus, cellen, article, s.refers_to.as_deref(), &fields, on)?;
-                to_value(&gram)
+                let (gram, by_policy) = kern::indienen_volgens_beleid(
+                    corpus,
+                    cellen,
+                    article,
+                    s.refers_to.as_deref(),
+                    &fields,
+                    on,
+                )?;
+                Ok(Applied {
+                    response: to_value(&gram)?,
+                    by_policy,
+                })
             }
             Self::Decide(d) => {
                 let besluit = kern::beslissen(
@@ -153,7 +178,7 @@ impl Step {
                     &d.findings,
                     on,
                 )?;
-                to_value(&besluit)
+                to_value(&besluit).map(Applied::only)
             }
             Self::Record(Record {
                 cell,
@@ -162,19 +187,8 @@ impl Step {
                 refers_to: None,
                 request: Some(request),
             }) => {
-                let answers = corpus
-                    .casus
-                    .bij_aanvraag
-                    .iter()
-                    .filter_map(|o| o.antwoord.as_ref())
-                    .any(|a| a.feit == *fact);
-                if !answers {
-                    return Err(regelrecht_cel::Error::Refused(format!(
-                        "'{fact}' answers no request of this case"
-                    )));
-                }
-                let gram = verzoek::beantwoorden(corpus, cellen, cell, request, fields, on)?;
-                to_value(&gram)
+                let gram = verzoek::beantwoorden(corpus, cellen, cell, request, fact, fields, on)?;
+                to_value(&gram).map(Applied::only)
             }
             Self::Record(Record {
                 request: Some(_), ..
@@ -184,6 +198,17 @@ impl Step {
                     .into(),
             )),
             Self::Record(r) => {
+                // An open request this fact would answer is answered from the
+                // request, so the answer cannot miss the request it belongs to.
+                if let Some(open) = verzoek::open_voor(corpus, cellen, &r.cell, &r.fact, &r.fields)?
+                {
+                    let id = open.ontvangen.map(|g| g.id).unwrap_or_default();
+                    return Err(regelrecht_cel::Error::Refused(format!(
+                        "'{}' has an open request this fact answers; record it from that request \
+                         (`verzoek`: '{id}')",
+                        r.cell
+                    )));
+                }
                 let gram = kern::vastleggen_verwijzend(
                     corpus,
                     cellen,
@@ -193,9 +218,11 @@ impl Step {
                     r.refers_to.as_deref(),
                     on,
                 )?;
-                to_value(&gram)
+                to_value(&gram).map(Applied::only)
             }
-            Self::SendCopy(s) => to_value(&kern::toezenden(corpus, cellen, &s.decision, on)?),
+            Self::SendCopy(s) => {
+                to_value(&kern::toezenden(corpus, cellen, &s.decision, on)?).map(Applied::only)
+            }
         }
     }
 }
@@ -617,9 +644,10 @@ impl Service {
         .await
     }
 
-    /// The facts an external party records only in answer to a request of
-    /// the executor, such as the GGD's advice: those the case file names as
-    /// the answer to a request (`bij_aanvraag`).
+    /// The facts by which an external party answers a request of the
+    /// executor, such as the GGD's advice: those the case file names as the
+    /// answer to a request (`bij_aanvraag`). With a request open, the party
+    /// records such a fact from that request.
     pub fn answer_facts(&self) -> Vec<&str> {
         self.corpus
             .casus
@@ -628,12 +656,6 @@ impl Service {
             .filter_map(|o| o.antwoord.as_ref())
             .map(|a| a.feit.as_str())
             .collect()
-    }
-
-    /// Whether an external party records `fact` only in answer to a request
-    /// ([`Service::answer_facts`]).
-    pub fn answers_requests(&self, fact: &str) -> bool {
-        self.answer_facts().contains(&fact)
     }
 
     /// The name a screen shows for the cell `cell` of the case.
@@ -847,13 +869,12 @@ impl Service {
                 .map(|c| c.grams.iter().map(|g| g.gram.id.clone()).collect())
                 .collect();
             let mut cellen = restore(&corpus, read)?;
-            let response = step.apply(&corpus, &mut cellen, today)?;
+            let applied = step.apply(&corpus, &mut cellen, today)?;
             let appends = appended(cells, before, cellen.kronieken())?;
-            let by_policy = by_policy(&step, &response, &appends);
             Ok(Ran {
-                response,
+                response: applied.response,
                 appends,
-                by_policy,
+                by_policy: applied.by_policy.into_iter().collect(),
             })
         })
         .await
@@ -919,24 +940,6 @@ fn appended(
                 grams,
             })
         })
-        .collect()
-}
-
-/// The records of `appends` that the executor's policy made: with an
-/// application, what the articles of `bij_aanvraag` recorded besides the
-/// application itself, such as the request to the GGD and its receipt
-/// ([`verzoek`]). Another step records only what was asked for.
-fn by_policy(step: &Step, response: &Value, appends: &[CellAppend]) -> BTreeSet<String> {
-    if !matches!(step, Step::Submit(_)) {
-        return BTreeSet::new();
-    }
-    let submitted = response.get("id").and_then(Value::as_str);
-    appends
-        .iter()
-        .flat_map(|a| &a.grams)
-        .map(|g| g.id.as_str())
-        .filter(|id| Some(*id) != submitted)
-        .map(str::to_string)
         .collect()
 }
 

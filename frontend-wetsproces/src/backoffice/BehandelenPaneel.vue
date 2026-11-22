@@ -11,6 +11,11 @@
 // submission waits for an external party, such as an appeal for the court,
 // is one of what the panel shows of that party (`open`), and the admin
 // decides on its behalf through the panel's routes.
+//
+// For the executor it also shows what its policy asked of another party for
+// this application, such as the examination by the GGD, and whether the
+// answer came back (`GET /api/backoffice/verzoeken`): from the executor's own
+// records, never from the party's chronicle.
 import { computed, onMounted, ref, watch } from 'vue';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
@@ -23,7 +28,9 @@ import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Casus, Gram, Ik, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 import { backofficeApi, beheerApi } from './api';
-import type { Kroniek } from './api';
+import type { EigenVerzoek, Kroniek } from './api';
+import { verzoekenBij } from './verzoek';
+import type { VerzoekBij } from './verzoek';
 
 const props = defineProps<{
   cel: string;
@@ -101,6 +108,31 @@ async function laadEerder() {
 }
 onMounted(laadEerder);
 
+// The requests of the executor's policy, for the executor's own submissions.
+const alleVerzoeken = ref<EigenVerzoek[]>([]);
+const verzoekenFout = ref('');
+async function laadVerzoeken() {
+  if (props.namens) return;
+  try {
+    alleVerzoeken.value = (await backofficeApi.verzoeken()).verzoeken;
+    verzoekenFout.value = '';
+  } catch (e) {
+    verzoekenFout.value = foutTekst(e);
+  }
+}
+onMounted(laadVerzoeken);
+
+/** The requests this submission waits on ([`verzoekenBij`]). */
+const verzoeken = computed(() => (indiening.value ? verzoekenBij(indiening.value, alleVerzoeken.value) : []));
+
+/** What became of a request, in words. */
+function standVan(v: VerzoekBij): string {
+  const gevraagd = `Aan ${v.aan_naam}, op ${longDate(v.verzoek.recorded_on)}${v.eerder ? ', bij een eerdere aanvraag' : ''}`;
+  const antwoord = v.antwoord_ontvangen;
+  if (!antwoord) return `${gevraagd}. Het antwoord is nog niet binnen.`;
+  return `${gevraagd}. ${omschrijving(antwoord, props.casus)} op ${longDate(antwoord.recorded_on)}.`;
+}
+
 async function voorvertonen() {
   bezig.value = true;
   melding.value = '';
@@ -122,6 +154,7 @@ async function beslissen() {
     genomen.value = await api.beslissen({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
     sleutel = nieuweSleutel();
     emit('besloten');
+    await laadVerzoeken();
   } catch (e) {
     melding.value = foutTekst(e);
   } finally {
@@ -157,6 +190,25 @@ async function beslissen() {
         <nldd-container gap="8">
           <nldd-title heading-level="4" size="display-5" text="Wat er is ingediend"></nldd-title>
           <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
+        </nldd-container>
+
+        <nldd-inline-dialog
+          v-if="verzoekenFout"
+          icon="warning"
+          icon-color="critical"
+          text="Wat aan anderen is gevraagd, laadt niet"
+          :supporting-text="verzoekenFout"
+        ></nldd-inline-dialog>
+        <nldd-container v-if="verzoeken.length" gap="8">
+          <nldd-title heading-level="4" size="display-5" text="Gevraagd aan anderen"></nldd-title>
+          <nldd-list appearance="box-base" accessible-label="Gevraagd aan anderen">
+            <nldd-list-item v-for="v in verzoeken" :key="v.verzoek.id" size="md">
+              <nldd-text-cell :text="omschrijving(v.verzoek, casus)" :supporting-text="standVan(v)"></nldd-text-cell>
+              <nldd-cell>
+                <nldd-tag :text="v.open ? 'Loopt' : 'Antwoord binnen'" :color="v.open ? 'warning' : 'success'" size="sm"></nldd-tag>
+              </nldd-cell>
+            </nldd-list-item>
+          </nldd-list>
         </nldd-container>
 
         <nldd-container v-if="besluit" gap="16">
