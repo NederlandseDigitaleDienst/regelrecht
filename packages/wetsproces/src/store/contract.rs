@@ -5,6 +5,8 @@
 
 #![allow(clippy::unwrap_used)]
 
+use std::collections::BTreeSet;
+
 use futures::future::join_all;
 use regelrecht_cel::Gram;
 use serde_json::json;
@@ -52,6 +54,8 @@ pub fn commit(k: &str, appends: Vec<CellAppend>) -> Commit {
             account: ACCOUNT.into(),
             channel: Channel::Keycloak,
         }),
+        by_policy: BTreeSet::new(),
+        generation: 0,
     }
 }
 
@@ -60,6 +64,8 @@ pub fn unkeyed(appends: Vec<CellAppend>) -> Commit {
         appends,
         keyed: None,
         recorded_by: None,
+        by_policy: BTreeSet::new(),
+        generation: 0,
     }
 }
 
@@ -116,12 +122,39 @@ pub async fn the_store_keeps_who_recorded_each_gram(store: &dyn ChronicleStore) 
                 account: ACCOUNT.into(),
                 channel,
             }),
+            by_policy: BTreeSet::new(),
+            generation: 0,
         };
         store.append(c).await.unwrap();
     }
     let b = store.load("b").await.unwrap();
     let via: Vec<Option<Channel>> = b.grams.iter().skip(1).map(|g| g.recorded_via).collect();
     assert_eq!(via, Channel::ALL.map(Some));
+}
+
+pub async fn a_record_the_policy_made_is_kept_as_made_by_its_article(store: &dyn ChronicleStore) {
+    // One step: the citizen's record, and the two the executor's policy made
+    // with it, in two cells.
+    let mut c = commit(
+        "k-policy",
+        vec![append("a", 0, &["1", "2"]), append("b", 0, &["3"])],
+    );
+    c.by_policy = ["2".to_string(), "3".to_string()].into();
+    store.append(c).await.unwrap();
+    let all = store.load_all(&["a", "b"]).await.unwrap();
+    let kept: Vec<(Option<&str>, Option<Channel>)> = all
+        .iter()
+        .flat_map(|c| &c.grams)
+        .map(|g| (g.recorded_by.as_deref(), g.recorded_via))
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            (Some(ACCOUNT), Some(Channel::Keycloak)),
+            (Some("voorbeeld#1"), Some(Channel::Policy)),
+            (Some("voorbeeld#1"), Some(Channel::Policy)),
+        ]
+    );
 }
 
 pub async fn load_all_gives_every_cell_in_the_order_asked(store: &dyn ChronicleStore) {
@@ -282,15 +315,73 @@ pub async fn a_reset_empties_the_chronicles_the_answers_and_the_clock(store: &dy
         .unwrap();
     let day = "2026-12-01".parse::<chrono::NaiveDate>().unwrap();
     store.set_test_day(day).await.unwrap();
-    store.reset().await.unwrap();
-    for chronicle in store.load_all(&["a", "b"]).await.unwrap() {
+    store.reset(Vec::new()).await.unwrap();
+    let after = store.load_all(&["a", "b"]).await.unwrap();
+    for chronicle in &after {
         assert_eq!(chronicle.head(), 0);
+        assert_eq!(chronicle.generation, 1);
     }
     assert!(store.receipt(&key("k1")).await.unwrap().is_none());
     assert_eq!(store.test_day().await.unwrap(), None);
-    // The same ids and the same key are free again.
-    let again = commit("k1", vec![append("a", 0, &["1"])]);
+    // The same ids and the same key are free again, in the new generation.
+    let mut again = commit("k1", vec![append("a", 0, &["1"])]);
+    again.generation = 1;
     assert_eq!(store.append(again).await.unwrap(), Appended::Committed);
+}
+
+/// A reset records what it is given to begin with, in the same go: nobody
+/// sees the store empty, and those records are attributed to no account.
+pub async fn a_reset_records_the_beginning_it_is_given(store: &dyn ChronicleStore) {
+    store
+        .append(unkeyed(vec![append("a", 0, &["1", "2"])]))
+        .await
+        .unwrap();
+    store
+        .reset(vec![append("a", 0, &["begin-a"]), append("b", 0, &[])])
+        .await
+        .unwrap();
+    let all = store.load_all(&["a", "b"]).await.unwrap();
+    assert_eq!(ids(&all[0]), ["begin-a"]);
+    assert_eq!(all[0].grams[0].recorded_by, None);
+    assert_eq!(all[1].head(), 0);
+    // An id from before the reset is free again; one of the beginning is not.
+    let mut next = unkeyed(vec![append("a", 1, &["1"])]);
+    next.generation = all[0].generation;
+    assert_eq!(store.append(next).await.unwrap(), Appended::Committed);
+    let mut taken = unkeyed(vec![append("b", 0, &["begin-a"])]);
+    taken.generation = all[0].generation;
+    assert!(matches!(
+        store.append(taken).await,
+        Err(StoreError::DuplicateGram { .. })
+    ));
+}
+
+/// A step read before a reset is refused when it commits after it, also
+/// when the heads it names happen to stand where they stood before: the
+/// records they count are others (ABA).
+pub async fn a_commit_read_before_a_reset_is_refused_though_its_heads_match(
+    store: &dyn ChronicleStore,
+) {
+    store
+        .append(unkeyed(vec![append("a", 0, &["1"])]))
+        .await
+        .unwrap();
+    let read = store.load("a").await.unwrap();
+    // The reset begins with one record again, so the head is 1 as before.
+    store
+        .reset(vec![append("a", 0, &["begin-a"])])
+        .await
+        .unwrap();
+    let mut late = unkeyed(vec![append("a", read.head(), &["2"])]);
+    late.generation = read.generation;
+    assert_eq!(
+        store.append(late).await,
+        Err(StoreError::Reset {
+            expected: read.generation,
+            actual: read.generation + 1,
+        })
+    );
+    assert_eq!(ids(&store.load("a").await.unwrap()), ["begin-a"]);
 }
 
 /// One `#[tokio::test]` per contract test, each on a fresh store from
@@ -300,6 +391,7 @@ macro_rules! contract_tests {
         $crate::store::contract::contract_tests!(@each $fixture;
             a_commit_appends_to_every_cell_after_its_head,
             the_store_keeps_who_recorded_each_gram,
+            a_record_the_policy_made_is_kept_as_made_by_its_article,
             load_all_gives_every_cell_in_the_order_asked,
             a_moved_head_refuses_the_whole_commit,
             a_key_used_before_is_replayed_and_applies_nothing,
@@ -308,6 +400,8 @@ macro_rules! contract_tests {
             of_concurrent_retries_under_one_key_one_commits_and_the_rest_replay,
             the_test_clock_holds_the_day_it_was_last_set_to,
             a_reset_empties_the_chronicles_the_answers_and_the_clock,
+            a_reset_records_the_beginning_it_is_given,
+            a_commit_read_before_a_reset_is_refused_though_its_heads_match,
         );
     };
     (@each $fixture:expr; $($name:ident,)*) => {

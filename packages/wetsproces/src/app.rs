@@ -49,7 +49,9 @@ use crate::fsc4b::{Fsc4b, Fsc4bError};
 use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
-use crate::store::postgres::{CONNECT_TIMEOUT, MIGRATION_LOCK_KEY, PostgresStore, SCHEMA};
+use crate::store::postgres::{
+    CONNECT_TIMEOUT, MIGRATION_LOCK_KEY, PoolSize, PostgresStore, SCHEMA,
+};
 use crate::store::{ChronicleStore, StoreError};
 use crate::surface::Surface;
 
@@ -123,7 +125,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     for message in &messages {
         tracing::warn!(%message, "loading the case");
     }
-    let stores = open_store(&config.store, CONNECT_TIMEOUT).await?;
+    let stores = open_store(&config.store, CONNECT_TIMEOUT, stable).await?;
     // The test clock keeps its day in the store, so instances on one store
     // tell the same date.
     let controllable = (!stable).then(|| {
@@ -303,12 +305,18 @@ struct Stores {
 }
 
 /// The store `choice` names, opened; a connection to Postgres may take
-/// `timeout`.
+/// `timeout`. A server in `stable` mode marks the database, so no reset of
+/// test mode can empty it afterwards ([`PostgresStore::mark_stable`]).
 ///
 /// # Errors
 ///
-/// [`StartupError::Store`] when Postgres cannot be reached or migrated.
-async fn open_store(choice: &StoreChoice, timeout: Duration) -> Result<Stores, StartupError> {
+/// [`StartupError::Store`] when Postgres cannot be reached, migrated or
+/// marked.
+async fn open_store(
+    choice: &StoreChoice,
+    timeout: Duration,
+    stable: bool,
+) -> Result<Stores, StartupError> {
     match choice {
         StoreChoice::Memory => Ok(Stores {
             chronicles: Arc::new(InMemoryStore::new()),
@@ -317,7 +325,7 @@ async fn open_store(choice: &StoreChoice, timeout: Duration) -> Result<Stores, S
         StoreChoice::Postgres {
             url,
             max_connections,
-        } => match PostgresStore::connect_within(url, timeout, *max_connections).await {
+        } => match connect_postgres(url, timeout, *max_connections, stable).await {
             Ok(store) => Ok(Stores {
                 sessions: Some(store.pool().clone()),
                 chronicles: Arc::new(store),
@@ -328,6 +336,21 @@ async fn open_store(choice: &StoreChoice, timeout: Duration) -> Result<Stores, S
             }),
         },
     }
+}
+
+/// [`PostgresStore::connect_within`], and in `stable` mode the database
+/// marked as one that stable mode uses.
+async fn connect_postgres(
+    url: &str,
+    timeout: Duration,
+    size: PoolSize,
+    stable: bool,
+) -> Result<PostgresStore, StoreError> {
+    let store = PostgresStore::connect_within(url, timeout, size).await?;
+    if stable {
+        store.mark_stable().await?;
+    }
+    Ok(store)
 }
 
 #[cfg(test)]
@@ -424,7 +447,7 @@ mod tests {
     async fn an_unreachable_postgres_does_not_fall_back_to_memory() {
         // Port 1 on the loopback: nothing listens.
         let choice = StoreChoice::postgres("postgres://wetsproces@127.0.0.1:1/regelrecht");
-        let e = open_store(&choice, Duration::from_millis(500))
+        let e = open_store(&choice, Duration::from_millis(500), false)
             .await
             .unwrap_err();
         assert!(

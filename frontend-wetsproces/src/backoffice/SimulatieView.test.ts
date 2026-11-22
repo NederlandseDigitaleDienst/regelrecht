@@ -3,7 +3,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { huidigeKlok } from '../gedeeld/klok';
-import KlokView from './KlokView.vue';
+import SimulatieView from './SimulatieView.vue';
 
 const leegmaken = vi.fn(async () => ({ bestuurbaar: true, datum: '2026-10-13', modus: 'test' }));
 
@@ -15,10 +15,10 @@ vi.mock('./api', () => ({
   },
 }));
 
-describe('the clock screen', () => {
+describe('the simulation screen', () => {
   it('moves the clock of the trial band along with the one it sets', async () => {
     huidigeKlok.value = { bestuurbaar: true, datum: '2026-10-13', modus: 'test' };
-    const w = mount(KlokView);
+    const w = mount(SimulatieView);
     await flushPromises();
     await w.find('nldd-date-field').trigger('change', { detail: { value: '2026-12-01' } });
     await w.findAll('nldd-button').find((b) => b.attributes('text') === 'Klok zetten')!.trigger('click');
@@ -29,7 +29,7 @@ describe('the clock screen', () => {
   it('empties the test setup only after the confirmation, and shows the clock back on the start', async () => {
     leegmaken.mockClear();
     huidigeKlok.value = { bestuurbaar: true, datum: '2026-12-01', modus: 'test' };
-    const w = mount(KlokView);
+    const w = mount(SimulatieView);
     await flushPromises();
     const knop = (tekst: string) => w.findAll('nldd-button').find((b) => b.attributes('text') === tekst)!;
     await knop('Testomgeving leegmaken').trigger('click');

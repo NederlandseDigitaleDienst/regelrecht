@@ -250,7 +250,12 @@ fn two_games_are_apart_and_a_reset_touches_only_its_own() {
         soorten(&tweede_verlof.kroniek().unwrap()),
         ["EXECUTOGRAM", "AANVRAAG"]
     );
-    assert_eq!(soorten(&kaart.kroniek().unwrap()), ["AANVRAAG"]);
+    // The application, and the request for an examination it brought
+    // about (the municipality's fictitious policy, art. 9).
+    assert_eq!(
+        soorten(&kaart.kroniek().unwrap()),
+        ["AANVRAAG", "EXECUTOGRAM"]
+    );
 }
 
 #[test]
@@ -288,7 +293,8 @@ fn a_saved_game_plays_on_where_it_was() {
     kapot["kronieken"][0][0]["recording_actor"] = json!("iemand_anders");
     let e = terug.herstellen(kapot).unwrap_err();
     assert!(e.to_string().contains("was recorded by"), "{e}");
-    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 3);
+    // The advice, the application, its request to the GGD, the decision.
+    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 4);
     let mut te_weinig = bewaard;
     te_weinig["kronieken"] = json!([[]]);
     assert!(terug.herstellen(te_weinig).is_err());
@@ -502,9 +508,14 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
     assert!(geweigerd.get("voorlopig").is_none());
 
     let kroniek = spel.kroniek().unwrap();
-    // The application, after the advice the municipality received; the GGD
-    // keeps it in its own chronicle too.
-    assert_eq!(soorten(&kroniek), ["EXECUTOGRAM", "AANVRAAG"]);
+    // The application, after the advice the municipality received, and the
+    // request for an examination of this application (policy, art. 9): the
+    // advice was of before it. The GGD keeps the advice in its own chronicle
+    // too.
+    assert_eq!(
+        soorten(&kroniek),
+        ["EXECUTOGRAM", "AANVRAAG", "EXECUTOGRAM"]
+    );
     let ggd = &kroniek["andere"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
     assert_eq!(ggd["grammen"][0]["kind"], json!("EXECUTOGRAM"));
@@ -681,12 +692,13 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
         )
         .unwrap();
     assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(true));
-    // The decision is in the municipality's chronicle, after the application
-    // and the advice it received.
+    // The decision is in the municipality's chronicle, after the
+    // application, the request for an examination it brought about (policy,
+    // art. 9) and the advice it received.
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(
         soorten(&kroniek),
-        ["AANVRAAG", "EXECUTOGRAM", "BESCHIKKING"]
+        ["AANVRAAG", "EXECUTOGRAM", "EXECUTOGRAM", "BESCHIKKING"]
     );
 }
 

@@ -4,7 +4,10 @@
 // the admin enters on its behalf. Nobody works for such a party in this
 // server; until there is a real link with it, this is how its acts come in.
 // The panel shows of a party only what an input needs: the submissions that
-// wait for its decision and its decisions not sent yet, never its chronicle.
+// wait for its decision, its decisions not sent yet and the requests of the
+// executor it has not answered, never its chronicle. A fact that answers a
+// request, such as the GGD's advice, is recorded from that request only: the
+// request says for whom it is, and answered it leaves the list.
 // The facts it records and the decision forms come from the forms of the
 // process (`GET /api/formulier`), as everywhere in the back office. Laid out
 // as the work queue: the parties in the sidebar, a submission being decided
@@ -14,10 +17,11 @@ import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam, omschrijving } from '../gedeeld/keten';
+import { artikelNaam, omschrijving, waardeTekst } from '../gedeeld/keten';
+import { schermveld } from '../gedeeld/formulier';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { beheerApi } from './api';
-import type { Partijen } from './api';
+import type { OpenVerzoek, Partijen } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 import { feitNaam } from './feit';
 import FeitVastleggen from './FeitVastleggen.vue';
@@ -35,16 +39,43 @@ async function laadAlles() {
 }
 onMounted(laadAlles);
 
-/** Per external party: what waits for it, and the facts it records. */
+/**
+ * Per external party: what waits for it, the facts it records on its own,
+ * and per open request the fact that answers it, with the fields the request
+ * already holds (`vast`).
+ */
 const partijen = computed(() =>
-  (panel.value?.partijen ?? []).map((p) => ({
-    ...p,
-    handelingen: vormen.value?.andere_cellen.find((c) => c.cel === p.cel)?.handelingen ?? [],
-  })),
+  (panel.value?.partijen ?? []).map((p) => {
+    const alle = vormen.value?.andere_cellen.find((c) => c.cel === p.cel)?.handelingen ?? [];
+    const opVerzoek = panel.value?.antwoord_op_verzoek ?? [];
+    return {
+      ...p,
+      handelingen: alle.filter((h) => !opVerzoek.includes(h.feit)),
+      // An answer without a request: for an applicant with none open, such
+      // as one the policy asked nothing for because they had a card before.
+      zonderVerzoek: alle.filter((h) => opVerzoek.includes(h.feit)),
+      verzoeken: p.verzoeken.flatMap((v) => {
+        const handeling = alle.find((h) => h.feit === v.antwoordfeit);
+        return handeling ? [{ ...v, handeling, vast: vastUit(v, handeling) }] : [];
+      }),
+    };
+  }),
 );
+
+/** The fields of the answer that the request holds, with the request's values. */
+function vastUit(v: OpenVerzoek, h: Handeling): Record<string, unknown> {
+  return Object.fromEntries(h.velden.filter((veld) => veld.naam in (v.verzoek.fields ?? {})).map((veld) => [veld.naam, v.verzoek.fields?.[veld.naam]]));
+}
+
+/** For whom a request is, in words: each field it fixes, by its label. */
+function voorWie(vast: Record<string, unknown>): string {
+  return Object.entries(vast)
+    .map(([naam, waarde]) => `${schermveld({ naam, type: null }, vormen.value?.teksten).label} ${waardeTekst(waarde)}`)
+    .join(', ');
+}
 const gekozen = computed(() => partijen.value.find((p) => p.cel === props.cel));
 
-const keuze = ref<{ cel: string; handeling: Handeling } | null>(null);
+const keuze = ref<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown> } | null>(null);
 const gedaan = ref('');
 
 async function vastgelegd(naam: string) {
@@ -102,6 +133,25 @@ async function toezenden(besluit: Gram) {
             <template v-for="(p, i) in partijen" :key="p.cel">
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
+              <template v-if="p.verzoeken.length">
+                <nldd-text color="secondary">Open verzoeken. Kies er een om het antwoord vast te leggen.</nldd-text>
+                <nldd-list appearance="simple" :accessible-label="`Open verzoeken aan ${p.cel_naam}`">
+                  <nldd-list-item
+                    v-for="v in p.verzoeken"
+                    :key="v.verzoek.id"
+                    size="md"
+                    button
+                    @click="keuze = { cel: p.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast }"
+                  >
+                    <nldd-text-cell
+                      :text="omschrijving(v.verzoek, casus, 'vastlegging')"
+                      :supporting-text="`Voor ${voorWie(v.vast)} · gevraagd op ${longDate(v.verzoek.recorded_on)}`"
+                    ></nldd-text-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                  </nldd-list-item>
+                </nldd-list>
+              </template>
               <nldd-list v-if="p.open.length" appearance="simple" :accessible-label="`Wat wacht op ${p.cel_naam}`">
                 <nldd-list-item
                   v-for="g in p.open"
@@ -144,7 +194,23 @@ async function toezenden(besluit: Gram) {
                   ></nldd-button>
                 </nldd-button-group>
               </template>
-              <nldd-text v-if="!p.open.length && !p.toe_te_zenden.length && !p.handelingen.length" color="secondary">
+              <template v-if="p.zonderVerzoek.length">
+                <nldd-spacer size="8"></nldd-spacer>
+                <nldd-text color="secondary">
+                  Zonder verzoek, alleen voor een aanvrager voor wie geen verzoek openstaat, zoals iemand die eerder een kaart kreeg:
+                </nldd-text>
+                <nldd-button-group orientation="horizontal">
+                  <nldd-button
+                    v-for="h in p.zonderVerzoek"
+                    :key="h.feit"
+                    appearance="neutral-transparent"
+                    start-icon="add"
+                    :text="`${feitNaam(h.feit)} vastleggen zonder verzoek`"
+                    @click="keuze = { cel: p.cel, handeling: h }"
+                  ></nldd-button>
+                </nldd-button-group>
+              </template>
+              <nldd-text v-if="!p.verzoeken.length && !p.open.length && !p.toe_te_zenden.length && !p.handelingen.length && !p.zonderVerzoek.length" color="secondary">
                 Op dit moment vraagt het proces niets van {{ p.cel_naam }}.
               </nldd-text>
             </template>
