@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import Gegevens from '../gedeeld/Gegevens.vue';
-import { artikelNaam, isBesluit, isIndiening, omschrijving } from '../gedeeld/keten';
+import { artikelNaam, isBesluit, isIndiening, omschrijving, rolVan } from '../gedeeld/keten';
 import type { Gram } from '../gedeeld/types';
 import { useBackoffice } from './useBackoffice';
 
@@ -26,20 +26,24 @@ const noem = (id: string) => {
   const i = gekozen.value?.grammen.findIndex((g) => g.id === id) ?? -1;
   const g = gekozen.value?.grammen[i];
   if (!g) return 'een stuk in een andere kroniek';
-  return casus.value ? `nr. ${i + 1}, ${omschrijving(g, casus.value).toLowerCase()}` : `nr. ${i + 1}`;
+  return casus.value ? `nr. ${i + 1}, ${omschrijf(g).toLowerCase()}` : `nr. ${i + 1}`;
 };
+
+/** A record of the chosen chronicle in words, by what the server says it is. */
+const omschrijf = (g: Gram) =>
+  casus.value && gekozen.value ? omschrijving(g, casus.value, rolVan(g, gekozen.value.stand)) : g.kind;
 
 /** The record open in the sheet. */
 const open = ref<Gram | null>(null);
 /** The submission a record is or answers to, in this chronicle: what its panel in the work queue shows. */
 const indieningVan = (g: Gram): Gram | undefined => {
-  const c = casus.value;
-  if (!c) return undefined;
-  if (isIndiening(g, c)) return g;
+  const k = gekozen.value;
+  if (!k) return undefined;
+  if (isIndiening(g, k.stand)) return g;
   // A decision leads to the submission it answers; a recorded fact to nothing.
-  if (!isBesluit(g, c)) return undefined;
-  const op = gekozen.value?.grammen.find((x) => x.id === g.refers_to);
-  return op && isIndiening(op, c) ? op : undefined;
+  if (!isBesluit(g, k.stand)) return undefined;
+  const op = k.grammen.find((x) => x.id === g.refers_to);
+  return op && isIndiening(op, k.stand) ? op : undefined;
 };
 function naarWerkvoorraad(g: Gram) {
   const op = indieningVan(g);
@@ -95,7 +99,7 @@ function naarWerkvoorraad(g: Gram) {
             <nldd-list-item v-for="(g, i) in gekozen.grammen" :key="g.id" size="sm" button @click="open = g">
               <nldd-text-cell
                 :overline="`${i + 1}`"
-                :text="omschrijving(g, casus)"
+                :text="omschrijf(g)"
                 :supporting-text="`${longDate(g.recorded_on)} · ${artikelNaam(g.basis)}${g.refers_to ? ` · verwijst naar ${noem(g.refers_to)}` : ''}`"
               ></nldd-text-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
@@ -119,7 +123,7 @@ function naarWerkvoorraad(g: Gram) {
         <nldd-container slot="header" padding="16">
           <nldd-top-title-bar
             heading-level="2"
-            :text="open && casus ? `${omschrijving(open, casus)} van ${longDate(open.recorded_on)}` : ''"
+            :text="open && casus ? `${omschrijf(open)} van ${longDate(open.recorded_on)}` : ''"
             dismiss-text="Sluiten"
           ></nldd-top-title-bar>
         </nldd-container>

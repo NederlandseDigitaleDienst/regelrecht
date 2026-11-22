@@ -36,7 +36,13 @@ vi.mock('./api', () => ({
     casus: async () => casus,
     formulier: async () => ({ teksten: {} }),
     ik: async () => ({ cellen: [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }] }),
-    kroniek: async () => ({ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', kop: 3, grammen }),
+    kroniek: async () => ({
+      cel: 'gemeente',
+      cel_naam: 'gemeente Voorbeeld',
+      kop: 3,
+      grammen,
+      stand: { rollen: { a: 'indiening', b: 'besluit', c: 'vastlegging' }, herroepen: {}, antwoorden: {} },
+    }),
   },
 }));
 

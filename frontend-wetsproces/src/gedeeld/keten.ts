@@ -1,9 +1,9 @@
-// What a list of records says about the process: which record is a
-// submission and which a decision, what refers to what, and what still waits
-// for a decision. Read from the records and the case alone: a submission is
-// a record of a kind the case's regelwerken establish as one
-// (`casus.indieningen`), a decision is a record that answers to one, and no
-// step of a particular law is named here.
+// What a list of records says about the process: what refers to what, and
+// how a screen names a record. Which record is a submission, a decision or a
+// recorded fact, which were revoked and what answers a submission now, the
+// server sends beside the records (`Stand`, from the kern's `stand` module);
+// nothing here works that out again. No step of a particular law is named
+// here.
 import {
   artikelNaam as gedeeldArtikelNaam,
   hoofdletter,
@@ -12,26 +12,66 @@ import {
   wetNaam,
 } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from './datum';
-import type { Casus, Gram } from './types';
+import type { BesluitInDePlaats, Casus, Gram, Rol, Stand, Stukantwoord } from './types';
 
-/** The kind of record a cell keeps of a fact it recorded. */
-const VASTLEGGING = 'EXECUTOGRAM';
+/** What `g` is, as the server's `stand` says; undefined for a record it does not cover. */
+export const rolVan = (g: Gram, stand: Pick<Stand, 'rollen'>): Rol | undefined => stand.rollen[g.id];
 
-/** Whether `g` is a submission: of a kind the case establishes as one. */
-export const isIndiening = (g: Gram, casus: Casus): boolean => casus.indieningen.some((i) => i.soort === g.kind);
+/** Whether `g` is a submission. */
+export const isIndiening = (g: Gram, stand: Pick<Stand, 'rollen'>): boolean => rolVan(g, stand) === 'indiening';
 
-/** Whether `g` is a fact a cell recorded. */
-export const isVastlegging = (g: Gram): boolean => g.kind === VASTLEGGING;
-
-/** Whether `g` is a decision: neither a submission nor a recorded fact. */
-export const isBesluit = (g: Gram, casus: Casus): boolean => !isIndiening(g, casus) && !isVastlegging(g);
+/** Whether `g` is a decision. */
+export const isBesluit = (g: Gram, stand: Pick<Stand, 'rollen'>): boolean => rolVan(g, stand) === 'besluit';
 
 /** The records in `grammen` that refer to `id`, in chronicle order. */
 export const verwijzendNaar = (id: string, grammen: Gram[]): Gram[] => grammen.filter((g) => g.refers_to === id);
 
-/** The decisions in `grammen` on the submission `id`, the latest last. */
-export const besluitenOp = (id: string, grammen: Gram[], casus: Casus): Gram[] =>
-  verwijzendNaar(id, grammen).filter((g) => isBesluit(g, casus));
+/** What answers the submission `id` now, as the server's `stand` says. */
+export const antwoordOp = (id: string, stand: Stand): Stukantwoord | undefined => stand.antwoorden[id];
+
+/** A revoked record: what revoked it, and what became of it in one word. */
+export interface Herroeping {
+  /** The id of the last record that revoked it. */
+  door: string;
+  /** That record, when it is in the list at hand. */
+  gram?: Gram;
+  /**
+   * Annulled when a recorded fact revoked it, such as the receipt of a
+   * court's judgment; revoked when a decision of the authority did.
+   */
+  woord: 'Vernietigd' | 'Herroepen';
+}
+
+/** Whether and by what the record `id` was revoked, as the server's `stand` says. */
+export function herroeping(id: string, stand: Stand, grammen: Gram[]): Herroeping | undefined {
+  const door = stand.herroepen[id];
+  if (!door) return undefined;
+  return {
+    door,
+    gram: grammen.find((g) => g.id === door),
+    woord: stand.rollen[door] === 'vastlegging' ? 'Vernietigd' : 'Herroepen',
+  };
+}
+
+/**
+ * A revocation in words, with who did it and the record they did it with:
+ * `Vernietigd door Rechtbank Wilgendaal (afschrift van de uitspraak van 20
+ * november 2026)`. A fact received from another cell names that cell.
+ */
+export function herroepingTekst(h: Herroeping, casus: Casus, stand: Stand): string {
+  const g = h.gram;
+  if (!g) return h.woord;
+  const wie = celNaam(g.received?.from ?? g.recording_actor, casus);
+  return `${h.woord} door ${wie} (${omschrijving(g, casus, rolVan(g, stand)).toLowerCase()} van ${longDate(g.recorded_on)})`;
+}
+
+/** The new decision the decision `id` took in the place of the one it revoked, while it holds. */
+export function nieuwBesluitVan(id: string, stand: Stand): BesluitInDePlaats | undefined {
+  for (const a of Object.values(stand.antwoorden)) {
+    if (a.soort === 'in_de_plaats' && a.door === id) return a.nieuw;
+  }
+  return undefined;
+}
 
 /** A record with what refers to it, and so on down. */
 export interface Knoop {
@@ -61,10 +101,6 @@ export function ketens(grammen: Gram[]): Knoop[] {
     return !o || !ids.has(o);
   }).map(knoop);
 }
-
-/** The submissions in the chronicle `grammen` on which no decision was taken yet. */
-export const openIndieningen = (grammen: Gram[], casus: Casus): Gram[] =>
-  grammen.filter((g) => isIndiening(g, casus) && besluitenOp(g.id, grammen, casus).length === 0);
 
 /**
  * The submissions a person can make against the decision `besluit`, in the
@@ -119,15 +155,15 @@ export function celNaam(cel: string, casus: Casus): string {
 }
 
 /** Whether the decision `g` grants what was asked, by the case's outcome; undefined when it does not say. */
-export function toegewezen(g: Gram, casus: Casus): boolean | undefined {
+export function toegewezen(g: Pick<Gram, 'outputs'>, casus: Casus): boolean | undefined {
   const v = casus.uitkomst ? g.outputs?.[casus.uitkomst] : undefined;
   return typeof v === 'boolean' ? v : undefined;
 }
 
-/** What a record is, in words: its kind of submission, the fact it records, or a decision. */
-export function omschrijving(g: Gram, casus: Casus): string {
-  if (isVastlegging(g)) return hoofdletter(leesbaar(g.fact ?? 'vastlegging'));
-  if (isIndiening(g, casus)) return hoofdletter(leesbaar(g.kind.toLowerCase()));
+/** What a record is, in words, by its role (`rol`): its kind of submission, the fact it records, or a decision. */
+export function omschrijving(g: Gram, casus: Casus, rol: Rol | undefined): string {
+  if (rol === 'vastlegging') return hoofdletter(leesbaar(g.fact ?? 'vastlegging'));
+  if (rol === 'indiening') return hoofdletter(leesbaar(g.kind.toLowerCase()));
   // A decision of another cell goes by its own name, such as a court's ruling.
   return g.recording_actor === casus.cel ? `Besluit (${leesbaar(g.kind.toLowerCase())})` : besluitNaam(g, casus);
 }
