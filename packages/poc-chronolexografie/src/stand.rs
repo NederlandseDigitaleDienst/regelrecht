@@ -79,6 +79,20 @@ pub enum Antwoord {
 }
 
 impl Antwoord {
+    /// The ids of the records the answer names.
+    fn ids(&self) -> impl Iterator<Item = &str> {
+        let (besluit, door, na) = match self {
+            Self::Open => (None, None, None),
+            Self::Besloten { besluit } => (Some(besluit), None, None),
+            Self::InDePlaats { besluit, door, .. } => (Some(besluit), Some(door), None),
+            Self::Vervallen { besluit, door, na } => (Some(besluit), Some(door), na.as_ref()),
+        };
+        [besluit, door, na]
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
+    }
+
     /// Whether the submission waits for a decision, and after which record:
     /// `Some(None)` for one not decided on yet, `Some(Some(na))` for one whose
     /// decision was revoked, `None` otherwise.
@@ -115,6 +129,35 @@ pub struct Open<'g, 's> {
 }
 
 impl Stand {
+    /// What of this standing a viewer gets who may see only the records
+    /// `zichtbaar` holds, such as a citizen their own dossier: every entry
+    /// about such a record, and of those only the ones that name no record
+    /// outside it. A revocation by a record the viewer may not see, and an
+    /// answer that names one, is left out whole, so no id of a record
+    /// outside reaches the viewer. For a dossier that drops nothing today:
+    /// a record that revokes or answers one in it links to it, and so is in
+    /// the dossier too. A change to those links would make the screen show
+    /// such a decision as standing, not leak the id.
+    pub fn binnen(self, zichtbaar: impl Fn(&str) -> bool) -> Self {
+        Self {
+            rollen: self
+                .rollen
+                .into_iter()
+                .filter(|(id, _)| zichtbaar(id))
+                .collect(),
+            herroepen: self
+                .herroepen
+                .into_iter()
+                .filter(|(id, door)| zichtbaar(id) && zichtbaar(door))
+                .collect(),
+            antwoorden: self
+                .antwoorden
+                .into_iter()
+                .filter(|(id, a)| zichtbaar(id) && a.ids().all(&zichtbaar))
+                .collect(),
+        }
+    }
+
     /// Whether the record `id` is of the role `rol`.
     pub fn is(&self, id: &str, rol: Rol) -> bool {
         self.rollen.get(id) == Some(&rol)
@@ -384,4 +427,37 @@ fn na_herroeping(
                 .then(|| door.id.clone()),
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_viewer_gets_no_entry_that_names_a_record_outside_what_they_may_see() {
+        let stand = Stand {
+            rollen: BTreeMap::from([
+                ("a".into(), Rol::Indiening),
+                ("b".into(), Rol::Besluit),
+                ("x".into(), Rol::Vastlegging),
+            ]),
+            herroepen: BTreeMap::from([("b".into(), "x".into())]),
+            antwoorden: BTreeMap::from([
+                (
+                    "a".into(),
+                    Antwoord::Vervallen {
+                        besluit: "b".into(),
+                        door: "x".into(),
+                        na: Some("x".into()),
+                    },
+                ),
+                ("c".into(), Antwoord::Open),
+            ]),
+        };
+        let mijn = ["a", "b"];
+        let gezien = stand.binnen(|id| mijn.contains(&id));
+        assert_eq!(gezien.rollen.keys().collect::<Vec<_>>(), ["a", "b"]);
+        assert!(gezien.herroepen.is_empty());
+        assert!(gezien.antwoorden.is_empty());
+    }
 }
