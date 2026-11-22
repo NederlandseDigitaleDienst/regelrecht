@@ -213,7 +213,9 @@ impl From<ServiceError> for ApiError {
             ServiceError::Refused(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ServiceError::UnknownCell(_) => StatusCode::NOT_FOUND,
             ServiceError::KeyReused(_) | ServiceError::Busy => StatusCode::CONFLICT,
-            ServiceError::Store(StoreError::Conflict { .. }) => StatusCode::CONFLICT,
+            ServiceError::Store(StoreError::Conflict { .. } | StoreError::Reset { .. }) => {
+                StatusCode::CONFLICT
+            }
             ServiceError::Store(
                 StoreError::Backend(_)
                 | StoreError::UnknownFormat { .. }
@@ -680,10 +682,13 @@ pub(crate) async fn submit_for(
     headers: &HeaderMap,
     mut s: Submit,
 ) -> CitizenResult {
-    // The checks read the chronicles apart from the step. That is safe
-    // because a chronicle only grows and a record never changes cell: what
-    // was in the dossier or a readable cell when checked still is when the
-    // step runs.
+    // The checks read the chronicles apart from the step. In stable mode
+    // that is safe because a chronicle only grows and a record never changes
+    // cell: what was in the dossier or a readable cell when checked still is
+    // when the step runs. In test mode a reset may empty the chronicles in
+    // between; the checks then held on records that are gone, and the step
+    // runs on what the reset left (`Service::perform` runs it again when the
+    // store was reset since its read).
     let citizen = principal.citizen(&state.subject_claim)?;
     let field = state.service.login_field();
     if s.fields.contains_key(field) {

@@ -226,10 +226,19 @@ struct Read {
     chronicles: Vec<StoredChronicle>,
 }
 
+impl Read {
+    /// The generation the chronicles were read in; one read is all one.
+    fn generation(&self) -> u64 {
+        self.chronicles.first().map_or(0, |c| c.generation)
+    }
+}
+
 /// What a step that records came to: its answer and the appends to commit.
 struct Ran {
     response: Value,
     appends: Vec<CellAppend>,
+    /// The generation the step read in.
+    generation: u64,
 }
 
 /// The process of one case, on a store and a clock.
@@ -301,16 +310,16 @@ impl Dossier {
 
 impl Service {
     /// Empty the test setup: every chronicle, the kept answers and the test
-    /// clock ([`ChronicleStore::reset`]). The caller sees to it that this
-    /// runs only in test mode.
+    /// clock, and record what the case begins with, as at a fresh start, in
+    /// the same go ([`ChronicleStore::reset`]). The caller sees to it that
+    /// this runs only in test mode.
     ///
     /// # Errors
     ///
     /// [`ServiceError::Store`] when the store fails; nothing is emptied then.
     pub async fn reset(&self) -> Result<(), ServiceError> {
-        self.store.reset().await?;
-        // What the case begins with, as at a fresh start.
-        self.begin().await
+        let begin = self.beginning().await?;
+        Ok(self.store.reset(begin).await?)
     }
 
     /// The service for `corpus` on `store` and `clock`. When no cell of the
@@ -343,12 +352,35 @@ impl Service {
         if read.chronicles.iter().any(|c| c.head() > 0) {
             return Ok(());
         }
+        let appends = self.beginning().await?;
+        if appends.is_empty() {
+            return Ok(());
+        }
+        // No key: the expected heads of 0 already make sure the beginning is
+        // recorded once, whichever instance gets there first.
+        let commit = Commit {
+            appends,
+            keyed: None,
+            recorded_by: None,
+            generation: read.generation(),
+        };
+        match self.store.append(commit).await {
+            // Another instance began first, or a reset recorded the
+            // beginning itself: what is there counts.
+            Ok(_) | Err(StoreError::Conflict { .. } | StoreError::Reset { .. }) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// What the case begins with (its `begin`), per cell after a head of 0;
+    /// nothing when it begins with no record at all.
+    async fn beginning(&self) -> Result<Vec<CellAppend>, ServiceError> {
         let corpus = Arc::clone(&self.corpus);
         let begun = blocking(move || Ok(corpus.cell()?.kronieken())).await?;
         if begun.iter().all(Vec::is_empty) {
-            return Ok(());
+            return Ok(Vec::new());
         }
-        let appends = self
+        Ok(self
             .cells
             .iter()
             .zip(begun)
@@ -357,19 +389,7 @@ impl Service {
                 expected_head: 0,
                 grams,
             })
-            .collect();
-        // No key: the expected heads of 0 already make sure the beginning is
-        // recorded once, whichever instance gets there first.
-        let commit = Commit {
-            appends,
-            keyed: None,
-            recorded_by: None,
-        };
-        match self.store.append(commit).await {
-            // Another instance began first: what it recorded counts.
-            Ok(_) | Err(StoreError::Conflict { .. }) => Ok(()),
-            Err(e) => Err(e.into()),
-        }
+            .collect())
     }
 
     /// The field of the case's application that identifies the applicant.
@@ -701,6 +721,7 @@ impl Service {
                     },
                 }),
                 recorded_by: Some(actor.clone()),
+                generation: ran.generation,
             };
             match self.store.append(commit).await {
                 Ok(Appended::Committed) => return Ok(ran.response),
@@ -714,6 +735,11 @@ impl Service {
                 Err(StoreError::Conflict { cell, .. }) => {
                     tracing::debug!(%cell, "conflict; running the step again");
                 }
+                // The chronicles it read are gone: run it on what a reset
+                // left, as on a fresh start.
+                Err(StoreError::Reset { .. }) => {
+                    tracing::debug!("reset since the read; running the step again");
+                }
                 Err(e) => return Err(e.into()),
             }
         }
@@ -724,6 +750,7 @@ impl Service {
     /// recorded in each cell.
     async fn run(&self, step: Arc<Step>) -> Result<Ran, ServiceError> {
         let read = self.read().await?;
+        let generation = read.generation();
         let corpus = Arc::clone(&self.corpus);
         let cells = self.cells.clone();
         let today = self.today().await?;
@@ -736,7 +763,11 @@ impl Service {
             let mut cellen = restore(&corpus, read)?;
             let response = step.apply(&corpus, &mut cellen, today)?;
             let appends = appended(cells, before, cellen.kronieken())?;
-            Ok(Ran { response, appends })
+            Ok(Ran {
+                response,
+                appends,
+                generation,
+            })
         })
         .await
     }
@@ -751,6 +782,14 @@ impl Service {
                 chronicles.len(),
                 cells.len()
             )));
+        }
+        if chronicles
+            .windows(2)
+            .any(|pair| pair[0].generation != pair[1].generation)
+        {
+            return Err(ServiceError::Internal(
+                "the store gave chronicles of more than one generation".into(),
+            ));
         }
         Ok(Read { chronicles })
     }
@@ -840,7 +879,7 @@ async fn blocking<T: Send + 'static>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 pub(crate) mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use async_trait::async_trait;
 
@@ -849,12 +888,17 @@ pub(crate) mod tests {
     use crate::store::memory::InMemoryStore;
 
     /// The store in memory, refusing the first `conflicts` commits as if
-    /// another request got in first.
-    #[derive(Debug)]
+    /// another request got in first. With `reset_first` the next commit
+    /// finds a reset just before it, as when an admin empties the test
+    /// setup while a step runs. With `intrude` a record lands right after
+    /// every reset, as a submission that comes in at that moment.
+    #[derive(Debug, Default)]
     struct Contested {
         inner: InMemoryStore,
         conflicts: usize,
         appends: AtomicUsize,
+        reset_first: AtomicBool,
+        intrude: bool,
     }
 
     #[async_trait]
@@ -874,10 +918,34 @@ pub(crate) mod tests {
         async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
             self.inner.set_test_day(day).await
         }
-        async fn reset(&self) -> Result<(), StoreError> {
-            self.inner.reset().await
+        async fn reset(&self, begin: Vec<CellAppend>) -> Result<(), StoreError> {
+            let cell = begin
+                .iter()
+                .find(|a| !a.grams.is_empty())
+                .map(|a| a.cell.clone());
+            self.inner.reset(begin).await?;
+            if let Some(cell) = cell.filter(|_| self.intrude) {
+                let now = self.inner.load(&cell).await?;
+                let mut gram = now.grams[0].gram.clone();
+                gram.id = "binnengekomen-na-de-reset".into();
+                let commit = Commit {
+                    appends: vec![CellAppend {
+                        cell,
+                        expected_head: now.head(),
+                        grams: vec![gram],
+                    }],
+                    keyed: None,
+                    recorded_by: None,
+                    generation: now.generation,
+                };
+                self.inner.append(commit).await?;
+            }
+            Ok(())
         }
         async fn append(&self, commit: Commit) -> Result<Appended, StoreError> {
+            if self.reset_first.swap(false, Ordering::SeqCst) {
+                self.inner.reset(Vec::new()).await?;
+            }
             if self.appends.fetch_add(1, Ordering::SeqCst) < self.conflicts {
                 return Err(StoreError::Conflict {
                     cell: "x".into(),
@@ -893,9 +961,8 @@ pub(crate) mod tests {
         let (corpus, _) =
             crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
         let store = Arc::new(Contested {
-            inner: InMemoryStore::new(),
             conflicts,
-            appends: AtomicUsize::new(0),
+            ..Contested::default()
         });
         let clock = Arc::new(ControllableClock::new(
             Arc::clone(&store) as _,
@@ -913,7 +980,10 @@ pub(crate) mod tests {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../poc-chronolexografie/tests/bron-inlogstap/bron.yaml");
         let (corpus, _) = crate::case::load(&manifest).unwrap();
-        let store = Arc::new(InMemoryStore::new());
+        let store = Arc::new(Contested {
+            intrude: true,
+            ..Contested::default()
+        });
         let clock = Arc::new(ControllableClock::new(
             Arc::clone(&store) as _,
             corpus.casus.speeldatum,
@@ -921,6 +991,16 @@ pub(crate) mod tests {
         let s = Service::start(corpus, Arc::clone(&store) as _, clock)
             .await
             .unwrap();
+        let ids = || async {
+            let cells: Vec<&str> = s.cells.iter().map(String::as_str).collect();
+            store
+                .load_all(&cells)
+                .await
+                .unwrap()
+                .into_iter()
+                .flat_map(|c| c.into_grams().into_iter().map(|g| g.id))
+                .collect::<Vec<_>>()
+        };
         let heads = || async {
             let cells: Vec<&str> = s.cells.iter().map(String::as_str).collect();
             store
@@ -933,8 +1013,36 @@ pub(crate) mod tests {
         };
         let begun = heads().await;
         assert!(begun.iter().any(|h| *h > 0), "{begun:?}");
+        // A record comes in right after the reset. The beginning is
+        // recorded with the reset itself, so it is there all the same, and
+        // the record that came in lands after it.
         s.reset().await.unwrap();
-        assert_eq!(heads().await, begun);
+        let after = heads().await;
+        let grown: Vec<u64> = begun
+            .iter()
+            .zip(&after)
+            .map(|(b, a)| a.checked_sub(*b).unwrap())
+            .collect();
+        assert_eq!(grown.iter().sum::<u64>(), 1, "{begun:?} -> {after:?}");
+        assert!(
+            ids()
+                .await
+                .iter()
+                .any(|id| id == "binnengekomen-na-de-reset")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_step_that_a_reset_overtook_runs_again_on_what_the_reset_left() {
+        // The default case begins with nothing, so the reset puts every head
+        // back where the step read it: only the generation tells.
+        let (s, store) = service(0).await;
+        store.reset_first.store(true, Ordering::SeqCst);
+        let gram = s.perform(None, submission(), &actor()).await.unwrap();
+        assert_eq!(store.appends.load(Ordering::SeqCst), 2);
+        let stored = store.inner.load("gemeente_wilgendaal").await.unwrap();
+        assert_eq!(stored.generation, 1);
+        assert_eq!(stored.into_grams()[0].id, gram["id"].as_str().unwrap());
     }
 
     /// The made-up `sub` of the account the tests act as.
