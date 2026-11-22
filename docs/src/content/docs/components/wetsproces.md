@@ -228,7 +228,7 @@ The UI spec decides how the value of each field of the application comes about. 
 
 These fields are input fields of the application: Awb 4:2 asks that an application holds them. The rule generates a value for such a field, and the execution of the law reads it as it would read the same value typed in, so nothing changes in how the law is executed. That is why they are no open terms that policy fills. The choice of the executor sits in an article of its own policy that can be read, explained and changed apart from the law.
 
-`GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded for the fields it does not hide. For a hidden field the forms still say how the system fills it, so a screen that shows a recorded application can name the origin. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
+This holds for every submission a citizen makes, not only the case's own application: the server fills, per submission, the fields its form asks that the UI spec has the system fill. `GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded for the fields it does not hide. For a hidden field the forms still say how the system fills it, so a screen that shows a recorded application can name the origin. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
 
 ## After a grant
 
@@ -306,6 +306,33 @@ Which steps of the parking card are a person's and which the system's:
 | Receipt of the printed card | a person of the post room | an observation |
 | Handing out the card | a handler | done by hand |
 | Copy of an own decision to another cell (`toezendingen`) | a handler | kept by hand: which decision goes where is not settled in the case |
+
+## A lost card
+
+A citizen whose card was handed out and is lost or stolen reports it and applies for a duplicate in one submission. Article 52 of the BABW is the ground: the authority that issued the card gives a duplicate for a card that is lost or destroyed (first paragraph), handed out only against a declaration signed by the applicant that the card is lost, which describes the circumstances (third paragraph). Article 53, first paragraph, under b, says a card loses its validity when a duplicate is issued. Those texts are in the corpus; the machine-readable form of article 52 is in the case corpus of the PoC (`packages/poc-chronolexografie/corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw`). The report is the declaration, so one submission covers both: that follows from the third paragraph, and the citizen fills in one form.
+
+```yaml
+# BABW article 52, as the case models it
+produces:
+  - type: AANVRAAG
+    requests: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#52
+    parameters: [bsn_aanvrager, dagtekening, aanvraag_ondertekend, verloren_kaart,
+                 datum_vermissing, omstandigheden_verlies, verklaring_naar_waarheid]
+  - type: BESCHIKKING
+    decision_type: TOEKENNING
+    outputs: [duplicaat_verstrekt]
+```
+
+The submission refers to the record that granted the card but takes nothing over from it: only a submission that holds the decision it refers to as a field, such as an objection, does that (`Cell::record_submission`). The UI spec has the system fill the citizen number, the day and the signature, the latter by article 8 of the municipality's fictitious policy, as for the application; the name comes from the login as well. The field `verloren_kaart` holds the record the submission refers to, which the system fills (`submission: referred_record`), so the decision knows which card is lost. The citizen fills in the address, which Awb 4:2 asks, and the report. The rest comes from the municipality's fictitious policy:
+
+| What | Where |
+|---|---|
+| Whether the card reported lost is the card that counts now in its aggregate, handed out and still valid | open term of article 52, bound by article 11 of the parking-card policy to an answer of the municipality's cell (`aanvrager_heeft_uitgereikte_geldige_kaart`, reduction `reductie_geldige_gehandicaptenparkeerkaart`, read by article 8 of the policy on issued cards) |
+| What a duplicate does with the card | article 9 of the policy on issued cards: the acts after a grant start again at the decision on the duplicate, and the last day of validity stays |
+
+The decision grants a duplicate when the declaration is signed and says the card is lost, the circumstances are given, and the card it names counts, was handed out and is still valid. In the aggregate of the card, the decision on the duplicate becomes the record that granted, so the lost card no longer counts there and the duplicate is ordered by the system, received by the post room and handed out, as any card. No request to the GGD follows: the case's `bij_aanvraag` runs for the application for a card only.
+
+The case file offers the report beside a card whose acts are all done (`na_toekenning.aanvragen`, with the text of the way in and of the form), and gives the line a citizen reads under a card a new one took the place of (`vervallen`). A second report about the same card, while the first waits or later, is refused once the first granted a duplicate: the card it names no longer counts. A report about a card not yet handed out, about a refusal, or about an expired card is refused. A lost duplicate can be reported in turn, once it is handed out. A card found again after a duplicate is an open point: the case gives it no consequence, and the old card stays invalid.
 
 ## The post room
 

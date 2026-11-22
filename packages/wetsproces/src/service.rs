@@ -172,10 +172,16 @@ impl Step {
                 // What the system fills is filled here, on the day the step
                 // runs and on the chronicles it runs on, so the day of the
                 // application is the day it is recorded on.
-                if let Some(submitter) = &s.submitter
-                    && article == corpus.casus.artikel
-                {
-                    let filled = kern::systeemvelden(corpus, cellen, submitter, &fields, on)?;
+                if let Some(submitter) = &s.submitter {
+                    let filled = kern::systeemvelden(
+                        corpus,
+                        cellen,
+                        article,
+                        s.refers_to.as_deref(),
+                        submitter,
+                        &fields,
+                        on,
+                    )?;
                     fields.extend(filled);
                 }
                 let (gram, by_policy) = kern::indienen_volgens_beleid(
@@ -600,15 +606,16 @@ impl Service {
         )
     }
 
-    /// What the system would fill in an application of `submitter` today
-    /// ([`kern::systeemvelden`]), for a form to show before it is
-    /// submitted. Nothing is recorded; the submission fills it anew.
+    /// What the system would fill in a submission under `article` of
+    /// `submitter` today ([`kern::systeemvelden`]), for a form to show before
+    /// it is submitted. Nothing is recorded; the submission fills it anew.
     ///
     /// # Errors
     ///
     /// When the store fails, or a source the UI spec names gives nothing.
     pub async fn system_preview(
         &self,
+        article: String,
         submitter: Indiener,
     ) -> Result<Map<String, Value>, ServiceError> {
         let read = self.read().await?;
@@ -619,6 +626,8 @@ impl Service {
             Ok(kern::systeemvelden(
                 &corpus,
                 &cellen,
+                &article,
+                None,
                 &submitter,
                 &Map::new(),
                 today,

@@ -180,6 +180,10 @@ pub enum Indieningsgegeven {
     /// (`login_method`), such as `DigiD`; empty when the system knows of no
     /// login, as for a form without one.
     Inlogmiddel,
+    /// The id of the record the submission refers to (`referred_record`),
+    /// such as the decision that granted what an application for a
+    /// duplicate is about; empty for a submission that refers to none.
+    Verwezen,
 }
 
 impl Indieningsgegeven {
@@ -189,14 +193,20 @@ impl Indieningsgegeven {
             Self::Datum => "date",
             Self::GevraagdBesluit => "requested_decision",
             Self::Inlogmiddel => "login_method",
+            Self::Verwezen => "referred_record",
         }
     }
 
     /// The datum a UI spec names `naam`, if it is one.
     fn lees(naam: &str) -> Option<Self> {
-        [Self::Datum, Self::GevraagdBesluit, Self::Inlogmiddel]
-            .into_iter()
-            .find(|g| g.naam() == naam)
+        [
+            Self::Datum,
+            Self::GevraagdBesluit,
+            Self::Inlogmiddel,
+            Self::Verwezen,
+        ]
+        .into_iter()
+        .find(|g| g.naam() == naam)
     }
 }
 

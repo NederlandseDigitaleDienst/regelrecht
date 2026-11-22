@@ -83,11 +83,28 @@ export interface Vervolghandeling {
   stand: string;
 }
 
+/** An application the case offers about a grant once its acts are done, such as a duplicate. */
+export interface Vervolgaanvraag {
+  /** The article that establishes it. */
+  artikel: string;
+  /** What the way in to it says. */
+  knop: string;
+  /** The title of its form. */
+  titel: string;
+  /** What the form says before the fields. */
+  uitleg: string;
+  /** The output of the decision on it that says whether it grants. */
+  uitkomst: string;
+}
+
 /** What follows a grant in the case: the acts in their order. */
 export interface NaToekenning {
   /** What a citizen reads of a grant before the first act. */
   stand: string;
   handelingen: Vervolghandeling[];
+  /** What a citizen reads of a grant a new one took the place of. */
+  vervallen?: string;
+  aanvragen?: Vervolgaanvraag[];
 }
 
 /** One grant and how far its acts are (`vervolg::Stand`). */

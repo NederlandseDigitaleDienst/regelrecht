@@ -397,11 +397,22 @@ pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> Citize
     let visible = visible_records(state, principal).await?;
     only_visible_records(&mut forms, &visible);
     if let Ok(citizen) = principal.citizen(&state.subject_claim) {
-        let preview = state
-            .service
-            .system_preview(submitter(state, principal, &citizen))
-            .await;
-        with_system_values(&mut forms, state.service.application_article(), preview);
+        // Every submission whose form has fields the system fills, such as
+        // the case's application and an application for a duplicate.
+        let articles: Vec<String> = forms["indieningen"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter(|(_, f)| f["systeem"].as_object().is_some_and(|s| !s.is_empty()))
+            .map(|(article, _)| article.clone())
+            .collect();
+        for article in articles {
+            let preview = state
+                .service
+                .system_preview(article.clone(), submitter(state, principal, &citizen))
+                .await;
+            with_system_values(&mut forms, &article, preview);
+        }
     }
     Ok(forms)
 }
@@ -794,11 +805,11 @@ pub(crate) async fn submit_for(
         .article
         .as_deref()
         .is_none_or(|a| a == state.service.application_article());
-    if application
-        && let Some(system) = state
-            .service
-            .system_fields()
-            .find(|f| s.fields.contains_key(*f))
+    // A field the system fills is the system's in every kind of submission.
+    if let Some(system) = state
+        .service
+        .system_fields()
+        .find(|f| s.fields.contains_key(*f))
     {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -815,13 +826,15 @@ pub(crate) async fn submit_for(
         // it is what picks out the dossier.
         s.fields
             .insert(field.to_string(), Value::from(citizen.subject()));
-        s.submitter = Some(submitter(state, principal, &citizen));
     } else if s.refers_to.is_none() {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
             "a submission other than the application refers to a record of your dossier (`op`)",
         ));
     }
+    // What the system fills in the submission, the login field among them
+    // where its form asks it, comes from who submits.
+    s.submitter = Some(submitter(state, principal, &citizen));
     perform(state, headers, Step::Submit(s), &principal.actor()).await
 }
 

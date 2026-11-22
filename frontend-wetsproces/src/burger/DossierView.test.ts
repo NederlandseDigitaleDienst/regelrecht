@@ -178,6 +178,40 @@ describe('the dossier', () => {
     expect(regels).toContain('Vergunning gedrukt');
   });
 
+  it('offers an application about a grant once its acts are done, and marks a grant another took the place of', async () => {
+    const verleend = { ...besluit, outputs: { verleend: true } };
+    dossier.mockResolvedValue([aanvraag, verleend]);
+    const na = {
+      stand: 'Uw vergunning is verleend.',
+      handelingen: [{ feit: 'beleid#5#vergunning_verzonden', knop: 'Verzenden', stand: 'Verzonden op {datum}.' }],
+      vervallen: 'Deze vergunning geldt niet meer.',
+      aanvragen: [{ artikel: 'wet#2', knop: 'Vergunning kwijt?', titel: 'Vergunning kwijt', uitleg: 'Meld het hier.', uitkomst: 'vervangen' }],
+    };
+    casus.na_toekenning = na;
+    const klaar = { besluit: 'b', toekenning: 'b', stappen: [{ feit: 'beleid#5#vergunning_verzonden', gedaan: '2026-10-20' }], volgende: null };
+    vervolg.mockReturnValue([klaar]);
+    const { w, router } = await toon('/burger');
+    expect(teksten(w)).toContain('Vergunning kwijt?');
+    await w.findAll('nldd-list-item').find((i) => i.find('nldd-text-cell').attributes('text') === 'Vergunning kwijt?')?.trigger('click');
+    await vi.waitFor(() => expect(router.currentRoute.value.query).toEqual({ artikel: 'wet#2', op: 'b' }), { timeout: 10000 });
+
+    // While the acts still run, nothing is offered.
+    vervolg.mockReturnValue([{ ...klaar, stappen: [{ feit: 'beleid#5#vergunning_verzonden', gedaan: null }], volgende: 'beleid#5#vergunning_verzonden' }]);
+    expect(teksten((await toon('/burger')).w)).not.toContain('Vergunning kwijt?');
+
+    // Once the decision on such an application took the grant's place, the
+    // grant says it no longer counts.
+    const melding = gram('m', 'AANVRAAG', 'wet#2', 'b');
+    const duplicaat = { ...gram('x', 'BESCHIKKING', 'wet#2', 'm'), outputs: { vervangen: true } };
+    dossier.mockResolvedValue([aanvraag, verleend, melding, duplicaat]);
+    vervolg.mockReturnValue([{ ...klaar, toekenning: 'x' }]);
+    const regels = teksten((await toon('/burger')).w);
+    expect(regels).toContain('Deze vergunning geldt niet meer.');
+    // The way in moves to the grant that counts now: one, under the new one.
+    expect(regels.filter((t) => t === 'Vergunning kwijt?')).toHaveLength(1);
+    expect(regels.indexOf('Vergunning kwijt?')).toBeGreaterThan(regels.indexOf('Deze vergunning geldt niet meer.'));
+  });
+
   describe('after a court annulled the decision on objection', () => {
     // The refusal b, the objection c, its decision d, annulled by the receipt
     // r of the court's judgment, and the decision e taken again after it,

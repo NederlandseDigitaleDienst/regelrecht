@@ -351,7 +351,8 @@ impl Cell {
     /// voided it, gives (such as the end of a period that a hook on the
     /// decision computes). Returns what the cell fills, and the names the
     /// submitter may not supply: these, and the `decision` field also without
-    /// `refers_to`.
+    /// `refers_to`. A submission without a `decision` field takes nothing
+    /// over: it refers to the decision but holds its own values.
     fn referred(
         &self,
         service: &LawExecutionService,
@@ -408,6 +409,15 @@ impl Cell {
         // The terms this cell answers count only for a decision of its own:
         // for a copy they are the other cell's, which this cell does not
         // hold.
+        // Only a submission that holds the decision it refers to as a field
+        // of type `decision`, such as an objection that contests it, takes
+        // over what that decision holds. Another submission that refers to a
+        // decision, such as an application for a duplicate of what the
+        // decision granted, is about it but is no part of it: it holds its
+        // own values under its own day.
+        if decisions.is_empty() {
+            return Ok((filled, Vec::new()));
+        }
         let taken_on = referred.recorded_on;
         let referred_shape = decision_shape_of(service, referred, taken_on)?;
         let gives = gives(service, &referred_shape, taken_on);

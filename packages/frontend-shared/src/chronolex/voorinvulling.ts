@@ -33,7 +33,7 @@ export interface Voorgevuld {
  * the login, the clock, a fixed value, the decision the law names, the means
  * of login, or a source (`bron`).
  */
-export type Systeemsoort = 'inloggen' | 'datum' | 'waarde' | 'gevraagd_besluit' | 'inlogmiddel' | 'bron';
+export type Systeemsoort = 'inloggen' | 'datum' | 'waarde' | 'gevraagd_besluit' | 'inlogmiddel' | 'verwezen' | 'bron';
 
 /** How the system fills a field. */
 export interface Systeemvulling {

@@ -458,3 +458,156 @@ articles:
                 operation: EQUALS
                 subject: $toekenningsbesluit
                 value: null
+
+  - number: '8'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      kaart die de aanvrager verloren meldt, is op een dag een uitgereikte
+      kaart als het besluit dat haar verstrekte nog het besluit is dat de
+      kaart verstrekt, het college haar aan hem uitreikte, en zij op die dag
+      nog geldig is.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel52
+    machine_readable:
+      # Voor de vraag of er een kaart is waarvoor de aanvrager een duplicaat
+      # kan krijgen (artikel 52 van het BABW). Zoals artikel 1; dit artikel
+      # leest niets anders dan de rijen die de reductie het geeft.
+      execution:
+        parameters:
+          - name: kaarten
+            type: array
+            description: >-
+              De besluiten op aanvragen van de aanvrager, elk met het besluit
+              dat de kaart verstrekte, de dag van de uitreiking en de laatste
+              dag waarop zij geldig is.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop de kaart geldig moet zijn.
+          - name: verloren_kaart
+            type: string
+            description: Het besluit dat de kaart verstrekte die de aanvrager verloren meldt.
+        output:
+          - name: uitgereikte_geldige_kaart
+            type: boolean
+            description: >-
+              Of de verloren gemelde kaart nog door het besluit verloren_kaart
+              is verstrekt, is uitgereikt en op besluit_datum geldig is.
+        actions:
+          - output: uitgereikte_geldige_kaart
+            value:
+              operation: FOREACH
+              collection: $kaarten
+              as: kaart
+              body:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $kaart.toekenningsbesluit
+                    value: $verloren_kaart
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $kaart.datum_uitreiking
+                      value: null
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $kaart.kaart_geldig_tot
+                      value: null
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit_datum
+                      to: $kaart.kaart_geldig_tot
+                      in: days
+                    value: 0
+              combine: OR
+
+  - number: '9'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+      Geeft het college een duplicaat af (artikel 52 van het BABW), dan
+      verliest de verloren kaart haar geldigheid (artikel 53, eerste lid,
+      onder b, van het BABW) en horen de handelingen van artikel 5 en 7 vanaf
+      dan bij het besluit dat het duplicaat afgaf: het duplicaat wordt
+      opnieuw besteld, ontvangen en uitgereikt. Het duplicaat geldt tot de
+      dag waarop de verloren kaart gold.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel53
+    machine_readable:
+      # Voor de reductie per besluit, zoals artikel 4 en 6: wat een besluit
+      # op een aanvraag om een duplicaat met de staat van de kaart doet. Het
+      # leest niets anders dan wat het krijgt. Wijst het besluit het
+      # duplicaat af, dan blijft alles zoals het was.
+      execution:
+        parameters:
+          - name: duplicaat_verstrekt
+            type: boolean
+            required: false
+            description: Of het besluit een duplicaat afgeeft.
+          - name: duplicaatbesluit
+            type: string
+            required: false
+            description: Het besluit op de aanvraag om een duplicaat.
+          - name: al_toekenningsbesluit
+            type: string
+            nullable: true
+            required: false
+            description: Het besluit dat vóór dit besluit de kaart verstrekte.
+          - name: al_datum
+            type: date
+            nullable: true
+            required: false
+            description: De dag van een handeling met de verloren kaart.
+          - name: al_tekst
+            type: string
+            nullable: true
+            required: false
+            description: Een gegeven van een handeling met de verloren kaart.
+          - name: al_waar
+            type: boolean
+            required: false
+            description: Een gegeven van een handeling met de verloren kaart.
+        output:
+          - name: toekenningsbesluit_na_duplicaat
+            type: string
+            nullable: true
+            description: Het besluit waar de handelingen na dit besluit bij horen.
+          - name: datum_na_duplicaat
+            type: date
+            nullable: true
+            description: De dag van de handeling na dit besluit; leeg na een duplicaat.
+          - name: tekst_na_duplicaat
+            type: string
+            nullable: true
+            description: Het gegeven van de handeling na dit besluit; leeg na een duplicaat.
+          - name: waar_na_duplicaat
+            type: boolean
+            description: Het gegeven van de handeling na dit besluit; onwaar na een duplicaat.
+        actions:
+          - output: toekenningsbesluit_na_duplicaat
+            value:
+              operation: IF
+              cases:
+                - when: $duplicaat_verstrekt
+                  then: $duplicaatbesluit
+              default: $al_toekenningsbesluit
+          - output: datum_na_duplicaat
+            value:
+              operation: IF
+              cases:
+                - when: $duplicaat_verstrekt
+                  then: null
+              default: $al_datum
+          - output: tekst_na_duplicaat
+            value:
+              operation: IF
+              cases:
+                - when: $duplicaat_verstrekt
+                  then: null
+              default: $al_tekst
+          - output: waar_na_duplicaat
+            value:
+              operation: AND
+              conditions:
+                - operation: NOT
+                  value: $duplicaat_verstrekt
+                - $al_waar

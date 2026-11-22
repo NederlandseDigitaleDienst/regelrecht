@@ -7,7 +7,7 @@ valid_from: '2026-01-01'
 # FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
 # beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
 # url wijst daarom naar het artikel dat dit beleid uitwerkt.
-# Artikel 2 tot en met 4 en artikel 7 koppelen open begrippen aan de
+# Artikel 2 tot en met 4, 7 en 11 koppelen open begrippen aan de
 # antwoorden van cellen (source.reduction, RFC-048): het college ontleent wat
 # het anders per aanvraag vaststelt aan wat zijn eigen cel uit haar kroniek
 # haalt. Daar staan ook de adviezen die het van de GGD ontving (artikel 5).
@@ -916,8 +916,9 @@ articles:
   - number: '8'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
-      aanvraag om een gehandicaptenparkeerkaart die de aanvrager elektronisch
-      indient nadat hij zich met DigiD heeft aangemeld, geldt als ondertekend.
+      aanvraag om een gehandicaptenparkeerkaart of om een duplicaat daarvan
+      die de aanvrager elektronisch indient nadat hij zich met DigiD heeft
+      aangemeld, geldt als ondertekend.
       Het college acht die methode van ondertekening voldoende betrouwbaar.
     url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel2:16
     machine_readable:
@@ -1128,4 +1129,56 @@ articles:
             value:
               operation: EQUALS
               subject: $antwoord_eerder_verstrekt
+              value: true
+  - number: '11'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      de kaart die de aanvrager verloren meldt een kaart is die het college
+      hem verstrekte en uitreikte en die nog geldig is, zodat hij een
+      duplicaat kan krijgen (artikel 52 van het BABW), ontleent het college
+      aan het antwoord van zijn eigen cel.
+      Geeft de cel geen antwoord, dan is er geen zo'n kaart.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel52
+    machine_readable:
+      # Een koppeling als artikel 2. Een duplicaat vraagt geen nieuw
+      # geneeskundig onderzoek: artikel 52 van het BABW kent geen criteria
+      # van de regeling, en dit beleid vraagt bij een aanvraag om een
+      # duplicaat niets aan de GGD (artikel 9 geldt bij een aanvraag om een
+      # kaart).
+      implements:
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '52'
+          open_term: verloren_kaart_is_uitgereikt_en_geldig
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de houder van de kaart.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag om een duplicaat besluit.
+          - name: verloren_kaart
+            type: string
+            description: Het besluit dat de verloren kaart verstrekte.
+        input:
+          - name: antwoord_uitgereikte_kaart
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_heeft_uitgereikte_geldige_kaart
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                besluit_datum: $besluit_datum
+                verloren_kaart: $verloren_kaart
+        output:
+          - name: verloren_kaart_is_uitgereikt_en_geldig
+            type: boolean
+            description: >-
+              Of het college de aanvrager een kaart verstrekte en uitreikte die
+              nog geldig is, volgens zijn cel.
+        actions:
+          - output: verloren_kaart_is_uitgereikt_en_geldig
+            value:
+              operation: EQUALS
+              subject: $antwoord_uitgereikte_kaart
               value: true
