@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import type { RouteLocationNormalized } from 'vue-router';
+import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
+import { createMemoryHistory, createRouter } from 'vue-router';
+import { backofficeRoutes } from './backoffice/routes';
 import { omleiding } from './router';
 import type { Ik } from './gedeeld/types';
 
@@ -41,9 +43,19 @@ describe('omleiding', () => {
     expect(omleiding(naar('/burger/aanvraag', 'burger'), burger)).toBeUndefined();
   });
 
-  it('opens the clock only for whoever may set it', () => {
-    expect(omleiding(naar('/backoffice/klok', 'backoffice', 'klok'), medewerker)).toBe('/backoffice');
-    expect(omleiding(naar('/backoffice/klok', 'backoffice', 'klok'), { ...medewerker, klok_zetten: true })).toBeUndefined();
+  it('opens the simulation only for whoever may set the clock', () => {
+    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), medewerker)).toBe('/backoffice');
+    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), { ...medewerker, klok_zetten: true })).toBeUndefined();
+  });
+
+  it('keeps someone without the right out also at the old address of the clock', async () => {
+    // The real routes with empty screens: the redirect and the guard are what count here.
+    const leeg = (routes: RouteRecordRaw[]): RouteRecordRaw[] =>
+      routes.map((r) => ({ ...r, ...('component' in r && r.component ? { component: { render: () => null } } : {}), ...(r.children ? { children: leeg(r.children) } : {}) }) as RouteRecordRaw);
+    const router = createRouter({ history: createMemoryHistory(), routes: leeg(backofficeRoutes) });
+    router.beforeEach((to) => omleiding(to, medewerker));
+    await router.push('/backoffice/klok');
+    expect(router.currentRoute.value.path).toBe('/backoffice');
   });
 
   it('opens the admin panel only for whoever enters what an external party did', () => {
