@@ -96,8 +96,14 @@ elements:
     fields:
       - name: termijn_startdatum
         label: Begin van de termijn voor bezwaar of beroep
+      # De hulptekst staat ook bij een te laat bezwaar of beroep: wat Awb 6:11
+      # zegt over een indiening na afloop van de termijn.
       - name: termijn_einddatum
         label: Laatste dag voor bezwaar of beroep
+        help: >-
+          Wie later indient, wordt alleen nog behandeld als redelijkerwijs niet
+          kan worden geoordeeld dat hij in verzuim is geweest (Awb artikel
+          6:11). Schrijf dan in de gronden waarom het later is.
       - name: termijn_weken
         label: Duur van die termijn in weken
       - name: motivering_vereist

@@ -27,8 +27,14 @@ const besluit = computed(() => {
   const g = props.dossier.find((x) => x.id === props.id);
   return g && isBesluit(g, props.casus) ? g : null;
 });
+/** The field of a submission against the decision that holds its deadline, as the server derives it from the law. */
+const termijnveld = computed(
+  () => tegen.value.map((i) => props.vormen?.indieningen[i.artikel]?.termijn).find(Boolean) ?? null,
+);
 /** The deadline to object or appeal, by the test clock or the real day (`casus.vandaag`). */
-const deadline = computed(() => (besluit.value ? termijn(besluit.value, props.casus.vandaag) : null));
+const deadline = computed(() => (besluit.value ? termijn(besluit.value, props.casus.vandaag, termijnveld.value) : null));
+/** What the UI spec says of a late submission, under the field of the deadline. */
+const teLaat = computed(() => (termijnveld.value ? props.vormen?.teksten?.[termijnveld.value]?.help ?? '' : ''));
 /** What the citizen can file against it, in words: `bezwaar`, or `bezwaar of beroep`. */
 const tegenWoorden = computed(() => tegen.value.map((i) => soortNaam(i).toLowerCase()).join(' of '));
 const titel = computed(() =>
@@ -138,7 +144,7 @@ async function indienen() {
               v-if="deadline.voorbij"
               icon="warning"
               :text="`De termijn liep tot en met ${longDate(deadline.einde)}`"
-              :supporting-text="`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat. Het wordt alleen behandeld als redelijkerwijs niet kan worden geoordeeld dat u in verzuim bent geweest (Awb artikel 6:11). Schrijf in de gronden waarom u later bent.`"
+              :supporting-text="[`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat.`, teLaat].filter(Boolean).join(' ')"
             ></nldd-inline-dialog>
             <nldd-text v-else>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</nldd-text>
             <nldd-spacer size="8"></nldd-spacer>

@@ -718,6 +718,21 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
         vormen["teksten"]["gevraagde_beschikking"]["label"],
         json!("Wat vraagt u aan?")
     );
+    // The deadline of a submission follows from the law: the date Awb 6:9
+    // reads the receipt of an objection or appeal against. An application
+    // names none.
+    assert_eq!(aanvraag["termijn"], json!(null));
+    let termijnen: Vec<(&str, &Value)> = vormen["indieningen"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter(|i| i["soort"] == json!("BEZWAAR") || i["soort"] == json!("BEROEP"))
+        .map(|i| (i["soort"].as_str().unwrap(), &i["termijn"]))
+        .collect();
+    assert!(!termijnen.is_empty(), "{vormen}");
+    for (soort, termijn) in termijnen {
+        assert_eq!(*termijn, json!("termijn_einddatum"), "{soort}");
+    }
     // An employee sees how the form fills, not a citizen's values.
     let lezer = employee(&app, "lezer-1", "wetsproces-lezer").await;
     let (_, vormen) = lezer.get("/api/formulier").await;

@@ -661,6 +661,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "basis": vorm.basis(),
             "velden": in_te_vullen(&vorm),
             "moment": moment(&vorm),
+            "termijn": termijnveld(&vorm),
             "besluit": i.besluit,
             "cel": i.cel,
         });
@@ -1120,6 +1121,25 @@ pub fn systeemvelden(
         uit.insert((*veld).clone(), gevonden["waarde"].clone());
     }
     Ok(uit)
+}
+
+/// The field of the submission `vorm` that holds the last day to make it
+/// in time: the date the article that names its moment declares beside it,
+/// as Awb 6:9 names the receipt of an objection and reads it against the end
+/// of the period. A submission against a decision takes that field from the
+/// decision, so a screen reads the deadline of a decision from it. `None`
+/// when the law names no moment, or not exactly one such date.
+fn termijnveld(vorm: &shape::Shape) -> Option<&str> {
+    let moment = vorm.moment.as_ref()?;
+    let mut velden = vorm.fields.iter().filter(|f| {
+        f.type_ == ParameterType::Date
+            && f.declared_by.contains(&moment.declared_by)
+            && Some(&f.name) != moment.parameter.as_ref()
+    });
+    match (velden.next(), velden.next()) {
+        (Some(veld), None) => Some(veld.name.as_str()),
+        _ => None,
+    }
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a

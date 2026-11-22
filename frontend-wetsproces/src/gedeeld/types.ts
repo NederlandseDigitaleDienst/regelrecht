@@ -59,6 +59,12 @@ export interface Indieningsvorm {
   verborgen?: string[];
   /** Why the server could not say what it will fill, if so. */
   systeem_fout?: string;
+  /**
+   * The field that holds the last day to make the submission in time, as the
+   * article that names its moment reads it (Awb 6:9); a submission against a
+   * decision takes it from the decision. Absent when the law names none.
+   */
+  termijn?: string | null;
 }
 
 /** The form of a decision under one article: what the authority finds. */
