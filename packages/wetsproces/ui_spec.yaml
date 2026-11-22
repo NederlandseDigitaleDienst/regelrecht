@@ -102,3 +102,17 @@ elements:
         label: Duur van die termijn in weken
       - name: motivering_vereist
         label: Het besluit moet gemotiveerd worden
+  # Het verzoek van de gemeente aan de GGD om een geneeskundig onderzoek
+  # (artikel 9 van het fictieve beleid). Het systeem legt het vast bij een
+  # aanvraag; dossier, werkvoorraad en beheerpaneel tonen deze velden.
+  - id: UI3
+    element: verzoek_geneeskundig_onderzoek
+    fields:
+      - name: datum_verzoek
+        group: Het verzoek
+        label: Dag van het verzoek
+        help: De dag waarop de aanvraag binnenkwam en de gemeente de GGD om een onderzoek vroeg.
+      - name: aanvraag
+        group: Het verzoek
+        label: Bij de aanvraag
+        help: De aanvraag waarvoor de gemeente het onderzoek vroeg.
