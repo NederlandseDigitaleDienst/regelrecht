@@ -21,7 +21,7 @@
 //! ([`crate::external`]); their chronicles run in the same commits, but what
 //! they do comes in through the admin panel.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use chrono::NaiveDate;
@@ -37,7 +37,7 @@ use serde_json::{Map, Value, json};
 use crate::clock::Clock;
 use crate::external;
 use crate::store::{
-    Actor, Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt,
+    Actor, Appended, CellAppend, Channel, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt,
     StoreError, StoredChronicle,
 };
 
@@ -143,8 +143,26 @@ impl Applied {
 }
 
 impl Step {
-    /// Run the step of the kern on `cellen`, on `on`.
+    /// Run the step of the kern on `cellen`, on `on`, and then every act the
+    /// system takes itself that the step brought about, such as ordering a
+    /// card once a grant counts (`vervolg::automatisch`). Those land in the
+    /// same commit as the step, recorded by the article that has the system
+    /// take them ([`Commit::by_policy`]).
     fn apply(&self, corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> kern::Result<Applied> {
+        let mut applied = self.apply_step(corpus, cellen, on)?;
+        applied
+            .by_policy
+            .extend(vervolg::automatisch(corpus, cellen, on)?);
+        Ok(applied)
+    }
+
+    /// The step of the kern itself ([`Step::apply`]).
+    fn apply_step(
+        &self,
+        corpus: &Corpus,
+        cellen: &mut Cellen,
+        on: NaiveDate,
+    ) -> kern::Result<Applied> {
         match self {
             Self::Submit(s) => {
                 let article = s.article.as_deref().unwrap_or(&corpus.casus.artikel);
@@ -831,7 +849,9 @@ impl Service {
     /// What the decision on the submission `d` would come to today, before
     /// it is taken (`kern::voorvertoning`): the outcome or the cell's
     /// refusal, and the findings a policy leaves to the authority for this
-    /// case. Taken on a copy of the cells; nothing is recorded.
+    /// case, and what the system would then do by itself (`automatisch`,
+    /// [`vervolg::zou_automatisch`]). Taken on a copy of the cells; nothing
+    /// is recorded.
     ///
     /// # Errors
     ///
@@ -851,7 +871,25 @@ impl Service {
                 &d.findings,
                 today,
             )?;
-            Ok(to_value(&preview)?)
+            let mut preview = to_value(&preview)?;
+            // What the system would do by itself once this decision is taken,
+            // such as ordering the card it grants: on a copy, nothing lands.
+            let mut proef = cellen.sandbox();
+            let automatisch = match kern::beslissen(
+                &corpus,
+                &mut proef,
+                &d.submission,
+                d.after.as_deref(),
+                &d.findings,
+                today,
+            ) {
+                Ok(_) => vervolg::zou_automatisch(&corpus, &proef, today)?,
+                Err(_) => Vec::new(),
+            };
+            if let Some(map) = preview.as_object_mut() {
+                map.insert("automatisch".into(), Value::Array(automatisch));
+            }
+            Ok(preview)
         })
         .await
     }
@@ -883,6 +921,26 @@ impl Service {
             "grammen": grams,
             "stand": stand,
         }))
+    }
+
+    /// Per record the server recorded by an article of the executor's own
+    /// policy, without a person ([`Channel::Policy`]), that article: the
+    /// request to the GGD an application brings about, the order of a card
+    /// once a grant counts. A screen says of such a record that the system
+    /// made it, and by which article.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn by_policy(&self) -> Result<BTreeMap<String, String>, ServiceError> {
+        let read = self.read().await?;
+        Ok(read
+            .chronicles
+            .iter()
+            .flat_map(|c| &c.grams)
+            .filter(|g| g.recorded_via == Some(Channel::Policy))
+            .filter_map(|g| Some((g.gram.id.clone(), g.recorded_by.clone()?)))
+            .collect())
     }
 
     /// Every grant of the executor today, with how far the acts that follow

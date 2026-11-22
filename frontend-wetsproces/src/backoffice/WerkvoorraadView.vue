@@ -64,7 +64,7 @@ const openToekenningen = computed(() => {
     .map((s) => ({
       stand: s,
       tekst: [casus.value?.titel, s.aanvrager ? `voor ${toon(s.aanvrager)}` : ''].filter(Boolean).join(' '),
-      regel: medewerkerStand(s),
+      regel: medewerkerStand(s, na),
       knop: na.handelingen.find((h) => h.feit === s.volgende)?.knop ?? `${feitNaam(s.volgende ?? '')} vastleggen`,
       handeling: vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),
     }));

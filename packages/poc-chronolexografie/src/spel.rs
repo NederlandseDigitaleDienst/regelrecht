@@ -103,7 +103,17 @@ impl Spel {
     ) -> Result<T, Fout> {
         let spel = self.gekozen.as_mut().ok_or(Fout::GeenCasus)?;
         let corpus = &self.casussen[spel.casus];
-        Ok(stap(corpus, &mut spel.cell)?)
+        let kop = spel.cell.eigen.grams().len();
+        let uit = stap(corpus, &mut spel.cell)?;
+        // A step that recorded something may bring about an act the system
+        // takes itself, such as ordering a granted card (crate::vervolg).
+        if spel.cell.eigen.grams().len() != kop {
+            let datum = spel.cell.eigen.grams().last().map(|g| g.recorded_on);
+            if let Some(datum) = datum {
+                crate::vervolg::automatisch(corpus, &mut spel.cell, datum)?;
+            }
+        }
+        Ok(uit)
     }
 
     fn positie(&self, id: &str) -> Result<usize, Fout> {

@@ -12,6 +12,8 @@ export function useBurger() {
   /** What the kern says of the dossier's records: what each is, what was revoked, what answers each submission. */
   const stand = ref<Stand>({ rollen: {}, herroepen: {}, antwoorden: {} });
   const vervolg = ref<Vervolgstand[]>([]);
+  /** Per record the system made by an article of the policy, that article. */
+  const doorHetSysteem = ref<Record<string, string>>({});
   const wie = ref<Ik | null>(null);
   const fout = ref('');
   const laden = ref(true);
@@ -19,7 +21,7 @@ export function useBurger() {
   async function laad() {
     laden.value = true;
     try {
-      let d: { grammen: Gram[]; stand: Stand; vervolg: Vervolgstand[] };
+      let d: Awaited<ReturnType<typeof burgerApi.dossier>>;
       [casus.value, vormen.value, d, wie.value] = await Promise.all([
         burgerApi.casus(),
         burgerApi.formulier(),
@@ -29,6 +31,7 @@ export function useBurger() {
       dossier.value = d.grammen;
       stand.value = d.stand;
       vervolg.value = d.vervolg;
+      doorHetSysteem.value = d.doorHetSysteem;
       fout.value = '';
     } catch (e) {
       fout.value = foutTekst(e);
@@ -37,5 +40,5 @@ export function useBurger() {
     }
   }
 
-  return { casus, vormen, dossier, stand, vervolg, wie, fout, laden, laad };
+  return { casus, vormen, dossier, stand, vervolg, doorHetSysteem, wie, fout, laden, laad };
 }

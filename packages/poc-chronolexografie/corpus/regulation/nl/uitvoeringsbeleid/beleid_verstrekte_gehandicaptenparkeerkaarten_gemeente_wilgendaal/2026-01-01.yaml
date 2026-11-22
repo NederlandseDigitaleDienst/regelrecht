@@ -17,7 +17,8 @@ valid_from: '2026-01-01'
 # van het herroepen besluit nam, beide voor de reductie per besluit.
 # Artikel 5 zegt wat er na een verstrekking met de kaart zelf gebeurt
 # (bestellen, ontvangen, uitreiken) en welke feiten het college daarvan
-# vastlegt, en artikel 6 bij welk besluit die feiten horen. Het
+# vastlegt, artikel 6 bij welk besluit die feiten horen, en artikel 7 dat
+# het systeem de bestelling zelf vastlegt. Het
 # staat los van het beleid gehandicaptenparkeerkaart, omdat dat beleid de
 # reductie aanroept.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
@@ -282,16 +283,9 @@ articles:
       # In welke volgorde de handelingen komen, legt de casus van het
       # wetsprocessysteem vast (na_toekenning); dit beleid zegt alleen wat elk
       # feit vermeldt.
+      # De bestelling (lid 1) legt het systeem zelf vast, volgens artikel 7;
+      # dat artikel vereist het feit kaart_besteld_bij_drukker.
       requires:
-        - fact: kaart_besteld_bij_drukker
-          description: >-
-            Dat het college de drukker opdracht gaf de verstrekte kaart te
-            drukken, en op welke dag (lid 1).
-          competent_authority:
-            - name: college van burgemeester en wethouders
-              type: CATEGORY
-          parameters:
-            - datum_bestelling
         - fact: gedrukte_kaart_ontvangen
           description: >-
             Dat de gemeente de gedrukte kaart van de drukker ontving, op welke
@@ -315,9 +309,6 @@ articles:
             - per_post_verzonden
       execution:
         parameters:
-          - name: datum_bestelling
-            type: date
-            description: De dag waarop het college de kaart bij de drukker bestelde.
           - name: datum_ontvangst
             type: date
             description: De dag waarop de gemeente de gedrukte kaart ontving.
@@ -336,7 +327,7 @@ articles:
   - number: '6'
     text: >-
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
-      handelingen van artikel 5 horen bij het besluit dat de kaart verstrekte:
+      handelingen van artikel 5 en 7 horen bij het besluit dat de kaart verstrekte:
       het besluit op de aanvraag, of de beslissing op bezwaar die in de plaats
       van het herroepen besluit een nieuw besluit nam dat een kaart
       verstrekt. Een beslissing op bezwaar zonder nieuw besluit laat staan
@@ -410,3 +401,60 @@ articles:
                     value: true
                   then: $beslissing_op_bezwaar
               default: null
+
+  - number: '7'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Zodra een besluit geldt dat een kaart verstrekt (artikel 6), bestelt
+      het college de kaart dezelfde dag bij de drukker (artikel 5, eerste
+      lid). Daar is geen beoordeling voor nodig.
+
+      2 Het college bestelt een kaart één keer per besluit dat haar
+      verstrekte.
+
+      3 Het systeem van het college legt de bestelling vast.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet als een
+      # verstrekking geldt, niet wat het besluit. Het wetsprocessysteem van
+      # de gemeente voert dit artikel uit zodra een besluit dat een kaart
+      # verstrekt geldt (na_toekenning in het casusbestand, door_het_systeem
+      # bij de bestelling), en legt dan het feit kaart_besteld_bij_drukker
+      # vast. Hetzelfde patroon als het verzoek aan de GGD (artikel 9 van het
+      # beleid gehandicaptenparkeerkaart): één uitvoer die zegt of het systeem
+      # handelt, en één feit dat het dan vastlegt. Dat het één keer gebeurt
+      # (lid 2), bewaakt de volgorde van na_toekenning.
+      requires:
+        - fact: kaart_besteld_bij_drukker
+          description: >-
+            Dat het college de drukker opdracht gaf de verstrekte kaart te
+            drukken, op welke dag, en bij welk besluit (lid 1 en 3).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - datum_bestelling
+      execution:
+        parameters:
+          - name: datum_bestelling
+            type: date
+            description: De dag waarop het besluit dat de kaart verstrekt geldt, en het college de kaart bestelt.
+          - name: toekenningsbesluit
+            type: string
+            nullable: true
+            description: Het besluit dat de kaart verstrekte (artikel 6); leeg als er geen is.
+        output:
+          - name: kaart_bestellen
+            type: boolean
+            description: >-
+              Of het college de kaart bij de drukker bestelt: altijd, zodra een
+              besluit dat haar verstrekt geldt.
+        actions:
+          - output: kaart_bestellen
+            value:
+              operation: NOT
+              value:
+                operation: EQUALS
+                subject: $toekenningsbesluit
+                value: null

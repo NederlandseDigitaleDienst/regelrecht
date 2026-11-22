@@ -152,7 +152,7 @@ articles:
           # Wat het college met de verstrekte kaart deed (artikel 5 van het
           # beleid over verstrekte kaarten). Een feit verwijst naar het besluit
           # dat de kaart verstrekte, en komt zo in dit aggregaat.
-          - record: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker
+          - record: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7#kaart_besteld_bij_drukker
             actions:
               - output: datum_bestelling
                 value: $record.datum_bestelling
