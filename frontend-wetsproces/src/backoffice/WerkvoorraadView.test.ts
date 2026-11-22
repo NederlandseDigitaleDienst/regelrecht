@@ -81,9 +81,14 @@ vi.mock('./api', () => ({
     formulier: async () => vormen,
     ik: async () => ik.value,
     vervolg: async () => vervolg,
-    kroniek: async (cel: string) => ({ cel, cel_naam: cel, kop: 1, grammen: cel === 'gemeente' ? [aanvraag] : [] }),
+    kroniek: async (cel: string) => ({ cel, cel_naam: cel, kop: 1, grammen: cel === 'gemeente' ? kroniek.value : [], stand: { rollen: { a: 'indiening', r: 'vastlegging' }, herroepen: {}, antwoorden: {} } }),
+    werkvoorraad: async () => ({ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', open: werk.value }),
   },
 }));
+
+/** The executor's chronicle and what the server says waits in it. */
+const kroniek: { value: Gram[] } = { value: [aanvraag] };
+const werk: { value: { stuk: Gram; na?: string }[] } = { value: [{ stuk: aanvraag }] };
 
 async function toon(cellen: Ik['cellen']) {
   ik.value = { ...ik.value, cellen };
@@ -99,6 +104,30 @@ const teOpenen = (w: Awaited<ReturnType<typeof toon>>) =>
   w.findAll('nldd-list[accessible-label^="Werkvoorraad"] nldd-list-item').filter((r) => r.attributes('button') !== undefined).length;
 
 describe('the work queue', () => {
+  it('shows a submission whose decision was annulled as one to decide again, after the receipt', async () => {
+    const ontvangst: Gram = {
+      id: 'r',
+      kind: 'EXECUTOGRAM',
+      basis: 'awb#8:79',
+      fact: 'afschrift_van_de_uitspraak',
+      refers_to: 'b',
+      recorded_on: '2026-11-20',
+      recording_actor: 'gemeente',
+    };
+    kroniek.value = [aanvraag, ontvangst];
+    werk.value = [{ stuk: aanvraag, na: 'r' }];
+    try {
+      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: false, beslissen: true }]);
+      const rij = w.find('nldd-list[accessible-label^="Werkvoorraad"] nldd-list-item');
+      expect(rij.find('nldd-badge').attributes('text')).toBe('Opnieuw beslissen');
+      expect(rij.find('nldd-text-cell').attributes('supporting-text')).toContain('Opnieuw beslissen na afschrift van de uitspraak');
+      expect(rij.find('nldd-text-cell').attributes('supporting-text')).toContain('20 november 2026');
+    } finally {
+      kroniek.value = [aanvraag];
+      werk.value = [{ stuk: aanvraag }];
+    }
+  });
+
   it('lets a decider of the cell open a submission to decide on it', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }]);
     expect(teOpenen(w)).toBe(1);

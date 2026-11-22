@@ -4,7 +4,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import type { Casus, Gram, Vervolgstand } from '../gedeeld/types';
+import type { Casus, Gram, Stand, Vervolgstand } from '../gedeeld/types';
 import { burgerRoutes } from './routes';
 
 const casus: Casus = {
@@ -34,14 +34,37 @@ const aanvraag = gram('a', 'AANVRAAG', 'wet#1', undefined, { naam_aanvrager: 'An
 const besluit = { ...gram('b', 'BESCHIKKING', 'wet#1', 'a'), outputs: { verleend: false } };
 const bezwaar = gram('c', 'BEZWAAR', 'awb#7:11', 'b', { gronden_bezwaar_of_beroep: 'Ik voldoe wel.' });
 
+/**
+ * What the server would say of `grammen` in a plain chain, as a fixture: an
+ * application or objection is a submission, an executogram a recorded fact,
+ * the rest a decision, and each submission is answered by its last decision.
+ * A test with revocations gives its own (`stand`).
+ */
+function standVan(grammen: Gram[]): Stand {
+  const rollen: Stand['rollen'] = {};
+  for (const g of grammen) {
+    rollen[g.id] = ['AANVRAAG', 'BEZWAAR'].includes(g.kind) ? 'indiening' : g.kind === 'EXECUTOGRAM' ? 'vastlegging' : 'besluit';
+  }
+  const antwoorden: Stand['antwoorden'] = {};
+  for (const g of grammen.filter((x) => rollen[x.id] === 'indiening')) {
+    const laatste = grammen.filter((x) => x.refers_to === g.id && rollen[x.id] === 'besluit').at(-1);
+    antwoorden[g.id] = laatste ? { soort: 'besloten', besluit: laatste.id } : { soort: 'open' };
+  }
+  return { rollen, herroepen: {}, antwoorden };
+}
+
 const dossier = vi.fn<() => Promise<Gram[]>>();
+const stand = vi.fn<(grammen: Gram[]) => Stand>(standVan);
 const vervolg = vi.fn<() => Vervolgstand[]>(() => []);
 vi.mock('./api', () => ({
   burgerApi: {
     casus: async () => casus,
     formulier: async () => ({ indieningen: {}, besluiten: {}, teksten: { gronden_bezwaar_of_beroep: { label: 'Waarom u het er niet mee eens bent' } } }),
     ik: async () => null,
-    dossier: async () => ({ grammen: await dossier(), vervolg: vervolg() }),
+    dossier: async () => {
+      const grammen = await dossier();
+      return { grammen, stand: stand(grammen), vervolg: vervolg() };
+    },
     waarom: async () => null,
   },
 }));
@@ -59,10 +82,13 @@ beforeEach(() => dossier.mockReset().mockResolvedValue([aanvraag, besluit, bezwa
 // A test that gives the case acts after a grant takes them away again, also when it fails.
 afterEach(() => {
   casus.na_toekenning = undefined;
+  stand.mockReset().mockImplementation(standVan);
   vervolg.mockReset().mockReturnValue([]);
 });
 
 describe('the dossier', () => {
+  // The first test mounts the routes, whose panes load on first use: on a
+  // loaded machine that import alone can take longer than the default 5 s.
   it('loads again when the citizen comes back to it after submitting', async () => {
     dossier.mockReset().mockResolvedValueOnce([aanvraag]).mockResolvedValueOnce([aanvraag, besluit, bezwaar]);
     const { w, router } = await toon('/burger');
@@ -71,7 +97,7 @@ describe('the dossier', () => {
     await flushPromises();
     expect(dossier).toHaveBeenCalledTimes(2);
     expect(teksten(w)).toContain('Bezwaar');
-  });
+  }, 20_000);
 
   it('lets every row open, a submission as well as a decision', async () => {
     const { w } = await toon('/burger');
@@ -150,5 +176,64 @@ describe('the dossier', () => {
     const onder = regels.indexOf('Besluit (beschikking)') + 1;
     expect(regels[onder]).toBe('Uw vergunning is op 20 oktober 2026 gedrukt.');
     expect(regels).toContain('Vergunning gedrukt');
+  });
+
+  describe('after a court annulled the decision on objection', () => {
+    // The refusal b, the objection c, its decision d, annulled by the receipt
+    // r of the court's judgment, and the decision e taken again after it,
+    // which revokes the refusal and holds a new decision in its place.
+    const opBezwaar = { ...gram('d', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: { bestreden_besluit_herroepen: false } };
+    const ontvangst = {
+      ...gram('r', 'EXECUTOGRAM', 'awb#8:79', 'd'),
+      fact: 'afschrift_van_de_uitspraak',
+      received: { from: 'rechtbank', id: 'u' },
+      recorded_on: '2026-11-20',
+    };
+    const opnieuw = { ...gram('e', 'BESCHIKKING', 'awb#7:11', 'c'), after: 'r', recorded_on: '2026-12-01' };
+    const grammen = [aanvraag, besluit, bezwaar, opBezwaar, ontvangst, opnieuw];
+    const rollen = standVan(grammen).rollen;
+    const nieuw = { basis: 'wet#1', outputs: { verleend: true }, recorded_on: '2026-12-01' };
+
+    it('marks the revoked decisions and shows the new decision as the one that holds', async () => {
+      dossier.mockResolvedValue(grammen);
+      stand.mockReturnValue({
+        rollen,
+        herroepen: { d: 'r', b: 'e' },
+        antwoorden: { a: { soort: 'in_de_plaats', besluit: 'b', door: 'e', uitvoer: 'nieuw_besluit', nieuw }, c: { soort: 'besloten', besluit: 'e' } },
+      });
+      const { w, router } = await toon('/burger/dossier/a');
+      const tags = w.findAll('nldd-list[accessible-label="Aanvraag"] nldd-tag').map((t) => t.attributes('text'));
+      // In the dossier: the refusal revoked, the annulled decision on objection, and the outcome of the new decision.
+      expect(tags).toContain('Herroepen');
+      expect(tags).toContain('Vernietigd');
+      expect(tags).toContain('Toegewezen');
+      // On the application: the new decision holds, the refusal is revoked.
+      const lijst = w.find('nldd-list[accessible-label="Stand"]');
+      expect(lijst.findAll('nldd-text-cell').map((c) => c.attributes('text'))).toEqual([
+        'Nieuw besluit van 1 december 2026',
+        'Besluit van 13 oktober 2026',
+      ]);
+      expect(lijst.findAll('nldd-badge').map((b) => b.attributes('text'))).toEqual(['Geldt', 'Herroepen']);
+      // The refusal says it no longer holds; the decision taken again shows the new decision.
+      await router.push('/burger/dossier/b');
+      await flushPromises();
+      expect(w.find('nldd-banner').attributes('text')).toBe('Dit besluit geldt niet meer');
+      await router.push('/burger/dossier/e');
+      await flushPromises();
+      expect(w.text()).toContain('Het nieuwe besluit');
+    });
+
+    it('says a new decision follows while the objection waits after the receipt', async () => {
+      dossier.mockResolvedValue(grammen.slice(0, 5));
+      stand.mockReturnValue({
+        rollen,
+        herroepen: { d: 'r' },
+        antwoorden: { a: { soort: 'besloten', besluit: 'b' }, c: { soort: 'vervallen', besluit: 'd', door: 'r', na: 'r' } },
+      });
+      const { w } = await toon('/burger/dossier/c');
+      expect(w.text()).toContain('neemt een nieuw besluit');
+      const rij = w.find('nldd-list[accessible-label="Stand"] nldd-list-item');
+      expect(rij.find('nldd-badge').attributes('text')).toBe('Vernietigd');
+    });
   });
 });

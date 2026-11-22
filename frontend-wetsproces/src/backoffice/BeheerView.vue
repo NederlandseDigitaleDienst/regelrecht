@@ -111,14 +111,14 @@ async function toezenden(besluit: Gram) {
                   :current="g.id === id || undefined"
                   @click="router.push({ name: 'beheer-behandelen', params: { cel: p.cel, id: g.id } })"
                 >
-                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
+                  <nldd-text-cell :text="omschrijving(g, casus, 'indiening')" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
                   <nldd-spacer-cell size="8"></nldd-spacer-cell>
                   <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                 </nldd-list-item>
               </nldd-list>
               <nldd-list v-if="p.toe_te_zenden.length" appearance="simple" :accessible-label="`Besluiten van ${p.cel_naam} die nog niet zijn toegezonden`">
                 <nldd-list-item v-for="g in p.toe_te_zenden" :key="g.id" size="md">
-                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Genomen ${longDate(g.recorded_on)} · nog niet toegezonden`"></nldd-text-cell>
+                  <nldd-text-cell :text="omschrijving(g, casus, 'besluit')" :supporting-text="`Genomen ${longDate(g.recorded_on)} · nog niet toegezonden`"></nldd-text-cell>
                   <nldd-cell>
                     <nldd-button
                       appearance="secondary"

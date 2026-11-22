@@ -8,11 +8,15 @@
 // a submission or a recorded fact in StukPaneel.vue. Under a decision that
 // granted, a line says how far the acts after the grant are, in the words
 // the case gives them (`na_toekenning`), such as "Uw kaart ligt klaar.".
+// What each record is, and which decision holds, comes from the server
+// (`stand`): a revoked decision is marked as such, and a decision that took
+// a new one in the place of the decision it revoked carries the outcome of
+// that new one.
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { celNaam, isBesluit, ketens, omschrijving, plat, toegewezen } from '../gedeeld/keten';
+import { celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, plat, rolVan, toegewezen } from '../gedeeld/keten';
 import type { Gram } from '../gedeeld/types';
 import { burgerStand } from '../gedeeld/vervolg';
 import BesluitPaneel from './BesluitPaneel.vue';
@@ -22,7 +26,7 @@ import { useBurger } from './useBurger';
 const props = defineProps<{ id?: string }>();
 const route = useRoute();
 const router = useRouter();
-const { casus, vormen, dossier, vervolg, fout, laden, laad } = useBurger();
+const { casus, vormen, dossier, stand: standVanDossier, vervolg, fout, laden, laad } = useBurger();
 onMounted(laad);
 // The dossier and a decision in it are one screen, so going back to the
 // dossier after an objection keeps this component: load again on what was
@@ -42,10 +46,10 @@ const lijsten = computed(() => {
   const c = casus.value;
   if (!c) return [];
   return ketens(dossier.value).map((k) => ({
-    naam: omschrijving(k.gram, c),
+    naam: omschrijf(k.gram),
     rijen: plat(k).map(({ gram, boven }) => ({
       gram,
-      tekst: omschrijving(gram, c),
+      tekst: omschrijf(gram),
       regel: regel(gram, boven),
       stand: stand(gram),
       gekozen: gram.id === props.id,
@@ -53,6 +57,9 @@ const lijsten = computed(() => {
     })),
   }));
 });
+
+/** A record of the dossier in words, by what the server says it is. */
+const omschrijf = (g: Gram) => (casus.value ? omschrijving(g, casus.value, rolVan(g, standVanDossier.value)) : g.kind);
 
 /** How far the acts after the grant `id` are, in the citizen's words, if `id` granted and the case names such acts. */
 function vervolgTekst(id: string): string {
@@ -64,18 +71,23 @@ function vervolgTekst(id: string): string {
 /** Whether the record of the address is a decision, which has a pane of its own. */
 const gekozenIsBesluit = computed(() => {
   const g = dossier.value.find((x) => x.id === props.id);
-  return !!g && !!casus.value && isBesluit(g, casus.value);
+  return !!g && isBesluit(g, standVanDossier.value);
 });
 
 function regel(g: Gram, boven?: Gram): string {
   const c = casus.value;
   if (!c) return '';
   const delen = [longDate(g.recorded_on), celNaam(g.recording_actor, c)];
-  if (boven) delen.push(`op ${omschrijving(boven, c).toLowerCase()} van ${longDate(boven.recorded_on)}`);
+  if (boven) delen.push(`op ${omschrijf(boven).toLowerCase()} van ${longDate(boven.recorded_on)}`);
   return delen.join(' · ');
 }
 function stand(g: Gram): { tekst: string; kleur: string } | null {
-  const t = casus.value ? toegewezen(g, casus.value) : undefined;
+  const s = standVanDossier.value;
+  const h = herroeping(g.id, s, dossier.value);
+  if (h) return { tekst: h.woord, kleur: 'warning' };
+  // A decision that took a new one in the place of the decision it revoked: the new one's outcome.
+  const besluit = nieuwBesluitVan(g.id, s) ?? g;
+  const t = casus.value ? toegewezen(besluit, casus.value) : undefined;
   if (t === undefined) return null;
   return t ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' };
 }
@@ -136,8 +148,8 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
     </nldd-split-view-pane>
 
     <nldd-split-view-pane slot="main" :has-content="id || undefined">
-      <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" />
-      <StukPaneel v-else-if="id && casus && !laden" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" />
+      <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier" />
+      <StukPaneel v-else-if="id && casus && !laden" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier" />
       <nldd-page v-else-if="id && laden" landmarks="page">
         <nldd-simple-section width="full">
           <nldd-activity-indicator text="Het stuk laden" show-text></nldd-activity-indicator>

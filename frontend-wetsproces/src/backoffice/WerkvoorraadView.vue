@@ -1,7 +1,12 @@
 <script setup lang="ts">
 // The work queue of the executor, the one cell the employee works for: the
-// submissions on which no decision was taken yet, and the facts it records
-// itself. Every employee opens a submission to read it, and a decider
+// submissions that wait for its decision, as the server gives them
+// (`GET /api/backoffice/werkvoorraad`), and the facts it records itself. A
+// submission waits when no decision was taken on it yet, or when a later
+// record revoked its last decision with nothing in its place, such as the
+// receipt of a judgment that annulled a decision on objection: then it is to
+// be decided again, after that record (`na`). Every employee opens a
+// submission to read it, and a decider
 // decides on it there; a handler records facts. What the account may not do does not show. What an external party
 // does, such as the GGD's advice, comes in through the admin panel. Laid out as the
 // editor's library: the queue in the sidebar, the submission being handled
@@ -14,9 +19,10 @@ import { useRouter } from 'vue-router';
 import { hoofdletter, toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
-import { artikelNaam, omschrijving, openIndieningen } from '../gedeeld/keten';
-import type { Handeling } from '../gedeeld/types';
+import { artikelNaam, omschrijving, rolVan } from '../gedeeld/keten';
+import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
+import type { Kroniek, Werkvoorraad } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 import { feitNaam } from './feit';
 import { medewerkerStand, vervolgFeiten } from '../gedeeld/vervolg';
@@ -28,11 +34,18 @@ const props = defineProps<{ cel?: string; id?: string }>();
 const router = useRouter();
 const { casus, vormen, wie, kronieken, fout, laden, laad: laadBackoffice } = useBackoffice();
 
+/** What waits for a decision of the executor. */
+const werkvoorraad = ref<Werkvoorraad | null>(null);
 /** The grants of the executor and how far their acts are. */
 const vervolg = ref<Vervolgstand[]>([]);
 const vervolgFout = ref('');
 async function laad() {
   await laadBackoffice();
+  try {
+    werkvoorraad.value = await backofficeApi.werkvoorraad();
+  } catch (e) {
+    fout.value = foutTekst(e);
+  }
   try {
     vervolg.value = await backofficeApi.vervolg();
     vervolgFout.value = '';
@@ -64,7 +77,7 @@ const cellen = computed(() =>
     const eigen = vormen.value?.eigen;
     return {
       recht,
-      open: casus.value && kroniek ? openIndieningen(kroniek.grammen, casus.value) : [],
+      open: kroniek && werkvoorraad.value?.cel === recht.cel ? werkvoorraad.value.open.map((w) => rij(w.stuk, w.na, kroniek)) : [],
       // An act after a grant is recorded beside that grant, not on its own.
       handelingen:
         recht.behandelen && eigen?.cel === recht.cel
@@ -73,6 +86,25 @@ const cellen = computed(() =>
     };
   }),
 );
+
+/**
+ * A row of the queue: the submission in words, and when its decision was
+ * revoked, the record to decide after, in words.
+ */
+function rij(stuk: Gram, na: string | undefined, kroniek: Kroniek) {
+  const c = casus.value;
+  const naGram = na ? kroniek.grammen.find((g) => g.id === na) : undefined;
+  const regel = `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`;
+  return {
+    stuk,
+    opnieuw: !!na,
+    tekst: c ? omschrijving(stuk, c, 'indiening') : stuk.kind,
+    regel:
+      naGram && c
+        ? `${regel} · Opnieuw beslissen na ${omschrijving(naGram, c, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
+        : regel,
+  };
+}
 
 // The fact the sheet records, in the cell `cel`.
 const keuze = ref<{ cel: string; handeling: Handeling; verwijst_naar?: string; titel?: string } | null>(null);
@@ -92,7 +124,7 @@ async function klaar(naam: string) {
         <nldd-top-title-bar slot="header" text="Werkvoorraad" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
           <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Werkvoorraad</h3></nldd-title>
-          <nldd-text color="secondary">De indieningen zonder besluit.</nldd-text>
+          <nldd-text color="secondary">De indieningen die op een besluit wachten.</nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden" text="De werkvoorraad laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De werkvoorraad laadt niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -107,14 +139,17 @@ async function klaar(naam: string) {
               <nldd-title size="display-5"><h4>{{ hoofdletter(c.recht.cel_naam) }}</h4></nldd-title>
               <nldd-list v-if="c.open.length" appearance="simple" :accessible-label="`Werkvoorraad van ${c.recht.cel_naam}`">
                 <nldd-list-item
-                  v-for="g in c.open"
-                  :key="g.id"
+                  v-for="r in c.open"
+                  :key="r.stuk.id"
                   size="md"
                   button
-                  :current="g.id === id || undefined"
-                  @click="router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: g.id } })"
+                  :current="r.stuk.id === id || undefined"
+                  @click="router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: r.stuk.id } })"
                 >
-                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
+                  <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
+                  <nldd-cell v-if="r.opnieuw">
+                    <nldd-badge text="Opnieuw beslissen" color="warning" size="sm"></nldd-badge>
+                  </nldd-cell>
                   <nldd-spacer-cell size="8"></nldd-spacer-cell>
                   <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                 </nldd-list-item>

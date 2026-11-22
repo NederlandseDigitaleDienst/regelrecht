@@ -5,6 +5,10 @@
 // appeal to the court against the decision on that objection. Which those
 // are follows from the case (keten.ts `indieningenTegen`).
 // Its fields come from the law, without what the decision already holds.
+// Whether the decision still holds comes from the server (`stand`): one a
+// later record revoked is marked as such, and one that took a new decision
+// in the place of the decision it revoked shows that new decision, which
+// holds now.
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
@@ -12,20 +16,31 @@ import { longDate } from '../gedeeld/datum';
 import { beginwaarden, tegenBesluitVelden } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam, besluitNaam, celNaam, indieningenTegen, isBesluit, termijn, toegewezen } from '../gedeeld/keten';
+import {
+  artikelNaam,
+  besluitNaam,
+  celNaam,
+  herroeping as herroepingVan,
+  herroepingTekst,
+  indieningenTegen,
+  isBesluit,
+  nieuwBesluitVan,
+  termijn,
+  toegewezen,
+} from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
-import type { Casus, CasusIndiening, Gram, Vormen, Waarom } from '../gedeeld/types';
+import type { Casus, CasusIndiening, Gram, Stand, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 import { burgerApi } from './api';
 
-const props = defineProps<{ id: string; casus: Casus; vormen: Vormen | null; dossier: Gram[] }>();
+const props = defineProps<{ id: string; casus: Casus; vormen: Vormen | null; dossier: Gram[]; stand: Stand }>();
 const router = useRouter();
 const waarom = ref<Waarom | null>(null);
 const waaromFout = ref('');
 
 const besluit = computed(() => {
   const g = props.dossier.find((x) => x.id === props.id);
-  return g && isBesluit(g, props.casus) ? g : null;
+  return g && isBesluit(g, props.stand) ? g : null;
 });
 /** The deadline to object or appeal, by the test clock or the real day (`casus.vandaag`). */
 const deadline = computed(() => (besluit.value ? termijn(besluit.value, props.casus.vandaag) : null));
@@ -35,7 +50,15 @@ const titel = computed(() =>
   besluit.value ? `${besluitNaam(besluit.value, props.casus)} van ${longDate(besluit.value.recorded_on)}` : 'Besluit',
 );
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
-const stand = computed(() => (besluit.value ? toegewezen(besluit.value, props.casus) : undefined));
+const uitkomst = computed(() => (besluit.value ? toegewezen(besluit.value, props.casus) : undefined));
+/** What revoked this decision, if anything did, in a sentence. */
+const herroeping = computed(() => {
+  const h = besluit.value ? herroepingVan(besluit.value.id, props.stand, props.dossier) : undefined;
+  return h ? `${herroepingTekst(h, props.casus, props.stand)}.` : null;
+});
+/** The new decision this decision took in the place of the one it revoked, while it holds. */
+const nieuw = computed(() => (besluit.value ? nieuwBesluitVan(besluit.value.id, props.stand) : undefined));
+const nieuwUitkomst = computed(() => (nieuw.value ? toegewezen(nieuw.value, props.casus) : undefined));
 const tegen = computed(() => (besluit.value ? indieningenTegen(besluit.value, props.casus) : []));
 
 watch(
@@ -102,14 +125,33 @@ async function indienen() {
         <nldd-title id="besluit-titel" size="display-3">
           <h3>{{ titel }}</h3>
           <nldd-tag
-            v-if="stand !== undefined"
+            v-if="uitkomst !== undefined"
             slot="end"
-            :text="stand ? 'Toegewezen' : 'Afgewezen'"
-            :color="stand ? 'success' : 'critical'"
+            :text="uitkomst ? 'Toegewezen' : 'Afgewezen'"
+            :color="uitkomst ? 'success' : 'critical'"
           ></nldd-tag>
         </nldd-title>
         <nldd-text color="secondary">{{ naamVanCel(besluit.recording_actor) }} · onder {{ artikelNaam(besluit.basis) }}</nldd-text>
         <nldd-spacer size="24"></nldd-spacer>
+        <template v-if="herroeping">
+          <nldd-banner variant="warning" text="Dit besluit geldt niet meer" :supporting-text="herroeping"></nldd-banner>
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
+        <template v-if="nieuw">
+          <nldd-title size="display-5">
+            <h4>Het nieuwe besluit</h4>
+            <nldd-badge slot="end" text="Geldt" color="success" size="sm"></nldd-badge>
+          </nldd-title>
+          <nldd-text color="secondary">Dit besluit herriep het eerdere besluit en nam een nieuw besluit in de plaats daarvan.</nldd-text>
+          <nldd-spacer size="8"></nldd-spacer>
+          <nldd-tag
+            v-if="nieuwUitkomst !== undefined"
+            :text="nieuwUitkomst ? 'Toegewezen' : 'Afgewezen'"
+            :color="nieuwUitkomst ? 'success' : 'critical'"
+          ></nldd-tag>
+          <Gegevens :waarden="nieuw.outputs" :teksten="vormen?.teksten" label="Uitkomst van het nieuwe besluit" />
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
 
         <nldd-title size="display-5"><h4>Wat eruit kwam</h4></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
@@ -129,7 +171,7 @@ async function indienen() {
         <nldd-inline-dialog v-else-if="waaromFout" icon="warning" text="De uitleg laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
         <nldd-activity-indicator v-else></nldd-activity-indicator>
 
-        <template v-if="tegen.length">
+        <template v-if="tegen.length && !herroeping">
           <nldd-spacer size="24"></nldd-spacer>
           <nldd-title size="display-5"><h4>Bent u het niet eens met dit besluit?</h4></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>

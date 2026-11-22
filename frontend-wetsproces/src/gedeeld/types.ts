@@ -164,6 +164,40 @@ export interface Casus {
   vandaag: string;
 }
 
+/**
+ * What a record is in the process, as the kern of the chronolexografie poc
+ * reads it from the record and the law (`stand::Rol`).
+ */
+export type Rol = 'indiening' | 'besluit' | 'vastlegging';
+
+/** A decision another record took in the place of a revoked one: no record of its own. */
+export interface BesluitInDePlaats {
+  basis?: string;
+  fields?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  /** The day of the record that took it. */
+  recorded_on: string;
+}
+
+/** What answers a submission now (`stand::Antwoord`). */
+export type Stukantwoord =
+  | { soort: 'open' }
+  | { soort: 'besloten'; besluit: string }
+  | { soort: 'in_de_plaats'; besluit: string; door: string; uitvoer: string; nieuw: BesluitInDePlaats }
+  /** Revoked with nothing in its place; with `na` it waits for a decision after that record. */
+  | { soort: 'vervallen'; besluit: string; door: string; na?: string };
+
+/**
+ * What the kern says of a list of records (`stand::Stand`): what each is,
+ * the last record that revoked a revoked one, and per submission what answers
+ * it now. The server sends it beside a chronicle and a dossier.
+ */
+export interface Stand {
+  rollen: Record<string, Rol>;
+  herroepen: Record<string, string>;
+  antwoorden: Record<string, Stukantwoord>;
+}
+
 /** A record of a chronicle (a chronolexogram). */
 export interface Gram {
   id: string;
@@ -180,6 +214,8 @@ export interface Gram {
   findings?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
   missing?: string[];
+  /** For a decision taken once more: the record it was taken after. */
+  after?: string | null;
   recorded_on: string;
   recording_actor: string;
 }

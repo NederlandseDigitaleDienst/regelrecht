@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { besluitNaam, indieningenTegen, termijn, isBesluit, ketens, openIndieningen, plat, waardeTekst } from './keten';
-import type { Casus, Gram } from './types';
+import { besluitNaam, herroeping, herroepingTekst, indieningenTegen, isBesluit, ketens, plat, termijn, waardeTekst } from './keten';
+import type { Casus, Gram, Stand } from './types';
 
 const casus: Casus = {
   id: 'voorbeeld',
@@ -34,12 +34,27 @@ const bezwaar = gram('c', 'BEZWAAR', 'awb#7:11', 'b');
 const advies = gram('d', 'EXECUTOGRAM', 'beleid#5');
 
 describe('the records of a chronicle', () => {
-  it('tell a decision from a submission and a recorded fact by the kinds the case knows', () => {
-    expect([aanvraag, besluit, bezwaar, advies].map((g) => isBesluit(g, casus))).toEqual([false, true, false, false]);
+  // What each record is comes from the server; the screens only read it.
+  const stand: Stand = {
+    rollen: { a: 'indiening', b: 'besluit', c: 'indiening', d: 'vastlegging' },
+    herroepen: { b: 'd' },
+    antwoorden: {},
+  };
+
+  it('tell a decision from a submission and a recorded fact by what the server says', () => {
+    expect([aanvraag, besluit, bezwaar, advies].map((g) => isBesluit(g, stand))).toEqual([false, true, false, false]);
   });
 
-  it('leave in the work queue the submissions without a decision', () => {
-    expect(openIndieningen([aanvraag, besluit, bezwaar, advies], casus).map((g) => g.id)).toEqual(['c']);
+  it('name a decision a recorded fact revoked annulled, one a decision revoked revoked', () => {
+    const afschrift = { ...gram('d', 'EXECUTOGRAM', 'awb#8:79', 'b'), fact: 'afschrift_van_de_uitspraak', received: { from: 'rechtbank', id: 'u' } };
+    const h = herroeping('b', stand, [aanvraag, besluit, bezwaar, afschrift]);
+    expect(h?.gram?.id).toBe('d');
+    expect(h?.woord).toBe('Vernietigd');
+    expect(herroepingTekst(h!, casus, stand)).toBe('Vernietigd door Rechtbank Voorbeeld (afschrift van de uitspraak van 13 oktober 2026)');
+    // Revoked whether or not the revoking record is in the list at hand.
+    expect(herroeping('b', stand, [])).toEqual({ door: 'd', gram: undefined, woord: 'Vernietigd' });
+    expect(herroeping('b', { ...stand, rollen: { ...stand.rollen, d: 'besluit' } }, [])?.woord).toBe('Herroepen');
+    expect(herroeping('a', stand, [aanvraag])).toBeUndefined();
   });
 
   it('form chains of what answers to what, each record once', () => {
@@ -152,8 +167,9 @@ describe('termijn', () => {
 describe('omschrijving of a decision of another cell', () => {
   it("names a court's ruling as on its own screen", async () => {
     const { omschrijving } = await import('./keten');
-    expect(omschrijving({ ...gram('g', 'UITSPRAAK', 'awb#8:70', 'f'), recording_actor: 'rechtbank' }, casus)).toBe('Uitspraak');
-    expect(omschrijving(besluit, casus)).toBe('Besluit (beschikking)');
+    expect(omschrijving({ ...gram('g', 'UITSPRAAK', 'awb#8:70', 'f'), recording_actor: 'rechtbank' }, casus, 'besluit')).toBe('Uitspraak');
+    expect(omschrijving(besluit, casus, 'besluit')).toBe('Besluit (beschikking)');
+    expect(omschrijving(bezwaar, casus, 'indiening')).toBe('Bezwaar');
   });
 
   it('hang a receipt under what it refers to when what it received is not in the list', () => {

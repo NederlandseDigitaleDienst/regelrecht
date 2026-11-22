@@ -7,6 +7,13 @@
 // taken it shows with why it came out so. The main pane beside the work queue
 // (WerkvoorraadView.vue), which hands it what it loaded.
 //
+// What answers the submission comes from the server (`stand` of the
+// chronicle): its decision stands; another decision took it back and holds a
+// new one in its place; or a later record revoked it with nothing in its
+// place. When the server names a record to decide after (`na`), such as the
+// receipt of a judgment that annulled a decision on objection, the decider
+// decides again after it; after a withdrawal nothing waits.
+//
 // With `namens` it is the pane beside the admin panel (BeheerView.vue): the
 // submission waits for an external party, such as an appeal for the court,
 // is one of what the panel shows of that party (`open`), and the admin
@@ -18,9 +25,9 @@ import { herkomsten, schermveld } from '../gedeeld/formulier';
 import type { Schermveld } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam, besluitenOp, celNaam, omschrijving, toegewezen } from '../gedeeld/keten';
+import { antwoordOp, artikelNaam, celNaam, herroeping as herroepingVan, herroepingTekst, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
-import type { Casus, Gram, Ik, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
+import type { Casus, Gram, Ik, Rol, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 import { backofficeApi, beheerApi } from './api';
 import type { Kroniek } from './api';
@@ -60,10 +67,14 @@ const naamVanCel = (cel: string) => celNaam(cel, props.casus);
  * court, the decision it contests with the municipality.
  */
 const noemStuk = (id: string) => {
-  const g = props.kronieken.flatMap((k) => k.grammen).find((x) => x.id === id);
-  return g ? `${omschrijving(g, props.casus).toLowerCase()} van ${longDate(g.recorded_on)}` : undefined;
+  const k = props.kronieken.find((x) => x.grammen.some((g) => g.id === id));
+  const g = k?.grammen.find((x) => x.id === id);
+  return g && k ? noem(g, rolVan(g, k.stand)) : undefined;
 };
-const titel = computed(() => (indiening.value ? omschrijving(indiening.value, props.casus) : 'Indiening'));
+/** A record in words with its day: `ontvangst van het afschrift van de uitspraak van 20 november 2026`. */
+const noem = (g: Gram, rol: Rol | undefined) =>
+  `${omschrijving(g, props.casus, rol).toLowerCase()} van ${longDate(g.recorded_on)}`;
+const titel = computed(() => (indiening.value ? omschrijving(indiening.value, props.casus, 'indiening') : 'Indiening'));
 
 /** The decision form of the article the submission asks a decision of. */
 const besluitvorm = computed(() => {
@@ -87,14 +98,32 @@ const melding = ref('');
 const bezig = ref(false);
 let sleutel = nieuweSleutel();
 
-/** A decision already on the submission, taken before this screen opened. */
-const eerder = computed(() =>
-  !props.namens && indiening.value && kroniek.value ? besluitenOp(indiening.value.id, kroniek.value.grammen, props.casus).at(-1) : undefined,
-);
+/** What answers the submission now, as the server says; for the executor's own submissions. */
+const antwoord = computed(() => (!props.namens && kroniek.value ? antwoordOp(props.id, kroniek.value.stand) : undefined));
+/** The last decision on the submission, taken before this screen opened, whether it still stands or not. */
+const laatste = computed(() => {
+  const a = antwoord.value;
+  if (!a || a.soort === 'open') return undefined;
+  return kroniek.value?.grammen.find((g) => g.id === a.besluit);
+});
+/** What revoked the last decision, in a word and in a sentence. */
+const herroeping = computed(() => {
+  const k = kroniek.value;
+  const h = laatste.value && k ? herroepingVan(laatste.value.id, k.stand, k.grammen) : undefined;
+  return h && k ? { woord: h.woord, tekst: herroepingTekst(h, props.casus, k.stand), gram: h.gram } : null;
+});
+/** The decision another record took in the place of the revoked one, which answers the submission now. */
+const inDePlaats = computed(() => (antwoord.value?.soort === 'in_de_plaats' ? antwoord.value.nieuw : null));
+/** The record to decide after when the last decision was revoked with nothing in its place. */
+const na = computed(() => (antwoord.value?.soort === 'vervallen' ? antwoord.value.na : undefined));
+/** Whether the submission waits for a decision: none yet, or decide again after `na`. */
+const wacht = computed(() => props.namens || antwoord.value?.soort === 'open' || !!na.value);
+/** A decision already on the submission that stands, taken before this screen opened. */
+const eerder = computed(() => (antwoord.value?.soort === 'besloten' ? laatste.value : undefined));
 const eerderWaarom = ref<Waarom | null>(null);
 const besluit = computed(() => genomen.value?.besluit ?? eerder.value ?? null);
 const waarom = computed(() => genomen.value?.waarom ?? eerderWaarom.value);
-const stand = (g: Gram) => toegewezen(g, props.casus);
+const stand = (g: Pick<Gram, 'outputs'>) => toegewezen(g, props.casus);
 
 async function laadEerder() {
   if (eerder.value && !genomen.value) eerderWaarom.value = await backofficeApi.waarom(eerder.value.id).catch(() => null);
@@ -105,7 +134,7 @@ async function voorvertonen() {
   bezig.value = true;
   melding.value = '';
   try {
-    const v = await api.voorvertoning({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) });
+    const v = await api.voorvertoning({ op: props.id, na: na.value, bevindingen: zonderLeeg(bevindingen.value) });
     voorvertoning.value = v;
     for (const s of v.stil) if (!stil.value.some((x) => x.naam === s.naam)) stil.value.push(s);
   } catch (e) {
@@ -119,7 +148,7 @@ async function beslissen() {
   bezig.value = true;
   melding.value = '';
   try {
-    genomen.value = await api.beslissen({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
+    genomen.value = await api.beslissen({ op: props.id, na: na.value, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
     sleutel = nieuweSleutel();
     emit('besloten');
   } catch (e) {
@@ -159,6 +188,35 @@ async function beslissen() {
           <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
         </nldd-container>
 
+        <nldd-container v-if="laatste && herroeping && !genomen" gap="16">
+          <nldd-title heading-level="4" size="display-5" text="Het eerdere besluit">
+            <nldd-badge slot="end" :text="herroeping.woord" color="warning" size="sm"></nldd-badge>
+          </nldd-title>
+          <nldd-banner
+            variant="warning"
+            :text="`Het besluit van ${longDate(laatste.recorded_on)} geldt niet meer`"
+            :supporting-text="`${herroeping.tekst}.`"
+          ></nldd-banner>
+          <Gegevens :waarden="laatste.outputs" :teksten="vormen?.teksten" label="Uitkomst van het eerdere besluit" />
+        </nldd-container>
+
+        <nldd-container v-if="inDePlaats && herroeping && !genomen" gap="16">
+          <nldd-title
+            heading-level="4"
+            size="display-5"
+            text="Het geldende besluit"
+            :supporting-text="`Genomen in de plaats van het eerdere besluit. ${herroeping.tekst}.`"
+          >
+            <nldd-tag
+              v-if="stand(inDePlaats) !== undefined"
+              slot="end"
+              :text="stand(inDePlaats) ? 'Toegewezen' : 'Afgewezen'"
+              :color="stand(inDePlaats) ? 'success' : 'critical'"
+            ></nldd-tag>
+          </nldd-title>
+          <Gegevens :waarden="inDePlaats.outputs" :teksten="vormen?.teksten" label="Uitkomst van het geldende besluit" />
+        </nldd-container>
+
         <nldd-container v-if="besluit" gap="16">
           <nldd-banner
             :variant="genomen ? 'success' : 'neutral'"
@@ -183,7 +241,13 @@ async function beslissen() {
           />
         </nldd-container>
 
-        <nldd-container v-else-if="mag" gap="16">
+        <nldd-container v-else-if="wacht && mag" gap="16">
+          <nldd-banner
+            v-if="na"
+            variant="neutral"
+            text="Opnieuw beslissen"
+            :supporting-text="`Het nieuwe besluit volgt op ${noemStuk(na) ?? 'het stuk dat het eerdere besluit vernietigde'}.`"
+          ></nldd-banner>
           <nldd-title
             heading-level="4"
             size="display-5"
@@ -223,7 +287,7 @@ async function beslissen() {
             <nldd-button appearance="primary" text="Besluit nemen" :loading="bezig || undefined" @click="beslissen"></nldd-button>
           </nldd-button-group>
         </nldd-container>
-        <nldd-inline-dialog v-else icon="info" text="Een beslisser van deze cel neemt het besluit"></nldd-inline-dialog>
+        <nldd-inline-dialog v-else-if="wacht" icon="info" text="Een beslisser van deze cel neemt het besluit"></nldd-inline-dialog>
       </nldd-container>
     </nldd-simple-section>
   </nldd-page>
