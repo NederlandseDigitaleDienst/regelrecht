@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
@@ -14,7 +14,10 @@ valid_from: '2026-01-01'
 # die meetellen, elk als rij (schema v0.8.17); artikel 3 zegt per ontvangen
 # uitspraak of de bestuursrechter zelf een kaart verstrekte, en artikel 4 per
 # beslissing op bezwaar wat het nieuwe besluit verstrekt dat zij in de plaats
-# van het herroepen besluit nam, beide voor de reductie per besluit. Het
+# van het herroepen besluit nam, beide voor de reductie per besluit.
+# Artikel 5 zegt wat er na een verstrekking met de kaart zelf gebeurt
+# (bestellen, ontvangen, uitreiken) en welke feiten het college daarvan
+# vastlegt, en artikel 6 bij welk besluit die feiten horen. Het
 # staat los van het beleid gehandicaptenparkeerkaart, omdat dat beleid de
 # reductie aanroept.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
@@ -245,3 +248,165 @@ articles:
                     value: null
                   then: $al_kaart_geldig_tot
               default: $nieuw_besluit.outputs.kaart_geldig_tot
+
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Verstrekt het college een kaart, dan bestelt het de kaart bij de
+      drukker.
+
+      2 De postkamer van de gemeente stelt vast dat de gedrukte kaart van de
+      drukker is ontvangen.
+
+      3 Daarna reikt het college de kaart uit aan de aanvrager: de aanvrager
+      haalt haar af, of het college verzendt haar per post.
+
+      4 Het college legt elk van deze handelingen vast, met de dag waarop zij
+      plaatsvond, en bij de ontvangst dat de postkamer haar vaststelde.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    machine_readable:
+      # Wat er na een verstrekking met de kaart zelf gebeurt. Het BABW zegt
+      # alleen dat het college een kaart verstrekt (artikel 49) en hoe zij
+      # eruitziet (artikel 50); dat zij gedrukt, ontvangen en uitgereikt
+      # wordt, is uitvoering, en hoe het college die regelt staat hier. Elk
+      # feit verwijst naar het besluit dat de kaart verstrekte (refers_to,
+      # schema v0.8.17), zodat de reductie per besluit het in het aggregaat
+      # van die kaart leest.
+      # De drukker is een leverancier en geen bestuursorgaan: hij heeft geen
+      # cel en legt niets vast. Het college legt zijn eigen handelingen en
+      # waarnemingen vast: de bestelling, de ontvangst en de uitreiking.
+      # De postkamer is een afdeling van de gemeente en geen eigen
+      # bestuursorgaan; wie de ontvangst vaststelde staat daarom als gegeven
+      # in het feit (ontvangst_vastgesteld_door), niet als bevoegde.
+      # In welke volgorde de handelingen komen, legt de casus van het
+      # wetsprocessysteem vast (na_toekenning); dit beleid zegt alleen wat elk
+      # feit vermeldt.
+      requires:
+        - fact: kaart_besteld_bij_drukker
+          description: >-
+            Dat het college de drukker opdracht gaf de verstrekte kaart te
+            drukken, en op welke dag (lid 1).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - datum_bestelling
+        - fact: gedrukte_kaart_ontvangen
+          description: >-
+            Dat de gemeente de gedrukte kaart van de drukker ontving, op welke
+            dag, en wie dat vaststelde: de postkamer (lid 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - datum_ontvangst
+            - ontvangst_vastgesteld_door
+        - fact: kaart_uitgereikt
+          description: >-
+            Dat het college de kaart aan de aanvrager uitreikte, op welke dag,
+            en of het haar per post verzond of de aanvrager haar afhaalde (lid
+            3).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - datum_uitreiking
+            - per_post_verzonden
+      execution:
+        parameters:
+          - name: datum_bestelling
+            type: date
+            description: De dag waarop het college de kaart bij de drukker bestelde.
+          - name: datum_ontvangst
+            type: date
+            description: De dag waarop de gemeente de gedrukte kaart ontving.
+          - name: ontvangst_vastgesteld_door
+            type: string
+            description: De afdeling van de gemeente die de ontvangst vaststelde.
+          - name: datum_uitreiking
+            type: date
+            description: De dag waarop het college de kaart uitreikte.
+          - name: per_post_verzonden
+            type: boolean
+            description: >-
+              Of het college de kaart per post verzond; zo niet, dan haalde de
+              aanvrager haar af.
+
+  - number: '6'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      handelingen van artikel 5 horen bij het besluit dat de kaart verstrekte:
+      het besluit op de aanvraag, of de beslissing op bezwaar die in de plaats
+      van het herroepen besluit een nieuw besluit nam dat een kaart
+      verstrekt. Een beslissing op bezwaar zonder nieuw besluit laat staan
+      welk besluit de kaart verstrekte.
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:11
+    machine_readable:
+      # Voor de reductie per besluit, zoals artikel 4: welk record van het
+      # aggregaat de kaart verstrekte, zodat de handelingen van artikel 5
+      # daarnaar verwijzen. Het nieuwe besluit op bezwaar is geen eigen
+      # record (Awb 7:11, tweede lid); de beslissing op bezwaar die het
+      # draagt, is het record. Vernietigt de bestuursrechter een van beide,
+      # dan telt het niet mee en zet het niets. Dit artikel leest niets
+      # anders dan wat het krijgt.
+      execution:
+        parameters:
+          - name: verstrekt
+            type: boolean
+            required: false
+            description: Of het besluit op de aanvraag een kaart verstrekt.
+          - name: besluit
+            type: string
+            required: false
+            description: Het besluit op de aanvraag.
+          - name: al_toekenningsbesluit
+            type: string
+            nullable: true
+            required: false
+            description: Het besluit dat vóór deze beslissing op bezwaar de kaart verstrekte.
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            required: false
+            description: >-
+              Het besluit dat de beslissing op bezwaar in de plaats van het
+              herroepen besluit nam; leeg als zij dat niet deed.
+          - name: beslissing_op_bezwaar
+            type: string
+            required: false
+            description: De beslissing op bezwaar.
+        output:
+          - name: toekenningsbesluit_na_besluit
+            type: string
+            nullable: true
+            description: Het besluit op de aanvraag als het een kaart verstrekt; anders afwezig.
+          - name: toekenningsbesluit_na_bezwaar
+            type: string
+            nullable: true
+            description: >-
+              Het besluit dat na deze beslissing op bezwaar de kaart verstrekt;
+              afwezig als er geen kaart meer is.
+        actions:
+          - output: toekenningsbesluit_na_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $verstrekt
+                  then: $besluit
+              default: null
+          - output: toekenningsbesluit_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_toekenningsbesluit
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit.outputs.gehandicaptenparkeerkaart_verstrekt
+                    value: true
+                  then: $beslissing_op_bezwaar
+              default: null

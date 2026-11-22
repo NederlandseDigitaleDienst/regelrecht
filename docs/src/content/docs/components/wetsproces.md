@@ -146,13 +146,14 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/formulier` | citizen or employee | The forms of the process today, with what the UI spec says of each field |
 | `GET /api/klok` | citizen or employee | Today's date, and whether it can be set |
 | `GET /api/ik` | citizen or employee | Who is logged in, what the account may do for the executor (`cellen`), and whether it may use the admin panel (`partijen_invoeren`) |
-| `GET /api/dossier` | citizen | The records about the citizen, from every cell |
+| `GET /api/dossier` | citizen | The records about the citizen, from every cell, and under `vervolg` how far the acts after each of their grants are |
 | `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head; an external party's answers `403` |
 | `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did |
 | `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to; records nothing |
 | `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
+| `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)) |
 | `POST /api/backoffice/toezendingen` | handler | A copy of the executor's decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
@@ -186,6 +187,46 @@ The UI spec decides how the value of each field of the application comes about. 
 These fields are input fields of the application: Awb 4:2 asks that an application holds them. The rule generates a value for such a field, and the execution of the law reads it as it would read the same value typed in, so nothing changes in how the law is executed. That is why they are no open terms that policy fills. The choice of the executor sits in an article of its own policy that can be read, explained and changed apart from the law.
 
 `GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
+
+## After a grant
+
+A grant is not the end of the process. For the parking card the municipality orders the card from the printer, its post room establishes that the printed card came in, and the municipality hands it to the citizen, who collects it or gets it by post. Each is a fact the municipality records in its own chronicle, and each refers to the decision that granted the card.
+
+The facts are in article 5 of the municipality's fictitious policy on cards it issued (`beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal`), each with what it holds:
+
+```yaml
+- fact: kaart_besteld_bij_drukker
+  parameters: [datum_bestelling]
+- fact: gedrukte_kaart_ontvangen
+  parameters: [datum_ontvangst, ontvangst_vastgesteld_door]
+- fact: kaart_uitgereikt
+  parameters: [datum_uitreiking, per_post_verzonden]
+```
+
+The printer is a supplier, not an authority, and has no cell. The municipality records its own acts and what it observes.
+
+The aggregate per decision of the municipality's reduction (`reductie_geldige_gehandicaptenparkeerkaart`, article `kaart`) plays these facts with the decision they refer to. Its state keeps which record granted the card (`toekenningsbesluit`, from article 6 of the same policy) and the day of each act. That record is the decision on the application, or a decision on objection that put a grant in its place. A grant revoked on objection, or annulled by the court, leaves `toekenningsbesluit` empty, as a refusal does. The case gives that no further consequence: acts recorded before the revocation stay in the chronicle, and the grant leaves the list of grants that wait. When a decision on objection puts a new grant in the place of the old one, the acts already done count for the new grant too, and the next act refers to the decision on objection; whether such a card has to be printed again, the case does not say. A card the court grants itself (Awb 8:72, third paragraph, under b) has no act after it here: the municipality does not derive that card.
+
+The case file names the aggregate, the property of the grant, the acts in their order and the text of each (`na_toekenning`):
+
+```yaml
+na_toekenning:
+  aggregaat: reductie_geldige_gehandicaptenparkeerkaart#kaart
+  toekenning: toekenningsbesluit
+  stand: Uw kaart is toegekend. De gemeente bestelt haar bij de drukker.
+  handelingen:
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker
+      gedaan: datum_bestelling
+      knop: Kaart bestellen bij de drukker
+      stand: Uw kaart wordt gedrukt.
+    # the receipt and the handing out follow, in the same form
+```
+
+The kern (`packages/poc-chronolexografie/src/vervolg.rs`) refuses such a fact unless it refers to a record that grants and is the next act there: the first one whose day is still empty. So a receipt before the order is refused, and so is a second order or anything after a refusal. The check runs inside the step, on the chronicles the step commits against, so two employees who record the same act at once cannot both succeed. The server holds no rule of the parking card; a case without `na_toekenning` has no acts after a grant.
+
+The UI spec has the system fill the day of each act with the day of the clock, so the test clock sets those days in test mode, and fills `ontvangst_vastgesteld_door` with `postkamer`. The server fills them in the step, as it fills an application, and refuses a request that names them. A fact holds only the fills the system knows itself, a fixed value or the day: a fact comes from an employee, not from a citizen's login.
+
+Any employee of the post room records the receipt under the handler's role. The record says the post room established it; `recorded_by` says which account. A role per department in Keycloak, so that only the post room can record a receipt, is an open point.
 
 ## Running it locally
 
