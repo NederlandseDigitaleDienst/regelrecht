@@ -26,12 +26,13 @@ use std::sync::Arc;
 use chrono::NaiveDate;
 use regelrecht_cel::Gram;
 use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus, Indiener};
+use regelrecht_poc_chronolexografie::stand::{self, Stand};
 use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::clock::Clock;
-use crate::external::{self, SubmissionKinds};
+use crate::external;
 use crate::store::{
     Actor, Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt,
     StoreError, StoredChronicle,
@@ -284,6 +285,27 @@ pub struct ExternalParty {
     pub unsent: Vec<Gram>,
 }
 
+/// A submission that waits for a decision of the cell whose chronicle holds
+/// it: one not decided on yet, or one whose last decision a later record
+/// revoked with nothing in its place (`stand::Stand::open`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Waiting {
+    /// The submission.
+    #[serde(rename = "stuk")]
+    pub submission: Gram,
+    /// The record the decision is to be taken after (`Decide::after`), when
+    /// an earlier decision on it was revoked.
+    #[serde(rename = "na", skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
+}
+
+/// The work queue of the executor ([`Service::work_queue`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorkQueue {
+    /// The submissions that wait for its decision, in chronicle order.
+    pub open: Vec<Waiting>,
+}
+
 /// The records of every cell that are about one person, as
 /// [`Service::dossier`] gives them.
 #[derive(Debug, Clone, PartialEq)]
@@ -489,37 +511,36 @@ impl Service {
     ///
     /// # Errors
     ///
-    /// When the store fails.
+    /// When the store fails, or the kern cannot read a record's article.
     pub async fn external_parties(&self) -> Result<Vec<ExternalParty>, ServiceError> {
-        let read = self.read().await?;
+        let (chronicles, stands) = self.stands().await?;
         let afleiding = &self.corpus.afleiding;
-        let kinds = SubmissionKinds::new(afleiding.indieningen.iter().map(|i| i.soort.clone()));
-        let chronicles: Vec<(&str, Vec<Gram>)> = self
+        let chronicles: Vec<(&str, Vec<Gram>, Stand)> = self
             .cells
             .iter()
             .map(String::as_str)
-            .zip(read.chronicles.into_iter().map(StoredChronicle::into_grams))
+            .zip(chronicles)
+            .zip(stands)
+            .map(|((cell, grams), stand)| (cell, grams, stand))
             .collect();
         let parties = chronicles
             .iter()
-            .filter(|(cell, _)| *cell != self.executor())
-            .map(|(cell, grams)| {
-                let copied = afleiding
-                    .indieningen
-                    .iter()
-                    .filter(|i| i.cel == *cell && i.ontvangst.is_some())
-                    .map(|i| i.soort.clone())
-                    .collect();
+            .filter(|(cell, _, _)| *cell != self.executor())
+            .map(|(cell, grams, stand)| {
                 let elsewhere: Vec<&Gram> = chronicles
                     .iter()
-                    .filter(|(other, _)| other != cell)
-                    .flat_map(|(_, g)| g)
+                    .filter(|(other, _, _)| other != cell)
+                    .flat_map(|(_, g, _)| g)
                     .collect();
                 ExternalParty {
                     cell: (*cell).to_string(),
                     name: self.corpus.cel_naam(cell).to_string(),
-                    open: external::open(grams, &kinds).into_iter().cloned().collect(),
-                    unsent: external::unsent(grams, &elsewhere, &kinds, &copied)
+                    open: stand
+                        .open(grams)
+                        .into_iter()
+                        .map(|o| o.stuk.clone())
+                        .collect(),
+                    unsent: external::unsent(grams, &elsewhere, stand, afleiding)
                         .into_iter()
                         .cloned()
                         .collect(),
@@ -527,6 +548,55 @@ impl Service {
             })
             .collect();
         Ok(parties)
+    }
+
+    /// What waits for a decision of the executor: its submissions not
+    /// decided on yet, and those whose last decision a later record revoked
+    /// with nothing in its place, such as an objection whose decision a
+    /// court annulled; that one is to be decided again after the receipt of
+    /// the judgment (`na`).
+    ///
+    /// # Errors
+    ///
+    /// When the store fails, or the kern cannot read a record's article.
+    pub async fn work_queue(&self) -> Result<WorkQueue, ServiceError> {
+        let (chronicles, stands) = self.stands().await?;
+        let position = self
+            .cells
+            .iter()
+            .position(|c| c == self.executor())
+            .ok_or_else(|| ServiceError::Internal("the executor is no cell of the case".into()))?;
+        let (Some(grams), Some(stand)) = (chronicles.get(position), stands.get(position)) else {
+            return Err(ServiceError::Internal(
+                "the store gave no chronicle for the executor".into(),
+            ));
+        };
+        let open = stand
+            .open(grams)
+            .into_iter()
+            .map(|o| Waiting {
+                submission: o.stuk.clone(),
+                after: o.na.map(str::to_string),
+            })
+            .collect();
+        Ok(WorkQueue { open })
+    }
+
+    /// Every cell's chronicle, in the order of the case, with what the kern
+    /// says of it ([`stand::stand`]).
+    async fn stands(&self) -> Result<(Vec<Vec<Gram>>, Vec<Stand>), ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        blocking(move || {
+            let chronicles: Vec<Vec<Gram>> = read
+                .chronicles
+                .into_iter()
+                .map(StoredChronicle::into_grams)
+                .collect();
+            let stands = stands_of(&corpus, &chronicles)?;
+            Ok((chronicles, stands))
+        })
+        .await
     }
 
     /// Why the decision `id` came out as it did (`kern::waarom`): who filled
@@ -577,21 +647,32 @@ impl Service {
         .await
     }
 
-    /// The chronicle of the cell `cell`: its records and its head.
+    /// The chronicle of the cell `cell`: its records, its head, and what the
+    /// kern says of them ([`stand::stand`]).
     ///
     /// # Errors
     ///
-    /// When the case has no such cell, or the store fails.
+    /// When the case has no such cell, the store fails, or the kern cannot
+    /// read a record's article.
     pub async fn chronicle(&self, cell: &str) -> Result<Value, ServiceError> {
         if !self.cells.iter().any(|c| c == cell) {
             return Err(ServiceError::UnknownCell(cell.to_string()));
         }
         let stored = self.store.load(cell).await?;
+        let head = stored.head();
+        let grams = stored.into_grams();
+        let corpus = Arc::clone(&self.corpus);
+        let (grams, stand) = blocking(move || {
+            let stand = stand::stand(&corpus.service()?, &grams)?;
+            Ok((grams, stand))
+        })
+        .await?;
         Ok(json!({
             "cel": cell,
             "cel_naam": self.corpus.cel_naam(cell),
-            "kop": stored.head(),
-            "grammen": stored.into_grams(),
+            "kop": head,
+            "grammen": grams,
+            "stand": stand,
         }))
     }
 
@@ -616,6 +697,43 @@ impl Service {
             .cloned()
             .collect();
         Ok(Dossier { grams })
+    }
+
+    /// [`Service::dossier`], with what the kern says of its records
+    /// ([`Stand`]): what each is, which are revoked, and what answers each
+    /// submission now. Read from the whole chronicles, kept to the records
+    /// of the dossier. For the citizen's screen; an access check needs only
+    /// [`Service::dossier`].
+    ///
+    /// # Errors
+    ///
+    /// When the store fails, or the kern cannot read a record's article.
+    pub async fn dossier_with_stand(
+        &self,
+        subject: &str,
+    ) -> Result<(Dossier, Stand), ServiceError> {
+        let (chronicles, stands) = self.stands().await?;
+        let all: Vec<&Gram> = chronicles.iter().flatten().collect();
+        let ids = crate::dossier::ids(&all, &self.login_field, subject);
+        let grams = all
+            .into_iter()
+            .filter(|g| ids.contains(g.id.as_str()))
+            .cloned()
+            .collect();
+        let mine = |id: &String| ids.contains(id.as_str());
+        let mut stand = Stand::default();
+        for s in stands {
+            stand
+                .rollen
+                .extend(s.rollen.into_iter().filter(|(id, _)| mine(id)));
+            stand
+                .herroepen
+                .extend(s.herroepen.into_iter().filter(|(id, _)| mine(id)));
+            stand
+                .antwoorden
+                .extend(s.antwoorden.into_iter().filter(|(id, _)| mine(id)));
+        }
+        Ok((Dossier { grams }, stand))
     }
 
     /// The ids of every record in the cells for which `include` holds.
@@ -754,6 +872,16 @@ impl Service {
         }
         Ok(Read { chronicles })
     }
+}
+
+/// What the kern says of each of `chronicles` ([`stand::stand`]), in their
+/// order.
+fn stands_of(corpus: &Corpus, chronicles: &[Vec<Gram>]) -> Result<Vec<Stand>, ServiceError> {
+    let service = corpus.service()?;
+    chronicles
+        .iter()
+        .map(|grams| Ok(stand::stand(&service, grams)?))
+        .collect()
 }
 
 /// The cells of the case with the chronicles `read` holds.

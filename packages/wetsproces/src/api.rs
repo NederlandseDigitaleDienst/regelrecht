@@ -21,10 +21,11 @@
 //! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
 //! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
 //! | `GET /api/ik` | citizen or employee | who is logged in, and what they may do ([`me`]) |
-//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell |
+//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell, with what the kern says of them (`stand`) |
 //! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
-//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle |
+//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle, with what the kern says of it (`stand`) |
+//! | `GET /api/backoffice/werkvoorraad` | reader | the executor's submissions that wait for a decision ([`crate::service::WorkQueue`]) |
 //! | `GET /api/backoffice/waarom/{id}` | reader; a decision of the executor | why it came out so |
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
 //! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
@@ -262,6 +263,7 @@ pub fn router(state: AppState) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), gate_citizen));
     let mut backoffice = Router::new()
         .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
+        .route("/api/backoffice/werkvoorraad", get(work_queue))
         .route("/api/backoffice/besluiten", post(decide))
         .route("/api/backoffice/voorvertoning", post(preview))
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
@@ -491,8 +493,8 @@ async fn dossier(
 /// The dossier of the citizen `principal`.
 pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> CitizenResult {
     let citizen = principal.citizen(&state.subject_claim)?;
-    let dossier = state.service.dossier(citizen.subject()).await?;
-    Ok(json!({ "grammen": dossier.grams }))
+    let (dossier, stand) = state.service.dossier_with_stand(citizen.subject()).await?;
+    Ok(json!({ "grammen": dossier.grams, "stand": stand }))
 }
 
 /// Who is logged in, for a screen to show what they may do: their name,
@@ -596,6 +598,17 @@ async fn chronicle(
         return Err(access::forbidden());
     }
     Ok(Json(state.service.chronicle(&cel).await?))
+}
+
+/// What waits for a decision of the executor: per submission the record the
+/// decision is to be taken after, when an earlier one was revoked (`na`).
+async fn work_queue(State(state): State<AppState>) -> ApiResult {
+    let queue = state.service.work_queue().await?;
+    Ok(Json(json!({
+        "cel": state.service.executor(),
+        "cel_naam": state.service.executor_name(),
+        "open": queue.open,
+    })))
 }
 
 /// The request's key, or none without the header.

@@ -1241,6 +1241,18 @@ impl Afleiding {
     pub fn indiening(&self, artikel: &str) -> Option<&Indiening> {
         self.indieningen.iter().find(|i| i.artikel == artikel)
     }
+
+    /// The fact in which a cell records the receipt of a copy of a decision
+    /// under `besluit` (`<law>#<article>`), when the law requires one: that
+    /// of the submission asking for a decision under that article
+    /// ([`Indiening::ontvangst`]). A decision without it is sent to no other
+    /// cell (`kern::toezenden`).
+    pub fn ontvangst_van(&self, besluit: &str) -> Option<&str> {
+        self.indieningen
+            .iter()
+            .find(|i| i.besluit == besluit)
+            .and_then(|i| i.ontvangst.as_deref())
+    }
 }
 
 /// A submission a regelwerk of the case establishes, as the law makes it:
