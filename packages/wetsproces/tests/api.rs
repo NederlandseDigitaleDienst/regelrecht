@@ -17,6 +17,7 @@ use http_body_util::BodyExt;
 use regelrecht_wetsproces::app;
 use regelrecht_wetsproces::config::{Mode, StoreChoice};
 use regelrecht_wetsproces::login::Login;
+use regelrecht_wetsproces::surface::Surface;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -404,6 +405,48 @@ async fn the_test_login_exists_only_in_test_mode_without_oidc() {
         stable.oneshot(request).await.unwrap().status(),
         StatusCode::UNAUTHORIZED
     );
+}
+
+#[tokio::test]
+async fn a_failed_return_from_keycloak_lands_on_the_login_screen_with_a_reason() {
+    // Keycloak sends an error back, or a callback comes without the login
+    // that started it: the app's own screen says so, it does not loop back.
+    for (surface, screen) in [
+        (Surface::All, "/inloggen"),
+        (Surface::Backoffice, "/inloggen"),
+        (Surface::Citizen, "/toegang"),
+    ] {
+        let mut c = config(Mode::Test);
+        c.surface = surface;
+        let app = app::build_with(&c, offline_login()).await.unwrap();
+        for query in ["error=access_denied", "code=x&state=y"] {
+            let request = Request::get(format!("/auth/callback?{query}"))
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.unwrap();
+            assert!(response.status().is_redirection(), "{surface:?} {query}");
+            assert_eq!(
+                response.headers()["location"],
+                format!("{screen}?fout=inloggen").as_str(),
+                "{surface:?} {query}"
+            );
+        }
+        // A 403 that Keycloak did not send is the server's own refusal: the
+        // account lacks the role. Here the callback comes without the login
+        // that started it, which is a 400, so only Keycloak's own error and
+        // the state check are exercised; the role case is the same branch
+        // with a 403 and has its own wording on the screen.
+        // The way out to Keycloak itself is untouched.
+        let request = Request::get("/auth/login").body(Body::empty()).unwrap();
+        let response = app.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert!(
+            response.headers()["location"]
+                .to_str()
+                .unwrap()
+                .starts_with("https://login.example.org/")
+        );
+    }
 }
 
 #[tokio::test]

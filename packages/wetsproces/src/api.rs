@@ -310,7 +310,7 @@ pub fn router(state: AppState) -> Router {
         .map_or_else(Router::new, |f| crate::fsc4b::routes(f));
     let mut routes = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .merge(state.login.routes())
+        .merge(state.login.routes(state.surface))
         .merge(shared);
     if state.surface.serves_citizens() {
         routes = routes.merge(citizen).merge(fsc4b);

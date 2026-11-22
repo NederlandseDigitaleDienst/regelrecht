@@ -9,8 +9,8 @@ import type { Ik } from './types';
 
 /** The account, or null when nobody is logged in. */
 export const ik = ref<Ik | null>(null);
-/** Why the app cannot open for the account: no role of this server, or a server that fails. */
-export const geenToegang = ref<{ kop: string; reden: string } | null>(null);
+/** Why the app cannot open for the account: no role of this server (`rol`), or a server that fails (`storing`). */
+export const geenToegang = ref<{ soort: 'rol' | 'storing'; kop: string; reden: string } | null>(null);
 
 let geladen: Promise<Ik | null> | null = null;
 
@@ -28,8 +28,8 @@ export function laadIk(opnieuw = false): Promise<Ik | null> {
       ik.value = null;
       if (nietIngelogd(e)) geenToegang.value = null;
       else if (e instanceof ApiError && e.status === 403) {
-        geenToegang.value = { kop: 'Geen toegang', reden: 'Dit account heeft geen rol in deze proefopstelling.' };
-      } else geenToegang.value = { kop: 'De server is niet bereikbaar', reden: foutTekst(e) };
+        geenToegang.value = { soort: 'rol', kop: 'Geen toegang', reden: 'Dit account heeft geen rol in deze proefopstelling.' };
+      } else geenToegang.value = { soort: 'storing', kop: 'De server is niet bereikbaar', reden: foutTekst(e) };
       return null;
     });
   return geladen;
