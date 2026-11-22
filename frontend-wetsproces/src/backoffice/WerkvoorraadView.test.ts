@@ -66,6 +66,7 @@ const vervolg: Vervolgstand[] = [
     volgende: 'beleid#5#vergunning_verzonden',
     toegekend_op: '2026-10-13',
     aanvrager: '999990032',
+    naam: 'A. de Vries',
   },
   // A grant whose acts are all done no longer waits.
   { besluit: 'c', toekenning: 'c', stappen: [], volgende: null, toegekend_op: '2026-10-13', aanvrager: '999990020' },
@@ -163,7 +164,8 @@ describe('the work queue', () => {
     // The row opens the sheet of the next act.
     expect(rijen[0]?.attributes('button')).toBeDefined();
     const cel = rijen[0]?.find('nldd-text-cell');
-    expect(cel?.attributes('text')).toBe('Vergunning voor 999990032');
+    // By name, as the application recorded it; the number only where there is no name.
+    expect(cel?.attributes('text')).toBe('Vergunning voor A. de Vries');
     expect(cel?.attributes('supporting-text')).toBe('Vergunning gedrukt op 14 oktober 2026 · Volgende stap: Vergunning verzenden');
     const knoppenVanHandler = knoppen(handler);
     // An act after a grant is never offered on its own.

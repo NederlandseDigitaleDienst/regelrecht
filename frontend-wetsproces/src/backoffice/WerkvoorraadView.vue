@@ -65,9 +65,11 @@ const openToekenningen = computed(() => {
       const volgende = na.handelingen.find((h) => h.feit === s.volgende);
       // An act the system takes itself has no button: it waits for the system.
       const doorSysteem = !!volgende?.door_het_systeem;
+      // By name where the application recorded one, else by the login field.
+      const wie = s.naam || (s.aanvrager ? toon(s.aanvrager) : '');
       return {
         stand: s,
-        tekst: [casus.value?.titel, s.aanvrager ? `voor ${toon(s.aanvrager)}` : ''].filter(Boolean).join(' '),
+        tekst: [casus.value?.titel, wie ? `voor ${wie}` : ''].filter(Boolean).join(' '),
         regel: medewerkerStand(s, na),
         knop: doorSysteem ? 'wacht op het systeem' : (volgende?.knop ?? `${feitNaam(s.volgende ?? '')} vastleggen`),
         handeling: doorSysteem ? undefined : vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),

@@ -36,17 +36,17 @@ elements:
     element: aanvraagformulier
     fields:
       - name: bsn_aanvrager
-        group: Uw gegevens
+        group: Gegevens van de aanvrager
         visibility: shown
         fill: {by: system}
         label: Burgerservicenummer
       - name: naam_aanvrager
-        group: Uw gegevens
+        group: Gegevens van de aanvrager
         visibility: shown
         fill: {by: system, login: naam}
         label: Naam
       - name: adres_aanvrager
-        group: Uw gegevens
+        group: Gegevens van de aanvrager
         label: Adres
         help: Straat, huisnummer, postcode en woonplaats.
       - name: kaart_als_bestuurder

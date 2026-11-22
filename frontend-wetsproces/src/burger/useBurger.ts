@@ -2,7 +2,7 @@
 // is logged in, through the API client of the public side only.
 import { ref } from 'vue';
 import { foutTekst } from '../gedeeld/http';
-import type { Casus, Gram, Ik, Stand, Vervolgstand, Vormen } from '../gedeeld/types';
+import type { Casus, Gram, Ik, Stand, VerzoekInDossier, Vervolgstand, Vormen } from '../gedeeld/types';
 import { burgerApi } from './api';
 
 export function useBurger() {
@@ -14,6 +14,8 @@ export function useBurger() {
   const vervolg = ref<Vervolgstand[]>([]);
   /** Per record the system made by an article of the policy, that article. */
   const doorHetSysteem = ref<Record<string, string>>({});
+  /** The requests of the policy in the dossier, by the ids of their records. */
+  const verzoeken = ref<VerzoekInDossier[]>([]);
   const wie = ref<Ik | null>(null);
   const fout = ref('');
   const laden = ref(true);
@@ -32,6 +34,7 @@ export function useBurger() {
       stand.value = d.stand;
       vervolg.value = d.vervolg;
       doorHetSysteem.value = d.doorHetSysteem;
+      verzoeken.value = d.verzoeken ?? [];
       fout.value = '';
     } catch (e) {
       fout.value = foutTekst(e);
@@ -40,5 +43,5 @@ export function useBurger() {
     }
   }
 
-  return { casus, vormen, dossier, stand, vervolg, doorHetSysteem, wie, fout, laden, laad };
+  return { casus, vormen, dossier, stand, vervolg, doorHetSysteem, verzoeken, wie, fout, laden, laad };
 }

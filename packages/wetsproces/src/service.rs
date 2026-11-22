@@ -325,7 +325,10 @@ pub enum ServiceError {
 /// `login: <claim>`: every login of this server (Keycloak, the test login,
 /// FSC voor Burgers) keeps the identifier, which fills the login field, and
 /// the browser logins the name. Nothing else.
-pub const KEPT_CLAIMS: [&str; 1] = ["naam"];
+pub const KEPT_CLAIMS: [&str; 1] = [NAME_CLAIM];
+
+/// The claim of the login that holds the name of who logged in.
+pub const NAME_CLAIM: &str = "naam";
 
 impl From<regelrecht_cel::Error> for ServiceError {
     fn from(e: regelrecht_cel::Error) -> Self {
@@ -584,6 +587,18 @@ impl Service {
     /// The field of the case's application that identifies the applicant.
     pub fn login_field(&self) -> &str {
         &self.login_field
+    }
+
+    /// The field of the case's application that holds the applicant's name:
+    /// the one the UI spec fills from the login's name ([`NAME_CLAIM`]).
+    /// `None` when the spec names none.
+    pub fn name_field(&self) -> Option<&str> {
+        self.corpus
+            .ui_spec
+            .systeem
+            .iter()
+            .find(|(_, fill)| matches!(fill, Systeemvulling::Inlogclaim(c) if c == NAME_CLAIM))
+            .map(|(field, _)| field.as_str())
     }
 
     /// The article of the case's application, which the login field
@@ -1034,6 +1049,24 @@ impl Service {
             stand.antwoorden.extend(s.antwoorden);
         }
         Ok((Dossier { grams }, stand))
+    }
+
+    /// The ids of the records an employee of the executor may see: those
+    /// of its chronicle, and those of another cell that reached it, as what
+    /// a record of its received (`received`).
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn seen_by_executor(
+        &self,
+    ) -> Result<std::collections::BTreeSet<String>, ServiceError> {
+        let stored = self.store.load(self.executor()).await?;
+        Ok(stored
+            .into_grams()
+            .into_iter()
+            .flat_map(|g| std::iter::once(g.id).chain(g.received.map(|r| r.id)))
+            .collect())
     }
 
     /// The ids of every record in the cells for which `include` holds.

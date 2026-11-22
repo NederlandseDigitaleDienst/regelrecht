@@ -15,27 +15,18 @@
  */
 import { ref } from 'vue';
 import { load } from 'js-yaml';
+import { herkomstVan as gedeeldeHerkomstVan, klikbaar, laagVanMap, SOORTEN } from '@regelrecht/frontend-shared/chronolex/keten';
 import { bestanden, opgehaaldeBronnen } from './api.js';
 import { grammenVan } from './logboek.js';
 import { state } from './state.js';
 
-/** The kinds of origin, as a tag: text and colour. */
-export const SOORTEN = Object.freeze({
-  wet: { tekst: 'wet', kleur: 'lintblauw' },
-  beleid: { tekst: 'beleid', kleur: 'paars' },
-  reductie: { tekst: 'reductie', kleur: 'groen' },
-  bevinding: { tekst: 'bestuursorgaan', kleur: 'neutral' },
-});
+/** The kinds of origin, as a tag: text and colour. Shared with the wetsprocessysteem. */
+export { SOORTEN };
 
 const mapVan = (wet) => state.casus?.regelwerken?.find((r) => r.id === wet)?.map ?? '';
 
 /** Whether the regelwerk `wet` is policy, a reduction or law. */
-export function laag(wet) {
-  const map = mapVan(wet);
-  if (map.includes('/uitvoeringsbeleid/')) return 'beleid';
-  if (map.startsWith('cells/')) return 'reductie';
-  return 'wet';
-}
+export const laag = (wet) => laagVanMap(mapVan(wet));
 
 /**
  * The origin of a step of the chain, or null when it has none (an outcome, a
@@ -44,22 +35,7 @@ export function laag(wet) {
  * the term they filled in and its value, and `{ soort: 'bevinding' }` for a
  * finding of the bestuursorgaan.
  */
-export function herkomstVan(stap) {
-  if (stap.soort === 'artikel' || stap.soort === 'hook') {
-    return stap.artikel ? { soort: laag(stap.wet), wet: stap.wet, artikel: stap.artikel } : null;
-  }
-  if (stap.soort !== 'begrip') return null;
-  const by = stap.ingevuld_door;
-  if (by === 'finding') return { soort: 'bevinding' };
-  if (by?.regulation) {
-    const { law_id: wet, article: artikel } = by.regulation;
-    return { soort: laag(wet), wet, artikel };
-  }
-  if (by?.answer?.answers.length) {
-    return { soort: 'reductie', begrip: stap.naam, waarde: stap.waarde, antwoorden: by.answer.answers };
-  }
-  return null;
-}
+export const herkomstVan = (stap) => gedeeldeHerkomstVan(stap, laag);
 
 /**
  * The article a chronolexogram rests on, its `basis` (`<regelwerk>#<artikel>`),
@@ -72,7 +48,7 @@ export function herkomstVanBasis(basis) {
 }
 
 /** Whether a click on the origin has something to show. */
-export const klikbaar = (h) => !!h && h.soort !== 'bevinding';
+export { klikbaar };
 
 /** The origin the sheet shows, or null. */
 export const getoond = ref(null);

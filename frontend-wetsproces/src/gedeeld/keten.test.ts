@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { besluitNaam, herroeping, herroepingTekst, indieningenTegen, isBesluit, ketens, plat, termijn, waardeTekst, waarover } from './keten';
+import { besluitNaam, herroeping, herroepingTekst, indieningenTegen, isBesluit, ketens, onderVerzoeken, plat, termijn, waardeTekst, waarover } from './keten';
 import type { Casus, Gram, Stand } from './types';
 
 const casus: Casus = {
@@ -94,6 +94,27 @@ describe('the records of a chronicle', () => {
     // What a record received comes first, but only when it is at hand; else what it refers to.
     const kopie = { ...gram(id(8), 'EXECUTOGRAM', 'awb#8:79', id(5)), received: { from: 'rechtbank', id: id(9) } };
     expect(waarover(kopie, [a, b, kopie])?.id).toBe(id(5));
+  });
+
+  it('put the answer to a request and its receipts under the request, as the server pairs them', () => {
+    const id = (n: number) => `01a20000-0000-7000-8000-00000000001${n}`;
+    const a = gram(id(1), 'AANVRAAG', 'wet#1');
+    const verzoek = { ...gram(id(2), 'EXECUTOGRAM', 'beleid#9'), fields: { aanvraag: id(1) } };
+    // The answer and its receipt name nothing: only the server knows they belong to the request.
+    const antwoord = { ...gram(id(3), 'EXECUTOGRAM', 'beleid#5'), recording_actor: 'ggd', fields: { bsn: '999990032' } };
+    const binnen = { ...gram(id(4), 'EXECUTOGRAM', 'beleid#5'), fields: { bsn: '999990032' } };
+    const onder = onderVerzoeken([{ verzoek: id(2), ontvangen: null, antwoord: id(3), antwoord_ontvangen: id(4) }]);
+    expect(onder).toEqual({ [id(3)]: id(2), [id(4)]: id(2) });
+    const k = ketens([a, verzoek, binnen, antwoord], onder);
+    expect(k.map((x) => x.gram.id)).toEqual([id(1)]);
+    expect(plat(k[0]!).map((r) => [r.gram.id, r.boven?.id])).toEqual([
+      [id(1), undefined],
+      [id(2), id(1)],
+      [id(4), id(2)],
+      [id(3), id(2)],
+    ]);
+    // Without the pairing they stay chains of their own.
+    expect(ketens([a, verzoek, binnen, antwoord]).map((x) => x.gram.id)).toEqual([id(1), id(4), id(3)]);
   });
 
   it('put an appeal to the court under the decision it contests, and the ruling under it', () => {

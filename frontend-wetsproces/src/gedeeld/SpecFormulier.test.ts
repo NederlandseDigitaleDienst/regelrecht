@@ -76,6 +76,19 @@ describe('SpecFormulier', () => {
     expect(w.emitted('zet')).toBeUndefined();
   });
 
+  it('puts the help of a switch under it, in a field without a second label', () => {
+    const w = teken({ wil_een_vergunning: { help: 'Zet dit aan als u er een wilt.' } });
+    const schakelaar = w.find('nldd-switch-field');
+    expect(schakelaar.attributes('label')).toBe('Wil een vergunning');
+    // A rendered switch always has a parent: the test mounts it inside the form.
+    const veld = schakelaar.element.parentElement!;
+    expect(veld.tagName.toLowerCase()).toBe('nldd-form-field');
+    expect(veld.getAttribute('label')).toBeNull();
+    expect(veld.querySelector('nldd-form-field-help-text')?.textContent).toBe('Zet dit aan als u er een wilt.');
+    // Without help a switch stands on its own, as before.
+    expect(teken().find('nldd-switch-field').element.parentElement?.tagName.toLowerCase()).not.toBe('nldd-form-field');
+  });
+
   it('sends a change of a field up by its name', async () => {
     const w = teken();
     await w.find('select').setValue('ja');
