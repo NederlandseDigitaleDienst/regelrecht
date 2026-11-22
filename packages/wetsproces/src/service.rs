@@ -27,6 +27,7 @@ use chrono::NaiveDate;
 use regelrecht_cel::Gram;
 use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus, Indiener};
 use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
+use regelrecht_poc_chronolexografie::vervolg;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -149,12 +150,29 @@ impl Step {
                 to_value(&besluit)
             }
             Self::Record(r) => {
+                // What the UI spec has the system fill in a fact, such as
+                // its day by the clock, is filled here, on the day the step
+                // runs; a request that names such a field is refused.
+                // Only for the executor's own facts: an external party's
+                // fact comes in through the admin panel as that party gave it.
+                let filled = if r.cell == corpus.casus.cel {
+                    kern::feit_systeemvelden(corpus, &r.fact, on)?
+                } else {
+                    Map::new()
+                };
+                if let Some(field) = r.fields.keys().find(|f| filled.contains_key(*f)) {
+                    return Err(regelrecht_cel::Error::Refused(format!(
+                        "'{field}' is filled by the system; the request may not give it"
+                    )));
+                }
+                let mut fields = r.fields.clone();
+                fields.extend(filled);
                 let gram = kern::vastleggen_verwijzend(
                     corpus,
                     cellen,
                     &r.cell,
                     &r.fact,
-                    &r.fields,
+                    &fields,
                     r.refers_to.as_deref(),
                     on,
                 )?;
@@ -613,6 +631,24 @@ impl Service {
             "kop": stored.head(),
             "grammen": stored.into_grams(),
         }))
+    }
+
+    /// Every grant of the executor today, with how far the acts that follow
+    /// it are ([`vervolg::standen`]). Empty when the case names no such
+    /// acts.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails or the aggregate does not play.
+    pub async fn standen(&self) -> Result<Vec<vervolg::Stand>, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let today = self.today().await?;
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            Ok(vervolg::standen(&corpus, &cellen, today)?)
+        })
+        .await
     }
 
     /// The records of every cell about the person `subject` identifies in

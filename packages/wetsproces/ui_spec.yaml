@@ -102,3 +102,41 @@ elements:
         label: Duur van die termijn in weken
       - name: motivering_vereist
         label: Het besluit moet gemotiveerd worden
+  # Wat de gemeente na een toekenning vastlegt over de kaart (artikel 5 van
+  # het fictieve beleid over verstrekte kaarten). De dag van elke handeling
+  # is de dag van de klok van de server (in test mode de testklok), en de
+  # ontvangst stelt altijd de postkamer vast: die velden vult het systeem.
+  # Alleen de wijze van uitreiken kiest de medewerker.
+  - id: UI3
+    element: kaart na toekenning
+    fields:
+      - name: datum_bestelling
+        group: De bestelling
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Besteld op
+        help: De dag waarop de gemeente de drukker opdracht gaf de kaart te drukken.
+      - name: datum_ontvangst
+        group: De ontvangst
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Ontvangen op
+        help: De dag waarop de gedrukte kaart bij de gemeente binnenkwam.
+      - name: ontvangst_vastgesteld_door
+        group: De ontvangst
+        visibility: shown
+        fill: {by: system, value: postkamer}
+        label: Vastgesteld door
+        help: De afdeling die de ontvangst vaststelt; dat is altijd de postkamer.
+      - name: datum_uitreiking
+        group: De uitreiking
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Uitgereikt op
+        help: De dag waarop de gemeente de kaart uitreikte of verstuurde.
+      - name: per_post_verzonden
+        group: De uitreiking
+        label: Per post verzonden
+        help: >-
+          Zet dit aan als de gemeente de kaart per post verstuurt. Uit
+          betekent dat de aanvrager haar aan de balie heeft afgehaald.

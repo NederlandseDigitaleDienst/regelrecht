@@ -2,13 +2,14 @@
 // is logged in, through the API client of the public side only.
 import { ref } from 'vue';
 import { foutTekst } from '../gedeeld/http';
-import type { Casus, Gram, Ik, Vormen } from '../gedeeld/types';
+import type { Casus, Gram, Ik, Vervolgstand, Vormen } from '../gedeeld/types';
 import { burgerApi } from './api';
 
 export function useBurger() {
   const casus = ref<Casus | null>(null);
   const vormen = ref<Vormen | null>(null);
   const dossier = ref<Gram[]>([]);
+  const vervolg = ref<Vervolgstand[]>([]);
   const wie = ref<Ik | null>(null);
   const fout = ref('');
   const laden = ref(true);
@@ -16,12 +17,15 @@ export function useBurger() {
   async function laad() {
     laden.value = true;
     try {
-      [casus.value, vormen.value, dossier.value, wie.value] = await Promise.all([
+      let d: { grammen: Gram[]; vervolg: Vervolgstand[] };
+      [casus.value, vormen.value, d, wie.value] = await Promise.all([
         burgerApi.casus(),
         burgerApi.formulier(),
         burgerApi.dossier(),
         burgerApi.ik(),
       ]);
+      dossier.value = d.grammen;
+      vervolg.value = d.vervolg;
       fout.value = '';
     } catch (e) {
       fout.value = foutTekst(e);
@@ -30,5 +34,5 @@ export function useBurger() {
     }
   }
 
-  return { casus, vormen, dossier, wie, fout, laden, laad };
+  return { casus, vormen, dossier, vervolg, wie, fout, laden, laad };
 }

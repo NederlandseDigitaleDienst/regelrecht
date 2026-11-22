@@ -81,6 +81,10 @@ pub struct Casus {
     /// Who logs in to apply, where the case has a login ([`Inloggen`]).
     #[serde(default)]
     pub inloggen: Option<Inloggen>,
+    /// What the case's cell does after a grant, act by act
+    /// ([`crate::vervolg`]), where the case says so.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub na_toekenning: Option<crate::vervolg::NaToekenning>,
     pub scenarios: Vec<Scenario>,
 }
 
