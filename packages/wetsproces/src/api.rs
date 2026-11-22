@@ -311,7 +311,7 @@ pub fn router(state: AppState) -> Router {
         .map_or_else(Router::new, |f| crate::fsc4b::routes(f));
     let mut routes = Router::new()
         .route("/health", get(|| async { "ok" }))
-        .merge(state.login.routes())
+        .merge(state.login.routes(state.surface))
         .merge(shared);
     if state.surface.serves_citizens() {
         routes = routes.merge(citizen).merge(fsc4b);
@@ -518,7 +518,31 @@ pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> Citiz
             Vec::new()
         }
     };
-    Ok(json!({ "grammen": dossier.grams, "stand": stand, "vervolg": standen }))
+    // Which of its records the system made by an article of the policy.
+    let door_het_systeem = door_het_systeem(state, |id| dossier.holds(id)).await?;
+    Ok(json!({
+        "grammen": dossier.grams,
+        "stand": stand,
+        "vervolg": standen,
+        "door_het_systeem": door_het_systeem,
+    }))
+}
+
+/// Per record for which `include` holds that the system made by an article
+/// of the executor's policy, without a person, that article
+/// (`Service::by_policy`).
+async fn door_het_systeem(
+    state: &AppState,
+    include: impl Fn(&str) -> bool,
+) -> Result<Map<String, Value>, ApiError> {
+    Ok(state
+        .service
+        .by_policy()
+        .await?
+        .into_iter()
+        .filter(|(id, _)| include(id))
+        .map(|(id, artikel)| (id, Value::String(artikel)))
+        .collect())
 }
 
 /// Every grant of the executor, with how far the acts that follow it are,
@@ -669,7 +693,16 @@ async fn chronicle(
         tracing::warn!(sub = %principal.sub(), cell = %cel, "refused an external party's chronicle");
         return Err(access::forbidden());
     }
-    Ok(Json(state.service.chronicle(&cel).await?))
+    let mut kroniek = state.service.chronicle(&cel).await?;
+    let ids: BTreeSet<String> = kroniek["grammen"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|g| g["id"].as_str().map(str::to_string))
+        .collect();
+    kroniek["door_het_systeem"] =
+        Value::Object(door_het_systeem(&state, |id| ids.contains(id)).await?);
+    Ok(Json(kroniek))
 }
 
 /// What waits for a decision of the executor: per submission the record the

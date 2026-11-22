@@ -22,10 +22,13 @@ export const burgerApi = {
    * how far the acts after each of their grants are.
    */
   dossier: () =>
-    haal<{ grammen: Gram[]; stand: Stand; vervolg?: Vervolgstand[] }>('/api/dossier').then((d) => ({
+    haal<{ grammen: Gram[]; stand: Stand; vervolg?: Vervolgstand[]; door_het_systeem?: Record<string, string> }>(
+      '/api/dossier',
+    ).then((d) => ({
       grammen: d.grammen,
       stand: d.stand,
       vervolg: d.vervolg ?? [],
+      doorHetSysteem: d.door_het_systeem ?? {},
     })),
   waarom: (besluit: string) => haal<Waarom>(`/api/dossier/waarom/${encodeURIComponent(besluit)}`),
   indienen: (indiening: Indiening, sleutel: string) =>

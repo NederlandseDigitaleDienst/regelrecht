@@ -76,8 +76,10 @@ export interface Handeling {
 export interface Vervolghandeling {
   /** The fact, `<regelwerk>#<article>#<fact>`. */
   feit: string;
-  /** What the button that records it says. */
-  knop: string;
+  /** What the button that records it says, for an act a person records. */
+  knop?: string;
+  /** Set when the system records the act itself, by the article it names. */
+  door_het_systeem?: { artikel: string };
   /** What a citizen reads once it is done; `{datum}` stands for its day. */
   stand: string;
 }

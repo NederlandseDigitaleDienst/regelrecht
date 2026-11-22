@@ -14,6 +14,7 @@ import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst } from '../gedeeld/http';
 import { artikelNaam, isBesluit, isIndiening, omschrijving, rolVan } from '../gedeeld/keten';
 import type { Gram, Waarom } from '../gedeeld/types';
+import { doorHetSysteem } from '../gedeeld/vervolg';
 import VolledigeKeten from '../gedeeld/VolledigeKeten.vue';
 import { backofficeApi } from './api';
 import { useBackoffice } from './useBackoffice';
@@ -119,7 +120,7 @@ function naarWerkvoorraad(g: Gram) {
               <nldd-text-cell
                 :overline="`${i + 1}`"
                 :text="omschrijf(g)"
-                :supporting-text="`${longDate(g.recorded_on)} · ${artikelNaam(g.basis)}${g.refers_to ? ` · verwijst naar ${noem(g.refers_to)}` : ''}`"
+                :supporting-text="[longDate(g.recorded_on), artikelNaam(g.basis), g.refers_to ? `verwijst naar ${noem(g.refers_to)}` : '', doorHetSysteem(g.id, gekozen.door_het_systeem)].filter(Boolean).join(' · ')"
               ></nldd-text-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>

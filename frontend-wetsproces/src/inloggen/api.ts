@@ -4,6 +4,7 @@
 import { apiFetch, apiFetchJson, useAuth } from '@regelrecht/frontend-shared';
 import type { AuthStatus } from '@regelrecht/frontend-shared';
 import { onbereikbaar } from '../gedeeld/sessie';
+import { markeerUitgelogd } from './uitgelogd';
 
 /** An account of the test login (`GET /auth/testpersonen`). */
 export interface Persona {
@@ -44,6 +45,13 @@ export const inloggenApi = {
     }).catch(onbereikbaar),
   /** Through Keycloak: the browser leaves the app and comes back to `terug`. */
   oidc: (terug: string) => useAuth().login(terug),
-  /** The server ends the session and sends the browser on (to Keycloak's logout, or to `/`). */
-  uitloggen: () => useAuth().logout(),
+  /**
+   * The server ends the session and sends the browser on (to Keycloak's
+   * logout, or to `/`). The tab remembers it, so the screen that logs in says
+   * so instead of logging the person straight back in (uitgelogd.ts).
+   */
+  uitloggen: () => {
+    markeerUitgelogd();
+    useAuth().logout();
+  },
 };

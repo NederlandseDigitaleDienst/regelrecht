@@ -121,7 +121,8 @@ pub enum Aanvraaggegeven {
     /// The day the application came in.
     #[serde(rename = "date")]
     Datum,
-    /// The id of the application's record.
+    /// The id of the record that occasions the step: the application, or
+    /// for a step after a grant the record that granted.
     #[serde(rename = "submission")]
     Aanvraag,
 }

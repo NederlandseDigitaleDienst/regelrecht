@@ -1,4 +1,6 @@
-//! Requests of the case's cell to another cell, and the answers back.
+//! Requests of the case's cell to another cell, and the answers back; and
+//! the one way the case's cell records a step by its own policy, without a
+//! person ([`opvolgen`]).
 //!
 //! When an application comes in, the case's cell runs the articles of its
 //! own policy that the case file names under `bij_aanvraag`
@@ -74,31 +76,70 @@ pub(crate) fn na_aanvraag(
 ) -> Result<Vec<String>> {
     let voor = ids(cellen);
     for opvolging in &corpus.casus.bij_aanvraag {
-        let Some((bron, feit)) = vorm(service, opvolging, cellen.eigen.authority(), on)? else {
-            continue;
-        };
-        let invoer = invoer(opvolging, aanvraag, on);
-        let result = cellen
-            .eigen
-            .consult(service, &cellen.sfeer(), &bron, &invoer, on)
-            .map_err(|e| Error::Refused(format!("{} does not run: {e}", opvolging.artikel)))?;
-        let output = bron.rsplit_once('#').map_or(bron.as_str(), |(_, o)| o);
-        let doen = result
-            .outputs
-            .get(output)
-            .map(stored::to_stored)
-            .transpose()?
-            .is_some_and(|v| v == Value::Bool(true));
-        if doen {
-            let velden = velden_van(service, &feit, &invoer, on)?;
-            let eigen = cellen.eigen.recording_actor().to_string();
-            leg_vast(service, cellen, &eigen, &feit, &velden, None, on)?;
-        }
+        opvolgen(service, cellen, opvolging, aanvraag, None, on)?;
     }
     Ok(ids(cellen)
         .into_iter()
         .filter(|id| !voor.contains(id))
         .collect())
+}
+
+/// The case's cell takes the step `opvolging` declares, occasioned by the
+/// record `aanleiding` (an application, or a decision that grants): it runs
+/// the article, and when its one boolean output says so, records the one
+/// fact of that article it establishes, with the values of the article's
+/// parameters, about `refers_to` if given. Every step the system takes by
+/// itself goes through here, whatever occasions it. `None` when the article
+/// is not in force on `on` or says not to act; else the fact it recorded.
+///
+/// # Errors
+///
+/// As [`na_aanvraag`].
+pub(crate) fn opvolgen(
+    service: &LawExecutionService,
+    cellen: &mut Cellen,
+    opvolging: &Opvolging,
+    aanleiding: &Gram,
+    refers_to: Option<&str>,
+    on: NaiveDate,
+) -> Result<Option<String>> {
+    let Some((bron, feit)) = vorm(service, opvolging, cellen.eigen.authority(), on)? else {
+        return Ok(None);
+    };
+    let invoer = invoer(opvolging, aanleiding, on);
+    let result = cellen
+        .eigen
+        .consult(service, &cellen.sfeer(), &bron, &invoer, on)
+        .map_err(|e| Error::Refused(format!("{} does not run: {e}", opvolging.artikel)))?;
+    let output = bron.rsplit_once('#').map_or(bron.as_str(), |(_, o)| o);
+    let doen = result
+        .outputs
+        .get(output)
+        .map(stored::to_stored)
+        .transpose()?
+        .is_some_and(|v| v == Value::Bool(true));
+    if !doen {
+        return Ok(None);
+    }
+    let velden = velden_van(service, &feit, &invoer, on)?;
+    let eigen = cellen.eigen.recording_actor().to_string();
+    leg_vast(service, cellen, &eigen, &feit, &velden, refers_to, on)?;
+    Ok(Some(feit))
+}
+
+/// The fact the case's cell records by the article of `opvolging` on `on`,
+/// if that article is in force ([`vorm`]).
+///
+/// # Errors
+///
+/// When the article is set up wrongly.
+pub(crate) fn feit_van(
+    service: &LawExecutionService,
+    opvolging: &Opvolging,
+    eigen: &Authority,
+    on: NaiveDate,
+) -> Result<Option<String>> {
+    Ok(vorm(service, opvolging, eigen, on)?.map(|(_, feit)| feit))
 }
 
 /// The ids of every record in the cells.
@@ -109,8 +150,9 @@ fn ids(cellen: &Cellen) -> Vec<String> {
         .collect()
 }
 
-/// What the article of `opvolging` runs on: the fields of the application,
-/// and per parameter of the case file what the system knows of it.
+/// What the article of `opvolging` runs on: the fields of the record that
+/// occasions it, and per parameter of the case file what the system knows:
+/// the day, or the id of that record.
 fn invoer(opvolging: &Opvolging, aanvraag: &Gram, on: NaiveDate) -> Map<String, Value> {
     let mut invoer: Map<String, Value> = aanvraag
         .fields
@@ -224,8 +266,9 @@ pub(crate) fn ontvangsten(
     Ok(uit)
 }
 
-/// The facts of the case's cell that it records by its policy when an
-/// application comes in: by hand it records none of them.
+/// The facts of the case's cell that it records by its policy without a
+/// person: when an application comes in (`bij_aanvraag`) or after a grant
+/// (`door_het_systeem` in `na_toekenning`). By hand it records none of them.
 ///
 /// # Errors
 ///
@@ -237,7 +280,13 @@ pub(crate) fn verzonden(
     on: NaiveDate,
 ) -> Result<Vec<String>> {
     let mut uit = Vec::new();
-    for opvolging in &corpus.casus.bij_aanvraag {
+    let na_toekenning = corpus
+        .casus
+        .na_toekenning
+        .iter()
+        .flat_map(|n| &n.handelingen)
+        .filter_map(|h| h.door_het_systeem.as_ref());
+    for opvolging in corpus.casus.bij_aanvraag.iter().chain(na_toekenning) {
         if let Some((_, feit)) = vorm(service, opvolging, eigen, on)? {
             uit.push(feit);
         }
