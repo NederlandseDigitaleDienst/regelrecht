@@ -640,11 +640,11 @@ async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
 }
 
 /// The application form says per field where its value comes from, as the
-/// UI spec has it, and shows a citizen what the system will record for
-/// them: the login (number and name), the clock (the date), a fixed value
-/// (the requested decision) and a rule (the signature, from article 8 of
-/// the policy, on the means of login); the citizen fills in the address and
-/// the kind of card.
+/// UI spec has it, also for a field it does not show, and gives a citizen
+/// what the system will record for them: the login (number and name), the
+/// clock (the date), a fixed value (the requested decision) and a rule (the
+/// signature, from article 8 of the policy, on the means of login); the
+/// citizen fills in the address and the kind of card.
 #[tokio::test]
 async fn the_application_form_shows_where_each_field_comes_from_and_its_value() {
     let app = server().await;
@@ -684,7 +684,13 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
         }),
         "{systeem}"
     );
-    assert_eq!(aanvraag["verborgen"], json!([]));
+    // The requested decision and the signature are not on the form, but
+    // the forms still say how the system fills them and with what, so a
+    // screen that shows a recorded application names their origin.
+    assert_eq!(
+        aanvraag["verborgen"],
+        json!(["aanvraag_ondertekend", "gevraagde_beschikking"])
+    );
     // The citizen fills in what the system does not.
     for veld in [
         "adres_aanvrager",
