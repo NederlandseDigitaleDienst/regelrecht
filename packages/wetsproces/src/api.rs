@@ -508,7 +508,9 @@ pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> Citiz
     let standen: Vec<_> = match state.service.standen().await {
         Ok(standen) => standen
             .into_iter()
-            .filter(|s| dossier.holds(&s.toekenning))
+            // Both records a row names must be the citizen's: the grant and
+            // the decision whose aggregate it is.
+            .filter(|s| dossier.holds(&s.toekenning) && dossier.holds(&s.besluit))
             .collect(),
         Err(e) => {
             tracing::warn!(error = %e, "how far the acts after a grant are does not play");
