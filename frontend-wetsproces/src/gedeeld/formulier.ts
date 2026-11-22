@@ -126,7 +126,7 @@ export function inGroepen<V extends { groep: string }>(velden: V[]): Veldgroep<V
 }
 
 /** `velden` of a form in the order of the UI spec, under the headings of its groups. */
-export const geordend = (velden: Schermveld[], volgorde?: string[]): Veldgroep<Schermveld>[] =>
+export const geordend = <V extends Schermveld>(velden: V[], volgorde?: string[]): Veldgroep<V>[] =>
   inGroepen(opVolgorde(velden, volgorde, (s) => s.veld.naam));
 
 /**
