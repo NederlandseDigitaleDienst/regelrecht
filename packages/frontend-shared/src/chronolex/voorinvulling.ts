@@ -11,8 +11,9 @@
  *
  * A field the system fills is no proposal: the applicant does not type it.
  * Per field it says `{ waarde }` for a value the system knows itself,
- * `{ bron }` for a source the cell computes as it prefills, and `{}` for the
- * login.
+ * `{ bron }` for a source the cell computes as it prefills, and neither for
+ * the login (`{ soort: 'inloggen' }`). `soort` names the kind of fill
+ * (`kern::door_het_systeem`); these functions read only `waarde` and `bron`.
  */
 import { isUnknown } from '../values';
 import { alsInvoer, bronRij, verschilTekst, zelfdeTabel } from './tabel';
@@ -27,10 +28,28 @@ export interface Voorgevuld {
   fout?: string;
 }
 
+/**
+ * Where the system takes the value of a field from (`kern::door_het_systeem`):
+ * the login, the clock, a fixed value, the decision the law names, the means
+ * of login, or a source (`bron`).
+ */
+export type Systeemsoort = 'inloggen' | 'datum' | 'waarde' | 'gevraagd_besluit' | 'inlogmiddel' | 'bron';
+
 /** How the system fills a field. */
 export interface Systeemvulling {
+  /** The kind of fill. */
+  soort?: Systeemsoort;
+  /**
+   * A value the system knows itself; from a system that computes them for
+   * the one who submits, such as the wetsproces server, any kind's value.
+   */
   waarde?: unknown;
+  /** The source whose outcome fills it, `<regelwerk>#<article>#<output>`. */
   bron?: string;
+  /** For a source, what it takes of the submission, per parameter (`date`, `login_method`, ...). */
+  parameters?: Record<string, string>;
+  /** The claim of the login that fills it, when not the field's own name. */
+  inlog?: string;
 }
 
 /** A field of a form, as far as these functions read it. */

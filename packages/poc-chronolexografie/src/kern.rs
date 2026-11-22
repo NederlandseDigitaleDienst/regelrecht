@@ -664,6 +664,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "basis": vorm.basis(),
             "velden": in_te_vullen(&vorm),
             "moment": moment(&vorm),
+            "termijn": termijnveld(&vorm),
             "besluit": i.besluit,
             "cel": i.cel,
         });
@@ -1123,6 +1124,25 @@ pub fn systeemvelden(
         uit.insert((*veld).clone(), gevonden["waarde"].clone());
     }
     Ok(uit)
+}
+
+/// The field of the submission `vorm` that holds the last day to make it
+/// in time: the date the article that names its moment declares beside it,
+/// as Awb 6:9 names the receipt of an objection and reads it against the end
+/// of the period. A submission against a decision takes that field from the
+/// decision, so a screen reads the deadline of a decision from it. `None`
+/// when the law names no moment, or not exactly one such date.
+fn termijnveld(vorm: &shape::Shape) -> Option<&str> {
+    let moment = vorm.moment.as_ref()?;
+    let mut velden = vorm.fields.iter().filter(|f| {
+        f.type_ == ParameterType::Date
+            && f.declared_by.contains(&moment.declared_by)
+            && Some(&f.name) != moment.parameter.as_ref()
+    });
+    match (velden.next(), velden.next()) {
+        (Some(veld), None) => Some(veld.name.as_str()),
+        _ => None,
+    }
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a
@@ -3740,6 +3760,60 @@ pub fn toezenden(
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// A submission whose moment `naam_moment` (if any) the article `door`
+    /// names, with `velden` as `(name, type, declared by)`.
+    fn indiening(
+        moment: Option<(&str, &str)>,
+        velden: &[(&str, ParameterType, &str)],
+    ) -> shape::Shape {
+        shape::Shape {
+            kind: "BEZWAAR".into(),
+            law_id: "w".into(),
+            article: "1".into(),
+            outputs: Vec::new(),
+            stage: None,
+            fields: velden
+                .iter()
+                .map(|(naam, type_, door)| shape::Field {
+                    name: (*naam).into(),
+                    type_: *type_,
+                    nullable: true,
+                    declared_by: vec![(*door).into()],
+                    columns: None,
+                })
+                .collect(),
+            moment: moment.map(|(naam, door)| shape::Moment {
+                parameter: Some(naam.into()),
+                declared_by: door.into(),
+            }),
+            requests: None,
+            given: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_deadline_of_a_submission_is_the_one_date_beside_its_moment() {
+        let date = ParameterType::Date;
+        let einde = ("termijn_einde", date, "awb#6:9");
+        // The date the article that names the moment declares beside it.
+        let vorm = indiening(
+            Some(("ontvangst", "awb#6:9")),
+            &[einde, ("gronden", ParameterType::String, "awb#6:5")],
+        );
+        assert_eq!(termijnveld(&vorm), Some("termijn_einde"));
+        // No moment: no deadline.
+        assert_eq!(termijnveld(&indiening(None, &[einde])), None);
+        // A date another article declares is no deadline.
+        let vorm = indiening(Some(("ontvangst", "awb#6:9")), &[("dag", date, "awb#6:5")]);
+        assert_eq!(termijnveld(&vorm), None);
+        // Two dates beside the moment: the law does not say which, so none.
+        let vorm = indiening(
+            Some(("ontvangst", "awb#6:9")),
+            &[einde, ("begin", date, "awb#6:9")],
+        );
+        assert_eq!(termijnveld(&vorm), None);
+    }
 
     /// `bevindingen` for a decision on an objection, with what the authority
     /// judges on admissibility (Awb 7:11) where `bevindingen` says nothing:

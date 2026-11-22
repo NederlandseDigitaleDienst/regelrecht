@@ -133,16 +133,18 @@ export function omschrijving(g: Gram, casus: Casus): string {
 }
 
 /**
- * The output of a decision that holds the last day to object to it or
- * appeal against it, as the Awb in the corpus derives it (articles 6:7 and
- * 6:8). The objection takes the same field over from the decision it
- * contests. A decision without it gives no deadline to show.
+ * The deadline of decision `besluit` on day `vandaag` for a submission
+ * against it: its last day, and whether that has passed. `veld` is the field
+ * of that submission that holds the last day, as the server derives it from
+ * the law (`termijn` of its form); the decision gives it as an output. A
+ * decision without it gives no deadline to show.
  */
-const TERMIJN_EINDE = 'termijn_einddatum';
-
-/** The deadline of decision `besluit` on day `vandaag`: its last day, and whether that has passed. */
-export function termijn(besluit: Gram, vandaag: string): { einde: string; voorbij: boolean } | null {
-  const einde = besluit.outputs?.[TERMIJN_EINDE];
+export function termijn(
+  besluit: Gram,
+  vandaag: string,
+  veld: string | null | undefined,
+): { einde: string; voorbij: boolean } | null {
+  const einde = veld ? besluit.outputs?.[veld] : undefined;
   if (typeof einde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(einde)) return null;
   // ISO days compare as text.
   return { einde, voorbij: vandaag > einde };

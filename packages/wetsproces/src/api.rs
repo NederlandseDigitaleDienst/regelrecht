@@ -225,7 +225,9 @@ impl From<ServiceError> for ApiError {
                 | StoreError::DuplicateGram { .. },
             )
             | ServiceError::Internal(_)
-            | ServiceError::LoginField(_) => {
+            | ServiceError::LoginField(_)
+            | ServiceError::Prefill(_)
+            | ServiceError::LoginClaim(_) => {
                 // The full error, with what the database said, goes to the
                 // log only.
                 tracing::error!(error = %e, "request failed");
@@ -789,22 +791,28 @@ pub(crate) async fn submit_for(
 }
 
 /// What the server knows of the citizen `principal` who submits an
-/// application: the login field holds their identifier, the claim `naam` the
-/// name the login gave, and the means of login follows from the channel
-/// ([`access::login_method`]).
+/// application ([`login_claims`]), and the means of login, which follows from
+/// the channel ([`access::login_method`]).
 fn submitter(state: &AppState, principal: &Principal, citizen: &Citizen) -> Indiener {
+    Indiener {
+        inlog: login_claims(principal, state.service.login_field(), citizen.subject()),
+        inlogmiddel: access::login_method(principal.channel()).map(str::to_string),
+    }
+}
+
+/// The claims of `principal`'s login by name, for a field the UI spec fills
+/// with `login: <claim>`: the login field `login_field` with the citizen's
+/// `subject`, and `naam` for the name the login gave. No other claim: a UI
+/// spec that asks one does not start the server ([`crate::service::KEPT_CLAIMS`]), and the
+/// submission, with what it holds of the login, is kept with its
+/// idempotency key.
+fn login_claims(principal: &Principal, login_field: &str, subject: &str) -> Map<String, Value> {
     let mut inlog = Map::new();
-    inlog.insert(
-        state.service.login_field().to_string(),
-        Value::from(citizen.subject()),
-    );
     if let Some(name) = principal.name() {
         inlog.insert("naam".into(), Value::from(name));
     }
-    Indiener {
-        inlog,
-        inlogmiddel: access::login_method(principal.channel()).map(str::to_string),
-    }
+    inlog.insert(login_field.to_string(), Value::from(subject));
+    inlog
 }
 
 /// A decision, by a decider of the executor.
@@ -1085,5 +1093,30 @@ mod tests {
         let mut forms = json!({ "eigen_velden": { "mine": ["a"], "theirs": ["b"] } });
         only_visible_records(&mut forms, &BTreeSet::from(["mine".to_string()]));
         assert_eq!(forms["eigen_velden"], json!({ "mine": ["a"] }));
+    }
+
+    #[test]
+    fn a_field_filled_from_the_login_takes_the_identifier_or_the_name_and_nothing_else() {
+        use std::collections::{BTreeMap, BTreeSet};
+        let principal = Principal::new(
+            "burger-1".into(),
+            BTreeSet::from(["wetsproces-burger".to_string()]),
+            BTreeMap::from([
+                ("bsn".to_string(), json!("999990032")),
+                ("telefoon".to_string(), json!("0600000000")),
+            ]),
+            Channel::TestLogin,
+        )
+        .with_name(Some("Anna Voorbeeld".into()));
+        let inlog = login_claims(&principal, "bsn_aanvrager", "999990032");
+        // Only what every UI spec that starts may ask: no other claim.
+        assert_eq!(
+            inlog,
+            serde_json::from_value::<Map<String, Value>>(json!({
+                "naam": "Anna Voorbeeld",
+                "bsn_aanvrager": "999990032",
+            }))
+            .unwrap()
+        );
     }
 }

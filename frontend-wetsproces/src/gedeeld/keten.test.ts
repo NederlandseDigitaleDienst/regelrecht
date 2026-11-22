@@ -139,13 +139,14 @@ describe('besluitNaam', () => {
 describe('termijn', () => {
   const metTermijn = { ...besluit, outputs: { verleend: false, termijn_einddatum: '2026-11-24' } };
 
-  it('gives the last day and whether it has passed, by the clock', () => {
-    expect(termijn(metTermijn, '2026-11-24')).toEqual({ einde: '2026-11-24', voorbij: false });
-    expect(termijn(metTermijn, '2026-11-25')).toEqual({ einde: '2026-11-24', voorbij: true });
+  it('gives the last day of the field the form names, and whether it has passed, by the clock', () => {
+    expect(termijn(metTermijn, '2026-11-24', 'termijn_einddatum')).toEqual({ einde: '2026-11-24', voorbij: false });
+    expect(termijn(metTermijn, '2026-11-25', 'termijn_einddatum')).toEqual({ einde: '2026-11-24', voorbij: true });
   });
 
-  it('gives nothing for a decision that names no deadline', () => {
-    expect(termijn(besluit, '2026-11-25')).toBeNull();
+  it('gives nothing for a decision that names no deadline, or a form that names no field for it', () => {
+    expect(termijn(besluit, '2026-11-25', 'termijn_einddatum')).toBeNull();
+    expect(termijn(metTermijn, '2026-11-25', null)).toBeNull();
   });
 });
 

@@ -108,6 +108,7 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
         <Gegevens
           :waarden="stuk.fields"
           :teksten="vormen?.teksten"
+          :volgorde="vormen?.volgorde"
           :noem="noemId"
           :herkomst="herkomst"
           :label="indiening ? 'Wat u indiende' : 'Wat er is vastgelegd'"

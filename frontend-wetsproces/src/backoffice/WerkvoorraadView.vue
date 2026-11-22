@@ -186,5 +186,5 @@ async function klaar(naam: string) {
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
 
-  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :vastleggen="backofficeApi.vastleggen" @sluit="keuze = null" @vastgelegd="klaar" />
+  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :vastleggen="backofficeApi.vastleggen" @sluit="keuze = null" @vastgelegd="klaar" />
 </template>

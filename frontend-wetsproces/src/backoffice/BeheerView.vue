@@ -241,7 +241,7 @@ async function toezenden(besluit: Gram) {
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
 
-  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :vastleggen="beheerApi.vastleggen" @sluit="keuze = null" @vastgelegd="vastgelegd">
+  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :vastleggen="beheerApi.vastleggen" @sluit="keuze = null" @vastgelegd="vastgelegd">
     <nldd-banner
       v-if="keuze"
       variant="neutral"

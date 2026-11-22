@@ -219,7 +219,7 @@ The UI spec decides how the value of each field of the application comes about. 
 | UI spec | Value |
 |---|---|
 | `{by: system}` | the login: the identifier under the subject claim |
-| `{by: system, login: naam}` | the login: the name it gave, empty when it gave none |
+| `{by: system, login: naam}` | the login: the name it gave, empty when it gave none. A login of this server keeps no other claim, so the server refuses to start with a UI spec that asks one |
 | `{by: system, submission: date}` | the day of the clock (the test clock in test mode) |
 | `{by: system, value: ...}` | that fixed value |
 | `{by: system, from: <regelwerk>#<article>#<output>, parameters: {...}}` | the outcome of that article, run on what the server knows of the submission |

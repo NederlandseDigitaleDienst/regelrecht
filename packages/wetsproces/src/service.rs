@@ -277,7 +277,29 @@ pub enum ServiceError {
          `fill: {{by: system}}` and no source); the server needs exactly one"
     )]
     LoginField(usize),
+    /// The UI spec prefills fields the applicant may change (`fill: {from}`
+    /// without `by: system`). This server computes no prefill, so the form
+    /// would show those fields empty without saying why.
+    #[error(
+        "the UI spec prefills {0:?} with `fill: {{from: ...}}`, which this server does not \
+         compute; fill such a field by the system (`by: system`) or leave it to the applicant"
+    )]
+    Prefill(Vec<String>),
+    /// The UI spec fills a field from a claim of the login that no login of
+    /// this server keeps ([`KEPT_CLAIMS`]), so the field would stay empty on
+    /// every channel.
+    #[error(
+        "the UI spec fills a field from the login claim(s) {0:?}; a login of this server keeps \
+         only the identifier (the login field) and `naam`"
+    )]
+    LoginClaim(Vec<String>),
 }
+
+/// The claims of a login that a field of the UI spec can take with
+/// `login: <claim>`: every login of this server (Keycloak, the test login,
+/// FSC voor Burgers) keeps the identifier, which fills the login field, and
+/// the browser logins the name. Nothing else.
+pub const KEPT_CLAIMS: [&str; 1] = ["naam"];
 
 impl From<regelrecht_cel::Error> for ServiceError {
     fn from(e: regelrecht_cel::Error) -> Self {
@@ -445,7 +467,11 @@ impl Service {
     ///
     /// # Errors
     ///
-    /// When the store fails, or the case's beginning does not record.
+    /// When the UI spec asks what this server does not do: no single login
+    /// field ([`ServiceError::LoginField`]), a prefill the applicant may
+    /// change ([`ServiceError::Prefill`]), or a claim of the login it does not
+    /// keep ([`ServiceError::LoginClaim`]); when the store fails, or the
+    /// case's beginning does not record.
     pub async fn start(
         corpus: Corpus,
         store: Arc<dyn ChronicleStore>,
@@ -453,6 +479,25 @@ impl Service {
     ) -> Result<Self, ServiceError> {
         let cells = corpus.cellen().map(str::to_string).collect();
         let login_field = login_field(&corpus)?;
+        if !corpus.ui_spec.prefill.is_empty() {
+            return Err(ServiceError::Prefill(
+                corpus.ui_spec.prefill.keys().cloned().collect(),
+            ));
+        }
+        let unknown: Vec<String> = corpus
+            .ui_spec
+            .systeem
+            .values()
+            .filter_map(|fill| match fill {
+                Systeemvulling::Inlogclaim(claim) if !KEPT_CLAIMS.contains(&claim.as_str()) => {
+                    Some(claim.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        if !unknown.is_empty() {
+            return Err(ServiceError::LoginClaim(unknown));
+        }
         let service = Self {
             corpus: Arc::new(corpus),
             cells,
@@ -1374,6 +1419,49 @@ pub(crate) mod tests {
             .unwrap(),
             submitter: Some(submitter("DigiD")),
         })
+    }
+
+    #[tokio::test]
+    async fn a_ui_spec_that_prefills_a_field_stops_the_server() {
+        let (mut corpus, _) =
+            crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
+        corpus
+            .ui_spec
+            .prefill
+            .insert("adres_aanvrager".into(), "r#5#adres".into());
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        let e = Service::start(corpus, store, clock).await.unwrap_err();
+        assert!(
+            matches!(e, ServiceError::Prefill(ref f) if f == &["adres_aanvrager"]),
+            "{e}"
+        );
+    }
+
+    /// A field the UI spec fills from a claim no login of this server keeps
+    /// would stay empty on every channel: the server does not start.
+    #[tokio::test]
+    async fn a_field_filled_from_a_claim_no_login_keeps_stops_the_server() {
+        use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
+        let (mut corpus, _) =
+            crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
+        corpus.ui_spec.systeem.insert(
+            "adres_aanvrager".into(),
+            Systeemvulling::Inlogclaim("adres".into()),
+        );
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        let e = Service::start(corpus, store, clock).await.unwrap_err();
+        assert!(
+            matches!(e, ServiceError::LoginClaim(ref c) if c == &["adres"]),
+            "{e}"
+        );
     }
 
     #[tokio::test]
