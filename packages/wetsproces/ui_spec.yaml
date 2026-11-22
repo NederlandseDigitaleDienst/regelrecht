@@ -24,7 +24,8 @@
 #
 # Zichtbaarheid: zonder `visibility` vraagt het scherm het veld; `shown` op een
 # veld van het systeem toont het zonder dat de burger het kan wijzigen;
-# `hidden` toont het niet.
+# `hidden` toont het niet op het formulier. Een verborgen veld dat het systeem
+# vult, vult de server toch, en de aanvraag bevat het.
 #
 # Volgorde en groepering: het scherm toont de velden in de volgorde van deze
 # beschrijving, onder de kop van hun `group`. `label` en `help` zeggen hoe een
@@ -56,9 +57,11 @@ elements:
         label: Ik vraag de kaart aan als passagier
       # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
       # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
+      # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren
+      # noemen haar herkomst voor een scherm dat de aanvraag toont.
       - name: gevraagde_beschikking
         group: Over deze aanvraag
-        visibility: shown
+        visibility: hidden
         fill: {by: system, value: gehandicaptenparkeerkaart}
         label: Wat vraagt u aan?
       # Awb 4:2, eerste lid, onder b: de dag van indiening, volgens de klok
@@ -71,10 +74,11 @@ elements:
       # Awb 4:2, eerste lid, aanhef: de ondertekening. Geen vinkje: het
       # fictieve beleid van Wilgendaal, artikel 8, zegt wanneer een
       # elektronische aanvraag als ondertekend geldt. De server voert dat
-      # artikel uit met het middel waarmee de burger inlogde.
+      # artikel uit met het middel waarmee de burger inlogde. Niet op het
+      # scherm, wel in de aanvraag, met dat artikel als herkomst.
       - name: aanvraag_ondertekend
         group: Over deze aanvraag
-        visibility: shown
+        visibility: hidden
         fill:
           by: system
           from: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#8#aanvraag_geldt_als_ondertekend
