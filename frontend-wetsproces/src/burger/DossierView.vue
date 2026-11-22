@@ -16,8 +16,8 @@ import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, onderVerzoeken, plat, rolVan, toegewezen } from '../gedeeld/keten';
-import type { Gram } from '../gedeeld/types';
+import { antwoordOp, celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, onderVerzoeken, plat, rolVan, toegewezen } from '../gedeeld/keten';
+import type { Gram, Vervolgaanvraag } from '../gedeeld/types';
 import { burgerStand, doorHetSysteem as doorHetSysteemTekst } from '../gedeeld/vervolg';
 import BesluitPaneel from './BesluitPaneel.vue';
 import StukPaneel from './StukPaneel.vue';
@@ -53,7 +53,8 @@ const lijsten = computed(() => {
       regel: regel(gram, boven),
       stand: stand(gram),
       gekozen: gram.id === props.id,
-      vervolg: vervolgTekst(gram.id),
+      vervolg: vervolgTekst(gram),
+      aanvragen: aanvragenBij(gram.id),
     })),
   }));
 });
@@ -62,10 +63,47 @@ const lijsten = computed(() => {
 const omschrijf = (g: Gram) => (casus.value ? omschrijving(g, casus.value, rolVan(g, standVanDossier.value)) : g.kind);
 
 /** How far the acts after the grant `id` are, in the citizen's words, if `id` granted and the case names such acts. */
-function vervolgTekst(id: string): string {
+function vervolgTekst(g: Gram): string {
+  const na = casus.value?.na_toekenning;
+  if (!na || !casus.value) return '';
+  const s = vervolg.value.find((v) => v.toekenning === g.id);
+  if (s) return burgerStand(s, na);
+  // A grant in an aggregate whose grant is now the decision on an
+  // application about a grant, such as a duplicate: that one took its place.
+  // Not a grant a decision on objection replaced: that is a revocation.
+  const vervangers = new Set((na.aanvragen ?? []).map((a) => a.artikel));
+  const vervangen = vervolg.value.some((v) => {
+    const nu = dossier.value.find((x) => x.id === v.toekenning);
+    return v.toekenning !== g.id && !!nu && vervangers.has(nu.basis) && hoortBij(g, v.besluit);
+  });
+  return vervangen && toegewezen(g, casus.value) === true ? (na.vervallen ?? '') : '';
+}
+
+/** Whether `g` is the record `wortel` or refers to it, however indirectly. */
+function hoortBij(g: Gram, wortel: string): boolean {
+  const gezien = new Set<string>();
+  let huidig: Gram | undefined = g;
+  while (huidig && !gezien.has(huidig.id)) {
+    if (huidig.id === wortel) return true;
+    gezien.add(huidig.id);
+    const naar: string | null | undefined = huidig.refers_to;
+    huidig = naar ? dossier.value.find((x) => x.id === naar) : undefined;
+  }
+  return false;
+}
+
+/**
+ * What the citizen can apply for about the grant `id`, as the case offers it
+ * (`na_toekenning.aanvragen`): only once every act after it is done, and not
+ * while such an application about it waits for a decision.
+ */
+function aanvragenBij(id: string): Vervolgaanvraag[] {
   const na = casus.value?.na_toekenning;
   const s = vervolg.value.find((v) => v.toekenning === id);
-  return na && s ? burgerStand(s, na) : '';
+  if (!na?.aanvragen || !s || s.volgende) return [];
+  return na.aanvragen.filter(
+    (a) => !dossier.value.some((g) => g.basis === a.artikel && g.refers_to === id && !antwoordOp(g.id, standVanDossier.value)),
+  );
 }
 
 /** Whether the record of the address is a decision, which has a pane of its own. */
@@ -140,6 +178,18 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
                     <nldd-icon-cell size="20"><nldd-icon icon="info"></nldd-icon></nldd-icon-cell>
                     <nldd-spacer-cell size="8"></nldd-spacer-cell>
                     <nldd-text-cell :text="r.vervolg" supporting-text="Na de toekenning"></nldd-text-cell>
+                  </nldd-list-item>
+                  <nldd-list-item
+                    v-for="a in r.aanvragen"
+                    :key="`${r.gram.id}-${a.artikel}`"
+                    size="md"
+                    button
+                    @click="router.push({ name: 'aanvraag', query: { artikel: a.artikel, op: r.gram.id } })"
+                  >
+                    <nldd-icon-cell size="20"><nldd-icon icon="add"></nldd-icon></nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell :text="a.knop" :supporting-text="a.titel"></nldd-text-cell>
+                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                   </nldd-list-item>
                 </template>
               </nldd-list>

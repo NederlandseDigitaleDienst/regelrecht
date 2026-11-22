@@ -161,3 +161,24 @@ elements:
         group: Het verzoek
         label: Bij de aanvraag
         help: De aanvraag waarvoor de gemeente het onderzoek vroeg.
+  # De aanvraag om een duplicaat van een kaart die kwijt is (artikel 52 van
+  # het BABW). Burgerservicenummer, naam, dagtekening en ondertekening vult
+  # het systeem zoals bij de aanvraag (UI1); de burger vult de rest.
+  - id: UI5
+    element: kaart kwijt
+    fields:
+      - name: verloren_kaart
+        visibility: hidden
+        fill: {by: system, submission: referred_record}
+        label: Om welke kaart het gaat
+      - name: datum_vermissing
+        group: Wat er gebeurde
+        label: Wanneer raakte u de kaart kwijt?
+        help: De dag waarop u merkte dat de kaart weg was, als u het niet precies weet.
+      - name: omstandigheden_verlies
+        group: Wat er gebeurde
+        label: Wat is er gebeurd?
+        help: Bijvoorbeeld waar u de kaart voor het laatst had, of dat zij gestolen is.
+      - name: verklaring_naar_waarheid
+        group: Wat er gebeurde
+        label: Ik verklaar dat de kaart kwijt is en dat ik dit naar waarheid heb ingevuld

@@ -83,4 +83,20 @@ na_toekenning:
       gedaan: datum_uitreiking
       knop: Kaart uitreiken
       stand: Uw kaart is op {datum} aan u uitgereikt.
+  # Wat de burger leest onder een kaart die niet meer geldt omdat er een
+  # nieuwe voor in de plaats kwam, zoals een duplicaat (artikel 53, eerste
+  # lid, onder b, van het BABW).
+  vervallen: Deze kaart geldt niet meer. Er is een nieuwe kaart voor in de plaats gekomen.
+  # Wat de burger kan aanvragen bij een kaart die is uitgereikt: een
+  # duplicaat van een kaart die kwijt is (artikel 52 van het BABW). De
+  # aanvraag verwijst naar het besluit dat de kaart verstrekte.
+  aanvragen:
+    - artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#52
+      knop: Kaart kwijt?
+      titel: Kaart kwijt of gestolen
+      uitkomst: duplicaat_verstrekt
+      uitleg: >-
+        Is uw kaart kwijt of gestolen? Meld het hier en vraag meteen een
+        nieuwe kaart aan. U krijgt een duplicaat dat even lang geldig is als
+        uw kaart. Uw oude kaart geldt dan niet meer.
 scenarios: []

@@ -668,26 +668,28 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "besluit": i.besluit,
             "cel": i.cel,
         });
-        // The application of the case: who the applicant can log in as
-        // ([`inloggen`]), the fields the UI spec prefills, each with its
-        // source ([`voorinvullen`]), those the system fills ([`door_het_systeem`])
-        // and those the form does not show.
+        // Every submission: the fields the system fills ([`door_het_systeem`])
+        // and those the form does not show, as far as its form asks them; a
+        // case may have more than one kind of application, such as one for a
+        // duplicate beside the case's own. The case's own application also:
+        // who the applicant can log in as ([`inloggen`]) and the fields the UI
+        // spec prefills, each with its source ([`voorinvullen`]).
+        let spec = &corpus.ui_spec;
+        let inlogveld = corpus.casus.inloggen.as_ref().map(|i| i.veld.as_str());
+        indiening["systeem"] = door_het_systeem(spec, &vorm, inlogveld, on);
+        indiening["verborgen"] = json!(
+            spec.verborgen
+                .iter()
+                .filter(|veld| vraagt(&vorm, veld))
+                .collect::<Vec<_>>()
+        );
         if i.artikel == corpus.casus.artikel {
-            let spec = &corpus.ui_spec;
             indiening["inloggen"] = inloggen(corpus, cell, &service, &vorm, on)?;
             indiening["prefill"] = json!(
                 spec.prefill
                     .iter()
                     .filter(|(veld, _)| vraagt(&vorm, veld))
                     .collect::<BTreeMap<_, _>>()
-            );
-            let inlogveld = corpus.casus.inloggen.as_ref().map(|i| i.veld.as_str());
-            indiening["systeem"] = door_het_systeem(spec, &vorm, inlogveld, on);
-            indiening["verborgen"] = json!(
-                spec.verborgen
-                    .iter()
-                    .filter(|veld| vraagt(&vorm, veld))
-                    .collect::<Vec<_>>()
             );
         }
         indieningen.insert(i.artikel.clone(), indiening);
@@ -1030,6 +1032,9 @@ fn door_het_systeem(
                 Systeemvulling::Indiening(Indieningsgegeven::Inlogmiddel) => {
                     json!({ "soort": "inlogmiddel", "waarde": null })
                 }
+                Systeemvulling::Indiening(Indieningsgegeven::Verwezen) => {
+                    json!({ "soort": "verwezen", "waarde": null })
+                }
             };
             (veld.clone(), hoe)
         })
@@ -1048,7 +1053,8 @@ pub struct Indiener {
     pub inlogmiddel: Option<String>,
 }
 
-/// What the system fills in the application of the case on `on`, for the
+/// What the system fills in a submission under `artikel` (the case's own
+/// application, or another, such as one for a duplicate) on `on`, for the
 /// applicant `indiener`, as the UI spec says ([`crate::ui_spec::Systeemvulling`]):
 /// per field the UI spec has the system fill and the application asks, its
 /// value. A claim the login does not give leaves its field out. A source
@@ -1059,28 +1065,32 @@ pub struct Indiener {
 /// outcome, so the order of the fields does not matter.
 ///
 /// A field here is the system's: a caller that takes an application from
-/// someone refuses one that names such a field itself.
+/// someone refuses one that names such a field itself. `op` is the record
+/// the submission refers to, if any (`submission: referred_record`).
 ///
 /// # Errors
 ///
-/// Refused when the article of the case establishes no submission on `on`,
+/// Refused when `artikel` establishes no submission on `on`,
 /// or the cell refuses to run a source ([`Cell::consult`]): the application
 /// would be recorded without what the system was to fill.
 pub fn systeemvelden(
     corpus: &Corpus,
     cellen: &Cellen,
+    artikel: &str,
+    op: Option<&str>,
     indiener: &Indiener,
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Map<String, Value>> {
     use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
     let service = corpus.service()?;
-    let (law, article) = basis(&corpus.casus.artikel)?;
+    let (law, article) = basis(artikel)?;
     let aanvraag = shape::derive(&service, law, article, on)?;
     let gegeven = |g: Indieningsgegeven| match g {
         Indieningsgegeven::Datum => json!(on.to_string()),
         Indieningsgegeven::GevraagdBesluit => json!(aanvraag.requests),
         Indieningsgegeven::Inlogmiddel => json!(indiener.inlogmiddel),
+        Indieningsgegeven::Verwezen => json!(op),
     };
     let gevuld: Vec<(&String, &Systeemvulling)> = corpus
         .ui_spec

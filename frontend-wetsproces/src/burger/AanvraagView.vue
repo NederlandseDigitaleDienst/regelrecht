@@ -1,5 +1,8 @@
 <script setup lang="ts">
-// A new application under the case's own article. The fields come from the
+// A new application under the case's own article, or, with `artikel` and
+// `op` in the address, one the case offers about a grant
+// (`na_toekenning.aanvragen`), such as a duplicate of a card that is lost;
+// that one refers to the record that granted. The fields come from the
 // law (`GET /api/formulier`); the UI spec says in what order and under which
 // headings they stand, how they are named, and where each value comes from.
 // What the system fills (the login, the clock, a fixed value, a rule) shows
@@ -7,7 +10,7 @@
 // server fills it itself, so the form does not send it. What the UI spec
 // hides stays off the form.
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { aanvraagformulier, aanvraagVelden, beginwaarden } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
@@ -15,6 +18,14 @@ import { burgerApi } from './api';
 import { useBurger } from './useBurger';
 
 const router = useRouter();
+const route = useRoute();
+/** The application about a grant the address asks for, if the case offers it. */
+const overToekenning = computed(() => {
+  const artikel = route.query.artikel;
+  return typeof artikel === 'string' ? casus.value?.na_toekenning?.aanvragen?.find((a) => a.artikel === artikel) : undefined;
+});
+const op = computed(() => (typeof route.query.op === 'string' ? route.query.op : undefined));
+const artikel = computed(() => overToekenning.value?.artikel ?? casus.value?.artikel);
 const { casus, vormen, wie, fout, laden, laad } = useBurger();
 const waarden = ref<Record<string, unknown>>({});
 const bezig = ref(false);
@@ -22,8 +33,8 @@ const melding = ref('');
 // One key per filled-in form: a click sent twice records one application.
 let sleutel = nieuweSleutel();
 
-const titel = computed(() => `Aanvraag ${casus.value?.titel?.toLowerCase() ?? ''}`.trim());
-const vorm = computed(() => (casus.value && vormen.value ? vormen.value.indieningen[casus.value.artikel] : undefined));
+const titel = computed(() => overToekenning.value?.titel ?? `Aanvraag ${casus.value?.titel?.toLowerCase() ?? ''}`.trim());
+const vorm = computed(() => (artikel.value && vormen.value ? vormen.value.indieningen[artikel.value] : undefined));
 const formulier = computed(() =>
   vorm.value
     ? aanvraagformulier(vorm.value, vormen.value?.teksten, wie.value?.identiteit ?? null, vormen.value?.volgorde)
@@ -44,10 +55,17 @@ onMounted(async () => {
 
 async function indienen() {
   if (!vorm.value || !casus.value) return;
+  if (overToekenning.value && !op.value) {
+    melding.value = 'Begin bij het besluit in uw dossier: deze aanvraag gaat over een besluit.';
+    return;
+  }
   bezig.value = true;
   melding.value = '';
   try {
-    await burgerApi.indienen({ artikel: casus.value.artikel, velden: aanvraagVelden(vorm.value, waarden.value) }, sleutel);
+    await burgerApi.indienen(
+      { artikel: artikel.value, ...(overToekenning.value && op.value ? { op: op.value } : {}), velden: aanvraagVelden(vorm.value, waarden.value) },
+      sleutel,
+    );
     sleutel = nieuweSleutel();
     await router.push({ name: 'dossier', query: { ingediend: vorm.value.soort } });
   } catch (e) {
@@ -68,6 +86,14 @@ async function indienen() {
       <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
       <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het formulier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
       <nldd-container v-else-if="formulier" gap="24">
+        <nldd-text v-if="overToekenning">{{ overToekenning.uitleg }}</nldd-text>
+        <nldd-inline-dialog
+          v-if="overToekenning && !op"
+          icon="warning"
+          icon-color="critical"
+          text="Het is niet duidelijk waar deze aanvraag over gaat"
+          supporting-text="Begin bij het besluit in uw dossier."
+        ></nldd-inline-dialog>
         <nldd-text color="secondary">De vragen komen uit de wet. Onder elke vraag staat het artikel waar zij vandaan komt.</nldd-text>
         <nldd-inline-dialog
           v-if="vorm?.systeem_fout"
@@ -79,7 +105,12 @@ async function indienen() {
         <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
         <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
         <nldd-button-group orientation="horizontal">
-          <nldd-button appearance="primary" text="Aanvraag indienen" :loading="bezig || undefined" @click="indienen"></nldd-button>
+          <nldd-button
+            appearance="primary"
+            text="Aanvraag indienen"
+            :loading="bezig || undefined"
+            @click="indienen"
+          ></nldd-button>
         </nldd-button-group>
       </nldd-container>
     </nldd-simple-section>

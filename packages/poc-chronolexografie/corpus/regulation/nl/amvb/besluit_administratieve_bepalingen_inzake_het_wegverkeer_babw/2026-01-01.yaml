@@ -1339,6 +1339,108 @@ articles:
       of teniet is gegaan. In de verklaring dienen de omstandigheden waaronder de kaart verloren geraakt of teniet gegaan
       is, te worden omschreven.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel52
+    machine_readable:
+      # Bevoegd gezag: wie de kaart afgaf, voor deze casus het college
+      # (artikel 49, eerste lid). Alleen de kaart die verloren is geraakt of
+      # teniet is gegaan is gemodelleerd (lid 1 en 3); een versleten of
+      # onleesbare kaart (lid 2, tegen inlevering) niet.
+      competent_authority:
+        name: college van burgemeester en wethouders
+        type: CATEGORY
+      open_terms:
+        # Lid 1 gaat over een kaart die het bevoegde gezag afgaf. Eigen
+        # keuze: het college geeft een duplicaat voor een kaart die het de
+        # aanvrager verstrekte en uitreikte, en die nog geldig is; een
+        # verlopen kaart vervangt een nieuwe aanvraag (artikel 49). Welke
+        # kaarten dat zijn, weet het college uit zijn eigen kroniek; het
+        # fictieve beleid van de gemeente koppelt dit begrip aan het antwoord
+        # van zijn cel.
+        - id: verloren_kaart_is_uitgereikt_en_geldig
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, dat de kaart afgaf
+          description: >-
+            Of de verloren kaart een gehandicaptenparkeerkaart is die het
+            college de aanvrager verstrekte en uitreikte, en die op de dag van
+            het besluit nog geldig is.
+      execution:
+        # Lid 3: een duplicaat "wordt slechts uitgereikt tegen overlegging
+        # van een door de aanvrager ondertekende verklaring", met de
+        # omstandigheden. Eigen keuze: de verklaring is de aanvraag zelf
+        # (Awb 4:1), zodat de aanvrager één stuk indient, en zij is
+        # ondertekend zoals een aanvraag (Awb 4:2, eerste lid). Lid 3 stelt de
+        # verklaring als voorwaarde voor de uitreiking; hier is zij een
+        # voorwaarde voor het duplicaat zelf, omdat de uitreiking hier geen
+        # besluit is maar een handeling na het besluit.
+        produces:
+          - type: AANVRAAG
+            requests: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#52
+            parameters:
+              - bsn_aanvrager
+              - dagtekening
+              - aanvraag_ondertekend
+              - verloren_kaart
+              - datum_vermissing
+              - omstandigheden_verlies
+              - verklaring_naar_waarheid
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - duplicaat_verstrekt
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de houder van de kaart.
+          # De aanvraag verwijst naar het besluit dat de kaart verstrekte,
+          # maar neemt er niets van over: zij heeft een eigen dagtekening en
+          # een eigen ondertekening (Awb 4:2, eerste lid), die van de
+          # verklaring.
+          - name: dagtekening
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag en de verklaring.
+          - name: aanvraag_ondertekend
+            type: boolean
+            description: Of de aanvrager de aanvraag, en daarmee de verklaring, ondertekende (lid 3).
+          # Welke kaart verloren is: het besluit dat haar verstrekte, waar de
+          # aanvraag naar verwijst. Het systeem waarmee de aanvrager indient,
+          # vult het in.
+          - name: verloren_kaart
+            type: string
+            description: Het besluit dat de verloren kaart verstrekte.
+          - name: datum_vermissing
+            type: date
+            nullable: true
+            description: De dag waarop de kaart verloren raakte of teniet ging, voor zover bekend.
+          - name: omstandigheden_verlies
+            type: string
+            description: De omstandigheden waaronder de kaart verloren raakte of teniet ging (lid 3).
+          - name: verklaring_naar_waarheid
+            type: boolean
+            description: Of de aanvrager verklaart dat de kaart verloren is geraakt of teniet is gegaan (lid 3).
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        output:
+          - name: duplicaat_verstrekt
+            type: boolean
+            description: >-
+              Of het college een duplicaat van de kaart afgeeft (lid 1). Het
+              duplicaat geldt tot de dag waarop de oorspronkelijke kaart gold;
+              dat houdt de kroniek van het college bij.
+        actions:
+          - output: duplicaat_verstrekt
+            value:
+              operation: AND
+              conditions:
+                - $verklaring_naar_waarheid
+                - $aanvraag_ondertekend
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $omstandigheden_verlies
+                    value: ''
+                - $verloren_kaart_is_uitgereikt_en_geldig
   - number: '53'
     text: |-
       1 Een gehandicaptenparkeerkaart verliest zijn geldigheid:

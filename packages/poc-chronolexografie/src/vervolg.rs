@@ -43,6 +43,32 @@ pub struct NaToekenning {
     pub stand: String,
     /// The acts, in the order they come.
     pub handelingen: Vec<Vervolghandeling>,
+    /// What a citizen reads of a grant that no longer counts because a new
+    /// one took its place, such as a card replaced by a duplicate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vervallen: Option<String>,
+    /// What a citizen can apply for about a grant once every act is done,
+    /// such as a duplicate of a card that is lost. Each is a submission the
+    /// case establishes, which refers to the record that granted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aanvragen: Vec<Vervolgaanvraag>,
+}
+
+/// An application about a grant ([`NaToekenning::aanvragen`]).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Vervolgaanvraag {
+    /// The article that establishes it, `<regelwerk>#<article>`.
+    pub artikel: String,
+    /// What the way in to it says.
+    pub knop: String,
+    /// The title of its form.
+    pub titel: String,
+    /// What the form says before the fields.
+    pub uitleg: String,
+    /// The output of the decision on it that says whether it grants what
+    /// was asked, as `uitkomst` does for the case's own application.
+    pub uitkomst: String,
 }
 
 /// One act after a grant.
@@ -256,6 +282,14 @@ pub(crate) fn controleer(corpus: &Corpus) -> Result<()> {
             return Err(fout(format!(
                 "the state of {} has no '{naam}'",
                 na.aggregaat
+            )));
+        }
+    }
+    for a in &na.aanvragen {
+        if corpus.afleiding.indiening(&a.artikel).is_none() {
+            return Err(fout(format!(
+                "{} establishes no submission of this case",
+                a.artikel
             )));
         }
     }

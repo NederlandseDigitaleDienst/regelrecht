@@ -180,9 +180,15 @@ export function celNaam(cel: string, casus: Casus): string {
   return casus.andere_cellen.find((a) => a.cel === cel)?.cel_naam ?? cel;
 }
 
-/** Whether the decision `g` grants what was asked, by the case's outcome; undefined when it does not say. */
+/**
+ * Whether the decision `g` grants what was asked: by the case's outcome, or
+ * by the outcome of an application the case offers about a grant
+ * (`na_toekenning.aanvragen`), such as a duplicate; undefined when it does
+ * not say.
+ */
 export function toegewezen(g: Pick<Gram, 'outputs'>, casus: Casus): boolean | undefined {
-  const v = casus.uitkomst ? g.outputs?.[casus.uitkomst] : undefined;
+  const uitkomsten = [casus.uitkomst, ...(casus.na_toekenning?.aanvragen ?? []).map((a) => a.uitkomst)];
+  const v = uitkomsten.map((u) => (u ? g.outputs?.[u] : undefined)).find((x) => typeof x === 'boolean');
   return typeof v === 'boolean' ? v : undefined;
 }
 

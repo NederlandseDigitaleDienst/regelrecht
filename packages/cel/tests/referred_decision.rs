@@ -1658,10 +1658,13 @@ fn a_refused_decision_writes_nothing_to_the_file() {
 }
 
 /// Without a field of type `decision`, a submission that refers to a
-/// decision still takes from it what it holds by name, and keeps the
-/// reference.
+/// decision keeps the reference but takes nothing over: it is about the
+/// decision, as an application for a duplicate of what the decision granted
+/// is, and holds its own values under its own day. Only a submission that
+/// holds the decision as a field, such as an objection, takes over what it
+/// holds by name.
 #[test]
-fn a_reference_without_a_decision_field_fills_what_the_decision_holds() {
+fn a_reference_without_a_decision_field_takes_nothing_over() {
     let mut service = service();
     let (mut cell, _dir) = cell();
     let application = apply(&mut cell, &mut service, 2, "2026-03-02");
@@ -1681,30 +1684,28 @@ fn a_reference_without_a_decision_field_fills_what_the_decision_holds() {
             VERLOF_LAW,
             "1",
             Some(Reference::Local(&granted.id)),
-            &Map::new(),
+            &object_map(json!({"bsn": BSN, "dagen": 3})),
             day("2026-03-10"),
         )
         .unwrap();
     assert_eq!(again.refers_to.as_deref(), Some(granted.id.as_str()));
     assert_eq!(again.fields["bsn"], json!(BSN));
-    assert_eq!(again.fields["dagen"], json!(2));
+    assert_eq!(again.fields["dagen"], json!(3));
     assert!(again.missing.is_empty());
-    // What it takes from the decision, the submitter does not supply.
-    let e = cell
+    // What the submitter leaves out stays missing; nothing fills it from the
+    // decision.
+    let without = cell
         .record_submission(
             &mut service,
             &[],
             VERLOF_LAW,
             "1",
             Some(Reference::Local(&granted.id)),
-            &object_map(json!({"dagen": 3})),
+            &object_map(json!({"bsn": BSN})),
             day("2026-03-10"),
         )
-        .unwrap_err();
-    assert!(
-        matches!(&e, Error::Refused(m) if m.contains("comes from the decision it refers to")),
-        "{e}"
-    );
+        .unwrap();
+    assert_eq!(without.missing, ["dagen"]);
 }
 
 /// A reduction may fill a term the law leaves to nobody in particular (no

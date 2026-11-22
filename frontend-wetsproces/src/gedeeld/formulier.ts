@@ -59,6 +59,8 @@ export function herkomst(hoe: Systeemvulling): string {
       return 'De dag van indiening, volgens de klok van het systeem.';
     case 'gevraagd_besluit':
       return 'Het besluit dat de wet bij deze aanvraag noemt.';
+    case 'verwezen':
+      return 'Het besluit waarover deze aanvraag gaat.';
     case 'inlogmiddel':
       return 'Het middel waarmee de aanvrager inlogde.';
     case 'waarde':
