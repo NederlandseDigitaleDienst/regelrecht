@@ -8,13 +8,15 @@
 // read-only with the value the server records; the sheet does not send it.
 // A fact that answers a request comes with that request (`verzoek`): the
 // fields the request already holds, such as for whom it is, show read-only
-// too, and the server takes them from the request.
+// too, and the server takes them from the request. A fact recorded without a
+// request while one is open for it (`open`) is stopped here, with a word on
+// where to record it instead: the server refuses it anyway.
 import { computed, ref, watch } from 'vue';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { artikelVan, beginwaarden, schermveld } from '../gedeeld/formulier';
-import type { Schermveld } from '../gedeeld/formulier';
+import type { Formulierveld, Schermveld } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam, waardeTekst } from '../gedeeld/keten';
+import { artikelNaam } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Gram, Handeling, Vormen } from '../gedeeld/types';
 import type { Vastlegging } from './api';
@@ -36,6 +38,8 @@ const props = defineProps<{
     vast?: Record<string, unknown>;
   } | null;
   teksten?: Vormen['teksten'];
+  /** The open requests this fact answers, by the fields each holds. */
+  open?: { vast: Record<string, unknown> }[];
   /** The order of the UI spec, for the fields of the fact. */
   volgorde?: string[];
   vastleggen: (v: Vastlegging, sleutel: string) => Promise<Gram>;
@@ -52,20 +56,24 @@ const uitVerzoek = computed(() => props.keuze?.vast ?? {});
 const alle = computed(() => (props.keuze?.handeling.velden ?? []).map((v) => schermveld(v, props.teksten)));
 /** The fields the employee fills. */
 const velden = computed(() => alle.value.filter((v) => !(v.veld.naam in systeem.value) && !(v.veld.naam in uitVerzoek.value)));
-/** The fields the system fills or the request holds, with their value and where it comes from. */
-const vast = computed(() =>
-  alle.value.flatMap((v: Schermveld) => {
+/**
+ * Every field of the fact for the form; one the system fills or the request
+ * holds carries its value and where it comes from (`systeem`), and shows
+ * read-only in its place in its group.
+ */
+const formvelden = computed<Formulierveld[]>(() =>
+  alle.value.map((v: Schermveld) => {
     const naam = v.veld.naam;
-    if (naam in uitVerzoek.value) return [{ ...v, waarde: waardeTekst(uitVerzoek.value[naam]), herkomst: 'Uit het verzoek.' }];
+    if (naam in uitVerzoek.value) return { ...v, systeem: { waarde: uitVerzoek.value[naam], herkomst: 'Uit het verzoek.' } };
     const hoe = systeem.value[naam];
-    if (!hoe) return [];
-    return [
-      {
-        ...v,
-        waarde: waardeTekst(hoe.waarde),
+    if (!hoe) return v;
+    return {
+      ...v,
+      systeem: {
+        waarde: hoe.waarde,
         herkomst: hoe.soort === 'datum' ? 'De dag van vastleggen, volgens de klok van het systeem.' : 'Vult het systeem in.',
       },
-    ];
+    };
   }),
 );
 const titel = computed(() => (props.keuze ? (props.keuze.titel ?? `${feitNaam(props.keuze.handeling.feit)} vastleggen`) : ''));
@@ -82,8 +90,19 @@ watch(
 
 async function opslaan() {
   if (!props.keuze) return;
-  bezig.value = true;
   melding.value = '';
+  // The server's rule (`verzoek::open_voor`): a request is this fact's when
+  // every field both hold has the same value, over the fields the form sends.
+  const gezet = zonderLeeg(waarden.value);
+  const zelfde = (vast: Record<string, unknown>) =>
+    Object.entries(vast)
+      .filter(([naam]) => naam in gezet)
+      .every(([naam, w]) => gezet[naam] === w);
+  if (!props.keuze.verzoek && (props.open ?? []).some((v) => zelfde(v.vast))) {
+    melding.value = 'Hierom is al gevraagd, en dat verzoek staat nog open. Leg het antwoord vast vanuit dat verzoek, in de lijst open verzoeken.';
+    return;
+  }
+  bezig.value = true;
   try {
     const { cel, handeling, verwijst_naar, verzoek } = props.keuze;
     const velden = zonderLeeg(waarden.value);
@@ -112,11 +131,7 @@ async function opslaan() {
           <nldd-container gap="16">
             <slot></slot>
             <nldd-text color="secondary">De gegevens komen uit {{ artikelNaam(artikelVan(keuze.handeling.feit)) }}.</nldd-text>
-            <nldd-form-field v-for="v in vast" :key="v.veld.naam" :label="v.label" :supporting-label="v.veld.basis">
-              <nldd-text-field :value="v.waarde" readonly></nldd-text-field>
-              <nldd-form-field-help-text>{{ [v.help, v.herkomst].filter(Boolean).join(' ') }}</nldd-form-field-help-text>
-            </nldd-form-field>
-            <SpecFormulier :velden="velden" :waarden="waarden" :volgorde="volgorde" @zet="(n, v) => (waarden[n] = v)" />
+            <SpecFormulier :velden="formvelden" :waarden="waarden" :volgorde="volgorde" @zet="(n, v) => (waarden[n] = v)" />
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
             <nldd-button-group orientation="horizontal">
               <nldd-button appearance="primary" text="Vastleggen" :loading="bezig || undefined" @click="opslaan"></nldd-button>

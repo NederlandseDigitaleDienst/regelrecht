@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { besluitNaam, herroeping, herroepingTekst, indieningenTegen, isBesluit, ketens, plat, termijn, waardeTekst } from './keten';
+import { besluitNaam, herroeping, herroepingTekst, indieningenTegen, isBesluit, ketens, plat, termijn, waardeTekst, waarover } from './keten';
 import type { Casus, Gram, Stand } from './types';
 
 const casus: Casus = {
@@ -65,6 +65,35 @@ describe('the records of a chronicle', () => {
       ['b', 'a'],
       ['c', 'b'],
     ]);
+  });
+
+  it('put a record that names another in a field under it, when nothing else places it', () => {
+    // Record ids are UUIDs; a request to another party names the application it was made for.
+    const id = (n: number) => `01a20000-0000-7000-8000-00000000000${n}`;
+    const a = gram(id(1), 'AANVRAAG', 'wet#1');
+    const verzoek = { ...gram(id(2), 'EXECUTOGRAM', 'beleid#9'), fields: { aanvraag: id(1), bsn: '999990032' } };
+    const ontvangst = { ...gram(id(3), 'EXECUTOGRAM', 'beleid#9'), recording_actor: 'ggd', fields: { aanvraag: id(1) } };
+    // A field naming a record outside the list, or a plain value, places nothing.
+    const los = { ...gram(id(4), 'EXECUTOGRAM', 'beleid#5'), fields: { aanvraag: id(9), datum: '2026-10-13' } };
+    // What a record refers to still comes first.
+    const b = { ...gram(id(5), 'BESCHIKKING', 'wet#1', id(1)), fields: { gevolgd: id(4) } };
+    const k = ketens([a, verzoek, b, ontvangst, los]);
+    expect(k.map((x) => x.gram.id)).toEqual([id(1), id(4)]);
+    expect(plat(k[0]!).map((r) => [r.gram.id, r.boven?.id])).toEqual([
+      [id(1), undefined],
+      [id(2), id(1)],
+      [id(5), id(1)],
+      [id(3), id(1)],
+    ]);
+    expect(waarover(verzoek, [a, verzoek])?.id).toBe(id(1));
+    expect(waarover(los, [a, los])).toBeUndefined();
+    // Only an earlier record: two that name each other stay in the chains, the first on top.
+    const x = { ...gram(id(6), 'EXECUTOGRAM', 'beleid#9'), fields: { ander: id(7) } };
+    const y = { ...gram(id(7), 'EXECUTOGRAM', 'beleid#9'), fields: { ander: id(6) } };
+    expect(plat(ketens([x, y])[0]!).map((r) => r.gram.id)).toEqual([id(6), id(7)]);
+    // What a record received comes first, but only when it is at hand; else what it refers to.
+    const kopie = { ...gram(id(8), 'EXECUTOGRAM', 'awb#8:79', id(5)), received: { from: 'rechtbank', id: id(9) } };
+    expect(waarover(kopie, [a, b, kopie])?.id).toBe(id(5));
   });
 
   it('put an appeal to the court under the decision it contests, and the ruling under it', () => {

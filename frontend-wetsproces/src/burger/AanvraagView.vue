@@ -10,8 +10,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { aanvraagformulier, aanvraagVelden, beginwaarden } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { waardeTekst } from '../gedeeld/keten';
-import SpecVeld from '../gedeeld/SpecVeld.vue';
+import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import { burgerApi } from './api';
 import { useBurger } from './useBurger';
 
@@ -29,6 +28,13 @@ const formulier = computed(() =>
   vorm.value
     ? aanvraagformulier(vorm.value, vormen.value?.teksten, wie.value?.identiteit ?? null, vormen.value?.volgorde)
     : null,
+);
+
+/** The fields of the form in their groups; what the system fills tells the applicant it needs nothing. */
+const velden = computed(() =>
+  (formulier.value?.groepen ?? []).flatMap((g) =>
+    g.velden.map((v) => (v.systeem ? { ...v, systeem: { ...v.systeem, herkomst: `${v.systeem.herkomst} U hoeft dit niet in te vullen.` } } : v)),
+  ),
 );
 
 onMounted(async () => {
@@ -70,16 +76,7 @@ async function indienen() {
           text="Niet alles wat de gemeente invult, is te tonen"
           :supporting-text="vorm.systeem_fout"
         ></nldd-inline-dialog>
-        <nldd-container v-for="(groep, i) in formulier.groepen" :key="i" gap="16">
-          <nldd-title v-if="groep.titel" heading-level="4" size="display-6" :text="groep.titel"></nldd-title>
-          <template v-for="v in groep.velden" :key="v.veld.naam">
-            <nldd-form-field v-if="v.systeem" :label="v.label" :supporting-label="v.veld.basis">
-              <nldd-text-field :value="v.systeem.waarde == null ? '' : waardeTekst(v.systeem.waarde)" readonly></nldd-text-field>
-              <nldd-form-field-help-text>{{ [v.help, v.systeem.herkomst, 'U hoeft dit niet in te vullen.'].filter(Boolean).join(' ') }}</nldd-form-field-help-text>
-            </nldd-form-field>
-            <SpecVeld v-else :veld="v" :model-value="waarden[v.veld.naam]" @update:model-value="waarden[v.veld.naam] = $event" />
-          </template>
-        </nldd-container>
+        <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
         <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
         <nldd-button-group orientation="horizontal">
           <nldd-button appearance="primary" text="Aanvraag indienen" :loading="bezig || undefined" @click="indienen"></nldd-button>

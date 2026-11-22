@@ -60,6 +60,22 @@ describe('SpecFormulier', () => {
     expect(labels).toEqual(['Dagtekening', 'Ondertekend', 'Wil een vergunning']);
   });
 
+  it('shows a field that is already filled read-only, in its place in its group', () => {
+    const { groepen } = aanvraagformulier(vorm, {
+      nummer_aanvrager: { group: 'Over u', help: 'Uw nummer.' },
+      wil_een_vergunning: { group: 'Over u' },
+    }, '999990019');
+    const w = mount(SpecFormulier, { props: { velden: groepen.flatMap((g) => g.velden), waarden: {}, volgorde: ['nummer_aanvrager', 'wil_een_vergunning'] } });
+    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over u']);
+    const eerste = w.findAll('nldd-form-field, nldd-switch-field')[0]!;
+    expect(eerste.attributes('label')).toBe('Nummer aanvrager');
+    expect(eerste.find('nldd-text-field').attributes('value')).toBe('999990019');
+    expect(eerste.find('nldd-text-field').attributes()).toHaveProperty('readonly');
+    expect(eerste.find('nldd-form-field-help-text').text()).toBe('Uw nummer. Uit de inlog van de aanvrager.');
+    // A field filled already is never sent up as a change.
+    expect(w.emitted('zet')).toBeUndefined();
+  });
+
   it('sends a change of a field up by its name', async () => {
     const w = teken();
     await w.find('select').setValue('ja');

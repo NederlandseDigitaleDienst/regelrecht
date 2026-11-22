@@ -79,6 +79,28 @@ export interface Knoop {
   onder: Knoop[];
 }
 
+/**
+ * The id of the record `g` answers to or is about, among the records in
+ * `eerder` (each id with its place in the list):
+ * what it received from another cell when that is among them, such as the
+ * decision an appeal to the court contests or the ruling whose copy the
+ * municipality received; else the record it refers to; else an earlier
+ * record among them that one of its fields names, such as the application a
+ * request to another party was made for. None for an application.
+ */
+function ouderVan(g: Gram, eerder: Map<string, number>): string | undefined {
+  if (g.received && eerder.has(g.received.id)) return g.received.id;
+  if (g.refers_to) return g.refers_to;
+  // Only a record that came before it: a field can name nothing later, and
+  // two records naming each other would otherwise both drop out of the chains.
+  const plek = eerder.get(g.id) ?? Infinity;
+  return Object.values(g.fields ?? {}).find(
+    (v): v is string => typeof v === 'string' && isRecordId(v) && (eerder.get(v) ?? Infinity) < plek,
+  );
+}
+
+/** Per id of `grammen`, its place in the list. */
+const plekken = (grammen: Gram[]): Map<string, number> => new Map(grammen.map((g, i) => [g.id, i]));
 
 /**
  * The records of `grammen` as chains: each record that hangs under none of
@@ -90,11 +112,8 @@ export interface Knoop {
 export function ketens(grammen: Gram[]): Knoop[] {
   const uniek = [...new Map(grammen.map((g) => [g.id, g])).values()];
   const ids = new Set(uniek.map((g) => g.id));
-  // What `g` hangs under: what it received from another cell when that is
-  // in the list, such as the decision an appeal to the court contests or the
-  // ruling whose copy the municipality received; else the record it refers to.
-  const ouder = (g: Gram): string | undefined =>
-    (g.received && ids.has(g.received.id) ? g.received.id : undefined) ?? g.refers_to ?? undefined;
+  const plek = plekken(uniek);
+  const ouder = (g: Gram) => ouderVan(g, plek);
   const knoop = (g: Gram): Knoop => ({ gram: g, onder: uniek.filter((x) => ouder(x) === g.id).map(knoop) });
   return uniek.filter((g) => {
     const o = ouder(g);
@@ -126,7 +145,9 @@ export function indieningenTegen(besluit: Gram, casus: Casus): Casus['indieninge
 }
 
 /** Whether `v` is the id of a record, which the chronicles give out as a UUID. */
-const isRecordId = (v: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
+function isRecordId(v: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
+}
 
 /**
  * A value of a record in words: a date as a screen writes it, a decision a
@@ -196,13 +217,14 @@ export function besluitNaam(g: Gram, casus: Casus): string {
 }
 
 /**
- * The record of `grammen` that `g` answers to or is about: what it received
- * from another cell (the decision an appeal contests, the ruling a copy
- * brings), else what it refers to (the decision an objection contests).
- * None for an application.
+ * The record of `grammen` that `g` answers to or is about, as its chain
+ * hangs it ([`ketens`]): what it received from another cell (the decision an
+ * appeal contests, the ruling a copy brings), else what it refers to (the
+ * decision an objection contests), else what one of its fields names (the
+ * application a request was made for). None for an application.
  */
 export function waarover(g: Gram, grammen: Gram[]): Gram | undefined {
-  const id = g.received?.id ?? g.refers_to;
+  const id = ouderVan(g, plekken(grammen));
   return id ? grammen.find((x) => x.id === id) : undefined;
 }
 

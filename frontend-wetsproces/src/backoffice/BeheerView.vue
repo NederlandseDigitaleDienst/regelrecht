@@ -62,6 +62,11 @@ const partijen = computed(() =>
   }),
 );
 
+/** The open requests the fact being recorded answers, in the party that records it. */
+const openVoorKeuze = computed(
+  () => partijen.value.find((p) => p.cel === keuze.value?.cel)?.verzoeken.filter((v) => v.handeling.feit === keuze.value?.handeling.feit) ?? [],
+);
+
 /** The fields of the answer that the request holds, with the request's values. */
 function vastUit(v: OpenVerzoek, h: Handeling): Record<string, unknown> {
   return Object.fromEntries(h.velden.filter((veld) => veld.naam in (v.verzoek.fields ?? {})).map((veld) => [veld.naam, v.verzoek.fields?.[veld.naam]]));
@@ -241,7 +246,15 @@ async function toezenden(besluit: Gram) {
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
 
-  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :vastleggen="beheerApi.vastleggen" @sluit="keuze = null" @vastgelegd="vastgelegd">
+  <FeitVastleggen
+    :keuze="keuze"
+    :teksten="vormen?.teksten"
+    :volgorde="vormen?.volgorde"
+    :open="openVoorKeuze"
+    :vastleggen="beheerApi.vastleggen"
+    @sluit="keuze = null"
+    @vastgelegd="vastgelegd"
+  >
     <nldd-banner
       v-if="keuze"
       variant="neutral"
