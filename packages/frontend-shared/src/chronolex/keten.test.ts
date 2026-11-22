@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { genummerd, herkomstVan, klikbaar, laagVanMap, stapTekst } from './keten';
-import type { Stap } from './keten';
+import type { Laag, Stap } from './keten';
 
 const namen = {
   wet: (wet: string) => (wet === 'babw' ? 'BABW' : wet),
@@ -44,7 +44,7 @@ describe('the chain of a decision', () => {
   });
 
   it('gives the origin of a term: a finding, an article, or the answers of cells', () => {
-    const laag = (wet: string) => (wet === 'beleid' ? 'beleid' : 'wet') as const;
+    const laag = (wet: string): Laag => (wet === 'beleid' ? 'beleid' : 'wet');
     expect(herkomstVan({ soort: 'begrip', naam: 'x', ingevuld_door: 'finding' }, laag)).toEqual({ soort: 'bevinding' });
     expect(
       herkomstVan({ soort: 'begrip', naam: 'x', ingevuld_door: { regulation: { law_id: 'beleid', article: '3' } } }, laag),
