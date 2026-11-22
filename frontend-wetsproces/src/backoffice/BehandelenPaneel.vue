@@ -1,11 +1,14 @@
 <script setup lang="ts">
 // One submission, for the decider of the cell that holds it: what was
 // submitted, the findings the deciding article asks of the authority
-// (`GET /api/formulier`, `besluiten`), a preview of what the decision would
-// come to, and the decision itself. The preview may ask more: a finding a
-// policy leaves to the authority for this case (`stil`). Once a decision is
-// taken it shows with why it came out so. The main pane beside the work queue
-// (WerkvoorraadView.vue), which hands it what it loaded.
+// (`GET /api/formulier`, `besluiten`), the decision as it would be taken, and
+// the button that takes it. The preview is the server's (`voorvertoning`): it
+// runs when the pane opens and again when a finding changes, the chronicles
+// change (a fact recorded, an advice received) or the test clock moves. It
+// may ask more: a finding a policy leaves to the authority for this case
+// (`stil`). The preview and the decision taken show in one view
+// (BesluitWeergave.vue), with why and the full chain. The main pane beside
+// the work queue (WerkvoorraadView.vue), which hands it what it loaded.
 //
 // What answers the submission comes from the server (`stand` of the
 // chronicle): its decision stands; another decision took it back and holds a
@@ -23,7 +26,8 @@
 // this application, such as the examination by the GGD, and whether the
 // answer came back (`GET /api/backoffice/verzoeken`): from the executor's own
 // records, never from the party's chronicle.
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { herkomsten, schermveld } from '../gedeeld/formulier';
@@ -33,8 +37,8 @@ import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { antwoordOp, artikelNaam, celNaam, herroeping as herroepingVan, herroepingTekst, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Casus, Gram, Ik, Rol, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
-import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 import { backofficeApi, beheerApi } from './api';
+import BesluitWeergave from './BesluitWeergave.vue';
 import type { EigenVerzoek, Kroniek } from './api';
 import { verzoekenBij } from './verzoek';
 import type { VerzoekBij } from './verzoek';
@@ -162,19 +166,64 @@ function standVan(v: VerzoekBij): string {
   return `${gevraagd}. ${omschrijving(antwoord, props.casus, 'vastlegging')} op ${longDate(antwoord.recorded_on)}.`;
 }
 
+// The preview follows what it depends on. Only the answer to the last
+// request counts: an earlier one that arrives late is dropped.
+const voorvertoningFout = ref('');
+const rekent = ref(false);
+let vraag = 0;
 async function voorvertonen() {
-  bezig.value = true;
-  melding.value = '';
+  const deze = ++vraag;
+  rekent.value = true;
   try {
     const v = await api.voorvertoning({ op: props.id, na: na.value, bevindingen: zonderLeeg(bevindingen.value) });
+    if (deze !== vraag) return;
     voorvertoning.value = v;
+    voorvertoningFout.value = '';
     for (const s of v.stil) if (!stil.value.some((x) => x.naam === s.naam)) stil.value.push(s);
   } catch (e) {
-    melding.value = foutTekst(e);
+    if (deze === vraag) voorvertoningFout.value = foutTekst(e);
   } finally {
-    bezig.value = false;
+    if (deze === vraag) rekent.value = false;
   }
 }
+/**
+ * Why no decision can be computed yet, in Dutch: what the decision misses,
+ * by the label of the UI spec; for a refusal it has no words for, the cell's
+ * own message.
+ */
+const weigering = computed(() => {
+  const fout = voorvertoning.value?.geweigerd;
+  if (!fout) return '';
+  const woorden = {
+    veld: (naam: string) => schermveld({ naam, type: null }, props.vormen?.teksten).label,
+    rol: props.casus.rol ?? 'het bestuursorgaan',
+  };
+  return weigeringInWoorden(fout, woorden) ?? `Het besluit is nog niet te berekenen. De melding van het systeem, in het Engels: ${fout}`;
+});
+/** Whether this pane may decide now, and so shows the preview. */
+const kanBeslissen = computed(() => !!indiening.value && !genomen.value && !eerder.value && wacht.value && mag.value);
+let wachttijd: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => [
+    kanBeslissen.value,
+    props.id,
+    na.value,
+    JSON.stringify(bevindingen.value),
+    props.kronieken.map((k) => k.kop).join(','),
+    props.open?.length,
+    props.casus.vandaag,
+  ],
+  () => {
+    clearTimeout(wachttijd);
+    if (!kanBeslissen.value) return;
+    // What shows is stale from now until the new answer is in.
+    rekent.value = true;
+    // A finding typed in: ask once it settles.
+    wachttijd = setTimeout(voorvertonen, voorvertoning.value ? 300 : 0);
+  },
+  { immediate: true },
+);
+onUnmounted(() => clearTimeout(wachttijd));
 
 async function beslissen() {
   bezig.value = true;
@@ -274,23 +323,7 @@ async function beslissen() {
             :variant="genomen ? 'success' : 'neutral'"
             :text="genomen ? 'Het besluit is genomen' : `Op deze indiening is besloten op ${longDate(besluit.recorded_on)}`"
           ></nldd-banner>
-          <nldd-title heading-level="4" size="display-5" text="Het besluit">
-            <nldd-tag
-              v-if="stand(besluit) !== undefined"
-              slot="end"
-              :text="stand(besluit) ? 'Toegewezen' : 'Afgewezen'"
-              :color="stand(besluit) ? 'success' : 'critical'"
-            ></nldd-tag>
-          </nldd-title>
-          <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
-          <nldd-title heading-level="5" size="display-6" text="Waarom"></nldd-title>
-          <WaaromLijst
-            v-if="waarom && besluit"
-            :waarom="waarom"
-            :teksten="vormen?.teksten"
-            :cel-naam="naamVanCel"
-            :beslisser="naamVanCel(besluit.recording_actor)"
-          />
+          <BesluitWeergave :besluit="besluit" :waarom="waarom" :casus="casus" :vormen="vormen" :cel-naam="naamVanCel" />
         </nldd-container>
 
         <nldd-container v-else-if="wacht && mag" gap="16">
@@ -317,26 +350,32 @@ async function beslissen() {
           <nldd-text v-else color="secondary">Dit besluit vraagt {{ naamVanCel(cel) }} geen bevindingen.</nldd-text>
 
           <nldd-inline-dialog
-            v-if="voorvertoning?.geweigerd"
+            v-if="voorvertoningFout"
             icon="warning"
-            text="Met deze bevindingen is nog geen besluit mogelijk"
-            :supporting-text="voorvertoning.geweigerd"
+            icon-color="critical"
+            text="De voorvertoning lukt niet"
+            :supporting-text="voorvertoningFout"
           ></nldd-inline-dialog>
-          <nldd-container v-else-if="voorvertoning?.voorlopig" gap="8">
-            <nldd-title heading-level="5" size="display-6" text="Voorvertoning">
-              <nldd-tag
-                v-if="stand(voorvertoning.voorlopig.besluit) !== undefined"
-                slot="end"
-                :text="stand(voorvertoning.voorlopig.besluit) ? 'Zou toegewezen worden' : 'Zou afgewezen worden'"
-                :color="stand(voorvertoning.voorlopig.besluit) ? 'success' : 'critical'"
-              ></nldd-tag>
-            </nldd-title>
-            <Gegevens :waarden="voorvertoning.voorlopig.besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van de voorvertoning" />
-          </nldd-container>
+          <nldd-inline-dialog v-else-if="!voorvertoning" variant="loading" text="Het besluit wordt berekend"></nldd-inline-dialog>
+          <nldd-inline-dialog
+            v-else-if="voorvertoning.geweigerd"
+            icon="warning"
+            text="Er is nog geen besluit te berekenen"
+            :supporting-text="weigering"
+          ></nldd-inline-dialog>
+          <BesluitWeergave
+            v-else-if="voorvertoning.voorlopig"
+            :besluit="voorvertoning.voorlopig.besluit"
+            :waarom="voorvertoning.voorlopig.waarom"
+            :casus="casus"
+            :vormen="vormen"
+            :cel-naam="naamVanCel"
+            voorlopig
+          />
+          <nldd-text v-if="rekent && voorvertoning" size="sm" color="secondary">De voorvertoning wordt bijgewerkt.</nldd-text>
 
           <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
           <nldd-button-group orientation="horizontal">
-            <nldd-button appearance="secondary" text="Voorvertoning" :loading="bezig || undefined" @click="voorvertonen"></nldd-button>
             <nldd-button appearance="primary" text="Besluit nemen" :loading="bezig || undefined" @click="beslissen"></nldd-button>
           </nldd-button-group>
         </nldd-container>

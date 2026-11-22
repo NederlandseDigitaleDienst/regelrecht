@@ -87,6 +87,7 @@ use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
 use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
 use crate::surface::Surface;
+use crate::visibility;
 
 /// The header that carries a request's [`IdempotencyKey`].
 pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -634,16 +635,37 @@ pub(crate) async fn explain_for(
     id: &str,
 ) -> CitizenResult {
     let citizen = principal.citizen(&state.subject_claim)?;
-    if !state.service.dossier(citizen.subject()).await?.holds(id) {
+    let dossier = state.service.dossier(citizen.subject()).await?;
+    if !dossier.holds(id) {
         return Err(ApiError::not_yours("decision in your dossier"));
     }
-    Ok(state.service.explain(id).await?)
+    // A citizen works for no cell: no cell's reading of its chronicle, and
+    // no record outside their dossier.
+    let visible = dossier.grams.into_iter().map(|g| g.id).collect();
+    Ok(visibility::for_reader(
+        state.service.explain(id).await?,
+        None,
+        &visible,
+    ))
+}
+
+/// `value`, which explains a decision, as an employee of the executor may
+/// see it ([`visibility::for_reader`]): nothing of another cell's own chronicle
+/// but what reached the executor.
+async fn for_executor(state: &AppState, value: Value) -> Result<Value, ApiError> {
+    let visible = state.service.seen_by_executor().await?;
+    Ok(visibility::for_reader(
+        value,
+        Some(state.service.executor()),
+        &visible,
+    ))
 }
 
 /// Why a decision of the executor came out so.
 async fn backoffice_explain(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult {
     executor_record(&state, &id, "decision").await?;
-    Ok(Json(state.service.explain(&id).await?))
+    let waarom = state.service.explain(&id).await?;
+    Ok(Json(for_executor(&state, waarom).await?))
 }
 
 /// What a decision would come to, for a decider of the executor, as
@@ -655,7 +677,8 @@ async fn preview(
 ) -> ApiResult {
     executor_decision(&state, &d).await?;
     principal.require(Level::Decider)?;
-    Ok(Json(state.service.preview(d).await?))
+    let preview = state.service.preview(d).await?;
+    Ok(Json(for_executor(&state, preview).await?))
 }
 
 /// The executor's chronicle. Another cell of the case is refused, as an
@@ -859,9 +882,8 @@ async fn decide(
 ) -> ApiResult {
     executor_decision(&state, &d).await?;
     principal.require(Level::Decider)?;
-    perform(&state, &headers, Step::Decide(d), &principal.actor())
-        .await
-        .map(Json)
+    let taken = perform(&state, &headers, Step::Decide(d), &principal.actor()).await?;
+    Ok(Json(for_executor(&state, taken).await?))
 }
 
 /// A fact the executor records, by a handler.

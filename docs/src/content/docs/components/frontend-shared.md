@@ -24,7 +24,7 @@ The editor is the reference for what lives here, and the other apps conform to i
 | The two static PoCs (`frontend-poc-*`) | The Gherkin runner, saved state, browser variants, the line diff, the reload-on-stale-bundle handler, the tool-call formatter, the shared components |
 | Lawmaking (`frontend-lawmaking/`) | The color scheme |
 | Wetsproces screens (`frontend-wetsproces/`) | API calls, sign-in, the color scheme and its submenu, the chronolexography form fields |
-| Chronolexography PoC (`packages/poc-chronolexografie/frontend/`) | The chronolexography form fields, value helpers |
+| Chronolexography PoC (`packages/poc-chronolexografie/frontend/`) | The chronolexography form fields, value helpers, the chain of a decision |
 
 ## Architecture
 
@@ -50,6 +50,8 @@ The package is written in TypeScript. As in the editor, `tsconfig.json` referenc
 ### Chronolexography form fields (`./chronolex/*`, `./components/chronolex/*`)
 
 Form fields for the chronolexography PoC, as its core (`packages/poc-chronolexografie/src/kern.rs`) derives them from the law. The [wetsproces screens](/components/wetsproces-frontend) use them too. `chronolex/waarden.ts` puts values in words, `chronolex/tabel.ts` compares and shows a field that holds a table, and `chronolex/voorinvulling.ts` applies the UI spec: what is prefilled, what the system fills, what the form hides. `VeldInvoer.vue` picks the input by the field's type and takes the `label` and `help` a UI spec gives; `TabelInvoer.vue` edits a table row by row, and `OordeelKeuze.vue` asks yes, no or empty. Their tests live in the PoC (`packages/poc-chronolexografie/frontend/tests/`), because their fixture reads the PoC's test source (`packages/poc-chronolexografie/tests/bron-voorinvullen`).
+
+`chronolex/keten.ts` and `KetenStap.vue` show the chain of a decision as a tree, each app with its own names for regelwerken and fields: the PoC opens an article from a step, and the wetsproces screens fold the chain under the decision. `chronolex/weigering.ts` puts a refusal of the cell that a form can cause in Dutch. The tests of `keten.ts` live beside it; the step itself is tested through the wetsproces screens, which mount it.
 
 ### The Gherkin runner (`./gherkin`)
 
