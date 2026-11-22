@@ -251,12 +251,40 @@ pub fn advice(bsn: &str) -> Value {
     })
 }
 
-/// The GGD's advice on `bsn`, entered by an admin in the admin panel; the
-/// answer is the record in the GGD's chronicle.
+/// The open request of the municipality to the GGD about `bsn`, as the
+/// admin panel lists it: its receipt in the GGD's chronicle.
+pub async fn open_request(app: &Router, bsn: &str) -> Option<Value> {
+    let (status, panel) = admin(app)
+        .await
+        .get("/api/backoffice/beheer/partijen")
+        .await;
+    assert_eq!(status, StatusCode::OK, "{panel}");
+    panel["partijen"]
+        .as_array()?
+        .iter()
+        .find(|p| p["cel"] == json!(GGD))?["verzoeken"]
+        .as_array()?
+        .iter()
+        .map(|r| r["verzoek"].clone())
+        .find(|v| v["fields"]["bsn_aanvrager"] == json!(bsn))
+}
+
+/// The GGD's advice on `bsn`, entered by an admin in the admin panel from
+/// the open request about `bsn`: the request says for whom it is, so the
+/// form leaves the citizen number out. The answer is the record in the
+/// GGD's chronicle.
 pub async fn ggd_advises(app: &Router, bsn: &str) -> Value {
+    let verzoek = open_request(app, bsn)
+        .await
+        .expect("an open request about the applicant");
+    let mut body = advice(bsn);
+    body["verzoek"] = verzoek["id"].clone();
+    if let Some(velden) = body["velden"].as_object_mut() {
+        velden.remove("bsn_aanvrager");
+    }
     let (status, advies) = admin(app)
         .await
-        .post("/api/backoffice/beheer/vastleggingen", advice(bsn))
+        .post("/api/backoffice/beheer/vastleggingen", body)
         .await;
     assert_eq!(status, StatusCode::OK, "{advies}");
     advies

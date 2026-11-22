@@ -21,6 +21,11 @@ valid_from: '2026-01-01'
 # veld aanvraag_ondertekend, dat volgens artikel 4:2 van de Awb in de aanvraag
 # staat. Het systeem waarmee de aanvrager indient, voert het uit en zet de
 # uitkomst in dat veld (de UI-beschrijving van het wetsprocessysteem).
+# Artikel 9 zegt wanneer het college de GGD om een geneeskundig onderzoek
+# vraagt. Ook dat is geen open begrip van de wet: het wetsprocessysteem voert
+# het uit als een aanvraag binnenkomt, en legt het verzoek vast bij de
+# gemeente en bij de GGD. Artikel 10 koppelt de twee open begrippen van
+# artikel 9 aan de antwoorden van de cel van de gemeente.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -952,3 +957,175 @@ articles:
               operation: EQUALS
               subject: $inlogmiddel
               value: DigiD
+  - number: '9'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Komt een aanvraag om een gehandicaptenparkeerkaart binnen, dan vraagt
+      het college de Gemeentelijke Gezondheidsdienst dezelfde dag om een
+      geneeskundig onderzoek van de aanvrager (artikel 3, eerste lid, van de
+      Regeling gehandicaptenparkeerkaart).
+
+      2 Het college vraagt geen onderzoek als voor de aanvrager al een verzoek
+      openstaat. Een verzoek staat open tot het college een advies ontvangt
+      (artikel 5) van een onderzoek op of na de dag van het verzoek.
+
+      3 Het college vraagt ook geen onderzoek als het de aanvrager eerder een
+      gehandicaptenparkeerkaart verstrekte. Dan kan het het onderzoek
+      achterwege laten (artikel 2, tweede lid, onder a en b, van de regeling),
+      en daarover beslist het bij het besluit op de aanvraag.
+
+      4 Het college legt het verzoek vast. De Gemeentelijke Gezondheidsdienst
+      legt vast dat zij het verzoek ontving.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet als een aanvraag
+      # binnenkomt, niet wat het besluit. Het wetsprocessysteem van de
+      # gemeente voert dit artikel uit bij elke aanvraag van de casus
+      # (bij_aanvraag in het casusbestand). Zegt het artikel dat er een
+      # onderzoek gevraagd moet worden, dan legt de cel van de gemeente het
+      # feit geneeskundig_onderzoek_aangevraagd vast, met de waarden van de
+      # parameters, en de cel van de GGD in haar eigen kroniek het feit
+      # verzoek_om_geneeskundig_onderzoek_ontvangen, met dezelfde waarden.
+      # Dat is hetzelfde patroon als het advies terug (artikel 5): twee
+      # feiten van één artikel met dezelfde parameters, één per cel.
+      # Of er een verzoek openstaat (lid 2) en of de aanvrager eerder een kaart
+      # kreeg (lid 3), zijn open begrippen van dit artikel. Artikel 10 koppelt
+      # ze aan de antwoorden van de cel van de gemeente, uit haar eigen
+      # kroniek (RFC-048). Niet verplicht: zonder antwoord gelden ze als nee,
+      # en vraagt het college een onderzoek. Liever een verzoek te veel dan
+      # een aanvraag zonder onderzoek.
+      open_terms:
+        - id: verzoek_om_geneeskundig_onderzoek_staat_open
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Of er voor de aanvrager al een verzoek om een geneeskundig
+            onderzoek openstaat (lid 2).
+        - id: aanvrager_eerder_kaart_verstrekt
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Of het college de aanvrager eerder een gehandicaptenparkeerkaart
+            verstrekte (lid 3).
+      requires:
+        - fact: geneeskundig_onderzoek_aangevraagd
+          description: >-
+            Dat het college de Gemeentelijke Gezondheidsdienst om een
+            geneeskundig onderzoek van de aanvrager vroeg, op welke dag, en
+            bij welke aanvraag (lid 1 en 4).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_verzoek
+            - aanvraag
+        - fact: verzoek_om_geneeskundig_onderzoek_ontvangen
+          description: >-
+            Dat de Gemeentelijke Gezondheidsdienst het verzoek van het college
+            om een geneeskundig onderzoek ontving, met wat het verzoek
+            vermeldt (lid 4).
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_verzoek
+            - aanvraag
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager die onderzocht moet worden.
+          - name: datum_verzoek
+            type: date
+            description: De dag waarop de aanvraag binnenkwam en het college het onderzoek vraagt.
+          - name: aanvraag
+            type: string
+            description: De aanvraag waarvoor het college het onderzoek vraagt.
+        output:
+          - name: geneeskundig_onderzoek_aanvragen
+            type: boolean
+            description: >-
+              Of het college de Gemeentelijke Gezondheidsdienst om een
+              geneeskundig onderzoek van de aanvrager vraagt: niet als er al
+              een verzoek openstaat, en niet als de aanvrager eerder een kaart
+              kreeg.
+        actions:
+          - output: geneeskundig_onderzoek_aanvragen
+            value:
+              operation: AND
+              conditions:
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $verzoek_om_geneeskundig_onderzoek_staat_open
+                    value: true
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $aanvrager_eerder_kaart_verstrekt
+                    value: true
+  - number: '10'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      er voor de aanvrager al een verzoek om een geneeskundig onderzoek
+      openstaat en of het college de aanvrager eerder een
+      gehandicaptenparkeerkaart verstrekte (artikel 9), ontleent het college
+      aan het antwoord van zijn eigen cel over de verzoeken die het deed, de
+      adviezen die het ontving en zijn eerdere besluiten. Geeft de cel geen
+      antwoord, dan is het antwoord nee.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # Zoals artikel 2 en 3: een koppeling van een open begrip aan het
+      # antwoord van de cel van het college (source.reduction, RFC-048).
+      implements:
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '9'
+          open_term: verzoek_om_geneeskundig_onderzoek_staat_open
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '9'
+          open_term: aanvrager_eerder_kaart_verstrekt
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+        input:
+          - name: antwoord_verzoek_open
+            type: boolean
+            nullable: true
+            source:
+              reduction: verzoek_om_geneeskundig_onderzoek_staat_open
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+          - name: antwoord_eerder_verstrekt
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+        output:
+          - name: verzoek_om_geneeskundig_onderzoek_staat_open
+            type: boolean
+            description: Of er voor de aanvrager een verzoek openstaat, volgens de cel; zonder antwoord nee.
+          - name: aanvrager_eerder_kaart_verstrekt
+            type: boolean
+            description: Of de aanvrager eerder een kaart van het college kreeg, volgens de cel; zonder antwoord nee.
+        actions:
+          - output: verzoek_om_geneeskundig_onderzoek_staat_open
+            value:
+              operation: EQUALS
+              subject: $antwoord_verzoek_open
+              value: true
+          - output: aanvrager_eerder_kaart_verstrekt
+            value:
+              operation: EQUALS
+              subject: $antwoord_eerder_verstrekt
+              value: true

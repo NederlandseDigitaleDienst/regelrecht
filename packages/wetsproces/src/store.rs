@@ -47,6 +47,8 @@ mod contract;
 pub mod memory;
 pub mod postgres;
 
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
 use chrono::NaiveDate;
 use regelrecht_cel::Gram;
@@ -87,15 +89,22 @@ pub enum Channel {
     /// itself names the party (its `recording_actor`); the account beside it
     /// is the admin's.
     AdminPanel,
+    /// The server itself, by an article of the executor's own policy that
+    /// runs when an application comes in, such as the request to the GGD
+    /// for an examination ([`regelrecht_poc_chronolexografie::verzoek`]).
+    /// No account asked for it: the account beside the record is that
+    /// article, `<regelwerk>#<article>`.
+    Policy,
 }
 
 impl Channel {
     /// Every channel.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Keycloak,
         Self::TestLogin,
         Self::Fsc4b,
         Self::AdminPanel,
+        Self::Policy,
     ];
 
     /// The name the store keeps.
@@ -105,6 +114,7 @@ impl Channel {
             Self::TestLogin => "testlogin",
             Self::Fsc4b => "fsc4b",
             Self::AdminPanel => "beheerpaneel",
+            Self::Policy => "beleid",
         }
     }
 
@@ -210,11 +220,29 @@ pub struct Commit {
     /// Who made the step, kept beside each record it appends
     /// ([`StoredGram::recorded_by`], [`StoredGram::recorded_via`]).
     pub recorded_by: Option<Actor>,
+    /// The ids of the records in it that the executor's own policy made in
+    /// the same step, such as the request to the GGD an application brings
+    /// about: kept as recorded through [`Channel::Policy`], by the article
+    /// that made them, not by `recorded_by` ([`Commit::actor_of`]).
+    pub by_policy: BTreeSet<String>,
     /// The generation the step read its chronicles in
     /// ([`StoredChronicle::generation`]). After a reset the heads may stand
     /// where they stood before it, while the records they count are others;
     /// the generation tells the two apart.
     pub generation: u64,
+}
+
+impl Commit {
+    /// Who is kept beside `gram` when this commit appends it.
+    pub fn actor_of(&self, gram: &Gram) -> Option<Actor> {
+        if self.by_policy.contains(&gram.id) {
+            return Some(Actor {
+                account: gram.basis.clone(),
+                channel: Channel::Policy,
+            });
+        }
+        self.recorded_by.clone()
+    }
 }
 
 /// What became of a commit that the store did not refuse.

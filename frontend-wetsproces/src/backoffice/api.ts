@@ -20,6 +20,16 @@ export interface Beslissing {
   bevindingen: Record<string, unknown>;
 }
 
+/**
+ * A request of the executor that an external party received and did not
+ * answer yet: its receipt in the party's chronicle, which holds for whom it
+ * is, and the fact that answers it.
+ */
+export interface OpenVerzoek {
+  verzoek: Gram;
+  antwoordfeit: string;
+}
+
 /** An external party as the admin panel shows it: what waits for it. */
 export interface Partij {
   cel: string;
@@ -28,12 +38,16 @@ export interface Partij {
   open: Gram[];
   /** Its decisions of which no other cell received a copy yet. */
   toe_te_zenden: Gram[];
+  /** The requests of the executor it has not answered yet. */
+  verzoeken: OpenVerzoek[];
 }
 
 /** `GET /api/backoffice/beheer/partijen`: the executor, and per external party what waits for it. */
 export interface Partijen {
   uitvoerder: { cel: string; cel_naam: string };
   partijen: Partij[];
+  /** The facts by which a party answers a request, such as the GGD's advice: with a request open, it records them from that request. */
+  antwoord_op_verzoek: string[];
 }
 
 /** A fact the cell `cel` records. */
@@ -42,6 +56,21 @@ export interface Vastlegging {
   feit: string;
   velden: Record<string, unknown>;
   verwijst_naar?: string;
+  /** The receipt of the request this fact answers; the fields it shares with the request come from it. */
+  verzoek?: string;
+}
+
+/**
+ * A request the executor's policy made when an application came in, as the
+ * executor sees it: its own record, the party it went to, and the record of
+ * the answer that came back to it. Never the party's own records.
+ */
+export interface EigenVerzoek {
+  verzoek: Gram;
+  aan: string;
+  aan_naam: string;
+  open: boolean;
+  antwoord_ontvangen: Gram | null;
 }
 
 export const backofficeApi = {
@@ -52,6 +81,8 @@ export const backofficeApi = {
   beslissen: (b: Beslissing, sleutel: string) =>
     stuur<{ besluit: Gram; waarom: Waarom }>('POST', '/api/backoffice/besluiten', b, sleutel),
   vastleggen: (v: Vastlegging, sleutel: string) => stuur<Gram>('POST', '/api/backoffice/vastleggingen', v, sleutel),
+  /** The requests the executor's policy made, and whether the answer came back. */
+  verzoeken: () => haal<{ verzoeken: EigenVerzoek[] }>('/api/backoffice/verzoeken'),
   /** Every grant of the executor and how far the acts that follow it are. */
   vervolg: () => haal<{ vervolg: Vervolgstand[] }>('/api/backoffice/vervolg').then((v) => v.vervolg),
   klokZetten: (datum: string) => stuur<Klok>('PUT', '/api/backoffice/klok', { datum }),

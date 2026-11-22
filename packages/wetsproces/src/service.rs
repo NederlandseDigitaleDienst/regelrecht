@@ -21,6 +21,7 @@
 //! ([`crate::external`]); their chronicles run in the same commits, but what
 //! they do comes in through the admin panel.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::NaiveDate;
@@ -29,6 +30,7 @@ use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus, Indiener};
 use regelrecht_poc_chronolexografie::stand::{self, Stand};
 use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
 use regelrecht_poc_chronolexografie::vervolg;
+use regelrecht_poc_chronolexografie::verzoek::{self, Verzoek};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -82,6 +84,9 @@ pub struct Decide {
 
 /// The cell `cel` records the fact `feit` (`<regelwerk>#<article>#<fact>`),
 /// about the record `verwijst_naar` if given (`kern::vastleggen_verwijzend`).
+/// With `verzoek`, the fact answers the request whose receipt in the
+/// chronicle of `cel` that id names (`verzoek::beantwoorden`): the fields the
+/// answer shares with the request come from the request.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Record {
@@ -93,6 +98,8 @@ pub struct Record {
     pub fields: Map<String, Value>,
     #[serde(default, rename = "verwijst_naar")]
     pub refers_to: Option<String>,
+    #[serde(default, rename = "verzoek", skip_serializing_if = "Option::is_none")]
+    pub request: Option<String>,
 }
 
 /// The cell that holds the decision `besluit` sends a copy of it to the cell
@@ -119,9 +126,25 @@ pub enum Step {
     SendCopy(SendCopy),
 }
 
+/// What a step came to in the kern: its answer, and the records the
+/// executor's policy made in it besides ([`Commit::by_policy`]).
+struct Applied {
+    response: Value,
+    by_policy: Vec<String>,
+}
+
+impl Applied {
+    fn only(response: Value) -> Self {
+        Self {
+            response,
+            by_policy: Vec::new(),
+        }
+    }
+}
+
 impl Step {
     /// Run the step of the kern on `cellen`, on `on`.
-    fn apply(&self, corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> kern::Result<Value> {
+    fn apply(&self, corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> kern::Result<Applied> {
         match self {
             Self::Submit(s) => {
                 let article = s.article.as_deref().unwrap_or(&corpus.casus.artikel);
@@ -135,9 +158,18 @@ impl Step {
                     let filled = kern::systeemvelden(corpus, cellen, submitter, &fields, on)?;
                     fields.extend(filled);
                 }
-                let gram =
-                    kern::indienen(corpus, cellen, article, s.refers_to.as_deref(), &fields, on)?;
-                to_value(&gram)
+                let (gram, by_policy) = kern::indienen_volgens_beleid(
+                    corpus,
+                    cellen,
+                    article,
+                    s.refers_to.as_deref(),
+                    &fields,
+                    on,
+                )?;
+                Ok(Applied {
+                    response: to_value(&gram)?,
+                    by_policy,
+                })
             }
             Self::Decide(d) => {
                 let besluit = kern::beslissen(
@@ -148,9 +180,37 @@ impl Step {
                     &d.findings,
                     on,
                 )?;
-                to_value(&besluit)
+                to_value(&besluit).map(Applied::only)
             }
+            Self::Record(Record {
+                cell,
+                fact,
+                fields,
+                refers_to: None,
+                request: Some(request),
+            }) => {
+                let gram = verzoek::beantwoorden(corpus, cellen, cell, request, fact, fields, on)?;
+                to_value(&gram).map(Applied::only)
+            }
+            Self::Record(Record {
+                request: Some(_), ..
+            }) => Err(regelrecht_cel::Error::Refused(
+                "a fact answers a request (`verzoek`) or refers to a record (`verwijst_naar`), \
+                 not both"
+                    .into(),
+            )),
             Self::Record(r) => {
+                // An open request this fact would answer is answered from the
+                // request, so the answer cannot miss the request it belongs to.
+                if let Some(open) = verzoek::open_voor(corpus, cellen, &r.cell, &r.fact, &r.fields)?
+                {
+                    let id = open.ontvangen.map(|g| g.id).unwrap_or_default();
+                    return Err(regelrecht_cel::Error::Refused(format!(
+                        "'{}' has an open request this fact answers; record it from that request \
+                         (`verzoek`: '{id}')",
+                        r.cell
+                    )));
+                }
                 // What the UI spec has the system fill in a fact, such as
                 // its day by the clock, is filled here, on the day the step
                 // runs; a request that names such a field is refused.
@@ -177,9 +237,11 @@ impl Step {
                     r.refers_to.as_deref(),
                     on,
                 )?;
-                to_value(&gram)
+                to_value(&gram).map(Applied::only)
             }
-            Self::SendCopy(s) => to_value(&kern::toezenden(corpus, cellen, &s.decision, on)?),
+            Self::SendCopy(s) => {
+                to_value(&kern::toezenden(corpus, cellen, &s.decision, on)?).map(Applied::only)
+            }
         }
     }
 }
@@ -252,10 +314,12 @@ impl Read {
     }
 }
 
-/// What a step that records came to: its answer and the appends to commit.
+/// What a step that records came to: its answer, the appends to commit,
+/// and which of their records the executor's policy made ([`Commit::by_policy`]).
 struct Ran {
     response: Value,
     appends: Vec<CellAppend>,
+    by_policy: BTreeSet<String>,
     /// The generation the step read in.
     generation: u64,
 }
@@ -310,6 +374,19 @@ pub struct ExternalParty {
     pub open: Vec<Gram>,
     /// Its decisions of which no other cell received a copy yet.
     pub unsent: Vec<Gram>,
+    /// The requests of the executor it received and did not answer yet,
+    /// each by its receipt in the party's chronicle.
+    pub requests: Vec<OpenRequest>,
+}
+
+/// A request of the executor that an external party received and did not
+/// answer yet, as the admin panel shows it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenRequest {
+    /// Its receipt in the party's chronicle: what the request holds.
+    pub received: Gram,
+    /// The fact by which the party answers it, `<regelwerk>#<article>#<fact>`.
+    pub answer: String,
 }
 
 /// A submission that waits for a decision of the cell whose chronicle holds
@@ -402,6 +479,7 @@ impl Service {
             appends,
             keyed: None,
             recorded_by: None,
+            by_policy: BTreeSet::new(),
             generation: read.generation(),
         };
         match self.store.append(commit).await {
@@ -551,6 +629,7 @@ impl Service {
     ///
     /// When the store fails, or the kern cannot read a record's article.
     pub async fn external_parties(&self) -> Result<Vec<ExternalParty>, ServiceError> {
+        let requests = self.requests().await?;
         let (chronicles, stands) = self.stands().await?;
         let afleiding = &self.corpus.afleiding;
         let chronicles: Vec<(&str, Vec<Gram>, Stand)> = self
@@ -582,10 +661,38 @@ impl Service {
                         .into_iter()
                         .cloned()
                         .collect(),
+                    requests: requests
+                        .iter()
+                        .filter(|r| r.aan == *cell && r.open())
+                        .filter_map(|r| {
+                            Some(OpenRequest {
+                                received: r.ontvangen.clone()?,
+                                answer: r.antwoordfeit.clone()?,
+                            })
+                        })
+                        .collect(),
                 }
             })
             .collect();
         Ok(parties)
+    }
+
+    /// The requests the executor made by its policy (`verzoek::verzoeken`),
+    /// each with its receipt, the answer and the receipt of the answer, as
+    /// the chronicles hold them now. The caller decides what of another
+    /// cell's records it shows.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails or the corpus does not load.
+    pub async fn requests(&self) -> Result<Vec<Verzoek>, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            Ok(verzoek::verzoeken(&corpus, &cellen)?)
+        })
+        .await
     }
 
     /// What waits for a decision of the executor: its submissions not
@@ -635,6 +742,25 @@ impl Service {
             Ok((chronicles, stands))
         })
         .await
+    }
+
+    /// The facts by which an external party answers a request of the
+    /// executor, such as the GGD's advice: those the case file names as the
+    /// answer to a request (`bij_aanvraag`). With a request open, the party
+    /// records such a fact from that request.
+    pub fn answer_facts(&self) -> Vec<&str> {
+        self.corpus
+            .casus
+            .bij_aanvraag
+            .iter()
+            .filter_map(|o| o.antwoord.as_ref())
+            .map(|a| a.feit.as_str())
+            .collect()
+    }
+
+    /// The name a screen shows for the cell `cell` of the case.
+    pub fn cell_name<'a>(&'a self, cell: &'a str) -> &'a str {
+        self.corpus.cel_naam(cell)
     }
 
     /// Why the decision `id` came out as it did (`kern::waarom`): who filled
@@ -875,6 +1001,7 @@ impl Service {
                     },
                 }),
                 recorded_by: Some(actor.clone()),
+                by_policy: ran.by_policy,
                 generation: ran.generation,
             };
             match self.store.append(commit).await {
@@ -915,11 +1042,12 @@ impl Service {
                 .map(|c| c.grams.iter().map(|g| g.gram.id.clone()).collect())
                 .collect();
             let mut cellen = restore(&corpus, read)?;
-            let response = step.apply(&corpus, &mut cellen, today)?;
+            let applied = step.apply(&corpus, &mut cellen, today)?;
             let appends = appended(cells, before, cellen.kronieken())?;
             Ok(Ran {
-                response,
+                response: applied.response,
                 appends,
+                by_policy: applied.by_policy.into_iter().collect(),
                 generation,
             })
         })
@@ -1100,6 +1228,7 @@ pub(crate) mod tests {
                     }],
                     keyed: None,
                     recorded_by: None,
+                    by_policy: BTreeSet::new(),
                     generation: now.generation,
                 };
                 self.inner.append(commit).await?;
@@ -1253,7 +1382,10 @@ pub(crate) mod tests {
         let gram = s.perform(None, submission(), &actor()).await.unwrap();
         assert_eq!(gram["kind"], json!("AANVRAAG"));
         assert_eq!(store.appends.load(Ordering::SeqCst), 3);
-        assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 1);
+        // The application and the request for an examination it brought
+        // about, once.
+        assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 2);
+        assert_eq!(s.store.load("ggd_wilgendaal").await.unwrap().head(), 1);
     }
 
     #[tokio::test]
@@ -1294,6 +1426,17 @@ pub(crate) mod tests {
             stored.grams[0].recorded_via,
             Some(crate::store::Channel::TestLogin)
         );
+        // The request the municipality's policy made with it, and its
+        // receipt at the GGD, are the server's, by the article that made
+        // them.
+        let ggd = store.inner.load("ggd_wilgendaal").await.unwrap();
+        for policy in [&stored.grams[1], &ggd.grams[0]] {
+            assert_eq!(
+                policy.recorded_by.as_deref(),
+                Some("beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9")
+            );
+            assert_eq!(policy.recorded_via, Some(crate::store::Channel::Policy));
+        }
         let again = s
             .perform(Some(key.clone()), submission(), &actor())
             .await
@@ -1311,7 +1454,9 @@ pub(crate) mod tests {
             .await
             .unwrap_err();
         assert!(matches!(e, ServiceError::KeyReused(_)), "{e}");
-        assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 1);
+        // The replay recorded no second application and no second request.
+        assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 2);
+        assert_eq!(s.store.load("ggd_wilgendaal").await.unwrap().head(), 1);
     }
 
     #[tokio::test]
@@ -1322,7 +1467,9 @@ pub(crate) mod tests {
         let id = gram["id"].as_str().unwrap();
         let mine = s.dossier("999990020").await.unwrap();
         assert!(mine.holds(id));
-        assert_eq!(mine.grams.len(), 1);
+        // The application, the municipality's request for an examination of
+        // the applicant, and its receipt at the GGD: each names the applicant.
+        assert_eq!(mine.grams.len(), 3);
         assert!(s.dossier("999990021").await.unwrap().grams.is_empty());
         assert_eq!(
             s.holder(id).await.unwrap().as_deref(),

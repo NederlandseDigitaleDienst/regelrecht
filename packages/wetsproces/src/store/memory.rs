@@ -6,6 +6,7 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use chrono::NaiveDate;
+use regelrecht_cel::Gram;
 
 use crate::store::{
     Actor, Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Receipt, StoreError,
@@ -34,13 +35,16 @@ impl State {
 
     /// Append every record of `appends`, as recorded by `recorded_by`. The
     /// caller checked the heads and the ids.
-    fn write(&mut self, appends: Vec<CellAppend>, recorded_by: Option<&Actor>) {
+    fn write(&mut self, appends: Vec<CellAppend>, actor_of: impl Fn(&Gram) -> Option<Actor>) {
         for append in appends {
             self.ids.extend(append.grams.iter().map(|g| g.id.clone()));
-            let stored = append.grams.into_iter().map(|gram| StoredGram {
-                gram,
-                recorded_by: recorded_by.map(|a| a.account.clone()),
-                recorded_via: recorded_by.map(|a| a.channel),
+            let stored = append.grams.into_iter().map(|gram| {
+                let actor = actor_of(&gram);
+                StoredGram {
+                    gram,
+                    recorded_by: actor.as_ref().map(|a| a.account.clone()),
+                    recorded_via: actor.map(|a| a.channel),
+                }
             });
             self.chronicles
                 .entry(append.cell)
@@ -121,7 +125,7 @@ impl ChronicleStore for InMemoryStore {
                 });
             }
         }
-        state.write(commit.appends, commit.recorded_by.as_ref());
+        state.write(commit.appends.clone(), |gram| commit.actor_of(gram));
         if let Some(keyed) = commit.keyed {
             state.receipts.insert(keyed.key, keyed.receipt);
         }
@@ -145,7 +149,7 @@ impl ChronicleStore for InMemoryStore {
             generation: state.generation + 1,
             ..State::default()
         };
-        state.write(begin, None);
+        state.write(begin, |_| None);
         drop(state);
         Ok(())
     }

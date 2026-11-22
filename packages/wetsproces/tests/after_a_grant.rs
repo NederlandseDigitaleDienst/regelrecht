@@ -478,11 +478,16 @@ async fn a_grant_on_objection_is_the_record_the_acts_refer_to() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "{bezwaar}");
-    // The GGD examines her now, and on the objection the municipality puts
-    // a grant in the place of the refusal (Awb 7:11).
+    // The GGD examines her now, on the request her application brought
+    // about, and on the objection the municipality puts a grant in the place
+    // of the refusal (Awb 7:11).
     set_clock(&app, "2026-11-10").await;
     let mut advies = advice(ANNA);
     advies["velden"]["datum_onderzoek"] = json!("2026-11-10");
+    advies["verzoek"] = open_request(&app, ANNA)
+        .await
+        .expect("an open request about Anna")["id"]
+        .clone();
     let (status, advies) = admin(&app)
         .await
         .post("/api/backoffice/beheer/vastleggingen", advies)

@@ -28,6 +28,7 @@
 //! | `GET /api/backoffice/werkvoorraad` | reader | the executor's submissions that wait for a decision ([`crate::service::WorkQueue`]) |
 //! | `GET /api/backoffice/waarom/{id}` | reader; a decision of the executor | why it came out so |
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
+//! | `GET /api/backoffice/verzoeken` | reader | the requests the executor's policy made, and whether an answer came back ([`requests`]) |
 //! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
 //! | `GET /api/backoffice/vervolg` | reader | every grant and how far the acts after it are ([`grants`]) |
 //! | `POST /api/backoffice/toezendingen` | handler; a decision of the executor | a copy of a decision ([`SendCopy`]) |
@@ -35,7 +36,7 @@
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
 //! | `POST /api/backoffice/testomgeving/leegmaken` | admin; only in test mode, absent otherwise | empty every chronicle, the kept answers and the test clock ([`reset_test_environment`]) |
 //! | `GET /api/backoffice/beheer/partijen` | admin | per external party what waits for it ([`crate::service::ExternalParty`]) |
-//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records |
+//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records; with `verzoek`, the answer to that open request |
 //! | `POST /api/backoffice/beheer/voorvertoning` | admin; a submission of an external party | what its decision would come to; records nothing |
 //! | `POST /api/backoffice/beheer/besluiten` | admin; a submission of an external party | its decision |
 //! | `POST /api/backoffice/beheer/toezendingen` | admin; a decision of an external party | a copy of it to the cell it concerns |
@@ -270,6 +271,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/backoffice/besluiten", post(decide))
         .route("/api/backoffice/voorvertoning", post(preview))
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
+        .route("/api/backoffice/verzoeken", get(requests))
         .route("/api/backoffice/vastleggingen", post(record))
         .route("/api/backoffice/vervolg", get(grants))
         .route("/api/backoffice/toezendingen", post(send_copy))
@@ -834,6 +836,12 @@ async fn record(
         return Err(access::forbidden());
     }
     principal.require(Level::Handler)?;
+    if r.request.is_some() {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "the executor answers no request; an external party does, through the admin panel",
+        ));
+    }
     perform(&state, &headers, Step::Record(r), &principal.actor())
         .await
         .map(Json)
@@ -853,10 +861,38 @@ async fn send_copy(
         .map(Json)
 }
 
+/// The requests the executor's policy made when an application came in,
+/// such as the request to the GGD for an examination: per request its
+/// record in the executor's chronicle, the party it went to, whether it is
+/// still open, and the executor's record of the answer it received. Not the
+/// party's own records: the executor reads what came back to it, not the
+/// party's chronicle.
+async fn requests(State(state): State<AppState>) -> ApiResult {
+    let requests: Vec<Value> = state
+        .service
+        .requests()
+        .await?
+        .into_iter()
+        .map(|r| {
+            json!({
+                "verzoek": r.verzoek,
+                "aan": r.aan,
+                "aan_naam": state.service.cell_name(&r.aan),
+                "open": r.open(),
+                "antwoord_ontvangen": r.antwoord_ontvangen,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "verzoeken": requests })))
+}
+
 /// Per external party what the admin panel needs: the submissions that
-/// wait for its decision (`open`) and its decisions of which no copy was
-/// received yet (`toe_te_zenden`). The facts it records and the decision
-/// forms come with the forms (`GET /api/formulier`).
+/// wait for its decision (`open`), its decisions of which no copy was
+/// received yet (`toe_te_zenden`), and the requests of the executor it has
+/// not answered (`verzoeken`), each with the fact that answers it. The facts
+/// it records and the decision forms come with the forms
+/// (`GET /api/formulier`); `antwoord_op_verzoek` names those that answer a
+/// request, which a party with an open request records from it.
 async fn external_parties(State(state): State<AppState>) -> ApiResult {
     let parties: Vec<Value> = state
         .service
@@ -869,6 +905,10 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
                 "cel_naam": p.name,
                 "open": p.open,
                 "toe_te_zenden": p.unsent,
+                "verzoeken": p.requests.iter().map(|r| json!({
+                    "verzoek": r.received,
+                    "antwoordfeit": r.answer,
+                })).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -878,6 +918,7 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
             "cel_naam": state.service.executor_name(),
         },
         "partijen": parties,
+        "antwoord_op_verzoek": state.service.answer_facts(),
     })))
 }
 

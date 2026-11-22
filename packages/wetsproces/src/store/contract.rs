@@ -5,6 +5,8 @@
 
 #![allow(clippy::unwrap_used)]
 
+use std::collections::BTreeSet;
+
 use futures::future::join_all;
 use regelrecht_cel::Gram;
 use serde_json::json;
@@ -52,6 +54,7 @@ pub fn commit(k: &str, appends: Vec<CellAppend>) -> Commit {
             account: ACCOUNT.into(),
             channel: Channel::Keycloak,
         }),
+        by_policy: BTreeSet::new(),
         generation: 0,
     }
 }
@@ -61,6 +64,7 @@ pub fn unkeyed(appends: Vec<CellAppend>) -> Commit {
         appends,
         keyed: None,
         recorded_by: None,
+        by_policy: BTreeSet::new(),
         generation: 0,
     }
 }
@@ -118,6 +122,7 @@ pub async fn the_store_keeps_who_recorded_each_gram(store: &dyn ChronicleStore) 
                 account: ACCOUNT.into(),
                 channel,
             }),
+            by_policy: BTreeSet::new(),
             generation: 0,
         };
         store.append(c).await.unwrap();
@@ -125,6 +130,31 @@ pub async fn the_store_keeps_who_recorded_each_gram(store: &dyn ChronicleStore) 
     let b = store.load("b").await.unwrap();
     let via: Vec<Option<Channel>> = b.grams.iter().skip(1).map(|g| g.recorded_via).collect();
     assert_eq!(via, Channel::ALL.map(Some));
+}
+
+pub async fn a_record_the_policy_made_is_kept_as_made_by_its_article(store: &dyn ChronicleStore) {
+    // One step: the citizen's record, and the two the executor's policy made
+    // with it, in two cells.
+    let mut c = commit(
+        "k-policy",
+        vec![append("a", 0, &["1", "2"]), append("b", 0, &["3"])],
+    );
+    c.by_policy = ["2".to_string(), "3".to_string()].into();
+    store.append(c).await.unwrap();
+    let all = store.load_all(&["a", "b"]).await.unwrap();
+    let kept: Vec<(Option<&str>, Option<Channel>)> = all
+        .iter()
+        .flat_map(|c| &c.grams)
+        .map(|g| (g.recorded_by.as_deref(), g.recorded_via))
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            (Some(ACCOUNT), Some(Channel::Keycloak)),
+            (Some("voorbeeld#1"), Some(Channel::Policy)),
+            (Some("voorbeeld#1"), Some(Channel::Policy)),
+        ]
+    );
 }
 
 pub async fn load_all_gives_every_cell_in_the_order_asked(store: &dyn ChronicleStore) {
@@ -361,6 +391,7 @@ macro_rules! contract_tests {
         $crate::store::contract::contract_tests!(@each $fixture;
             a_commit_appends_to_every_cell_after_its_head,
             the_store_keeps_who_recorded_each_gram,
+            a_record_the_policy_made_is_kept_as_made_by_its_article,
             load_all_gives_every_cell_in_the_order_asked,
             a_moved_head_refuses_the_whole_commit,
             a_key_used_before_is_replayed_and_applies_nothing,

@@ -23,5 +23,6 @@ pub mod spel;
 pub mod stand;
 pub mod ui_spec;
 pub mod vervolg;
+pub mod verzoek;
 #[cfg(feature = "wasm")]
 pub mod wasm;

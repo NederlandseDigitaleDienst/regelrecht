@@ -106,6 +106,22 @@ andere_cellen:
   - cel: rechtbank_wilgendaal
     cel_naam: Rechtbank Wilgendaal
 
+# Wat het college uit eigen beleid doet als een aanvraag binnenkomt: artikel 9
+# van zijn fictieve beleid zegt of het de GGD om een geneeskundig onderzoek
+# vraagt. Zo ja, dan legt de gemeente het verzoek vast en de GGD de
+# ontvangst, in dezelfde stap. Het artikel krijgt de velden van de aanvraag,
+# de dag waarop zij binnenkwam (datum_verzoek) en de aanvraag zelf. De GGD
+# antwoordt met het advies van artikel 5; een advies hoort bij een verzoek
+# als het over dezelfde aanvrager gaat en het onderzoek op of na de dag van
+# het verzoek plaatsvond.
+bij_aanvraag:
+  - artikel: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9
+    parameters:
+      datum_verzoek: date
+      aanvraag: submission
+    antwoord:
+      feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+      datum: datum_onderzoek
 # Wat de gemeente na een toekenning met de kaart doet: bestellen bij de
 # drukker, de ontvangst door de postkamer en de uitreiking, in deze volgorde
 # en elk één keer (zoals in packages/wetsproces/casussen). Zonder deze lijst

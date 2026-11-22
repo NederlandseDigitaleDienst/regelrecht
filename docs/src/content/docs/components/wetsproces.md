@@ -27,7 +27,41 @@ The other cells of the case stay in the process, because the steps need their ch
 
 What the executor sees of an external party follows the process. The municipality reads what the GGD sends it, which lands in the municipality's own chronicle, and not the GGD's chronicle. The admin panel shows of a party only what an input needs: the submissions that wait for its decision, and its decisions of which no other cell has received a copy. Neither the panel nor any route of the back office returns a party's chronicle.
 
-The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. That link is an open point: an exchange with the GGD's or the court's own system would replace the panel for that party, and it is not built.
+The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. That link is an open point: an exchange with the GGD's or the court's own system would replace the panel for that party, and it is not built. So is a panel of its own for an external party that executes part of the process itself, such as the GGD: its staff would log in and see their own requests, where now an admin enters what they did. It may follow later.
+
+## A request to an external party and the answer back
+
+Two facts of one article with the same parameters, each established by another cell, form a message: when one cell records the first, the other cell records the second, its receipt, in its own chronicle, in the same step and with the same values. Nothing reads across. The receiving cell answers from its own chronicle, and no letter is simulated beyond those two records. The kern delivers every fact this way (`afleveren` in `kern.rs`), in whichever direction the article points.
+
+For the parking card it runs both ways:
+
+| Direction | Article | The sender records | The receiver records |
+|---|---|---|---|
+| The municipality asks the GGD for an examination | 9 of the municipality's fictitious policy | `geneeskundig_onderzoek_aangevraagd` | `verzoek_om_geneeskundig_onderzoek_ontvangen` |
+| The GGD sends its advice back | 5 of the same policy | `geneeskundig_advies_uitgebracht` | `geneeskundig_advies_ontvangen` |
+
+The request comes from the executor's policy. The case file names, under `bij_aanvraag`, the articles the server runs when an application comes in, with what the system knows of it:
+
+```yaml
+bij_aanvraag:
+  - artikel: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9
+    parameters:
+      datum_verzoek: date        # the day the application came in
+      aanvraag: submission       # the id of the application
+    antwoord:
+      feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+      datum: datum_onderzoek
+```
+
+The article gets the fields of the application as well. Its one output, `geneeskundig_onderzoek_aanvragen`, says whether the college asks. It does not while a request about the same applicant is open, nor when the college gave the applicant a card before, since the college may then forgo the examination (article 2, second paragraph, of the Regeling gehandicaptenparkeerkaart). Both come from the municipality's cell, through article 10, which binds them to its answers. When the article says yes, the request and its receipt at the GGD land in the commit of the application. The store keeps `beleid` as their `recorded_via` and the article as their `recorded_by`, so the chronicle shows that the server recorded them by policy and not at anyone's request.
+
+A request stays open until an answer belongs to it: the fact under `antwoord`, recorded by the cell that received the request, with the same values in the fields both hold (here `bsn_aanvrager`) and a day under `datum` on or after the day of the request. A second application from the same applicant while the request is open asks nothing again, and a retry under the same `Idempotency-Key` gets the first answer without recording anything.
+
+The admin panel lists the open requests per party. The admin answers from such a request: the body of `POST /api/backoffice/beheer/vastleggingen` names the request's receipt under `verzoek`, and the server takes the fields the request holds from it, so the form does not ask for the citizen number. The answer is refused when it is another fact than the one under `antwoord`, when it names another applicant, or when its examination is dated before the request. Once answered, the request leaves the list, and the advice reaches the municipality as it always did.
+
+An advice without a request stays possible, for an applicant about whom no request is open. That covers the applicant who had a card before: the policy asks nothing then, but the college may still want an examination. The panel keeps that path in reserve, below the requests, and the form asks for the citizen number. With a request open for that applicant, the server refuses the advice without it, so an answer cannot miss the request it belongs to.
+
+The back office reads the executor's requests through `GET /api/backoffice/verzoeken`: per request the municipality's record, the party it went to, whether it is open, and the municipality's receipt of the answer. It never returns the GGD's records. The employee sees beside the application that the examination was asked for and whether the advice is in. The citizen's dossier holds both records of the request, at the municipality and at the GGD, because both name the applicant.
 
 ## How a request runs
 
@@ -45,14 +79,14 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 
 | Table | Holds |
 |---|---|
-| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, or `beheerpaneel` for what an admin entered for an external party |
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, `beheerpaneel` for what an admin entered for an external party, or `beleid` for what the server recorded by the executor's policy |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request, with the account that sent it, and the answer |
 | `sessions` | The login sessions of both surfaces, made by the session store (`tower-sessions`) at startup; each carries the surface it was made on |
 | `test_clock` | In test mode, the day an admin set the clock to; no row until it is first set |
 | `fsc4b_challenges`, `fsc4b_sessions` | The challenges and sessions of [FSC voor Burgers](/components/wetsproces-fsc4b) |
 
-`recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It holds the Keycloak `sub`, or the account of an app (`fsc4b:` and a key thumbprint). `recorded_via` says which channel: `keycloak`, `testlogin` or `fsc4b`. Both are empty for what the server records itself, such as the case's beginning; `recorded_by` is also empty for records stored before the login existed (migration `0002_recorded_by.sql`), and `recorded_via` for those stored before migration `0003_recorded_via.sql`.
+`recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It holds the Keycloak `sub`, or the account of an app (`fsc4b:` and a key thumbprint). `recorded_via` says which channel: `keycloak`, `testlogin` or `fsc4b`. A record the executor's policy made when an application came in has `beleid` there and the article in `recorded_by` (migration `0009_recorded_via_policy.sql`, see [A request to an external party](#a-request-to-an-external-party-and-the-answer-back)). Both are empty for what the server records itself, such as the case's beginning; `recorded_by` is also empty for records stored before the login existed (migration `0002_recorded_by.sql`), and `recorded_via` for those stored before migration `0003_recorded_via.sql`.
 
 `grams` is append-only, and the database enforces it: a trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on it. A request that holds the character U+0000 is refused with `422` in both stores, because `jsonb` cannot store it. A record written in a format version this build does not know is not read; the request fails with `500`, and the server log names the cell, the record and the version.
 
@@ -153,14 +187,15 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/backoffice/werkvoorraad` | reader | The executor's submissions that wait for a decision (`open`), each with the record to decide after (`na`) when its last decision was revoked |
 | `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did |
 | `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to; records nothing |
+| `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
 | `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
 | `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)) |
 | `POST /api/backoffice/toezendingen` | handler | A copy of the executor's decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
 | `POST /api/backoffice/testomgeving/leegmaken` | admin | In test mode, empty the test setup (see [Modes](#modes)); in stable mode the route does not exist |
-| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`) and its decisions not sent yet (`toe_te_zenden`) |
-| `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen` |
+| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`), its decisions not sent yet (`toe_te_zenden`) and the executor's requests it has not answered (`verzoeken`); under `antwoord_op_verzoek` the facts that answer a request |
+| `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen`; an answer to an open request names its receipt under `verzoek` |
 | `POST /api/backoffice/beheer/voorvertoning` | admin | What an external party's decision would come to; records nothing |
 | `POST /api/backoffice/beheer/besluiten` | admin | An external party's decision on a submission it holds |
 | `POST /api/backoffice/beheer/toezendingen` | admin | A copy of an external party's decision to the cell it concerns |

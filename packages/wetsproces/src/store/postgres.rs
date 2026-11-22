@@ -9,7 +9,7 @@
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
 //!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in,
 //!   when it was stored and who asked for it (`recorded_by`, migration 0002)
-//!   by which channel (`recorded_via`, migrations 0003 and 0006). A trigger refuses every `UPDATE`, `DELETE` and
+//!   by which channel (`recorded_via`, migrations 0003, 0006 and 0009). A trigger refuses every `UPDATE`, `DELETE` and
 //!   `TRUNCATE`: a chronicle only grows, except that a reset of test mode
 //!   may empty it (migrations 0007 and 0008);
 //! - `heads`: per cell its head, the number of records in it. A commit locks
@@ -324,7 +324,10 @@ impl ChronicleStore for PostgresStore {
             });
         }
         check_heads(&heads, &commit.appends)?;
-        write_appends(&mut tx, heads, commit.appends, commit.recorded_by.as_ref()).await?;
+        write_appends(&mut tx, heads, &commit.appends, |gram| {
+            commit.actor_of(gram)
+        })
+        .await?;
         tx.commit().await.map_err(backend("committing"))?;
         Ok(Appended::Committed)
     }
@@ -396,7 +399,7 @@ impl ChronicleStore for PostgresStore {
         // What the case begins with, in the same transaction: no request
         // finds the store empty in between.
         let heads = lock_heads(&mut tx, &begin).await?;
-        write_appends(&mut tx, heads, begin, None).await?;
+        write_appends(&mut tx, heads, &begin, |_| None).await?;
         tx.commit().await.map_err(backend("committing a reset"))?;
         Ok(())
     }
@@ -529,19 +532,20 @@ fn check_heads(heads: &BTreeMap<String, u64>, appends: &[CellAppend]) -> Result<
     Ok(())
 }
 
-/// Append every record after its cell's head, as recorded by `recorded_by`,
-/// and move the heads.
+/// Append every record of `appends` after its cell's head, with who made
+/// it (`actor_of`, such as [`Commit::actor_of`]), and move the heads.
 async fn write_appends(
     tx: &mut Transaction<'_, Postgres>,
     mut heads: BTreeMap<String, u64>,
-    appends: Vec<CellAppend>,
-    recorded_by: Option<&Actor>,
+    appends: &[CellAppend],
+    actor_of: impl Fn(&Gram) -> Option<Actor>,
 ) -> Result<(), StoreError> {
     let mut moved = Vec::new();
     for append in appends {
         let head = heads.entry(append.cell.clone()).or_insert(0);
         for gram in &append.grams {
             *head += 1;
+            let actor = actor_of(gram);
             sqlx::query(
                 "INSERT INTO wetsproces.grams \
                  (cell, seq, gram_id, format_version, gram, recorded_by, recorded_via) \
@@ -552,8 +556,8 @@ async fn write_appends(
             .bind(&gram.id)
             .bind(FORMAT_VERSION)
             .bind(Json(gram))
-            .bind(recorded_by.map(|a| a.account.as_str()))
-            .bind(recorded_by.map(|a| a.channel.as_str()))
+            .bind(actor.as_ref().map(|a| a.account.as_str()))
+            .bind(actor.as_ref().map(|a| a.channel.as_str()))
             .execute(&mut **tx)
             .await
             .map_err(|e| {
@@ -570,7 +574,7 @@ async fn write_appends(
             })?;
         }
         if !append.grams.is_empty() {
-            moved.push(append.cell);
+            moved.push(append.cell.clone());
         }
     }
     moved.sort_unstable();
@@ -934,7 +938,9 @@ mod tests {
             .await
             .unwrap();
         let after = service.chronicle("gemeente_wilgendaal").await.unwrap();
-        assert_eq!(after["kop"], before["kop"].as_u64().unwrap() + 1);
+        // The application and the request for an examination it brought
+        // about.
+        assert_eq!(after["kop"], before["kop"].as_u64().unwrap() + 2);
         f.store.close().await;
 
         let again = start(PostgresStore::connect(f.database.url()).await.unwrap()).await;
