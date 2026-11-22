@@ -1042,6 +1042,24 @@ impl Service {
         Ok((Dossier { grams }, stand))
     }
 
+    /// The ids of the records an employee of the executor may see: those
+    /// of its chronicle, and those of another cell that reached it, as what
+    /// a record of its received (`received`).
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn seen_by_executor(
+        &self,
+    ) -> Result<std::collections::BTreeSet<String>, ServiceError> {
+        let stored = self.store.load(self.executor()).await?;
+        Ok(stored
+            .into_grams()
+            .into_iter()
+            .flat_map(|g| std::iter::once(g.id).chain(g.received.map(|r| r.id)))
+            .collect())
+    }
+
     /// The ids of every record in the cells for which `include` holds.
     ///
     /// # Errors

@@ -45,3 +45,4 @@ pub mod login;
 pub mod service;
 pub mod store;
 pub mod surface;
+pub mod visibility;

@@ -6,7 +6,8 @@
  * tests/melding.test.js zijn kopieën van de meldingen in packages/cel
  * (cell.rs, chronicle.rs): wie daar een melding herschrijft, past ze mee aan.
  */
-import { hoofdletter, kort, leesbaar, state } from './state.js';
+import { weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
+import { kort, leesbaar, state } from './state.js';
 
 const vertalingen = [
   // Een besluit wordt maar één keer vervangen (de cel, bij een tweede
@@ -34,22 +35,6 @@ const vertalingen = [
     /the decision '([^']+)' did not ask the cell of '[^']+' for '([^']+)'/,
     (besluit, begrip) =>
       `Besluit ${kort(besluit)} vroeg de cel niet om "${leesbaar(begrip)}", dus er is geen antwoord om uit te leggen.`,
-  ],
-  // Een oordeel dat een artikel voor deze aanvraag aan het bestuursorgaan
-  // laat, met een eigen open begrip: de parkeerkaart zonder advies van de
-  // GGD, een vakantie die de cel niet kent, de hardheidsclausule bij het
-  // maximum (kern::voorvertonen).
-  [
-    /the policy leaves '([^']+)' to the authority for this case/,
-    (begrip) =>
-      `De regels laten "${leesbaar(begrip)}" voor deze aanvraag aan ${state.casus?.rol ?? 'het bestuursorgaan'} over. Geef die bevinding.`,
-  ],
-  // Een bevinding die de wet per geval aan het bestuursorgaan laat, en die
-  // het nog niet gaf (de engine).
-  [
-    /Required open term '([^']+)' on \S+ is decided per case by .*no judgement was given/,
-    (begrip) =>
-      `${hoofdletter(state.casus?.rol ?? 'het bestuursorgaan')} heeft "${leesbaar(begrip)}" nog niet beoordeeld, en het besluit heeft die bevinding nodig.`,
   ],
   [/the application '[^']+' is already decided on/, () => 'Hierop is al besloten.'],
   // Een spel dat dit tabblad bewaarde voordat een beslissing op bezwaar het
@@ -79,27 +64,6 @@ const vertalingen = [
     /the cell stopped/,
     () => 'De cel is vastgelopen. Herlaad de pagina: je gaat verder na de laatste stap die lukte.',
   ],
-  [
-    /lacks '([^']+)', which the decision of \S+ needs \(Awb 4:5\)/,
-    (veld) =>
-      `De aanvraag mist "${leesbaar(veld)}", en het besluit heeft dat nodig (Awb 4:5). Vul het aan in een nieuwe aanvraag.`,
-  ],
-  // Een bevinding of een waarde die het besluit van het bestuursorgaan vraagt,
-  // zoals de motivering, en die het nog niet gaf (de cel).
-  [
-    /asks '([^']+)' of the deciding authority/,
-    (veld) =>
-      `Het bestuursorgaan heeft "${leesbaar(veld)}" nog niet gegeven, en het besluit heeft dat nodig.`,
-  ],
-  [
-    /'([^']+)' is .*, which does not fit a/,
-    (veld) => `De waarde van "${leesbaar(veld)}" past niet bij wat de wet vraagt.`,
-  ],
-  [
-    /the law does not ask '([^']+)' in the (\S+) of/,
-    (veld, soort) =>
-      `De wet vraagt niet om "${leesbaar(veld)}" bij ${soort === 'BEZWAAR' ? 'het bezwaar' : 'de aanvraag'}.`,
-  ],
 ];
 
 /** De Nederlandse zin bij `fout`, of null als er geen vertaling voor is. */
@@ -108,7 +72,8 @@ export function vertaling(fout) {
     const gevonden = String(fout).match(patroon);
     if (gevonden) return zin(...gevonden.slice(1));
   }
-  return null;
+  // What a form can cause, shared with the wetsprocessysteem.
+  return weigeringInWoorden(fout, { veld: leesbaar, rol: state.casus?.rol ?? 'het bestuursorgaan' });
 }
 
 /**

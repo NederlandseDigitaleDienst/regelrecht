@@ -1,6 +1,7 @@
 // The shapes the server in packages/wetsproces answers with. Their keys are
 // those of the kern of the chronolexografie poc (`velden`, `bevindingen`,
 // `op`), as the API passes them on; only what the screens read is typed.
+import type { Stap } from '@regelrecht/frontend-shared/chronolex/keten';
 import type { Systeemvulling } from '@regelrecht/frontend-shared/chronolex/voorinvulling';
 
 /** A field of a form, as the kern derives it from the law (`kern::veld`). */
@@ -167,6 +168,8 @@ export interface Casus {
   indieningen: CasusIndiening[];
   /** What follows a grant, where the case says so. */
   na_toekenning?: NaToekenning | null;
+  /** The regelwerken the cell runs: `$id`, name, and directory in the corpus. */
+  regelwerken?: { id: string; naam?: string | null; map: string }[];
   vandaag: string;
 }
 
@@ -278,6 +281,8 @@ export interface Waarom {
   ingevuld: Ingevuld[];
   antwoorden: Antwoord[];
   bevindingen: string[];
+  /** The trace of the engine condensed into steps (`kern::Stap`). */
+  keten?: Stap[];
 }
 
 /** What a decision would come to (`kern::Voorvertoning`). */

@@ -4,7 +4,7 @@
 // comes from the server's `stand`.
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
-import type { Casus, Gram, Ik, Stand } from '../gedeeld/types';
+import type { Casus, Gram, Ik, Stand, Voorvertoning } from '../gedeeld/types';
 import type { Beslissing, Kroniek } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 
@@ -12,10 +12,11 @@ const beslissen = vi.fn(async (b: Beslissing) => ({
   besluit: { ...gram('e', 'BESCHIKKING', 'awb#7:11', b.op), after: b.na, outputs: { verleend: true } },
   waarom: { ingevuld: [], antwoorden: [], bevindingen: [] },
 }));
+const voorvertoning = vi.fn(async (_b: Beslissing): Promise<Voorvertoning> => ({ stil: [] }));
 vi.mock('./api', () => ({
   backofficeApi: {
     beslissen: (b: Beslissing) => beslissen(b),
-    voorvertoning: async () => ({ stil: [] }),
+    voorvertoning: (b: Beslissing) => voorvertoning(b),
     waarom: async () => ({ ingevuld: [], antwoorden: [], bevindingen: [] }),
   },
   beheerApi: {},
@@ -130,5 +131,67 @@ describe('a submission whose decision was revoked', () => {
     expect(w.find('nldd-badge').attributes('text')).toBe('Herroepen');
     expect(w.findAll('nldd-tag').map((t) => t.attributes('text'))).toContain('Toegewezen');
     expect(w.findAll('nldd-button').find((b) => b.attributes('text') === 'Besluit nemen')).toBeUndefined();
+  });
+});
+
+describe('the decision as it would be taken', () => {
+  const wacht: Stand = { rollen, herroepen: {}, antwoorden: { c: { soort: 'open' } } };
+  const keten = [
+    {
+      soort: 'artikel',
+      wet: 'awb',
+      artikel: '7:11',
+      stappen: [{ soort: 'uitkomst', naam: 'verleend', waarde: true, ontbreekt: [], stappen: [] }],
+    },
+  ];
+
+  it('shows without a click, as a preview, with its outcome, why and the full chain beside the button', async () => {
+    voorvertoning.mockClear().mockResolvedValueOnce({
+      stil: [],
+      voorlopig: {
+        besluit: { ...gram('p', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: { verleend: true } },
+        waarom: { ingevuld: [], antwoorden: [], bevindingen: [], keten },
+      },
+    });
+    const w = toon(wacht, [bezwaar]);
+    await flushPromises();
+    expect(voorvertoning).toHaveBeenCalledWith(expect.objectContaining({ op: 'c' }));
+    const titels = w.findAll('nldd-title').map((t) => t.attributes('text'));
+    expect(titels).toContain('Voorvertoning van het besluit');
+    expect(w.findAll('nldd-tag').map((t) => t.attributes('text'))).toContain('Zou toegewezen worden');
+    const meer = w.find('nldd-list[accessible-label="Volledige keten van het besluit"]');
+    expect(meer.exists()).toBe(true);
+    // Folded away until asked for.
+    expect(meer.find('nldd-list-item').attributes('expanded')).toBe('false');
+    expect(w.findAll('nldd-button').map((b) => b.attributes('text'))).toEqual(['Besluit nemen']);
+  });
+
+  it('says what is missing instead of an outcome when no decision can be computed yet', async () => {
+    // As kern::voorvertoning words it: a policy leaves the finding to the authority.
+    voorvertoning.mockClear().mockResolvedValueOnce({
+      stil: [],
+      geweigerd:
+        "the policy leaves 'langdurige_loopbeperking_volgens_college' to the authority for this case: Required open term " +
+        "'langdurige_loopbeperking_volgens_college' on regeling#3 is decided per case by the authority, but no judgement was given",
+    });
+    const w = toon(wacht, [bezwaar]);
+    await flushPromises();
+    const dialoog = w.findAll('nldd-inline-dialog').find((d) => d.attributes('text') === 'Er is nog geen besluit te berekenen');
+    expect(dialoog?.attributes('supporting-text')?.toLowerCase()).toContain('"langdurige loopbeperking volgens college"');
+    expect(dialoog?.attributes('supporting-text')).toContain('Geef die bevinding.');
+    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Voorvertoning van het besluit');
+  });
+
+  it('asks again when the chronicle changes, such as when an advice comes in', async () => {
+    voorvertoning.mockClear();
+    const w = toon(wacht, [bezwaar]);
+    await flushPromises();
+    expect(voorvertoning).toHaveBeenCalledTimes(1);
+    const advies = { ...gram('a', 'EXECUTOGRAM', 'beleid#5', undefined), fact: 'advies_ontvangen' };
+    const kroniek: Kroniek = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', kop: 2, grammen: [bezwaar, advies], stand: wacht };
+    await w.setProps({ kronieken: [kroniek] });
+    await new Promise((r) => setTimeout(r, 350));
+    await flushPromises();
+    expect(voorvertoning).toHaveBeenCalledTimes(2);
   });
 });
