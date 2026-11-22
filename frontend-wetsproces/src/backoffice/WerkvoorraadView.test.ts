@@ -80,9 +80,9 @@ describe('the work queue', () => {
     expect(knoppen(w)).toEqual([]);
   });
 
-  it('shows a handler the submissions without the button to decide', async () => {
+  it('lets a handler open a submission to read it, and says a decider decides', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: false }]);
-    expect(teOpenen(w)).toBe(0);
+    expect(teOpenen(w)).toBe(1);
     expect(w.text()).toContain('Een beslisser neemt het besluit');
   });
 

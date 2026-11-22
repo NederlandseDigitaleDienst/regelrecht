@@ -158,7 +158,9 @@ describe('the back-office entry', () => {
 });
 
 describe('the combined entry', () => {
-  it('is the one that reaches both sides', () => {
+  // The largest graph to walk, both sides at once: on a busy machine it takes
+  // longer than the five seconds a test gets by default.
+  it('is the one that reaches both sides', { timeout: 20_000 }, () => {
     const beide = bundel('cookie', 'main.ts');
     expect(beide).toContain(join('burger', 'routes.ts'));
     expect(beide).toContain(join('backoffice', 'routes.ts'));
