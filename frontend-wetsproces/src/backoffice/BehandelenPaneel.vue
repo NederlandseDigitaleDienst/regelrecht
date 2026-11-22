@@ -156,7 +156,7 @@ async function beslissen() {
 
         <nldd-container gap="8">
           <nldd-title heading-level="4" size="display-5" text="Wat er is ingediend"></nldd-title>
-          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
+          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
         </nldd-container>
 
         <nldd-container v-if="besluit" gap="16">
@@ -172,7 +172,7 @@ async function beslissen() {
               :color="stand(besluit) ? 'success' : 'critical'"
             ></nldd-tag>
           </nldd-title>
-          <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" label="Uitkomst van het besluit" />
+          <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
           <nldd-title heading-level="5" size="display-6" text="Waarom"></nldd-title>
           <WaaromLijst
             v-if="waarom && besluit"
@@ -194,6 +194,7 @@ async function beslissen() {
             v-if="velden.length"
             :velden="velden"
             :waarden="bevindingen"
+            :volgorde="vormen?.volgorde"
             oordeel
             @zet="(n, v) => (bevindingen[n] = v)"
           />
@@ -214,7 +215,7 @@ async function beslissen() {
                 :color="stand(voorvertoning.voorlopig.besluit) ? 'success' : 'critical'"
               ></nldd-tag>
             </nldd-title>
-            <Gegevens :waarden="voorvertoning.voorlopig.besluit.outputs" :teksten="vormen?.teksten" label="Uitkomst van de voorvertoning" />
+            <Gegevens :waarden="voorvertoning.voorlopig.besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van de voorvertoning" />
           </nldd-container>
 
           <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>

@@ -16,6 +16,8 @@ export interface Schermveld {
   label: string;
   /** The line under it: the UI spec's `help`, or nothing. */
   help: string;
+  /** The heading of the group it stands under: the UI spec's `group`, or none. */
+  groep: string;
 }
 
 /** `veld` as a screen shows it, with the texts the UI spec gives it. */
@@ -26,8 +28,13 @@ export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}): Schermv
     veld: veld.basis ? { ...veld, basis: artikelNaam(veld.basis) } : veld,
     label: tekst.label ?? hoofdletter(leesbaar(veld.naam)),
     help: tekst.help ?? '',
+    groep: tekst.group ?? '',
   };
 }
+
+/** The field `naam` of a record as a screen shows it, where the law's own description is not at hand. */
+export const kaalSchermveld = (naam: string, teksten: Vormen['teksten'] = {}): Schermveld =>
+  schermveld({ naam, type: null }, teksten);
 
 /** The fields the login fills: those the system fills without a value or a source. */
 export const doorInloggen = (vorm: Indieningsvorm): Set<string> =>
@@ -37,8 +44,8 @@ export const doorInloggen = (vorm: Indieningsvorm): Set<string> =>
       .map(([naam]) => naam),
   );
 
-/** `<regelwerk>#<article>#<output>` without its output: the article of a rule. */
-const artikelVan = (bron: string): string => bron.split('#').slice(0, 2).join('#');
+/** `<regelwerk>#<article>#<name>` without its last part: the article of a rule or a fact. */
+export const artikelVan = (bron: string): string => bron.split('#').slice(0, 2).join('#');
 
 /**
  * Where the value of a field the system fills comes from, as a line under
@@ -68,9 +75,9 @@ export interface Formulierveld extends Schermveld {
 }
 
 /** Fields under one heading, as the UI spec groups them (`group`); a field without one has no heading. */
-export interface Veldgroep {
+export interface Veldgroep<V = Formulierveld> {
   titel: string;
-  velden: Formulierveld[];
+  velden: V[];
 }
 
 /** The application form of `vorm`: its fields in groups, and those of them the applicant fills. */
@@ -81,11 +88,15 @@ export interface Aanvraagformulier {
 
 /**
  * `velden` in the order the UI spec names them (`volgorde`); a field it does
- * not name follows, in the order of the law.
+ * not name follows, in the order it came in. `naam` gives a field's name.
  */
-export function opVolgorde<V extends { naam: string }>(velden: V[], volgorde: string[] = []): V[] {
+export function opVolgorde<V>(
+  velden: V[],
+  volgorde: string[] = [],
+  naam: (v: V) => string = (v) => (v as { naam: string }).naam,
+): V[] {
   const plek = (v: V) => {
-    const i = volgorde.indexOf(v.naam);
+    const i = volgorde.indexOf(naam(v));
     return i < 0 ? volgorde.length : i;
   };
   return velden
@@ -93,6 +104,25 @@ export function opVolgorde<V extends { naam: string }>(velden: V[], volgorde: st
     .sort((a, b) => plek(a.v) - plek(b.v) || a.i - b.i)
     .map(({ v }) => v);
 }
+
+/**
+ * `velden`, already in order, under the headings of their groups. A group
+ * stands where its first field stands, and every later field of it joins it
+ * there, so an order that interrupts a group never shows its heading twice.
+ */
+export function inGroepen<V extends { groep: string }>(velden: V[]): Veldgroep<V>[] {
+  const groepen: Veldgroep<V>[] = [];
+  for (const veld of velden) {
+    const groep = groepen.find((g) => g.titel === veld.groep);
+    if (groep) groep.velden.push(veld);
+    else groepen.push({ titel: veld.groep, velden: [veld] });
+  }
+  return groepen;
+}
+
+/** `velden` of a form in the order of the UI spec, under the headings of its groups. */
+export const geordend = (velden: Schermveld[], volgorde?: string[]): Veldgroep<Schermveld>[] =>
+  inGroepen(opVolgorde(velden, volgorde, (s) => s.veld.naam));
 
 /**
  * Per field of the application `vorm` that the system fills, where its value
@@ -105,9 +135,10 @@ export const herkomsten = (vorm: Indieningsvorm | undefined): Record<string, str
  * The application form of `vorm`. Every field of the law but those the UI
  * spec hides, in the order of the UI spec and under the headings of its
  * groups. The applicant fills a field the system does not; a field the
- * system fills shows read-only with the value the server will record (for
- * a citizen it sends it along), or for the login field the identifier of
- * the login (`identiteit`), and where that value comes from.
+ * system fills shows read-only with the value the server will record (the
+ * server gives it to a citizen with the forms), or for the login field the
+ * identifier of the login (`identiteit`), and where that value comes from.
+ * The form never sends such a field ([`aanvraagVelden`]).
  */
 export function aanvraagformulier(
   vorm: Indieningsvorm,
@@ -128,14 +159,7 @@ export function aanvraagformulier(
     const waarde = 'waarde' in hoe ? hoe.waarde : inloggen.has(v.naam) && !hoe.inlog ? identiteit : undefined;
     return { ...veld, systeem: { waarde, herkomst: herkomst(hoe) } };
   });
-  const groepen: Veldgroep[] = [];
-  for (const veld of velden) {
-    const titel = teksten[veld.veld.naam]?.group ?? '';
-    const laatste = groepen[groepen.length - 1];
-    if (laatste && laatste.titel === titel) laatste.velden.push(veld);
-    else groepen.push({ titel, velden: [veld] });
-  }
-  return { groepen, invullen: velden.filter((v) => !v.systeem) };
+  return { groepen: inGroepen(velden), invullen: velden.filter((v) => !v.systeem) };
 }
 
 /** The fields of a submission against the decision `besluit`, as the screen shows them (`tegenBesluit`). */

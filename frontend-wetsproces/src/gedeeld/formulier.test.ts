@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
+import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, inGroepen, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
 import type { Indieningsvorm } from './types';
 
 // A made-up application, not of any case: the form follows from what the
@@ -87,6 +87,22 @@ describe('opVolgorde', () => {
     const velden = ['a', 'b', 'c', 'd'].map((naam) => ({ naam }));
     expect(opVolgorde(velden, ['c', 'a']).map((v) => v.naam)).toEqual(['c', 'a', 'b', 'd']);
     expect(opVolgorde(velden).map((v) => v.naam)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('inGroepen', () => {
+  it('puts a field under the group where that group first stands, so no heading shows twice', () => {
+    const velden = [
+      { naam: 'a', groep: 'Een' },
+      { naam: 'b', groep: 'Twee' },
+      { naam: 'c', groep: 'Een' },
+      { naam: 'd', groep: '' },
+    ];
+    expect(inGroepen(velden).map((g) => [g.titel, g.velden.map((v) => v.naam)])).toEqual([
+      ['Een', ['a', 'c']],
+      ['Twee', ['b']],
+      ['', ['d']],
+    ]);
   });
 });
 

@@ -113,7 +113,7 @@ async function indienen() {
 
         <nldd-title size="display-5"><h4>Wat eruit kwam</h4></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
-        <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" label="Uitkomst van het besluit" />
+        <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
         <nldd-spacer size="24"></nldd-spacer>
 
         <nldd-title size="display-5"><h4>Waarom</h4></nldd-title>
@@ -173,7 +173,7 @@ async function indienen() {
               De vragen komen uit de wet. Wat het besluit al vastlegt, zoals de termijn, neemt
               {{ naamVanCel(keuze.cel) }} uit het besluit zelf.
             </nldd-text>
-            <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
+            <SpecFormulier :velden="velden" :waarden="waarden" :volgorde="vormen?.volgorde" @zet="(n, v) => (waarden[n] = v)" />
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
             <nldd-button-group orientation="horizontal">
               <nldd-button appearance="primary" :text="`${soortNaam(keuze)} indienen`" :loading="bezig || undefined" @click="indienen"></nldd-button>

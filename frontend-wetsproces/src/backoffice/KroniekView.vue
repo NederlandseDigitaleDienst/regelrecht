@@ -129,10 +129,10 @@ function naarWerkvoorraad(g: Gram) {
               {{ `${artikelNaam(open.basis)}${open.refers_to ? ` · verwijst naar ${noem(open.refers_to)}` : ''}` }}
             </nldd-text>
             <nldd-title size="display-6"><h3>Gegevens</h3></nldd-title>
-            <Gegevens :waarden="open.fields" :teksten="vormen?.teksten" :noem="noem" label="Gegevens van het stuk" />
+            <Gegevens :waarden="open.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noem" label="Gegevens van het stuk" />
             <template v-if="open.outputs">
               <nldd-title size="display-6"><h3>Uitkomst</h3></nldd-title>
-              <Gegevens :waarden="open.outputs" :teksten="vormen?.teksten" label="Uitkomst van het besluit" />
+              <Gegevens :waarden="open.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
             </template>
             <nldd-button-group v-if="indieningVan(open)" orientation="horizontal">
               <nldd-button appearance="primary" text="Open in de werkvoorraad" @click="naarWerkvoorraad(open)"></nldd-button>

@@ -46,6 +46,20 @@ describe('SpecFormulier', () => {
     expect(veld?.find('nldd-form-field-help-text').text()).toBe('De dag waarop u ondertekent.');
   });
 
+  it('orders and groups the fields as the UI spec says, each group once', () => {
+    const { invullen } = aanvraagformulier(vorm, {
+      ondertekend: { group: 'Over deze aanvraag' },
+      dagtekening: { group: 'Over deze aanvraag' },
+      wil_een_vergunning: { group: 'Uw aanvraag' },
+    }, null);
+    const w = mount(SpecFormulier, {
+      props: { velden: invullen, waarden: {}, volgorde: ['dagtekening', 'wil_een_vergunning', 'ondertekend'] },
+    });
+    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over deze aanvraag', 'Uw aanvraag']);
+    const labels = w.findAll('nldd-form-field, nldd-switch-field').map((e) => e.attributes('label'));
+    expect(labels).toEqual(['Dagtekening', 'Ondertekend', 'Wil een vergunning']);
+  });
+
   it('sends a change of a field up by its name', async () => {
     const w = teken();
     await w.find('select').setValue('ja');
