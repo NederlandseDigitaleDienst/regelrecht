@@ -1370,3 +1370,153 @@ async fn after_a_court_annuls_the_decision_on_objection_the_municipality_decides
         "{antwoord}"
     );
 }
+
+/// Every record id anywhere in `v`, also inside a longer string: the
+/// chronicles give out ids as UUIDs.
+fn record_ids(v: &Value, into: &mut std::collections::BTreeSet<String>) {
+    match v {
+        Value::String(s) => {
+            let chars: Vec<char> = s.chars().collect();
+            for window in chars.windows(36) {
+                let uuid = window.iter().enumerate().all(|(i, c)| {
+                    if [8, 13, 18, 23].contains(&i) {
+                        *c == '-'
+                    } else {
+                        c.is_ascii_hexdigit()
+                    }
+                });
+                if uuid {
+                    into.insert(window.iter().collect());
+                }
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|x| record_ids(x, into)),
+        Value::Object(map) => map.iter().for_each(|(k, x)| {
+            record_ids(&Value::String(k.clone()), into);
+            record_ids(x, into);
+        }),
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
+}
+
+fn ids_in(v: &Value) -> std::collections::BTreeSet<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    record_ids(v, &mut ids);
+    ids
+}
+
+/// A guard over the whole answers, not a test of one filter: with today's
+/// links every record that revokes or answers one of a citizen's records is
+/// in their dossier, so the filter on what the kern says
+/// (`Stand::binnen`, tested in the kern) has nothing to drop here. Should a
+/// later step link otherwise, this turns red.
+#[tokio::test]
+async fn no_answer_names_a_record_outside_what_its_reader_may_see() {
+    // Bram applies and the GGD advises on him. Anna: refused, objection,
+    // appeal; the court annuls the decision on her objection and the GGD
+    // advises.
+    let app = server().await;
+    let (status, bram_aanvraag) = citizen(&app, "bram", BRAM)
+        .await
+        .post("/api/indieningen", application())
+        .await;
+    assert_eq!(status, StatusCode::OK, "{bram_aanvraag}");
+    ggd_advises(&app, BRAM).await;
+    let op_bezwaar = anna_is_refused_on_objection(&app).await;
+    let anna = citizen(&app, "anna", ANNA).await;
+    let admin = admin(&app).await;
+    let (status, beroep) = anna
+        .post(
+            "/api/indieningen",
+            json!({
+                "artikel": "algemene_wet_bestuursrecht#8:70",
+                "op": op_bezwaar["id"],
+                "velden": notice_of("het bezwaar is ten onrechte afgewezen"),
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{beroep}");
+    set_clock(&app, "2026-11-20").await;
+    let (status, uitspraak) = admin
+        .post(
+            "/api/backoffice/beheer/besluiten",
+            json!({ "op": beroep["id"], "bevindingen": {
+                "indiener_is_belanghebbende": true,
+                "indiener_beroepschrift_niet_in_verzuim": true,
+                "rechtsregel_geschonden": true,
+                "geschonden_rechtsregel": "artikel 7:12, eerste lid, van de Algemene wet bestuursrecht",
+                "rechtsgevolgen_in_stand": false,
+                "uitspraak_treedt_in_de_plaats": false,
+                "termijn_nieuw_besluit": "2026-12-18",
+            } }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{uitspraak}");
+    let (status, _) = admin
+        .post(
+            "/api/backoffice/beheer/toezendingen",
+            json!({ "besluit": uitspraak["besluit"]["id"] }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    ggd_advises(&app, ANNA).await;
+
+    // Each citizen's dossier names only records of that dossier, in its
+    // records as well as in what the kern says of them.
+    let mut dossiers = Vec::new();
+    for (sub, bsn) in [("anna", ANNA), ("bram", BRAM)] {
+        let (status, dossier) = citizen(&app, sub, bsn).await.get("/api/dossier").await;
+        assert_eq!(status, StatusCode::OK, "{dossier}");
+        let own: std::collections::BTreeSet<String> = dossier["grammen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| g["id"].as_str().unwrap().to_string())
+            .collect();
+        if bsn == ANNA {
+            // What the kern says comes along: the receipt annulled the
+            // decision on her objection.
+            assert!(
+                dossier["stand"]["herroepen"]
+                    .get(op_bezwaar["id"].as_str().unwrap())
+                    .is_some(),
+                "{dossier}"
+            );
+        }
+        let named = ids_in(&dossier);
+        let outside: Vec<_> = named.difference(&own).collect();
+        assert!(outside.is_empty(), "{sub}: {outside:?} in {dossier}");
+        dossiers.push(own);
+    }
+    // The court and the GGD hold records in Anna's dossier, and the two
+    // dossiers share none.
+    assert!(dossiers[0].contains(beroep["id"].as_str().unwrap()));
+    assert!(dossiers[0].contains(uitspraak["besluit"]["id"].as_str().unwrap()));
+    assert!(dossiers[0].is_disjoint(&dossiers[1]), "{dossiers:?}");
+
+    // The municipality's work queue and chronicle name only its own records
+    // and what reached it from another cell (`received`).
+    let lezer = employee(&app, "lezer-1", "wetsproces-lezer").await;
+    let (status, kroniek) = lezer
+        .get(&format!("/api/backoffice/cellen/{GEMEENTE}/kroniek"))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{kroniek}");
+    let grams = kroniek["grammen"].as_array().unwrap();
+    let mut may_see: std::collections::BTreeSet<String> = grams
+        .iter()
+        .map(|g| g["id"].as_str().unwrap().to_string())
+        .collect();
+    may_see.extend(
+        grams
+            .iter()
+            .filter_map(|g| g["received"]["id"].as_str().map(str::to_string)),
+    );
+    let (status, queue) = lezer.get("/api/backoffice/werkvoorraad").await;
+    assert_eq!(status, StatusCode::OK, "{queue}");
+    for answer in [&queue, &kroniek] {
+        let outside: Vec<_> = ids_in(answer).difference(&may_see).cloned().collect();
+        assert!(outside.is_empty(), "{outside:?} in {answer}");
+    }
+    // The appeal sits with the court only; the municipality never sees it.
+    assert!(!may_see.contains(beroep["id"].as_str().unwrap()));
+}

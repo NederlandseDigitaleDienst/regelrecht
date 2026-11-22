@@ -929,7 +929,8 @@ impl Service {
     /// [`Service::dossier`], with what the kern says of its records
     /// ([`Stand`]): what each is, which are revoked, and what answers each
     /// submission now. Read from the whole chronicles, kept to the records
-    /// of the dossier. For the citizen's screen; an access check needs only
+    /// of the dossier ([`Stand::binnen`]): an entry that would name a record
+    /// outside it is left out. For the citizen's screen; an access check needs only
     /// [`Service::dossier`].
     ///
     /// # Errors
@@ -947,18 +948,15 @@ impl Service {
             .filter(|g| ids.contains(g.id.as_str()))
             .cloned()
             .collect();
-        let mine = |id: &String| ids.contains(id.as_str());
+        // Of each chronicle's standing, what is about the dossier and names
+        // nothing outside it: no id of another person's record, or of a
+        // record of an external party that did not reach the dossier.
         let mut stand = Stand::default();
         for s in stands {
-            stand
-                .rollen
-                .extend(s.rollen.into_iter().filter(|(id, _)| mine(id)));
-            stand
-                .herroepen
-                .extend(s.herroepen.into_iter().filter(|(id, _)| mine(id)));
-            stand
-                .antwoorden
-                .extend(s.antwoorden.into_iter().filter(|(id, _)| mine(id)));
+            let s = s.binnen(|id| ids.contains(id));
+            stand.rollen.extend(s.rollen);
+            stand.herroepen.extend(s.herroepen);
+            stand.antwoorden.extend(s.antwoorden);
         }
         Ok((Dossier { grams }, stand))
     }
