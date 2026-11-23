@@ -3,10 +3,11 @@
 # validation and tests, and the frontend unit tests and type checks.
 #
 # The GitHub workflows in .github/workflows/ do not run here: Forgejo reads
-# .forgejo/workflows/ when it exists. Everything runs on `default`, a container
-# on Kubernetes as uid 1000 with HOME=/tmp, which cannot install packages. The
-# Rust jobs therefore use the image from ci-image.yml. There is no build cache,
-# so every Rust job compiles from scratch.
+# .forgejo/workflows/ when it exists. Most jobs run on `default`, a container
+# on Kubernetes as uid 1000 with HOME=/tmp, which cannot install packages; the
+# database tests run on `vm` (see that job). The Rust jobs use the image from
+# ci-image.yml. There is no build cache, so every Rust job compiles from
+# scratch.
 #
 # "Runner resources" prints what a job gets.
 name: CI
@@ -14,10 +15,9 @@ on:
   push:
   workflow_dispatch:
 
-# A job on `default` sees 64 CPUs but may use 6 GiB of memory. cargo starts a
-# rustc per CPU and the test harness a thread per CPU; with 64 of either, the
-# database tests were killed (exit code 137). vitest gets --maxWorkers for the
-# same reason.
+# A job on `default` sees 64 CPUs but may use 6 GiB of memory, and cargo,
+# the test harness and vitest each start a worker per CPU they see. These
+# limits keep the jobs on `default` under 6 GiB.
 env:
   CARGO_BUILD_JOBS: 16
   RUST_TEST_THREADS: 8
@@ -57,9 +57,14 @@ jobs:
           df -h . /tmp
       - run: just test-no-docker
 
+  # On `default` this job was killed (exit code 137) in five runs out of five,
+  # at a different point each time, with up to 6 GiB in use. `vm` gives the job
+  # its own VM with 4 CPUs and no such limit. The job is root there, so the
+  # tests run as uid 1000: as root, a test that makes a directory read-only to
+  # force a failing write sees the write succeed.
   rust-test-db:
     name: Rust tests (database)
-    runs-on: default
+    runs-on: vm
     timeout-minutes: 60
     container:
       image: code.digitaledienst.overheid.nl/regelrecht/fieldlab-ci:main
@@ -68,20 +73,21 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
-          # Services run as uid 1000 on `default`; the default PGDATA belongs
-          # to uid 999.
-          PGDATA: /tmp/pgdata
     env:
+      CARGO_BUILD_JOBS: 4
+      RUST_TEST_THREADS: 4
       TEST_POSTGRES_URL: postgres://postgres:postgres@postgres:5432
     steps:
       - uses: actions/checkout@v4
       - name: Runner resources
         run: |
           echo "nproc: $(nproc)"
-          echo "cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown)"
-          echo "memory.max: $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo unknown)"
+          free -h
           df -h . /tmp
-      - run: just test-db
+      - name: just test-db, as uid 1000
+        run: |
+          chown -R 1000:1000 .
+          HOME=/tmp setpriv --reuid 1000 --regid 1000 --clear-groups just test-db
 
   frontend:
     name: Frontend tests
