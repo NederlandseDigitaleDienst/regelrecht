@@ -7,7 +7,7 @@ description: >-
   side on one PostgreSQL database, the case cloned from a public git
   repository at start.
 type: application
-version: 0.4.0
+version: 0.4.1
 # The commit of the wetsproces image the chart was tested with.
 appVersion: c6f7b735
 home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026

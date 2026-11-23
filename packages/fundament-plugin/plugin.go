@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -153,6 +154,8 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 		obj.SetGroupVersionKind(gvk)
 		byObject[obj] = mine
 	}
+	// Only the pods of wetsproces releases, which the chart labels.
+	byObject[&corev1.Pod{}] = cache.ByObject{Label: labels.SelectorFromSet(labels.Set{appLabel: appName})}
 	mgr, err := crhelper.SetupManager(p.scheme, &ctrl.Options{
 		// The plugin host owns the lifecycle; no listeners of our own.
 		Metrics:                metricsserver.Options{BindAddress: "0"},

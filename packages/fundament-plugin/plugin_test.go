@@ -132,7 +132,7 @@ func TestChartValuesFollowTheSpec(t *testing.T) {
 	assert.Equal(t, map[string]any{
 		"repoUrl": "https://git.example.org/casus/a.git",
 		"ref":     "main",
-		"path":    "packages/wetsproces/bron.yaml",
+		"path":    "bron.yaml",
 	}, values["case"])
 	assert.Equal(t, "zorgtoeslag.cluster.example.org", values["host"])
 	assert.Equal(t, map[string]any{

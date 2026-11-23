@@ -82,8 +82,10 @@ spec:
                     - name
                     type: object
                   path:
-                    default: packages/wetsproces/bron.yaml
-                    description: Path of the manifest inside the repository.
+                    default: bron.yaml
+                    description: |-
+                      Path of the manifest inside the repository: bron.yaml at the root of a
+                      manifest repository, packages/wetsproces/bron.yaml in regelrecht itself.
                     pattern: ^[^/\s]\S*$
                     type: string
                   ref:

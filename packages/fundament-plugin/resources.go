@@ -17,6 +17,11 @@ const (
 
 	chartPath    = "charts/wetsproces"
 	fluxInterval = "10m"
+	// releaseTimeout is how long helm-controller waits for the pods of an
+	// install or upgrade, 5m by default. A wetsproces starts in under a
+	// minute; a shorter wait lets a corrected spec apply sooner after a
+	// failed one. The plugin reports a failing pod before this ends.
+	releaseTimeout = "3m"
 
 	// nameLabel carries the name of the Wetsproces on everything the plugin
 	// makes for it.
@@ -105,7 +110,7 @@ func refOrDefault(ref string) string {
 
 func pathOrDefault(path string) string {
 	if path == "" {
-		return "packages/wetsproces/bron.yaml"
+		return "bron.yaml"
 	}
 	return path
 }
@@ -181,6 +186,7 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 func newHelmRelease(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Unstructured {
 	return newObject(helmReleaseGVK, w, w.Name, map[string]any{
 		"interval":    fluxInterval,
+		"timeout":     releaseTimeout,
 		"releaseName": w.Name,
 		"chart": map[string]any{
 			"spec": map[string]any{

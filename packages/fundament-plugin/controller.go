@@ -6,6 +6,7 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -29,6 +30,9 @@ const (
 	reasonReleaseReady   = "ReleaseReady"
 	reasonReleasePending = "ReleasePending"
 	reasonReleaseStalled = "ReleaseStalled"
+	// reasonNotStarting: a container of the release keeps failing; the
+	// message says which and why.
+	reasonNotStarting = "NotStarting"
 )
 
 // WetsprocesReconciler makes, for each Wetsproces, the Flux objects that run
@@ -57,6 +61,9 @@ func (r *WetsprocesReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.Wetsproces{}).
 		Owns(owned(gitRepositoryGVK)).
 		Owns(owned(helmReleaseGVK)).
+		// The pods of the release are Helm's, not the plugin's, so they are
+		// watched by their labels rather than owned.
+		Watches(&corev1.Pod{}, podToWetsproces()).
 		Complete(r)
 	if err != nil {
 		return fmt.Errorf("register the Wetsproces controller: %w", err)
@@ -107,6 +114,17 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 	}
 	released := r.releaseCondition(ctx, w)
 	apimeta.SetStatusCondition(&w.Status.Conditions, released)
+	problem, err := releasePodProblem(ctx, r.Client, w)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if problem != nil {
+		// Said within seconds, where Helm would only give up after its
+		// timeout. The release goes on trying; once the pods run, the next
+		// event clears this.
+		refuse(w, reasonNotStarting, fmt.Sprintf("%s (%s)", problem.Message, problem.Reason))
+		return ctrl.Result{}, nil
+	}
 
 	ready := metav1.Condition{Type: v1alpha1.ConditionReady, Status: released.Status, Reason: released.Reason, Message: released.Message}
 	apimeta.SetStatusCondition(&w.Status.Conditions, ready)

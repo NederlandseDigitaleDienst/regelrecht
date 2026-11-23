@@ -7,7 +7,6 @@ import {
   ACCENT_COLORS,
   DEFAULT_PATH,
   DEFAULT_REF,
-  DEFAULT_REPO_URL,
   SECRET_RESOURCE,
   WETSPROCES_RESOURCE,
   addresses,
@@ -32,7 +31,7 @@ const content = document.getElementById('content');
 const stepBar = document.getElementById('steps');
 
 const state = {
-  repoUrl: DEFAULT_REPO_URL,
+  repoUrl: '',
   ref: DEFAULT_REF,
   path: DEFAULT_PATH,
   privateRepo: false,
@@ -85,9 +84,9 @@ const steps = [
     title: 'Casus',
     intro: 'Waar staat de casus? Het manifest (bron.yaml) noemt het casusbestand en de artikelen; die staan in dezelfde repository.',
     fields: () => `
-      ${field('Repository', textField('repoUrl', state.repoUrl, 'type="url" required'), { errorId: 'e-repo', hint: 'Het https-adres om de repository te klonen.' })}
-      ${field('Branch of tag', textField('ref', state.ref), { errorId: 'e-ref', hint: 'Leeg is main.' })}
-      ${field('Pad naar het manifest', textField('path', state.path), { errorId: 'e-path' })}`,
+      ${field('Repository', textField('repoUrl', state.repoUrl, 'type="url" required placeholder="https://code.digitaledienst.overheid.nl/regelrecht/wetsproces-parkeerkaart"'), { errorId: 'e-repo', hint: 'Het https-adres om de repository te klonen.' })}
+      ${field('Branch, tag of commit', textField('ref', state.ref), { errorId: 'e-ref', hint: 'Leeg is main.' })}
+      ${field('Pad naar het manifest', textField('path', state.path), { errorId: 'e-path', hint: 'In een manifestrepository staat bron.yaml bovenin. In de repository fieldlab-2026 zelf is het packages/wetsproces/bron.yaml.' })}`,
     checks: (f) => [
       [f.querySelector('[name="repoUrl"]'), repoUrlError],
       [f.querySelector('[name="ref"]'), refError],

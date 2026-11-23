@@ -45,8 +45,9 @@ type Manifest struct {
 	// +optional
 	Ref string `json:"ref,omitempty"`
 
-	// Path of the manifest inside the repository.
-	// +kubebuilder:default="packages/wetsproces/bron.yaml"
+	// Path of the manifest inside the repository: bron.yaml at the root of a
+	// manifest repository, packages/wetsproces/bron.yaml in regelrecht itself.
+	// +kubebuilder:default="bron.yaml"
 	// +kubebuilder:validation:Pattern=`^[^/\s]\S*$`
 	// +optional
 	Path string `json:"path,omitempty"`

@@ -3,8 +3,8 @@ apiVersion: fundament.io/v1
 kind: PluginDefinition
 metadata:
   name: wetsproces
-  displayName: Wetsproces
-  version: v0.2.0
+  displayName: RegelRecht Wetsproces
+  version: v0.2.1
   description: >-
     Offers the regelrecht wetsprocessysteem to the projects of a cluster.
     Installed once per cluster; project members then create a wetsproces per
@@ -105,6 +105,12 @@ spec:
       - apiGroups: [helm.toolkit.fluxcd.io]
         resources: [helmreleases]
         verbs: [get, list, watch, create, patch, update, delete]
+      # The pods of each release, read only: a container that keeps failing
+      # turns the Wetsproces Failed with its reason, long before Helm's
+      # install timeout.
+      - apiGroups: ['']
+        resources: [pods]
+        verbs: [get, list, watch]
       # The wizard makes the Secret with the token of a private case
       # repository. Create only: neither the plugin nor its pages read one.
       - apiGroups: ['']

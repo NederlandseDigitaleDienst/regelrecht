@@ -35,7 +35,7 @@ test('a public casus on the latest version leaves out what the plugin defaults',
     kind: 'Wetsproces',
     metadata: { name: 'zorgtoeslag', namespace: 'tnt-voorbeeld--wetsproces' },
     spec: {
-      manifest: { repoUrl: 'https://git.example.org/casus/a.git', ref: 'main', path: 'packages/wetsproces/bron.yaml' },
+      manifest: { repoUrl: 'https://git.example.org/casus/a.git', ref: 'main', path: 'bron.yaml' },
       hostname: 'zorgtoeslag',
     },
   });

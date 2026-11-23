@@ -1,4 +1,4 @@
-# Wetsproces Fundament plugin
+# RegelRecht Wetsproces, a Fundament plugin
 
 A [Fundament](https://github.com/fundament-oss/fundament) plugin that offers
 the wetsprocessysteem (`packages/wetsproces`) to the projects of a cluster. It
@@ -23,32 +23,32 @@ CRD when it starts.
 apiVersion: wetsproces.regelrecht.nl/v1alpha1
 kind: Wetsproces
 metadata:
-  name: zorgtoeslag
-  namespace: tnt-rr-voorbeeld--wetsproces
+  name: parkeerkaart
+  namespace: tnt-rr-voorbeeld--parkeerkaart
 spec:
   manifest:
-    repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
+    repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/wetsproces-parkeerkaart
     ref: main
-    path: packages/wetsproces/bron.yaml
+    path: bron.yaml
     # For a private repository: a Secret with the keys username and token.
     # credentialsSecretRef:
-    #   name: zorgtoeslag-repo
+    #   name: parkeerkaart-repo
   # Empty runs the latest build of main; a full commit hash pins one.
   version: ''
   theme:
-    accentColor: paars
-  hostname: zorgtoeslag
+    accentColor: donkergroen
+  hostname: parkeerkaart
 status:
   phase: Ready
-  url: https://zorgtoeslag.cluster-a.fieldlab2026.nl/
-  backofficeUrl: https://zorgtoeslag-medewerkers.cluster-a.fieldlab2026.nl/
+  url: https://parkeerkaart.cluster-a.fieldlab2026.nl/
+  backofficeUrl: https://parkeerkaart-medewerkers.cluster-a.fieldlab2026.nl/
 ```
 
 | Field | What it is |
 |---|---|
 | `manifest.repoUrl` | HTTPS URL of the git repository with the case, without credentials |
 | `manifest.ref` | branch, tag or full commit, `main` by default; a commit pins the case to one version |
-| `manifest.path` | path of the source manifest (`bron.yaml`) in that repository. The case file and the articles it runs are named there, so the wizard does not ask for them |
+| `manifest.path` | path of the source manifest in that repository, `bron.yaml` by default: a manifest repository such as `regelrecht/wetsproces-parkeerkaart` has it at the root, and this repository has it at `packages/wetsproces/bron.yaml`. The case file and the articles it runs are named there, so the wizard does not ask for them |
 | `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository |
 | `version` | the regelrecht commit whose wetsproces image runs, the full 40-character hash. Empty follows the latest build of main |
 | `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
@@ -86,11 +86,34 @@ plugin writes the HelmRelease's `Ready` condition back into the status: phase
 `Ready` once the release is ready, `Failed` once Flux has stalled on it or the
 spec is refused, `Pending` before that.
 
+### A wetsproces that does not start
+
+Helm waits for the pods of an install until its timeout, and says nothing
+before that. The plugin does not wait for it: it watches the pods of each
+release, and as soon as a container keeps stopping (`CrashLoopBackOff`), an
+image cannot be pulled, or a Secret the pod needs is missing, it sets the
+Wetsproces to `Failed` with the reason `NotStarting`. The message names the
+container and gives the last line it wrote, which the chart keeps in the
+container status (`terminationMessagePolicy: FallbackToLogsOnError`). A
+manifest path that is not in the repository therefore reads, within a minute:
+
+```
+container wetsproces: wetsproces: the case: the manifest does not read: ...
+```
+
+Helm goes on trying. Its timeout is 3 minutes instead of the default 5, so a
+corrected spec, or a new Wetsproces in place of the failed one, takes over
+sooner. Once the pods run, the status follows the release again.
+
+The plugin does not check the path before it makes the release. That would
+need git and internet access in the plugin pod, and read access to the Secret
+of a private repository, for one kind of mistake; the pods report every kind.
+
 The chart then runs what it runs by default since PR #7: a CloudNativePG
 `Cluster` as the database of the release, one instance for citizens and one for
-employees, each on its own address. Behind the shared Gateway (below) a release
-needs no public address of its own, so two wetsprocessen take no more IP
-addresses than one.
+employees, each on its own address. Its hosts are listeners on the cluster's
+shared Gateway (below), so a release needs no public address of its own, and
+two wetsprocessen take no more IP addresses than one.
 
 ### Deleting a wetsproces deletes its data
 
@@ -233,7 +256,8 @@ The operator fills the client secrets and the test password in from the Secret
 
 ## Console
 
-The plugin adds **Wetsprocessen** to the project sidebar, with pages of its own
+The plugin adds **Wetsprocessen** to the project sidebar, under the heading
+**RegelRecht Wetsproces** (the `displayName` of the definition), with pages of its own
 under `console/`: a list, a detail page with the addresses and the status, and
 a wizard that asks, one step at a time, for the case, the access, the version,
 the accent color and the address, and shows what it will make before it makes
@@ -286,8 +310,9 @@ Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept
 to the namespaces of a project. The rules in `definition.yaml` say per group
 why the plugin needs them. In short: create and get the plugin's own CRD,
 manage two ClusterRoles by name, manage Wetsproces objects and their status,
-manage Flux `GitRepository` and `HelmRelease` objects, and create Secrets. The
-last one is for the wizard: a console page acts with the rights the user and the
+manage Flux `GitRepository` and `HelmRelease` objects, read pods, and create
+Secrets. Pods are read to report a wetsproces that does not start. Secrets are
+for the wizard: a console page acts with the rights the user and the
 plugin share, so the plugin must hold every right a page uses. Neither the
 plugin nor its pages read a Secret.
 

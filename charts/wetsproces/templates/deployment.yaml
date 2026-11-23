@@ -57,6 +57,9 @@ spec:
       initContainers:
         - name: clone-case
           image: {{ .Values.gitImage.ref }}
+          # A failed clone leaves its last lines in the container status, where
+          # the Fundament plugin reads why a wetsproces does not start.
+          terminationMessagePolicy: FallbackToLogsOnError
           imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
           # Fetch rather than clone: `git clone --branch` takes a branch or a
           # tag, `git fetch` also a commit, so a release can pin the case to
@@ -127,6 +130,9 @@ spec:
       containers:
         - name: wetsproces
           image: {{ .Values.image.ref }}
+          # The server's reason to stop (a manifest it cannot read, a case it
+          # refuses) lands in the container status, for the plugin to show.
+          terminationMessagePolicy: FallbackToLogsOnError
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: WETSPROCES_MODE

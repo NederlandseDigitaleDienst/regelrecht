@@ -11,9 +11,9 @@ export const WETSPROCES_RESOURCE = {
 
 export const SECRET_RESOURCE = { group: '', version: 'v1', resource: 'secrets' };
 
-export const DEFAULT_REPO_URL = 'https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git';
 export const DEFAULT_REF = 'main';
-export const DEFAULT_PATH = 'packages/wetsproces/bron.yaml';
+// A manifest repository has its bron.yaml at the root.
+export const DEFAULT_PATH = 'bron.yaml';
 
 // The themes of the NLDD design system, which the server takes as its
 // accent colour (packages/wetsproces/src/theme.rs). The CRD lists the same.
@@ -71,7 +71,7 @@ export function refError(value) {
 export function pathError(value) {
   if (!value) return null;
   if (value.startsWith('/') || value.includes('..') || /\s/.test(value)) {
-    return 'Een pad binnen de repository, zoals packages/wetsproces/bron.yaml.';
+    return 'Een pad binnen de repository, zoals bron.yaml.';
   }
   return null;
 }
