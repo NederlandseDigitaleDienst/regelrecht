@@ -1,0 +1,53 @@
+---
+# Builds the wetsproces image from packages/wetsproces/Dockerfile and pushes
+# it to the registry of the organisation, as
+# code.digitaledienst.overheid.nl/regelrecht/wetsproces:main and :<commit>.
+# deploy/fieldlab/wetsproces/ runs that image on the Fundament cluster.
+#
+# This runs on `vm`, because `docker build` needs a Docker daemon, and only
+# from main: the fieldlab rules allow a push to the registry from main or a tag
+# only. Each VM starts empty, so every build compiles from scratch. The image
+# is public, like every image of the organisation, so it holds no secrets.
+name: wetsproces image
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/**
+      - frontend-wetsproces/**
+      - schema/**
+      - package.json
+      - package-lock.json
+      - .forgejo/workflows/wetsproces-image.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: vm
+    timeout-minutes: 60
+    container:
+      image: docker:29-cli@sha256:5e6baf67325a79f64ed3bed6863954d5e05d0f3d4e57cbdb14809346814bbfdb
+    steps:
+      # actions/checkout needs node, which this image does not have.
+      - name: Check out
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          git clone --depth 1 --branch "${{ forgejo.ref_name }}" \
+            "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" .
+
+      - name: Build and push
+        env:
+          SERVER: ${{ forgejo.server_url }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          HOST="${SERVER#https://}"
+          IMAGE="${HOST}/regelrecht/wetsproces"
+          docker build --platform linux/amd64 -f packages/wetsproces/Dockerfile \
+            -t "${IMAGE}:main" -t "${IMAGE}:${{ forgejo.sha }}" .
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$HOST" -u "$REGISTRY_USER" --password-stdin
+          docker push "${IMAGE}:${{ forgejo.sha }}"
+          docker push "${IMAGE}:main"
+          docker logout "$HOST"

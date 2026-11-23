@@ -1,0 +1,67 @@
+---
+# The server in test mode: a clock an admin can move, the test login instead
+# of Keycloak, and both sides (citizen and back office) on one address. The
+# chronicles live in PostgreSQL, so they survive a restart. What each variable
+# does: docs/src/content/docs/components/wetsproces.md#modes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wetsproces
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wetsproces
+  template:
+    metadata:
+      labels:
+        app: wetsproces
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wetsproces
+          image: code.digitaledienst.overheid.nl/regelrecht/wetsproces
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: WETSPROCES_MODE
+              value: test
+            - name: WETSPROCES_SURFACE
+              value: all
+            - name: WETSPROCES_LOGIN
+              value: testlogin
+            - name: WETSPROCES_STORE
+              value: postgres
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: wetsproces-db-app
+                  key: uri
+            - name: RUST_LOG
+              value: info
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
