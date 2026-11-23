@@ -15,10 +15,12 @@ on:
   workflow_dispatch:
 
 # A job on `default` sees 64 CPUs but may use 6 GiB of memory. cargo starts a
-# rustc per CPU, and with 64 of them rustc was killed (exit code 137) in the
-# database tests. vitest gets --maxWorkers for the same reason.
+# rustc per CPU and the test harness a thread per CPU; with 64 of either, the
+# database tests were killed (exit code 137). vitest gets --maxWorkers for the
+# same reason.
 env:
   CARGO_BUILD_JOBS: 16
+  RUST_TEST_THREADS: 8
 
 jobs:
   rust-lint:
