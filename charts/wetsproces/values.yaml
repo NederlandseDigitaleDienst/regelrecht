@@ -6,9 +6,11 @@ host: ''
 
 image:
   # Built from this repository by .forgejo/workflows/wetsproces-image.yml, which
-  # tags every build on main with its commit. The screens come from the image
-  # and the case from case.ref, so keep the two close: a case from a later
-  # commit than the image may need code the image does not have yet.
+  # tags every build on main with its commit and then sets this line (and
+  # appVersion in Chart.yaml) to that build, in a commit of its own on main. A
+  # release that leaves image.ref out of its values follows main that way. The
+  # screens come from the image and the case from case.ref; with case.ref main
+  # the two stay close.
   ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7
   pullPolicy: IfNotPresent
 

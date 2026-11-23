@@ -3,6 +3,12 @@
 # it to the registry of the organisation, as
 # code.digitaledienst.overheid.nl/regelrecht/wetsproces:main and :<commit>.
 #
+# After a push from main, the job `chart` points charts/wetsproces at the new
+# image and commits that to main. Flux follows the chart on main, so the
+# deployment on the cluster picks up every build without credentials for the
+# cluster in CI. A push with the job's own token starts no workflow, so the
+# commit cannot loop; `[skip ci]` in its message says the same to a reader.
+#
 # This runs on `vm`, because `docker build` needs a Docker daemon, and only
 # from main: the fieldlab rules allow a push to the registry from main or a tag
 # only. Each VM starts empty, so every build compiles from scratch. The image
@@ -50,3 +56,52 @@ jobs:
           docker push "${IMAGE}:${{ forgejo.sha }}"
           docker push "${IMAGE}:main"
           docker logout "$HOST"
+
+  chart:
+    needs: build
+    if: forgejo.ref == 'refs/heads/main'
+    runs-on: default
+    timeout-minutes: 10
+    container:
+      image: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
+    steps:
+      - name: Point the chart at the new image
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+          SHA: ${{ forgejo.sha }}
+        run: |
+          set -eu
+          HOST="${SERVER#https://}"
+          NEW="${HOST}/regelrecht/wetsproces:${SHA}"
+          SHORT="$(printf '%s' "$SHA" | cut -c1-8)"
+          VALUES=charts/wetsproces/values.yaml
+          # Without blobs: the history is enough to compare two builds.
+          git clone -q --filter=blob:none --branch main \
+            "https://x:${TOKEN}@${HOST}/${{ forgejo.repository }}.git" repo
+          cd repo
+          git config user.name "Forgejo Actions"
+          git config user.email "actions@noreply.${HOST}"
+          for attempt in 1 2 3 4 5; do
+            CURRENT="$(sed -n 's|^  ref: .*/regelrecht/wetsproces:\([0-9a-f]\{40\}\)$|\1|p' "$VALUES")"
+            if [ -z "$CURRENT" ]; then
+              echo "no image.ref with a commit tag in ${VALUES}"; exit 1
+            fi
+            if [ "$CURRENT" = "$SHA" ]; then
+              echo "the chart already runs ${SHORT}"; exit 0
+            fi
+            # Builds can finish out of order; never replace a later build.
+            if git merge-base --is-ancestor "$SHA" "$CURRENT" 2>/dev/null; then
+              echo "the chart runs ${CURRENT}, which is later than ${SHA}; leaving it"; exit 0
+            fi
+            sed -i "s|^  ref: .*/regelrecht/wetsproces:[0-9a-f]\{40\}\$|  ref: ${NEW}|" "$VALUES"
+            sed -i "s|^appVersion: .*|appVersion: ${SHORT}|" charts/wetsproces/Chart.yaml
+            git commit -q -am "chore(dev): wetsproces-image ${SHORT} in de chart [skip ci]"
+            if git push -q origin HEAD:main; then
+              echo "the chart now runs ${SHORT}"; exit 0
+            fi
+            echo "main moved on (attempt ${attempt}); trying again on the new main"
+            git fetch -q origin main
+            git reset -q --hard origin/main
+          done
+          echo "could not push to main after 5 attempts"; exit 1

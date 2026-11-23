@@ -98,11 +98,17 @@ the `FUNP_<name>` environment variable.
 `CASE_REPO_URL` has a default and is therefore not marked required: a
 Fundament config schema refuses a key that is both.
 
-The default image is built from this repository's `main` by
+The default `IMAGE` is a build of this repository's `main` by
 `.forgejo/workflows/wetsproces-image.yml`, which tags each build with its
-commit: here `f619755c`, which has the screens of the fieldlab so far. To roll
-out a later build, set `IMAGE` to its tag; the screens come from the image,
-and only the case comes from `CASE_REF`.
+commit: here `f619755c`. The plugin pins it, so an installation runs the same
+code until its `IMAGE` changes; the screens come from the image, and only the
+case comes from `CASE_REF`.
+
+The chart itself follows `main`: after each build, the same workflow sets
+`image.ref` in `charts/wetsproces/values.yaml` to the new image, in a commit of
+its own on `main`. A `HelmRelease` that reads the chart from `main` and leaves
+`image` out of its values therefore rolls out every build, within the interval
+of its `GitRepository`.
 
 An install config for `cluster-a`, as a `PluginInstallation` takes it:
 
