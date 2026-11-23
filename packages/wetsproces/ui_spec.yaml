@@ -35,6 +35,12 @@ elements:
   - id: UI1
     element: aanvraagformulier
     fields:
+      - name: kaart_als_bestuurder
+        group: Uw aanvraag
+        label: Ik vraag de kaart aan als bestuurder van de auto
+      - name: kaart_als_passagier
+        group: Uw aanvraag
+        label: Ik vraag de kaart aan als passagier
       - name: bsn_aanvrager
         group: Gegevens van de aanvrager
         visibility: shown
@@ -49,12 +55,6 @@ elements:
         group: Gegevens van de aanvrager
         label: Adres
         help: Straat, huisnummer, postcode en woonplaats.
-      - name: kaart_als_bestuurder
-        group: Uw aanvraag
-        label: Ik vraag de kaart aan als bestuurder van de auto
-      - name: kaart_als_passagier
-        group: Uw aanvraag
-        label: Ik vraag de kaart aan als passagier
       # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
       # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
       # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren
@@ -65,10 +65,12 @@ elements:
         fill: {by: system, value: gehandicaptenparkeerkaart}
         label: Wat vraagt u aan?
       # Awb 4:2, eerste lid, onder b: de dag van indiening, volgens de klok
-      # van de server.
+      # van de server. Niet als veld op het formulier: het scherm zet haar als
+      # zin onder de vragen, boven de knop, want zij vraagt niets van de
+      # burger. De aanvraag bevat haar wel.
       - name: dagtekening
         group: Over deze aanvraag
-        visibility: shown
+        visibility: hidden
         fill: {by: system, submission: date}
         label: Dagtekening
       # Awb 4:2, eerste lid, aanhef: de ondertekening. Geen vinkje: het

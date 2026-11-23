@@ -4,7 +4,7 @@
 // NLDD pattern "bewerken in een sheet" does it: the table stays in view, the
 // way out sits in the title bar, and "Bewaar" under the last field. Every
 // column may stay empty; an empty cell is null. A yes-or-no column therefore
-// asks ja, nee or leeg in a dropdown, not with a switch, which knows only on
+// asks ja, nee or leeg in a dropdown, not with a checkbox, which knows only on
 // and off. A row added or removed, or a row saved, gives the form the whole
 // table anew; removing the last row empties the field, and saving a new row
 // with nothing filled in adds nothing. A table the system fills

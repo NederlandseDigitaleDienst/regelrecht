@@ -747,12 +747,12 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
         }),
         "{systeem}"
     );
-    // The requested decision and the signature are not on the form, but
-    // the forms still say how the system fills them and with what, so a
+    // The requested decision, the signature and the date are not on the form,
+    // but the forms still say how the system fills them and with what, so a
     // screen that shows a recorded application names their origin.
     assert_eq!(
         aanvraag["verborgen"],
-        json!(["aanvraag_ondertekend", "gevraagde_beschikking"])
+        json!(["aanvraag_ondertekend", "dagtekening", "gevraagde_beschikking"])
     );
     // The citizen fills in what the system does not.
     for veld in [
@@ -771,7 +771,7 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
         .collect();
     assert_eq!(
         volgorde[..3],
-        ["bsn_aanvrager", "naam_aanvrager", "adres_aanvrager"]
+        ["kaart_als_bestuurder", "kaart_als_passagier", "bsn_aanvrager"]
     );
     assert_eq!(
         vormen["teksten"]["adres_aanvrager"]["group"],

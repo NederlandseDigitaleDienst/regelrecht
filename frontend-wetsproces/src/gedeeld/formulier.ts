@@ -178,7 +178,7 @@ export const tegenBesluitVelden = (
 
 /**
  * What a form starts with: a yes-or-no the law requires starts at no, as an
- * untouched switch shows it. Every other field starts empty, and one the law
+ * untouched checkbox shows it. Every other field starts empty, and one the law
  * lets be empty may stay so.
  */
 export function beginwaarden(velden: Schermveld[]): Record<string, unknown> {

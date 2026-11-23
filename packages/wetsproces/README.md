@@ -36,7 +36,7 @@ Beginnen:
 
 1. Admin, tabblad Simulatie: klik "Testomgeving leegmaken" en bevestig met "Leegmaken".
 2. Burger: kies op de Gesimuleerde DigiD de testpersoon Anna Voorbeeld en klik "Inloggen als deze testpersoon".
-3. Burger: klik rechtsboven op "Nieuwe aanvraag". Zet in de sheet "Ik vraag de kaart aan als bestuurder van de auto" aan, vul het adres in en klik "Aanvraag indienen".
+3. Burger: klik rechtsboven op "Nieuwe aanvraag". Zet in de sheet "Ik vraag de kaart aan als bestuurder van de auto" aan, vul het adres in en klik "Dien aanvraag in".
 
 Advies en besluit:
 
@@ -76,7 +76,7 @@ Opnieuw beslissen:
 Begin na route 1, met een uitgereikte kaart.
 
 1. Burger, Mijn dossier: klik "Kaart kwijt?" onder de kaart.
-2. Burger: vul in "Kaart kwijt of gestolen" de datum en wat er gebeurde in, zet de verklaring aan en klik "Aanvraag indienen".
+2. Burger: vul in "Kaart kwijt of gestolen" de datum en wat er gebeurde in, zet de verklaring aan en klik "Dien aanvraag in".
 3. Medewerker, Werkvoorraad: open de nieuwe aanvraag en klik "Besluit nemen". Het systeem bestelt het duplicaat.
 4. Medewerker, onder "Na de toekenning": leg de ontvangst vast en daarna de uitreiking.
 5. Burger, Mijn dossier: bij de oude kaart staat "Deze kaart geldt niet meer"; "Kaart kwijt?" staat nu alleen bij het duplicaat.

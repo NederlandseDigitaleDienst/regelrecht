@@ -30,7 +30,7 @@ function teken(teksten = {}) {
 describe('SpecFormulier', () => {
   it('draws a field per question of the law, by its type, without what the system fills or the spec hides', () => {
     const w = teken();
-    expect(w.findAll('nldd-switch-field').map((e) => e.attributes('label'))).toEqual(['Wil een vergunning']);
+    expect(w.findAll('nldd-checkbox-field').map((e) => e.attributes('label'))).toEqual(['Wil een vergunning']);
     // A yes or no that may stay empty asks ja, nee or nothing.
     const keuze = w.findAll('nldd-form-field').map((e) => e.attributes('label'));
     expect(keuze).toEqual(['Ondertekend', 'Dagtekening']);
@@ -56,7 +56,7 @@ describe('SpecFormulier', () => {
       props: { velden: invullen, waarden: {}, volgorde: ['dagtekening', 'wil_een_vergunning', 'ondertekend'] },
     });
     expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over deze aanvraag', 'Uw aanvraag']);
-    const labels = w.findAll('nldd-form-field, nldd-switch-field').map((e) => e.attributes('label'));
+    const labels = w.findAll('nldd-form-field, nldd-checkbox-field').map((e) => e.attributes('label'));
     expect(labels).toEqual(['Dagtekening', 'Ondertekend', 'Wil een vergunning']);
   });
 
@@ -67,7 +67,7 @@ describe('SpecFormulier', () => {
     }, '999990019');
     const w = mount(SpecFormulier, { props: { velden: groepen.flatMap((g) => g.velden), waarden: {}, volgorde: ['nummer_aanvrager', 'wil_een_vergunning'] } });
     expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over u']);
-    const eerste = w.findAll('nldd-form-field, nldd-switch-field')[0]!;
+    const eerste = w.findAll('nldd-form-field, nldd-checkbox-field')[0]!;
     expect(eerste.attributes('label')).toBe('Nummer aanvrager');
     expect(eerste.find('nldd-text-field').attributes('value')).toBe('999990019');
     expect(eerste.find('nldd-text-field').attributes()).toHaveProperty('readonly');
@@ -76,17 +76,17 @@ describe('SpecFormulier', () => {
     expect(w.emitted('zet')).toBeUndefined();
   });
 
-  it('puts the help of a switch under it, in a field without a second label', () => {
+  it('puts the help of a checkbox under it, in a field without a second label', () => {
     const w = teken({ wil_een_vergunning: { help: 'Zet dit aan als u er een wilt.' } });
-    const schakelaar = w.find('nldd-switch-field');
-    expect(schakelaar.attributes('label')).toBe('Wil een vergunning');
-    // A rendered switch always has a parent: the test mounts it inside the form.
-    const veld = schakelaar.element.parentElement!;
+    const vinkje = w.find('nldd-checkbox-field');
+    expect(vinkje.attributes('label')).toBe('Wil een vergunning');
+    // A rendered checkbox always has a parent: the test mounts it inside the form.
+    const veld = vinkje.element.parentElement!;
     expect(veld.tagName.toLowerCase()).toBe('nldd-form-field');
     expect(veld.getAttribute('label')).toBeNull();
     expect(veld.querySelector('nldd-form-field-help-text')?.textContent).toBe('Zet dit aan als u er een wilt.');
-    // Without help a switch stands on its own, as before.
-    expect(teken().find('nldd-switch-field').element.parentElement?.tagName.toLowerCase()).not.toBe('nldd-form-field');
+    // Without help a checkbox stands on its own, as before.
+    expect(teken().find('nldd-checkbox-field').element.parentElement?.tagName.toLowerCase()).not.toBe('nldd-form-field');
   });
 
   it('sends a change of a field up by its name', async () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One field of a form that follows from the law and the UI spec. A yes or no
 // that may stay empty, and every judgement of the authority (`oordeel`),
-// asks ja, nee or empty; a switch knows only on and off. Every other field
+// asks ja, nee or empty; a checkbox knows only on and off. Every other field
 // is the shared VeldInvoer of the chronolexografie poc.
 import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/OordeelKeuze.vue';
 import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';

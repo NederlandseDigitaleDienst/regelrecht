@@ -4,7 +4,7 @@
 // such as eurocent. An empty text or date field is `undefined`: the submission
 // then leaves it out, and the cell names it in `missing` (Awb 4:5).
 // `herkomst` is the line under a prefilled field: which cell it comes from, or
-// that the applicant changed it (voorinvulling.ts). A switch (yes or no)
+// that the applicant changed it (voorinvulling.ts). A checkbox (yes or no)
 // carries its own label; with a line under it, it stands in an
 // nldd-form-field without a label of its own, which holds that line. A table
 // (an array with `kolommen`, schema v0.8.20) is a TabelInvoer. A field the
@@ -68,21 +68,21 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
     @update:model-value="emit('update:modelValue', $event)"
   />
   <nldd-form-field v-else-if="veld.type === 'boolean' && onder">
-    <nldd-switch-field
+    <nldd-checkbox-field
       :label="naam"
       :checked="modelValue === true"
       :disabled="alleenLezen || undefined"
       @change="zet(aan($event))"
-    ></nldd-switch-field>
+    ></nldd-checkbox-field>
     <nldd-form-field-help-text>{{ onder }}</nldd-form-field-help-text>
   </nldd-form-field>
-  <nldd-switch-field
+  <nldd-checkbox-field
     v-else-if="veld.type === 'boolean'"
     :label="naam"
     :checked="modelValue === true"
     :disabled="alleenLezen || undefined"
     @change="zet(aan($event))"
-  ></nldd-switch-field>
+  ></nldd-checkbox-field>
   <nldd-form-field v-else :label="naam" :supporting-label="veld.basis" :optional="veld.mag_leeg">
     <nldd-date-field
       v-if="veld.type === 'date'"

@@ -11,6 +11,7 @@
 // hides stays off the form.
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { longDate } from '../gedeeld/datum';
 import { aanvraagformulier, aanvraagVelden, beginwaarden } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
@@ -36,7 +37,19 @@ const melding = ref('');
 // One key per filled-in form: a click sent twice records one application.
 let sleutel = nieuweSleutel();
 
-const titel = computed(() => overToekenning.value?.titel ?? `Aanvraag ${casus.value?.titel?.toLowerCase() ?? ''}`.trim());
+// What this application is about, in a sentence: the thing the case is named
+// after, and the cell it is asked from. The title names a thing you apply for
+// ("Gehandicaptenparkeerkaart"), so it takes an article here; a case whose
+// title does not take "een" needs its own words. An application about a grant
+// says it in the case's own words (`overToekenning.uitleg`), so it gets none.
+const inleiding = computed(() => {
+  const c = casus.value;
+  if (!c?.titel || overToekenning.value) return '';
+  return (
+    `U vraagt een ${c.titel.toLowerCase()} aan bij ${c.cel_naam}. Hieronder staan de gegevens die de wet voor deze ` +
+    'beslissing nodig heeft; bij elke vraag staat op welk artikel zij berust. Wat al bekend is, hoeft u niet in te vullen.'
+  );
+});
 const vorm = computed(() => (artikel.value && vormen.value ? vormen.value.indieningen[artikel.value] : undefined));
 const formulier = computed(() =>
   vorm.value
@@ -92,10 +105,10 @@ async function indienen() {
   <Teleport to="body">
     <nldd-sheet width="720px" :open="open || undefined" @close="emit('sluit')">
       <nldd-page>
-        <nldd-top-title-bar slot="header" heading-level="2" :text="titel" dismiss-text="Sluit"></nldd-top-title-bar>
+        <nldd-top-title-bar slot="header" heading-level="2" text="Nieuwe aanvraag" dismiss-text="Sluit"></nldd-top-title-bar>
         <nldd-simple-section>
           <nldd-container gap="24">
-            <nldd-text v-if="casus" color="secondary">{{ `Bij ${casus.cel_naam}` }}</nldd-text>
+            <nldd-text v-if="inleiding">{{ inleiding }}</nldd-text>
             <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
             <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het formulier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
             <template v-else-if="formulier">
@@ -107,7 +120,6 @@ async function indienen() {
                 text="Het is niet duidelijk waar deze aanvraag over gaat"
                 supporting-text="Begin bij het besluit in uw dossier."
               ></nldd-inline-dialog>
-              <nldd-text color="secondary">De vragen komen uit de wet. Onder elke vraag staat het artikel waar zij vandaan komt.</nldd-text>
               <nldd-inline-dialog
                 v-if="vorm?.systeem_fout"
                 icon="warning"
@@ -116,9 +128,10 @@ async function indienen() {
                 :supporting-text="vorm.systeem_fout"
               ></nldd-inline-dialog>
               <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
+              <nldd-text v-if="casus">Dagtekening: {{ longDate(casus.vandaag) }}, de dag van indiening volgens de klok van het systeem.</nldd-text>
               <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
               <nldd-button-group orientation="horizontal">
-                <nldd-button appearance="primary" text="Aanvraag indienen" :loading="bezig || undefined" @click="indienen"></nldd-button>
+                <nldd-button appearance="primary" text="Dien aanvraag in" :loading="bezig || undefined" @click="indienen"></nldd-button>
               </nldd-button-group>
             </template>
           </nldd-container>
