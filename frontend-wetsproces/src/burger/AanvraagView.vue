@@ -9,13 +9,16 @@
 // read-only, with the value the server will record and its origin; the
 // server fills it itself, so the form does not send it. What the UI spec
 // hides stays off the form.
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { aanvraagformulier, aanvraagVelden, beginwaarden } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import { burgerApi } from './api';
 import { useBurger } from './useBurger';
+
+const props = defineProps<{ open: boolean }>();
+const emit = defineEmits<{ sluit: [] }>();
 
 const router = useRouter();
 const route = useRoute();
@@ -48,10 +51,19 @@ const velden = computed(() =>
   ),
 );
 
-onMounted(async () => {
-  await laad();
-  if (formulier.value) waarden.value = beginwaarden(formulier.value.invullen);
-});
+// The sheet stays in the DOM so it animates; it loads the form when it opens,
+// and an application left half-filled does not come back on the next open.
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return;
+    melding.value = '';
+    sleutel = nieuweSleutel();
+    await laad();
+    waarden.value = formulier.value ? beginwaarden(formulier.value.invullen) : {};
+  },
+  { immediate: true },
+);
 
 async function indienen() {
   if (!vorm.value || !casus.value) return;
@@ -77,42 +89,41 @@ async function indienen() {
 </script>
 
 <template>
-  <nldd-page landmarks="page" sticky-header :accessible-label="titel">
-    <nldd-top-title-bar slot="header" :text="titel" collapse-anchor="aanvraag-titel"></nldd-top-title-bar>
-    <nldd-simple-section>
-      <nldd-title id="aanvraag-titel" size="display-3"><h3>{{ titel }}</h3></nldd-title>
-      <nldd-text v-if="casus" color="secondary">{{ `Bij ${casus.cel_naam}` }}</nldd-text>
-      <nldd-spacer size="16"></nldd-spacer>
-      <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
-      <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het formulier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
-      <nldd-container v-else-if="formulier" gap="24">
-        <nldd-text v-if="overToekenning">{{ overToekenning.uitleg }}</nldd-text>
-        <nldd-inline-dialog
-          v-if="overToekenning && !op"
-          icon="warning"
-          icon-color="critical"
-          text="Het is niet duidelijk waar deze aanvraag over gaat"
-          supporting-text="Begin bij het besluit in uw dossier."
-        ></nldd-inline-dialog>
-        <nldd-text color="secondary">De vragen komen uit de wet. Onder elke vraag staat het artikel waar zij vandaan komt.</nldd-text>
-        <nldd-inline-dialog
-          v-if="vorm?.systeem_fout"
-          icon="warning"
-          icon-color="critical"
-          text="Niet alles wat de gemeente invult, is te tonen"
-          :supporting-text="vorm.systeem_fout"
-        ></nldd-inline-dialog>
-        <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
-        <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
-        <nldd-button-group orientation="horizontal">
-          <nldd-button
-            appearance="primary"
-            text="Aanvraag indienen"
-            :loading="bezig || undefined"
-            @click="indienen"
-          ></nldd-button>
-        </nldd-button-group>
-      </nldd-container>
-    </nldd-simple-section>
-  </nldd-page>
+  <Teleport to="body">
+    <nldd-sheet width="720px" :open="open || undefined" @close="emit('sluit')">
+      <nldd-page>
+        <nldd-top-title-bar slot="header" heading-level="2" :text="titel" dismiss-text="Sluit"></nldd-top-title-bar>
+        <nldd-simple-section>
+          <nldd-container gap="24">
+            <nldd-text v-if="casus" color="secondary">{{ `Bij ${casus.cel_naam}` }}</nldd-text>
+            <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
+            <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het formulier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
+            <template v-else-if="formulier">
+              <nldd-text v-if="overToekenning">{{ overToekenning.uitleg }}</nldd-text>
+              <nldd-inline-dialog
+                v-if="overToekenning && !op"
+                icon="warning"
+                icon-color="critical"
+                text="Het is niet duidelijk waar deze aanvraag over gaat"
+                supporting-text="Begin bij het besluit in uw dossier."
+              ></nldd-inline-dialog>
+              <nldd-text color="secondary">De vragen komen uit de wet. Onder elke vraag staat het artikel waar zij vandaan komt.</nldd-text>
+              <nldd-inline-dialog
+                v-if="vorm?.systeem_fout"
+                icon="warning"
+                icon-color="critical"
+                text="Niet alles wat de gemeente invult, is te tonen"
+                :supporting-text="vorm.systeem_fout"
+              ></nldd-inline-dialog>
+              <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
+              <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
+              <nldd-button-group orientation="horizontal">
+                <nldd-button appearance="primary" text="Aanvraag indienen" :loading="bezig || undefined" @click="indienen"></nldd-button>
+              </nldd-button-group>
+            </template>
+          </nldd-container>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-sheet>
+  </Teleport>
 </template>

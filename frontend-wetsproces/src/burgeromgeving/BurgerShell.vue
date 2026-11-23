@@ -6,7 +6,7 @@ import { inject, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { foutTekst } from '../gedeeld/http';
 import Schil from '../gedeeld/Schil.vue';
-import { tabsVan } from '../gedeeld/schil';
+import { actieVan, tabsVan, titelVan } from '../gedeeld/schil';
 import { VERVOER } from './injectie';
 import type { Toegang } from './vervoer';
 
@@ -36,6 +36,8 @@ async function afmelden() {
 <template>
   <Schil
     :tabs="tabsVan(route)"
+    :titel="titelVan(route)"
+    :actie="actieVan(route)"
     :naam="toegang.binnen ? toegang.naam || 'Burger' : null"
     :afmeld-tekst="vervoer?.afmelden.tekst"
     @afmelden="afmelden"

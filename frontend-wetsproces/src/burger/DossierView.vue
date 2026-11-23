@@ -23,6 +23,8 @@ import { burgerStand, doorHetSysteem as doorHetSysteemTekst } from '../gedeeld/v
 import { foutTekst } from '../gedeeld/http';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
 import type { Casus, Gram, Tijdlijn, Vervolgaanvraag } from '../gedeeld/types';
+import { wijsDeWeg } from '../gedeeld/wegwijs';
+import AanvraagView from './AanvraagView.vue';
 import { burgerApi } from './api';
 import BesluitPaneel from './BesluitPaneel.vue';
 import StukPaneel from './StukPaneel.vue';
@@ -97,6 +99,14 @@ const lijsten = computed(() => {
   }));
 });
 
+// Someone with nothing in their dossier has not applied before. The screen
+// then shows nothing at all — no sidebar, no empty pane — and the shell points
+// at its button instead (gedeeld/wegwijs.ts): on a screen with one thing to do,
+// that one thing is the screen. A dossier that fails to load is not empty, so
+// the error keeps its place.
+const leeg = computed(() => !laden.value && !fout.value && lijsten.value.length === 0);
+watch(leeg, (l) => (wijsDeWeg.value = l), { immediate: true });
+
 /** A record of the dossier in words, by what the server says it is. */
 const omschrijf = (g: Gram) => (casus.value ? omschrijving(g, casus.value, rolVan(g, standVanDossier.value)) : g.kind);
 
@@ -165,7 +175,7 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
 </script>
 
 <template>
-  <nldd-navigation-split-view @back="router.push('/burger')">
+  <nldd-navigation-split-view v-if="!leeg" @back="router.push('/burger')">
     <nldd-split-view-pane slot="primary-sidebar" has-content>
       <nldd-page sticky-header accessible-label="Mijn dossier">
         <nldd-top-title-bar slot="header" text="Mijn dossier" heading-level="3" collapse-anchor="dossier-titel"></nldd-top-title-bar>
@@ -184,9 +194,6 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
               ></nldd-banner>
               <nldd-spacer size="16"></nldd-spacer>
             </template>
-            <nldd-inline-dialog v-if="lijsten.length === 0" icon="info" text="Er is nog niets over u vastgelegd">
-              <nldd-button slot="actions" appearance="primary" text="Aanvraag doen" @click="router.push('/burger/aanvraag')"></nldd-button>
-            </nldd-inline-dialog>
             <template v-for="(l, i) in lijsten" :key="i">
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ l.naam }}</h4></nldd-title>
@@ -249,4 +256,6 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
       </nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
+
+  <AanvraagView :open="route.name === 'aanvraag'" @sluit="router.push('/burger')" />
 </template>

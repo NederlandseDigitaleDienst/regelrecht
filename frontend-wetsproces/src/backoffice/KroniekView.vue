@@ -157,13 +157,12 @@ function naarWerkvoorraad(g: Gram) {
   <Teleport to="body">
     <nldd-sheet width="720px" :open="open ? true : undefined" @close="sluit">
       <nldd-page>
-        <nldd-container slot="header" padding="16">
-          <nldd-top-title-bar
-            heading-level="2"
-            :text="open && casus ? `${omschrijf(open)} van ${longDate(open.recorded_on)}` : ''"
-            dismiss-text="Sluiten"
-          ></nldd-top-title-bar>
-        </nldd-container>
+        <nldd-top-title-bar
+          slot="header"
+          heading-level="2"
+          :text="open && casus ? `${omschrijf(open)} van ${longDate(open.recorded_on)}` : ''"
+          dismiss-text="Sluit"
+        ></nldd-top-title-bar>
         <nldd-simple-section v-if="open && casus">
           <nldd-container gap="16">
             <nldd-text color="secondary">

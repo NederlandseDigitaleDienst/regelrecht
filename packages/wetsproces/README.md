@@ -11,7 +11,7 @@ Beide draaien in test mode met verzonnen personen. Pull request #2051 is de werk
 
 | Kant | Tabbladen | Wie |
 |---|---|---|
-| Burger | Mijn dossier, Aanvraag doen | een testpersoon, via de Gesimuleerde DigiD |
+| Burger | geen; het dossier met "Nieuwe aanvraag" in de balk | een testpersoon, via de Gesimuleerde DigiD |
 | Medewerker | Werkvoorraad, Kroniek | het testaccount van regelrecht |
 | Admin | Beheerpaneel, Simulatie | een account met de rol `wetsproces-admin`; het testaccount van regelrecht heeft die |
 
@@ -36,7 +36,7 @@ Beginnen:
 
 1. Admin, tabblad Simulatie: klik "Testomgeving leegmaken" en bevestig met "Leegmaken".
 2. Burger: kies op de Gesimuleerde DigiD de testpersoon Anna Voorbeeld en klik "Inloggen als deze testpersoon".
-3. Burger, tabblad Aanvraag doen: zet "Ik vraag de kaart aan als bestuurder van de auto" aan, vul het adres in en klik "Aanvraag indienen".
+3. Burger: klik rechtsboven op "Nieuwe aanvraag". Zet in de sheet "Ik vraag de kaart aan als bestuurder van de auto" aan, vul het adres in en klik "Aanvraag indienen".
 
 Advies en besluit:
 

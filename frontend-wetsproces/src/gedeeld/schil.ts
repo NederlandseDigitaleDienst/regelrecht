@@ -16,9 +16,29 @@ export interface Tab {
   recht?: 'klok_zetten' | 'partijen_invoeren';
 }
 
+/** The primary action of a side, as a button in the shell's bar beside the account. */
+export interface Actie {
+  tekst: string;
+  /** The route the button opens. */
+  pad: string;
+  icoon?: string;
+  /** What the coach mark says to someone who has not used the action yet. */
+  uitleg?: { tekst: string; toelichting: string };
+}
+
 /** The tabs of the side `route` belongs to, from the deepest route that declares them. */
 export function tabsVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>): Tab[] {
   return [...route.matched].reverse().find((r) => r.meta.tabs)?.meta.tabs ?? [];
+}
+
+/** The name of the side `route` belongs to, shown in the bar where a side has no tabs. */
+export function titelVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>): string | null {
+  return [...route.matched].reverse().find((r) => r.meta.titel)?.meta.titel ?? null;
+}
+
+/** The primary action of the side `route` belongs to. */
+export function actieVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>): Actie | null {
+  return [...route.matched].reverse().find((r) => r.meta.actie)?.meta.actie ?? null;
 }
 
 /** Whether `tab` is the one the route `naam` belongs to. */
@@ -29,5 +49,9 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** The sections of the side this route belongs to. */
     tabs?: Tab[];
+    /** The name of the side, for a side that has no tabs. */
+    titel?: string;
+    /** The one action the side offers from its bar. */
+    actie?: Actie;
   }
 }

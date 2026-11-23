@@ -212,13 +212,12 @@ async function indienen() {
   <Teleport to="body">
     <nldd-sheet width="720px" :open="open || undefined" @close="open = false">
       <nldd-page>
-        <nldd-container slot="header" padding="16">
-          <nldd-top-title-bar
-            heading-level="2"
-            :text="keuze ? `${soortNaam(keuze)} tegen het besluit` : ''"
-            dismiss-text="Sluiten"
-          ></nldd-top-title-bar>
-        </nldd-container>
+        <nldd-top-title-bar
+          slot="header"
+          heading-level="2"
+          :text="keuze ? `${soortNaam(keuze)} tegen het besluit` : ''"
+          dismiss-text="Sluit"
+        ></nldd-top-title-bar>
         <nldd-simple-section v-if="keuze">
           <nldd-container gap="16">
             <nldd-text color="secondary">
