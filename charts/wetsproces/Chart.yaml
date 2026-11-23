@@ -8,7 +8,7 @@ description: >-
 type: application
 version: 0.2.0
 # The commit of the wetsproces image the chart was tested with.
-appVersion: a5b56d67
+appVersion: 7122ddee
 home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
 sources:
   - https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026

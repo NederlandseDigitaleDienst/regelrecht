@@ -14,7 +14,7 @@ image:
   # release that leaves image.ref out of its values follows main that way. The
   # screens come from the image and the case from case.ref; with case.ref main
   # the two stay close.
-  ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:a5b56d674c6530b994b15f5050f80d043b3eefb7
+  ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:7122ddee6fa9d00a4b6aef5e86829fe03c054f85
   pullPolicy: IfNotPresent
 
 # The case: a public git repository with a source manifest (bron.yaml). An init
