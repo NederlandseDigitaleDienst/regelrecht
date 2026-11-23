@@ -787,13 +787,25 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
     assert_eq!(delen.as_array().map(|d| d.len()), Some(3), "{delen}");
     assert_eq!(delen[0]["naam"], json!("straat_huisnummer"), "{delen}");
     assert_eq!(delen[1]["autocomplete"], json!("postal-code"), "{delen}");
+    // The law lets the address be empty; the screen does not take an application without it.
+    assert_eq!(vormen["verplicht"], json!(["adres_aanvrager"]), "{vormen}");
     assert_eq!(
         vormen["teksten"]["adres_aanvrager"]["group"],
-        json!("Gegevens van de aanvrager")
+        json!("Uw persoonsgegevens")
     );
     assert_eq!(
         vormen["teksten"]["gevraagde_beschikking"]["label"],
         json!("Wat vraagt u aan?")
+    );
+    // A screen that shows the recorded application speaks about it, not to
+    // the applicant: the dossier and the work queue name it otherwise.
+    assert_eq!(
+        vormen["teksten"]["gevraagde_beschikking"]["record"]["label"],
+        json!("Gevraagd besluit")
+    );
+    assert_eq!(
+        vormen["teksten"]["adres_aanvrager"]["record"]["group"],
+        json!("Aanvrager")
     );
     // The deadline of a submission follows from the law: the date Awb 6:9
     // reads the receipt of an objection or appeal against. An application

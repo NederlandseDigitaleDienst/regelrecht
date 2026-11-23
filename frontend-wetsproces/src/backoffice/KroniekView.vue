@@ -176,7 +176,7 @@ function naarWerkvoorraad(g: Gram) {
             </template>
             <VolledigeKeten v-if="waarom?.keten" :keten="waarom.keten" :casus="casus" :teksten="vormen?.teksten" />
             <nldd-inline-dialog v-if="waaromFout" icon="warning" text="De keten van dit besluit laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
-            <nldd-button-group v-if="indieningVan(open)" orientation="horizontal">
+            <nldd-button-group v-if="indieningVan(open)">
               <nldd-button appearance="primary" text="Open in de werkvoorraad" @click="naarWerkvoorraad(open)"></nldd-button>
             </nldd-button-group>
           </nldd-container>

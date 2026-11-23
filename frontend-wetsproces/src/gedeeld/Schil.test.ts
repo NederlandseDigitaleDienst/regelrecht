@@ -49,6 +49,28 @@ describe('the shell', () => {
     expect(tabTeksten(await toon({ rechten: ['klok_zetten'] }))).toEqual(['Lijst', 'Klok', 'Lijst', 'Klok']);
   });
 
+  it('keeps the bar of a side without tabs on top on a narrow screen, with its action as an icon button', async () => {
+    const actie = { tekst: 'Nieuwe aanvraag', hash: '#nieuw', icoon: 'add' };
+    const w = await toon({ tabs: [], titel: 'Vergunningen', actie });
+    // From md up the bar as it was, with the action as a button with its text.
+    const breed = w.find('[slot="primary-bar"]');
+    expect(breed.attributes('above')).toBe('md');
+    expect(breed.find('nldd-button').attributes('text')).toBe('Nieuwe aanvraag');
+    // On sm a toolbar of its own, also on top and of the same size.
+    const smal = w.find('[slot="primary-bar-sm"]');
+    expect(smal.attributes('only')).toBe('sm');
+    expect(smal.find('nldd-toolbar').attributes('size')).toBe('md');
+    expect(smal.find('nldd-toolbar-title').attributes('text')).toBe('Vergunningen');
+    const knop = smal.find('nldd-icon-button[appearance="primary"]');
+    expect(knop.attributes('text')).toBe('Nieuwe aanvraag');
+    expect(knop.attributes('icon')).toBe('add');
+    expect(w.find('[slot="mobile-bar"]').exists()).toBe(false);
+    // A side with tabs keeps them in the bar under the screen.
+    const metTabs = await toon({});
+    expect(metTabs.find('[slot="primary-bar-sm"]').exists()).toBe(false);
+    expect(metTabs.find('[slot="mobile-bar"]').exists()).toBe(true);
+  });
+
   it('marks the tab of the screen as current, also on a screen under it', async () => {
     const w = await toon({}, '/lijst/7');
     expect(w.find('nldd-tab-bar-item').attributes('current')).toBeDefined();

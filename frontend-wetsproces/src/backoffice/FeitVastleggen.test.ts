@@ -37,10 +37,11 @@ describe('FeitVastleggen', () => {
     // Every field goes to the form; the one the request holds is fixed there.
     const velden = w.findComponent(SpecFormulier).props('velden') as { veld: { naam: string }; systeem?: unknown }[];
     expect(velden.filter((v) => !v.systeem).map((v) => v.veld.naam)).toEqual(['datum_onderzoek']);
-    // Shown read-only, from the request.
-    expect(w.findAll('nldd-text-field[readonly]')).toHaveLength(1);
-    expect(w.findAll('nldd-form-field').map((f) => f.attributes('label'))).toContain('Bsn aanvrager');
-    expect(w.find('nldd-form-field-help-text').text()).toContain('Uit het verzoek');
+    // Shown as a row of a list, not as an input, with the request as its origin.
+    const [rij, waarde] = w.findAll('nldd-list nldd-text-cell');
+    expect(rij!.attributes('text')).toBe('Bsn aanvrager');
+    expect(rij!.attributes('supporting-text')).toContain('Uit het verzoek');
+    expect(waarde!.attributes('text')).toBe('999990020');
     await w.find('nldd-button[text="Vastleggen"]').trigger('click');
     await flushPromises();
     expect(vastleggen).toHaveBeenCalledWith(

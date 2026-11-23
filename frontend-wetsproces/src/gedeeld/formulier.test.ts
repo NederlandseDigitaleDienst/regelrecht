@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, inGroepen, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
+import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, inGroepen, kaalSchermveld, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
 import type { Indieningsvorm } from './types';
 
 // A made-up application, not of any case: the form follows from what the
@@ -142,7 +142,7 @@ describe('een veld dat het scherm in delen vraagt', () => {
   const delen = {
     adres_aanvrager: [
       { naam: 'straat_huisnummer', label: 'Straat en huisnummer', autocomplete: 'street-address' },
-      { naam: 'postcode', label: 'Postcode', autocomplete: 'postal-code', keyboard: 'numeric' },
+      { naam: 'postcode', label: 'Postcode', autocomplete: 'postal-code', width: '12ch' },
       { naam: 'woonplaats', label: 'Woonplaats' },
     ],
   };
@@ -165,8 +165,14 @@ describe('een veld dat het scherm in delen vraagt', () => {
       veld: 'adres_aanvrager',
       naam: 'postcode',
       autocomplete: 'postal-code',
-      keyboard: 'numeric',
+      width: '12ch',
     });
+  });
+
+  it('requires every part of a field the UI spec requires, though the law lets it be empty', () => {
+    const f = aanvraagformulier(metAdres, {}, null, [], delen, ['adres_aanvrager']);
+    expect(f.invullen.map((v) => v.verplicht)).toEqual([true, true, true]);
+    expect(aanvraagformulier(metAdres, {}, null, [], delen).invullen.some((v) => v.verplicht)).toBe(false);
   });
 
   it('joins the parts into the one value the law asks, in the order of the UI spec', () => {
@@ -218,5 +224,16 @@ describe('schermveld', () => {
     expect(schermveld({ ...veld, basis: 'algemene_wet_bestuursrecht#4:2' }).veld.basis).toBe('Awb artikel 4:2');
     // The field itself is left as it is: the value still goes under its own name.
     expect(veld.basis).toBe('algemene_wet#4:2');
+  });
+
+  it('takes the record texts on a screen that shows a recorded submission, and the form texts where it gives none', () => {
+    const teksten = {
+      kaart: { group: 'Vraag de kaart aan als', label: 'Bestuurder', help: 'Zet dit aan als u rijdt.', record: { group: 'Gevraagde kaart', help: '' } },
+    };
+    const veld = { naam: 'kaart', type: 'boolean' as const };
+    expect(schermveld(veld, teksten)).toMatchObject({ groep: 'Vraag de kaart aan als', label: 'Bestuurder', help: 'Zet dit aan als u rijdt.' });
+    // The label `record` does not give comes from the form; an empty help puts nothing under it.
+    expect(schermveld(veld, teksten, true)).toMatchObject({ groep: 'Gevraagde kaart', label: 'Bestuurder', help: '' });
+    expect(kaalSchermveld('kaart', teksten).groep).toBe('Gevraagde kaart');
   });
 });

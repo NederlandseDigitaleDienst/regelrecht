@@ -12,6 +12,9 @@
 // system fills (`alleenLezen`) shows its value, read-only.
 // `label` names the field on the screen, as a UI spec may say it; without it
 // the field goes by its name in the regelwerk. `help` is a line under it.
+// A field the screen requires (`verplicht`) loses its "Optioneel" badge where
+// the law lets it be empty, and the form refuses to submit it empty; the
+// validation list under it then says so, as the browser judges it.
 // Shared by the chronolexografie poc and the wetsprocessysteem.
 import { computed } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
@@ -41,14 +44,32 @@ const props = withDefaults(
     autocomplete?: string;
     /** The on-screen keyboard a phone raises for it. */
     keyboard?: string;
+    /** How wide the input is, as a CSS length; without it, as wide as the form. */
+    width?: string;
+    /** Name the article the field rests on under it. Off where a screen of its own holds them. */
+    artikel?: boolean;
+    /** The form does not submit it empty, whatever the law lets be empty. */
+    verplicht?: boolean;
   }>(),
-  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '', help: '', kaal: false, autocomplete: '', keyboard: '' },
+  {
+    modelValue: undefined,
+    herkomst: '',
+    alleenLezen: false,
+    label: '',
+    help: '',
+    kaal: false,
+    autocomplete: '',
+    keyboard: '',
+    width: '',
+    artikel: true,
+    verplicht: false,
+  },
 );
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
 
 const naam = computed(() => props.label || leesbaar(props.veld.naam));
 /** The article the field rests on, as a sentence. */
-const volgens = computed(() => (props.veld.basis ? `Volgens ${props.veld.basis}.` : ''));
+const volgens = computed(() => (props.artikel && props.veld.basis ? `Volgens ${props.veld.basis}.` : ''));
 const onder = computed(() => (props.kaal ? '' : [props.help, volgens.value, props.herkomst].filter(Boolean).join(' ')));
 const tekst = computed(() => (props.modelValue === undefined || props.modelValue === null ? '' : String(props.modelValue)));
 
@@ -92,10 +113,11 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
     :disabled="alleenLezen || undefined"
     @change="zet(aan($event))"
   ></nldd-checkbox-field>
-  <nldd-form-field v-else :label="naam" :optional="veld.mag_leeg">
+  <nldd-form-field v-else :label="naam" :optional="(veld.mag_leeg && !verplicht) || undefined">
     <nldd-date-field
       v-if="veld.type === 'date'"
       :value="tekst"
+      :required="verplicht || undefined"
       :readonly="alleenLezen || undefined"
       @change="zet(uit($event))"
     ></nldd-date-field>
@@ -103,6 +125,7 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
       v-else-if="veld.type === 'number' || veld.type === 'amount'"
       keyboard="decimal"
       :value="tekst"
+      :required="verplicht || undefined"
       :readonly="alleenLezen || undefined"
       @input="zet(getal(uit($event)))"
     ></nldd-text-field>
@@ -111,9 +134,12 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
       :value="tekst"
       :autocomplete="autocomplete || undefined"
       :keyboard="keyboard || undefined"
+      :width="width || undefined"
+      :required="verplicht || undefined"
       :readonly="alleenLezen || undefined"
       @input="zet(uit($event))"
     ></nldd-text-field>
+    <nldd-validation-list v-if="verplicht"></nldd-validation-list>
     <nldd-form-field-help-text v-if="onder">{{ onder }}</nldd-form-field-help-text>
   </nldd-form-field>
 </template>

@@ -22,7 +22,7 @@ De bouwstenen:
 - **Schermen uit de ui_spec.** Welke velden er zijn, zegt de wet; `ui_spec.yaml` zegt hun volgorde, groep, naam en hulptekst, en welke het systeem invult.
 - **Beleid stuurt stappen.** Bij een aanvraag vraagt het systeem zelf de GGD om onderzoek, en na een toekenning bestelt het zelf de kaart.
 - **De materiële kant.** Na de toekenning volgen bestellen, ontvangen en uitreiken, en een kwijtgeraakte kaart krijgt een duplicaat.
-- **Een tijdlijn per aanvraag.** De burger ziet haar onder elk stuk in Mijn dossier, de medewerker onderaan het behandelscherm. Ze toont wat er bij de aanvraag gebeurde, op volgorde, en daaronder de volgende stap met wie aan zet is. Elke regel opent het stuk zelf.
+- **Een tijdlijn per aanvraag.** De burger ziet haar onder elke aanvraag in Mijn aanvragen, en onder elk stuk dat erop volgde, de medewerker onderaan het behandelscherm. Ze toont wat er bij de aanvraag gebeurde, op volgorde, en daaronder de volgende stap met wie aan zet is. Elke regel opent het stuk zelf.
 
 Elke beslissing toont vooraf een voorvertoning, met de volledige keten om uit te klappen. Na een vernietiging beslist de medewerker opnieuw.
 
@@ -36,7 +36,7 @@ Beginnen:
 
 1. Admin, tabblad Simulatie: klik "Testomgeving leegmaken" en bevestig met "Leegmaken".
 2. Burger: kies op de Gesimuleerde DigiD de testpersoon Anna Voorbeeld en klik "Inloggen als deze testpersoon".
-3. Burger: klik rechtsboven op "Nieuwe aanvraag". Zet in de sheet "Ik vraag de kaart aan als bestuurder van de auto" aan, vul het adres in en klik "Dien aanvraag in".
+3. Burger: klik rechtsboven op "Nieuwe aanvraag". Vink in de sheet onder "Vraag gehandicaptenparkeerkaart aan als" de keuze "Bestuurder van de auto" aan, vul het adres in en klik "Dien aanvraag in".
 
 Advies en besluit:
 
@@ -49,7 +49,7 @@ De kaart:
 
 8. Medewerker, Werkvoorraad, onder "Na de toekenning": de kaart is al besteld door het systeem. Open de regel en klik "Vastleggen" voor de ontvangst.
 9. Medewerker: open de regel opnieuw en klik "Vastleggen" voor de uitreiking.
-10. Burger, tabblad Mijn dossier: onder het besluit staat "Uw kaart is op … aan u uitgereikt."
+10. Burger, Mijn aanvragen: bij de aanvraag staat "Uw kaart is op … aan u uitgereikt."
 
 ### Route 2: bezwaar, beroep, vernietiging en nieuw besluit
 
@@ -57,7 +57,7 @@ Begin na stap 7 van route 1.
 
 Bezwaar:
 
-1. Burger, Mijn dossier: open "Besluit (beschikking)" en klik "Bezwaar indienen". Vul het formulier in en klik "Bezwaar indienen".
+1. Burger, Mijn aanvragen: open de aanvraag en onder "Stand" het besluit, en klik "Bezwaar indienen". Vul het formulier in en klik "Bezwaar indienen".
 2. Medewerker, Werkvoorraad: open het bezwaar, kies Ja bij "Indiener bezwaarschrift is belanghebbende" en bij "Indiener bezwaarschrift niet in verzuim", en klik "Besluit nemen".
 
 Beroep:
@@ -69,17 +69,17 @@ Beroep:
 Opnieuw beslissen:
 
 6. Medewerker, Werkvoorraad: het bezwaar staat er weer met "Opnieuw beslissen". Open het, kies Ja bij beide vragen en klik "Besluit nemen".
-7. Burger: open het bezwaar. Onder "Stand" staat het nieuwe besluit met "Geldt"; het eerdere besluit heet "Vernietigd".
+7. Burger: open de aanvraag en in de tijdlijn het bezwaar. Onder "Stand" staat het nieuwe besluit met "Geldt"; het eerdere besluit heet "Vernietigd".
 
 ### Route 3: kwijtgeraakte kaart
 
 Begin na route 1, met een uitgereikte kaart.
 
-1. Burger, Mijn dossier: klik "Kaart kwijt?" onder de kaart.
+1. Burger, Mijn aanvragen: open de aanvraag en klik "Kaart kwijt?".
 2. Burger: vul in "Kaart kwijt of gestolen" de datum en wat er gebeurde in, zet de verklaring aan en klik "Dien aanvraag in".
 3. Medewerker, Werkvoorraad: open de nieuwe aanvraag en klik "Besluit nemen". Het systeem bestelt het duplicaat.
 4. Medewerker, onder "Na de toekenning": leg de ontvangst vast en daarna de uitreiking.
-5. Burger, Mijn dossier: bij de oude kaart staat "Deze kaart geldt niet meer"; "Kaart kwijt?" staat nu alleen bij het duplicaat.
+5. Burger, Mijn aanvragen: "Kaart kwijt of gestolen" staat er als eigen aanvraag. Bij de eerste aanvraag staat "Deze kaart geldt niet meer"; "Kaart kwijt?" staat nu alleen op de pagina van het duplicaat.
 
 ## Lokaal draaien
 

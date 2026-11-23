@@ -24,6 +24,8 @@ export interface Veldtekst {
   help?: string;
   /** The heading of the group the field stands in. */
   group?: string;
+  /** The texts on a screen that shows a recorded submission, where they differ from the form's. */
+  record?: { label?: string; help?: string; group?: string };
 }
 
 /** How the system fills a field of the application (`fill: {by: system}`): shared with the poc. */
@@ -158,6 +160,8 @@ export interface Vormen {
   volgorde?: string[];
   /** Per field the screen asks in parts, those parts in order. */
   delen?: Record<string, Velddeel[]>;
+  /** The fields the form does not submit without, where the law lets them be empty. */
+  verplicht?: string[];
 }
 
 /** One input of a field the screen asks in parts; the form joins them into the one value the law asks. */
@@ -169,6 +173,8 @@ export interface Velddeel {
   autocomplete?: string;
   /** The on-screen keyboard a phone raises, such as `numeric`. */
   keyboard?: string;
+  /** How wide the input is, as a CSS length, where it should be as wide as what goes in it. */
+  width?: string;
 }
 
 /** A submission the case knows, with the cell that decides on it. */

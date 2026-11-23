@@ -45,13 +45,27 @@
 //!
 //! A field may also say how a screen names it: `label`, the name of the
 //! field on a screen, `help`, a line under it, and `group`, the heading of
-//! the group it stands in ([`Veldtekst`]). Without them a screen names the
+//! the group it stands in ([`Veldtekst`]). Those are the texts of the form,
+//! which speaks to whoever fills it in. A screen that shows a recorded
+//! submission speaks to someone else, or about the past: the applicant's own
+//! dossier, the authority's work queue and chronicle. Under `record` a field
+//! gives the same three texts for those screens ([`Stuktekst`]); a key it
+//! leaves out falls back on the form's. Without them a screen names the
 //! field after the regelwerk. They count by field name over every element
 //! and every form, so the same field is named the same on the application,
 //! the objection and the decision; two elements that name one field
 //! differently are refused. The order the fields are named in, over the
 //! elements, is the order a screen shows them in ([`UiSpec::volgorde`]); a
 //! field the UI spec does not name follows, in the order of the law.
+//!
+//! A field the applicant types may carry `required: true`: the form does not
+//! submit without it. That is the screen's own demand, not the law's. A law
+//! that lets a field be empty does so because a submission can be incomplete
+//! (on paper you can forget the address, and Awb 4:5 says what follows), and
+//! the regelwerk keeps that. A screen tells the applicant at once what is
+//! missing, so it need not take an incomplete one in. A field the system
+//! fills or the form hides has nothing for the applicant to give, so
+//! `required` on it is refused. It counts over every element, as `parts` does.
 //!
 //! The poc reads only those keys and leaves every other key to the register
 //! and its own checks, so a register that grows a key does not stop a case
@@ -99,7 +113,20 @@ struct Field {
     label: Option<String>,
     help: Option<String>,
     group: Option<String>,
+    record: Option<Record>,
     parts: Option<Vec<Part>>,
+    #[serde(default)]
+    required: bool,
+}
+
+/// The texts of a field on a screen that shows a recorded submission. An
+/// unknown key is refused, as in [`Fill`].
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Record {
+    label: Option<String>,
+    help: Option<String>,
+    group: Option<String>,
 }
 
 /// One input of a field the applicant answers in parts: the law asks one
@@ -113,6 +140,7 @@ struct Part {
     help: Option<String>,
     autocomplete: Option<String>,
     keyboard: Option<String>,
+    width: Option<String>,
 }
 
 /// What a field of a view beside a decision shows: the answer of the case's
@@ -144,6 +172,8 @@ pub struct UiSpec {
     pub volgorde: Vec<String>,
     /// Per field that the screen asks in parts, those parts in order.
     pub delen: BTreeMap<String, Vec<Velddeel>>,
+    /// The fields the form does not submit without (`required`).
+    pub verplicht: BTreeSet<String>,
 }
 
 /// How a screen names a field (`label`), what it says under it (`help`) and
@@ -151,6 +181,22 @@ pub struct UiSpec {
 /// them; a screen falls back on the field's name in the regelwerk.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct Veldtekst {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// The texts on a screen that shows a recorded submission, where they differ.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub record: Option<Stuktekst>,
+}
+
+/// How a screen that shows a recorded submission names a field, where that
+/// differs from the form: the dossier, the work queue and the chronicle speak
+/// about the submission, not to the one filling it in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct Stuktekst {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -175,6 +221,10 @@ pub struct Velddeel {
     /// The on-screen keyboard a phone raises, such as `numeric`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keyboard: Option<String>,
+    /// How wide the input is, as a CSS length: a field as wide as what it takes,
+    /// such as a postcode, says what goes in it before anyone types.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<String>,
 }
 
 /// How the system fills a field of the application (`fill: {by: system}`).
@@ -366,6 +416,12 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         .map(delen)
         .transpose()?
         .unwrap_or_default();
+    let verplicht = register
+        .elements
+        .as_deref()
+        .map(verplicht)
+        .transpose()?
+        .unwrap_or_default();
     let (elements, weergaven) = match (register.elements, register.elementen) {
         (Some(elements), None) => per_field(elements)?,
         (None, Some(elementen)) => (older_form(elementen)?, Vec::new()),
@@ -395,6 +451,18 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
     if let Some(veld) = delen.keys().find(|v| verborgen.contains(*v)) {
         return Err(format!("the UI spec asks '{veld}' in parts and hides it"));
     }
+    if let Some(veld) = verplicht.iter().find(|v| systeem.contains_key(*v)) {
+        return Err(format!(
+            "the UI spec requires '{veld}' and fills it by the system; \
+             the applicant cannot give what the system fills"
+        ));
+    }
+    if let Some(veld) = verplicht.iter().find(|v| verborgen.contains(*v)) {
+        return Err(format!(
+            "the UI spec requires '{veld}' and hides it; \
+             the applicant cannot give what the form does not show"
+        ));
+    }
     Ok(UiSpec {
         prefill,
         systeem,
@@ -403,7 +471,25 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         teksten,
         volgorde,
         delen,
+        verplicht,
     })
+}
+
+/// The fields an element requires (`required: true`), over every element.
+fn verplicht(elements: &[Element]) -> Result<BTreeSet<String>, String> {
+    let mut uit = BTreeSet::new();
+    for (i, element) in elements.iter().enumerate() {
+        for field in element.fields.iter().filter(|f| f.required) {
+            let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
+                return Err(format!(
+                    "the UI spec: {} requires a field without a `name`",
+                    element_name(element.id.as_ref(), i)
+                ));
+            };
+            uit.insert(veld.to_owned());
+        }
+    }
+    Ok(uit)
 }
 
 /// Per field that an element asks in parts, those parts in order. Two
@@ -457,6 +543,7 @@ fn delen(elements: &[Element]) -> Result<BTreeMap<String, Vec<Velddeel>>, String
                     help: part.help.clone(),
                     autocomplete: part.autocomplete.clone(),
                     keyboard: part.keyboard.clone(),
+                    width: part.width.clone(),
                 });
             }
             match uit.get(veld) {
@@ -492,24 +579,30 @@ fn volgorde(elements: &[Element]) -> Vec<String> {
 /// elements that give one field a different label, help or group are
 /// refused.
 fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> {
-    // Per field and per key (`label`, `help`, `group`): the text, and the element that gave it.
+    // Per field and per key (`label`, `help`, `group`, and each of them under
+    // `record`): the text, and the element that gave it.
     let mut gegeven: BTreeMap<(String, &'static str), (String, String)> = BTreeMap::new();
     for (i, element) in elements.iter().enumerate() {
         let naam = element_name(element.id.as_ref(), i);
         for field in &element.fields {
-            if field.label.is_none() && field.help.is_none() && field.group.is_none() {
+            let record = field.record.as_ref();
+            let teksten = [
+                ("label", field.label.as_ref()),
+                ("help", field.help.as_ref()),
+                ("group", field.group.as_ref()),
+                ("record.label", record.and_then(|r| r.label.as_ref())),
+                ("record.help", record.and_then(|r| r.help.as_ref())),
+                ("record.group", record.and_then(|r| r.group.as_ref())),
+            ];
+            if teksten.iter().all(|(_, t)| t.is_none()) {
                 continue;
             }
             let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
                 return Err(format!(
-                    "the UI spec: {naam} gives a `label`, `help` or `group` to a field without a `name`"
+                    "the UI spec: {naam} gives a `label`, `help`, `group` or `record` to a field without a `name`"
                 ));
             };
-            for (wat, tekst) in [
-                ("label", &field.label),
-                ("help", &field.help),
-                ("group", &field.group),
-            ] {
+            for (wat, tekst) in teksten {
                 let Some(tekst) = tekst else { continue };
                 match gegeven.get(&(veld.to_string(), wat)) {
                     Some((eerder, door)) if eerder != tekst => {
@@ -531,7 +624,10 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
         match wat {
             "label" => t.label = Some(tekst),
             "help" => t.help = Some(tekst),
-            _ => t.group = Some(tekst),
+            "group" => t.group = Some(tekst),
+            "record.label" => t.record.get_or_insert_default().label = Some(tekst),
+            "record.help" => t.record.get_or_insert_default().help = Some(tekst),
+            _ => t.record.get_or_insert_default().group = Some(tekst),
         }
     }
     Ok(uit)
@@ -1257,6 +1353,7 @@ elements:
                         label: None,
                         help: Some("Zoals op het kentekenbewijs".into()),
                         group: None,
+                        record: None,
                     }
                 ),
                 (
@@ -1265,6 +1362,7 @@ elements:
                         label: Some("Uw naam".into()),
                         help: Some("Zoals in uw paspoort".into()),
                         group: None,
+                        record: None,
                     }
                 ),
             ])
@@ -1297,7 +1395,9 @@ elements:
         );
         let e = lees("elements: [{id: UI1, fields: [{label: Een}]}]").unwrap_err();
         assert!(
-            e.contains("UI1 gives a `label`, `help` or `group` to a field without a `name`"),
+            e.contains(
+                "UI1 gives a `label`, `help`, `group` or `record` to a field without a `name`"
+            ),
             "{e}"
         );
         // The same text twice is one.
@@ -1307,6 +1407,46 @@ elements:
         )
         .unwrap();
         assert_eq!(spec.teksten["x"].label.as_deref(), Some("Een"));
+    }
+
+    #[test]
+    fn a_field_names_itself_otherwise_where_a_submission_is_shown() {
+        let spec = lees(
+            "
+elements:
+  - id: UI1
+    fields:
+      - name: x
+        group: Vraag de kaart aan als
+        label: Bestuurder
+        record: {group: Gevraagde kaart, label: Kaart als bestuurder}
+      - {name: y, label: Naam}
+",
+        )
+        .unwrap();
+        let x = &spec.teksten["x"];
+        assert_eq!(x.label.as_deref(), Some("Bestuurder"));
+        let record = x.record.as_ref().unwrap();
+        assert_eq!(record.label.as_deref(), Some("Kaart als bestuurder"));
+        assert_eq!(record.group.as_deref(), Some("Gevraagde kaart"));
+        // What `record` leaves out, the screen takes from the form.
+        assert_eq!(record.help, None);
+        assert_eq!(spec.teksten["y"].record, None);
+        // Two elements that name one field differently on such a screen are refused.
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, record: {label: Een}}]},
+                        {id: UI2, fields: [{name: x, record: {label: Twee}}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            e.contains("UI1 and UI2 give 'x' a different `record.label`"),
+            "{e}"
+        );
+        let e =
+            lees("elements: [{id: UI1, fields: [{name: x, record: {titel: Een}}]}]").unwrap_err();
+        assert!(e.contains("titel"), "{e}");
+        let e = lees("elements: [{id: UI1, fields: [{record: {label: Een}}]}]").unwrap_err();
+        assert!(e.contains("`record` to a field without a `name`"), "{e}");
     }
 
     #[test]
@@ -1320,7 +1460,7 @@ elements:
         label: Adres
         parts:
           - {name: straat_huisnummer, label: Straat en huisnummer, autocomplete: street-address}
-          - {name: postcode, label: Postcode, autocomplete: postal-code, keyboard: numeric}
+          - {name: postcode, label: Postcode, autocomplete: postal-code, keyboard: text, width: 12ch}
 ",
         )
         .unwrap();
@@ -1328,7 +1468,8 @@ elements:
         assert_eq!(delen.len(), 2);
         assert_eq!(delen[0].naam, "straat_huisnummer");
         assert_eq!(delen[0].autocomplete.as_deref(), Some("street-address"));
-        assert_eq!(delen[1].keyboard.as_deref(), Some("numeric"));
+        assert_eq!(delen[1].keyboard.as_deref(), Some("text"));
+        assert_eq!(delen[1].width.as_deref(), Some("12ch"));
         // The field itself stays one field of the law; only the screen splits it.
         assert_eq!(spec.volgorde, ["adres"]);
         assert_eq!(spec.teksten["adres"].label.as_deref(), Some("Adres"));
@@ -1373,6 +1514,62 @@ elements:
         )
         .unwrap_err();
         assert!(dubbel.contains("the part 'postcode' twice"), "{dubbel}");
+    }
+
+    #[test]
+    fn a_field_the_form_requires_is_named_whatever_the_law_lets_be_empty() {
+        let spec = lees(
+            "
+elements:
+  - id: UI1
+    fields:
+      - {name: adres, required: true, parts: [{name: postcode}]}
+      - {name: telefoon}
+  - id: UI2
+    fields:
+      - {name: naam, required: true}
+",
+        )
+        .unwrap();
+        assert_eq!(
+            spec.verplicht
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["adres", "naam"]
+        );
+    }
+
+    #[test]
+    fn a_required_field_the_applicant_does_not_give_is_refused() {
+        let gevuld = lees(
+            "elements: [{id: UI1, fields: [{name: naam, required: true, fill: {by: system}}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            gevuld.contains("requires 'naam' and fills it by the system"),
+            "{gevuld}"
+        );
+        // Required in one element, filled by the system in another: still refused.
+        let elders = lees(
+            "elements: [{id: UI1, fields: [{name: naam, required: true}]},
+                        {id: UI2, fields: [{name: naam, fill: {by: system}}]}]",
+        )
+        .unwrap_err();
+        assert!(elders.contains("requires 'naam'"), "{elders}");
+        let verborgen = lees(
+            "elements: [{id: UI1, fields: [{name: naam, required: true, visibility: hidden}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            verborgen.contains("requires 'naam' and hides it"),
+            "{verborgen}"
+        );
+        let naamloos = lees("elements: [{id: UI1, fields: [{required: true}]}]").unwrap_err();
+        assert!(
+            naamloos.contains("requires a field without a `name`"),
+            "{naamloos}"
+        );
     }
 
     #[test]

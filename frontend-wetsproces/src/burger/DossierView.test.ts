@@ -1,6 +1,8 @@
-// The dossier and a record in it are one screen: every row opens what it
-// is beside the dossier, the router keeps the component when the citizen
-// goes from one to the other, and what they just submitted still shows up.
+// The citizen's applications are one list, a row per application, and every
+// row opens the application on a page one level deeper, alone, whose back
+// button returns to the list. What followed on it opens from there. The
+// router keeps the component when the citizen goes from one to the other, and
+// what they just submitted still shows up.
 import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
@@ -76,6 +78,11 @@ async function toon(pad: string) {
   await flushPromises();
   return { w, router };
 }
+/** The status of a row of the list: the word beside its dot, which says nothing a reader does not hear in the word. */
+const status = (rij: ReturnType<Awaited<ReturnType<typeof toon>>['w']['find']>) => {
+  expect(rij.find('nldd-badge').attributes()).toHaveProperty('decorative');
+  return rij.find('nldd-cell nldd-text').text();
+};
 const teksten = (w: Awaited<ReturnType<typeof toon>>['w']) => w.findAll('nldd-text-cell').map((c) => c.attributes('text'));
 
 beforeEach(() => dossier.mockReset().mockResolvedValue([aanvraag, besluit, bezwaar]));
@@ -96,21 +103,30 @@ describe('the dossier', () => {
     await router.push({ name: 'dossier', query: { ingediend: 'BEZWAAR' } });
     await flushPromises();
     expect(dossier).toHaveBeenCalledTimes(2);
-    expect(teksten(w)).toContain('Bezwaar');
+    expect(w.find('nldd-banner').attributes('text')).toBe('Uw bezwaar is ingediend');
   }, 20_000);
 
-  it('lets every row open, a submission as well as a decision', async () => {
-    const { w } = await toon('/burger');
-    const rijen = w.findAll('nldd-list-item');
-    expect(rijen.length).toBe(3);
-    expect(rijen.every((r) => r.attributes('button') !== undefined)).toBe(true);
+  it('shows one row per application, with how it stands, that opens the application alone', async () => {
+    const { w, router } = await toon('/burger');
+    // The decision and the objection follow on the application: no rows of their own.
+    const rijen = w.findAll('nldd-list[accessible-label="Mijn aanvragen"] nldd-list-item');
+    expect(rijen.map((r) => r.find('nldd-text-cell').attributes('text'))).toEqual(['Aanvraag']);
+    expect(rijen[0]!.find('nldd-text-cell').attributes('supporting-text')).toBe('13 oktober 2026 · gemeente Voorbeeld');
+    expect(status(rijen[0]!)).toBe('Afgewezen');
+    await rijen[0]!.trigger('click');
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe('/burger/dossier/a');
+    expect(w.find('nldd-list[accessible-label="Mijn aanvragen"]').exists()).toBe(false);
   });
 
-  it('opens an objection beside the dossier with what was filed, what it contests and that it waits', async () => {
-    const { w, router } = await toon('/burger');
-    await w.findAll('nldd-list-item')[2]!.trigger('click');
-    await flushPromises();
-    expect(router.currentRoute.value.path).toBe('/burger/dossier/c');
+  it('says an application waits while nothing answers it', async () => {
+    dossier.mockReset().mockResolvedValue([aanvraag]);
+    const { w } = await toon('/burger');
+    expect(status(w.find('nldd-list[accessible-label="Mijn aanvragen"] nldd-list-item'))).toBe('In behandeling');
+  });
+
+  it('opens an objection on a page of its own with what was filed, what it contests and that it waits', async () => {
+    const { w } = await toon('/burger/dossier/c');
     const t = teksten(w);
     // What it contests, with the way there.
     expect(t).toContain('Besluit (beschikking) van 13 oktober 2026');
@@ -119,13 +135,22 @@ describe('the dossier', () => {
     expect(w.text()).toContain('In behandeling bij gemeente Voorbeeld');
   });
 
+  it('returns from a record to the list with the back button', async () => {
+    const { w, router } = await toon('/burger/dossier/b');
+    expect(w.find('nldd-top-title-bar').attributes('back-text')).toBe('Mijn aanvragen');
+    await w.find('nldd-top-title-bar').trigger('back');
+    await flushPromises();
+    expect(router.currentRoute.value.name).toBe('dossier');
+    expect(w.find('nldd-list[accessible-label="Mijn aanvragen"]').exists()).toBe(true);
+  });
+
   it('shows on an application the decision that answered it', async () => {
     const { w } = await toon('/burger/dossier/a');
     expect(teksten(w)).toContain('Besluit van 13 oktober 2026');
     expect(w.text()).not.toContain('In behandeling');
   });
 
-  it('opens a decision in its own pane, also at the address decisions had before', async () => {
+  it('opens a decision on its own page, also at the address decisions had before', async () => {
     const { w, router } = await toon('/burger/besluit/b');
     expect(router.currentRoute.value.name).toBe('stuk');
     expect(router.currentRoute.value.params.id).toBe('b');
@@ -170,12 +195,14 @@ describe('the dossier', () => {
         volgende: 'beleid#5#vergunning_verzonden',
       },
     ]);
-    const { w } = await toon('/burger');
-    const regels = teksten(w);
-    // Right under the decision, before what hangs under it.
-    const onder = regels.indexOf('Besluit (beschikking)') + 1;
-    expect(regels[onder]).toBe('Uw vergunning is op 20 oktober 2026 gedrukt.');
-    expect(regels).toContain('Vergunning gedrukt');
+    const { w, router } = await toon('/burger');
+    // On the row of the application, and on its page.
+    const rij = w.find('nldd-list[accessible-label="Mijn aanvragen"] nldd-text-cell');
+    expect(rij.attributes('supporting-text')).toBe('13 oktober 2026 · gemeente Voorbeeld · Uw vergunning is op 20 oktober 2026 gedrukt.');
+    await router.push('/burger/dossier/a');
+    await flushPromises();
+    const na = w.find('nldd-list[accessible-label="Na de toekenning"]');
+    expect(na.findAll('nldd-text-cell').map((c) => c.attributes('text'))).toEqual(['Uw vergunning is op 20 oktober 2026 gedrukt.']);
   });
 
   it('offers an application about a grant once its acts are done, and marks a grant another took the place of', async () => {
@@ -190,26 +217,31 @@ describe('the dossier', () => {
     casus.na_toekenning = na;
     const klaar = { besluit: 'b', toekenning: 'b', stappen: [{ feit: 'beleid#5#vergunning_verzonden', gedaan: '2026-10-20' }], volgende: null };
     vervolg.mockReturnValue([klaar]);
-    const { w, router } = await toon('/burger');
+    // The way in stands on the page of the application, not in the list.
+    expect(teksten((await toon('/burger')).w)).not.toContain('Vergunning kwijt?');
+    const { w, router } = await toon('/burger/dossier/a');
     expect(teksten(w)).toContain('Vergunning kwijt?');
     await w.findAll('nldd-list-item').find((i) => i.find('nldd-text-cell').attributes('text') === 'Vergunning kwijt?')?.trigger('click');
     await vi.waitFor(() => expect(router.currentRoute.value.query).toEqual({ artikel: 'wet#2', op: 'b' }), { timeout: 10000 });
 
     // While the acts still run, nothing is offered.
     vervolg.mockReturnValue([{ ...klaar, stappen: [{ feit: 'beleid#5#vergunning_verzonden', gedaan: null }], volgende: 'beleid#5#vergunning_verzonden' }]);
-    expect(teksten((await toon('/burger')).w)).not.toContain('Vergunning kwijt?');
+    expect(teksten((await toon('/burger/dossier/a')).w)).not.toContain('Vergunning kwijt?');
 
     // Once the decision on such an application took the grant's place, the
-    // grant says it no longer counts.
+    // grant says it no longer counts, and that application is a row of its own.
     const melding = gram('m', 'AANVRAAG', 'wet#2', 'b');
     const duplicaat = { ...gram('x', 'BESCHIKKING', 'wet#2', 'm'), outputs: { vervangen: true } };
     dossier.mockResolvedValue([aanvraag, verleend, melding, duplicaat]);
     vervolg.mockReturnValue([{ ...klaar, toekenning: 'x' }]);
-    const regels = teksten((await toon('/burger')).w);
-    expect(regels).toContain('Deze vergunning geldt niet meer.');
-    // The way in moves to the grant that counts now: one, under the new one.
-    expect(regels.filter((t) => t === 'Vergunning kwijt?')).toHaveLength(1);
-    expect(regels.indexOf('Vergunning kwijt?')).toBeGreaterThan(regels.indexOf('Deze vergunning geldt niet meer.'));
+    const lijst = (await toon('/burger')).w
+      .findAll('nldd-list[accessible-label="Mijn aanvragen"] nldd-list-item')
+      .map((r) => r.find('nldd-text-cell'));
+    expect(lijst.map((c) => c.attributes('text'))).toEqual(['Aanvraag', 'Vergunning kwijt']);
+    expect(lijst[0]!.attributes('supporting-text')).toContain('Deze vergunning geldt niet meer.');
+    // The way in moves to the grant that counts now: on the page of the new application only.
+    expect(teksten((await toon('/burger/dossier/a')).w)).not.toContain('Vergunning kwijt?');
+    expect(teksten((await toon('/burger/dossier/m')).w)).toContain('Vergunning kwijt?');
   });
 
   describe('after a court annulled the decision on objection', () => {
@@ -235,13 +267,12 @@ describe('the dossier', () => {
         herroepen: { d: 'r', b: 'e' },
         antwoorden: { a: { soort: 'in_de_plaats', besluit: 'b', door: 'e', uitvoer: 'nieuw_besluit', nieuw }, c: { soort: 'besloten', besluit: 'e' } },
       });
-      const { w, router } = await toon('/burger/dossier/a');
-      const tags = w.findAll('nldd-list[accessible-label="Aanvraag"] nldd-tag').map((t) => t.attributes('text'));
-      // In the dossier: the refusal revoked, the annulled decision on objection, and the outcome of the new decision.
-      expect(tags).toContain('Herroepen');
-      expect(tags).toContain('Vernietigd');
-      expect(tags).toContain('Toegewezen');
+      const { w, router } = await toon('/burger');
+      // In the list: the application, with the outcome of the decision that holds now.
+      expect(w.findAll('nldd-list[accessible-label="Mijn aanvragen"] nldd-list-item').map(status)).toEqual(['Toegewezen']);
       // On the application: the new decision holds, the refusal is revoked.
+      await router.push('/burger/dossier/a');
+      await flushPromises();
       const lijst = w.find('nldd-list[accessible-label="Stand"]');
       expect(lijst.findAll('nldd-text-cell').map((c) => c.attributes('text'))).toEqual([
         'Nieuw besluit van 1 december 2026',

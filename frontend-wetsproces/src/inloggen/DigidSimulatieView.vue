@@ -82,7 +82,7 @@ async function inloggen(nummer: string, wie: string) {
               </select>
             </nldd-dropdown>
           </nldd-form-field>
-          <nldd-button-group orientation="horizontal">
+          <nldd-button-group>
             <nldd-button
               appearance="primary"
               start-icon="login"
@@ -102,7 +102,7 @@ async function inloggen(nummer: string, wie: string) {
             <nldd-text-field :value="bsn" keyboard="numeric" autocomplete="off" maxlength="9" @input="bsn = waarde($event)"></nldd-text-field>
             <nldd-form-field-help-text>Negen cijfers die beginnen met 99999 en de elfproef halen, zoals 999990032.</nldd-form-field-help-text>
           </nldd-form-field>
-          <nldd-button-group orientation="horizontal">
+          <nldd-button-group>
             <nldd-button appearance="secondary" start-icon="login" text="Inloggen" :disabled="bezig || undefined" @click="inloggen(bsn, naam)"></nldd-button>
           </nldd-button-group>
         </nldd-container>

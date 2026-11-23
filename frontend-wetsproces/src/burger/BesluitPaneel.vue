@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// One decision from the citizen's dossier, as the main pane beside it
-// (DossierView.vue): what came out, why, and the submissions the citizen can
+// One decision from the citizen's dossier, as a page one level below it
+// (DossierView.vue), whose back button returns to it: what came out, why, and the submissions the citizen can
 // make against it: an objection against a decision on an application, an
 // appeal to the court against the decision on that objection. Which those
 // are follows from the case (keten.ts `indieningenTegen`).
@@ -124,7 +124,7 @@ async function indienen() {
 
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
-    <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn dossier" collapse-anchor="besluit-titel"></nldd-top-title-bar>
+    <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn aanvragen" collapse-anchor="besluit-titel" @back="router.push({ name: 'dossier' })"></nldd-top-title-bar>
     <nldd-simple-section width="full">
       <nldd-inline-dialog v-if="!besluit" icon="info" text="Dit besluit staat niet in uw dossier"></nldd-inline-dialog>
       <template v-else>
@@ -191,7 +191,7 @@ async function indienen() {
             <nldd-text v-else><p>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</p></nldd-text>
             <nldd-spacer size="8"></nldd-spacer>
           </template>
-          <nldd-button-group orientation="horizontal">
+          <nldd-button-group>
             <nldd-button
               v-for="i in tegen"
               :key="i.artikel"
@@ -228,7 +228,7 @@ async function indienen() {
             </nldd-text>
             <SpecFormulier :velden="velden" :waarden="waarden" :volgorde="vormen?.volgorde" @zet="(n, v) => (waarden[n] = v)" />
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
-            <nldd-button-group orientation="horizontal">
+            <nldd-button-group>
               <nldd-button appearance="primary" :text="`${soortNaam(keuze)} indienen`" :loading="bezig || undefined" @click="indienen"></nldd-button>
             </nldd-button-group>
           </nldd-container>

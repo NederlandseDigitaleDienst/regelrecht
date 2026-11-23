@@ -9,7 +9,7 @@ import KetenStap from '@regelrecht/frontend-shared/components/chronolex/KetenSta
 import { genummerd, laagVanMap } from '@regelrecht/frontend-shared/chronolex/keten';
 import type { Namen, Stap } from '@regelrecht/frontend-shared/chronolex/keten';
 import { artikelNaam, wetNaam } from '@regelrecht/frontend-shared/chronolex/waarden';
-import { schermveld } from './formulier';
+import { kaalSchermveld } from './formulier';
 import type { Casus, Vormen } from './types';
 
 const props = defineProps<{ keten: Stap[]; casus: Casus; teksten?: Vormen['teksten'] }>();
@@ -21,7 +21,7 @@ const naamVan = (wet: string) => regelwerk(wet)?.naam;
 const namen: Namen = {
   wet: (wet) => wetNaam(wet, naamVan),
   artikel: (wet, artikel) => artikelNaam(wet, artikel, naamVan),
-  veld: (naam) => schermveld({ naam, type: null }, props.teksten).label,
+  veld: (naam) => kaalSchermveld(naam, props.teksten).label,
 };
 const laag = (wet: string) => laagVanMap(regelwerk(wet)?.map ?? '');
 </script>

@@ -18,7 +18,7 @@ import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { artikelNaam, omschrijving, waardeTekst } from '../gedeeld/keten';
-import { schermveld } from '../gedeeld/formulier';
+import { kaalSchermveld } from '../gedeeld/formulier';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { beheerApi } from './api';
 import type { OpenVerzoek, Partijen } from './api';
@@ -75,7 +75,7 @@ function vastUit(v: OpenVerzoek, h: Handeling): Record<string, unknown> {
 /** For whom a request is, in words: each field it fixes, by its label. */
 function voorWie(vast: Record<string, unknown>): string {
   return Object.entries(vast)
-    .map(([naam, waarde]) => `${schermveld({ naam, type: null }, vormen.value?.teksten).label} ${waardeTekst(waarde)}`)
+    .map(([naam, waarde]) => `${kaalSchermveld(naam, vormen.value?.teksten).label} ${waardeTekst(waarde)}`)
     .join(', ');
 }
 const gekozen = computed(() => partijen.value.find((p) => p.cel === props.cel));
@@ -187,7 +187,7 @@ async function toezenden(besluit: Gram) {
               </nldd-list>
               <template v-if="p.handelingen.length">
                 <nldd-spacer size="8"></nldd-spacer>
-                <nldd-button-group orientation="horizontal">
+                <nldd-button-group>
                   <nldd-button
                     v-for="h in p.handelingen"
                     :key="h.feit"
@@ -203,7 +203,7 @@ async function toezenden(besluit: Gram) {
                 <nldd-text color="secondary">
                   <p>Zonder verzoek, alleen voor een aanvrager voor wie geen verzoek openstaat, zoals iemand die eerder een kaart kreeg:</p>
                 </nldd-text>
-                <nldd-button-group orientation="horizontal">
+                <nldd-button-group>
                   <nldd-button
                     v-for="h in p.zonderVerzoek"
                     :key="h.feit"

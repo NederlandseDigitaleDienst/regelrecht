@@ -84,7 +84,7 @@ async function zet() {
           </nldd-form-field>
           <nldd-banner v-if="gezet" variant="success" :text="`De klok staat op ${longDate(klok.datum)}`"></nldd-banner>
           <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De klok is niet gezet" :supporting-text="melding"></nldd-inline-dialog>
-          <nldd-button-group orientation="horizontal">
+          <nldd-button-group>
             <nldd-button appearance="primary" text="Klok zetten" @click="zet"></nldd-button>
           </nldd-button-group>
 
@@ -97,7 +97,7 @@ async function zet() {
             </p>
           </nldd-text>
           <nldd-banner v-if="leeg" variant="success" :text="`De testomgeving is leeg; de klok staat op ${longDate(klok.datum)}`"></nldd-banner>
-          <nldd-button-group orientation="horizontal">
+          <nldd-button-group>
             <nldd-button appearance="critical-tinted" start-icon="delete" text="Testomgeving leegmaken" :loading="bezig || undefined" @click="bevestigen = true"></nldd-button>
           </nldd-button-group>
         </template>

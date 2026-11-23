@@ -12,6 +12,12 @@
 import { RouterView } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 
+/** The sheet of a new application: the form, and the page behind it that says
+ *  where each value comes from. Two addresses of the screen you are on, so a
+ *  link leads to the second and the browser's back button returns from it. */
+export const AANVRAAG = '#nieuwe-aanvraag';
+export const AANVRAAG_WETTEN = '#aanvraag-wetten';
+
 export const burgerRoutes: RouteRecordRaw[] = [
   {
     path: '/burger',
@@ -21,7 +27,7 @@ export const burgerRoutes: RouteRecordRaw[] = [
       titel: 'Parkeervergunningen',
       actie: {
         tekst: 'Nieuwe aanvraag',
-        hash: '#nieuwe-aanvraag',
+        hash: AANVRAAG,
         icoon: 'add',
         uitleg: {
           tekst: 'Hier vraagt u de kaart aan',

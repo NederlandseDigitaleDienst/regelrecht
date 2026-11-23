@@ -31,22 +31,39 @@
 # beschrijving, onder de kop van hun `group`. `label` en `help` zeggen hoe een
 # veld heet en wat eronder staat; zonder die twee heet een veld naar zijn naam
 # in het regelwerk.
+#
+# Die drie zijn de teksten van het formulier, en dat spreekt wie het invult
+# aan. Een scherm dat een vastgelegd stuk toont, praat óver de indiening: het
+# dossier van de burger, de werkvoorraad en de kroniek van de gemeente. Voor
+# die schermen staan onder `record` dezelfde drie sleutels; wat daar
+# ontbreekt, nemen ze van het formulier over. Een lege `help` onder `record`
+# zet er niets onder: een hulpregel die alleen bij het invullen helpt.
 elements:
   - id: UI1
     element: aanvraagformulier
     fields:
+      # De twee keuzes delen het begin van de zin; dat staat één keer in de
+      # kop, zodat elke keuze alleen noemt waarin ze verschilt.
       - name: kaart_als_bestuurder
-        group: Uw aanvraag
-        label: Ik vraag de kaart aan als bestuurder van de auto
+        group: Vraag gehandicaptenparkeerkaart aan als
+        label: Bestuurder van de auto
+        record: {group: Gevraagde kaart, label: Kaart als bestuurder}
       - name: kaart_als_passagier
-        group: Uw aanvraag
-        label: Ik vraag de kaart aan als passagier
+        group: Vraag gehandicaptenparkeerkaart aan als
+        label: Passagier
+        record: {group: Gevraagde kaart, label: Kaart als passagier}
       # De wet vraagt één adres (Awb 4:2, eerste lid, onder a); het scherm
       # vraagt het in de stukken waarin mensen het kennen. Het formulier voegt
       # ze in deze volgorde samen tot de ene waarde die de wet kent.
+      #
+      # Het regelwerk laat het adres leeg toe, omdat een aanvraag op papier
+      # onvolledig kan binnenkomen en artikel 4:5 dan zegt wat er volgt. Het
+      # scherm zegt het bij indienen meteen, dus het neemt er geen aan zonder.
       - name: adres_aanvrager
-        group: Gegevens van de aanvrager
+        group: Uw persoonsgegevens
         label: Adres
+        record: {group: Aanvrager}
+        required: true
         parts:
           - name: straat_huisnummer
             label: Straat en huisnummer
@@ -54,20 +71,25 @@ elements:
           - name: postcode
             label: Postcode
             autocomplete: postal-code
-            keyboard: numeric
+            # Zo breed als "1234 AB" met het validatiepictogram ernaast, plus
+            # ruimte voor wat de browser in het veld zet (Safari's AutoFill-knop,
+            # het pictogram van een wachtwoordmanager).
+            width: 17ch
           - name: woonplaats
             label: Woonplaats
             autocomplete: address-level2
       - name: bsn_aanvrager
-        group: Gegevens van de aanvrager
+        group: Uw persoonsgegevens
         visibility: shown
         fill: {by: system}
         label: Burgerservicenummer
+        record: {group: Aanvrager}
       - name: naam_aanvrager
-        group: Gegevens van de aanvrager
+        group: Uw persoonsgegevens
         visibility: shown
         fill: {by: system, login: naam}
         label: Naam
+        record: {group: Aanvrager}
       # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
       # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
       # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren
@@ -77,10 +99,11 @@ elements:
         visibility: hidden
         fill: {by: system, value: gehandicaptenparkeerkaart}
         label: Wat vraagt u aan?
+        record: {label: Gevraagd besluit}
       # Awb 4:2, eerste lid, onder b: de dag van indiening, volgens de klok
-      # van de server. Niet als veld op het formulier: het scherm zet haar als
-      # zin onder de vragen, boven de knop, want zij vraagt niets van de
-      # burger. De aanvraag bevat haar wel.
+      # van de server. Niet op het formulier: zij vraagt niets van de burger
+      # en staat pas vast als de server de aanvraag vastlegt. Het scherm
+      # noemt haar daarna, in de bevestiging. De aanvraag bevat haar wel.
       - name: dagtekening
         group: Over deze aanvraag
         visibility: hidden
@@ -102,6 +125,10 @@ elements:
         help: >-
           Een aanvraag die u indient nadat u met DigiD bent ingelogd, geldt als
           ondertekend.
+        record:
+          help: >-
+            Een aanvraag die na inloggen met DigiD is ingediend, geldt als
+            ondertekend.
   # Wat een besluit over de termijn zegt. Dezelfde velden staan in het
   # besluit op de aanvraag (de bezwaartermijn), in de beslissing op bezwaar
   # (de beroepstermijn) en in het bezwaar dat ze overneemt, dus de namen
@@ -162,6 +189,10 @@ elements:
         help: >-
           Zet dit aan als de gemeente de kaart per post verstuurt. Uit
           betekent dat de aanvrager haar aan de balie heeft afgehaald.
+        record:
+          help: >-
+            Nee betekent dat de aanvrager de kaart aan de balie heeft
+            afgehaald.
   # Het verzoek van de gemeente aan de GGD om een geneeskundig onderzoek
   # (artikel 9 van het fictieve beleid). Het systeem legt het vast bij een
   # aanvraag; dossier, werkvoorraad en beheerpaneel tonen deze velden.
@@ -186,14 +217,22 @@ elements:
         visibility: hidden
         fill: {by: system, submission: referred_record}
         label: Om welke kaart het gaat
+        record: {label: Kaart die kwijt is}
       - name: datum_vermissing
         group: Wat er gebeurde
         label: Wanneer raakte u de kaart kwijt?
         help: De dag waarop u merkte dat de kaart weg was, als u het niet precies weet.
+        record:
+          label: Kwijtgeraakt op
+          help: >-
+            De dag waarop de aanvrager merkte dat de kaart weg was, als die het
+            niet precies wist.
       - name: omstandigheden_verlies
         group: Wat er gebeurde
         label: Wat is er gebeurd?
         help: Bijvoorbeeld waar u de kaart voor het laatst had, of dat zij gestolen is.
+        record: {label: Wat er gebeurde, help: ''}
       - name: verklaring_naar_waarheid
         group: Wat er gebeurde
         label: Ik verklaar dat de kaart kwijt is en dat ik dit naar waarheid heb ingevuld
+        record: {label: Verklaard naar waarheid}

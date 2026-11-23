@@ -1,16 +1,19 @@
 <script setup lang="ts">
-// A record of the citizen's dossier that is no decision, as the main pane
-// beside the dossier (DossierView.vue): a submission of the citizen (an
+// A record of the citizen's dossier that is no decision, as a page one level
+// below the dossier (DossierView.vue), whose back button returns to it: a submission of the citizen (an
 // application, an objection, an appeal) or a fact a cell recorded (advice
 // received, the copy of a ruling). It shows what the record holds, with the
 // labels of the UI spec and, for a field the system filled, where its value
 // came from; what it is directed against or about; and for a submission what
 // answers it now, as the server says (`stand`): its decision, a new decision
 // taken in the place of a revoked one, or that it waits, also again after a
-// decision on it was annulled. A decision opens in BesluitPaneel.vue.
+// decision on it was annulled. Under that, for an application, how far the
+// acts after its grant are and what the citizen can apply for about it, such
+// as a duplicate, as the dossier gives them (`vervolg`, `aanvragen`). A
+// decision opens in BesluitPaneel.vue.
 import { computed } from 'vue';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
 import { herkomsten } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
@@ -27,10 +30,24 @@ import {
   toegewezen,
   waarover,
 } from '../gedeeld/keten';
-import type { Casus, Gram, Stand, Vormen } from '../gedeeld/types';
+import type { Casus, Gram, Stand, Vervolgaanvraag, Vormen } from '../gedeeld/types';
+import { AANVRAAG } from './routes';
 
-const props = defineProps<{ id: string; casus: Casus; vormen: Vormen | null; dossier: Gram[]; stand: Stand }>();
+const props = defineProps<{
+  id: string;
+  casus: Casus;
+  vormen: Vormen | null;
+  dossier: Gram[];
+  stand: Stand;
+  /** How far the acts after the grant of this application are, in the case's words. */
+  vervolg?: string;
+  /** What the citizen can apply for about that grant, each with the record it is about (`op`). */
+  aanvragen?: (Vervolgaanvraag & { op: string })[];
+}>();
 const router = useRouter();
+const route = useRoute();
+const vraagAan = (a: Vervolgaanvraag & { op: string }) =>
+  router.push({ path: route.path, query: { artikel: a.artikel, op: a.op }, hash: AANVRAAG });
 
 const stuk = computed(() => props.dossier.find((g) => g.id === props.id) ?? null);
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
@@ -90,7 +107,7 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
 
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
-    <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn dossier" collapse-anchor="stuk-titel"></nldd-top-title-bar>
+    <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn aanvragen" collapse-anchor="stuk-titel" @back="router.push({ name: 'dossier' })"></nldd-top-title-bar>
     <nldd-simple-section width="full">
       <nldd-inline-dialog
         v-if="!stuk"
@@ -163,6 +180,22 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
               In behandeling bij {{ naamVanCel(stuk.recording_actor) }}. Het besluit verschijnt hier zodra het genomen is.
             </p>
           </nldd-text>
+          <template v-if="vervolg || aanvragen?.length">
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-list appearance="box-base" accessible-label="Na de toekenning">
+              <nldd-list-item v-if="vervolg" size="md">
+                <nldd-icon-cell size="20"><nldd-icon icon="info"></nldd-icon></nldd-icon-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell :text="vervolg" supporting-text="Na de toekenning"></nldd-text-cell>
+              </nldd-list-item>
+              <nldd-list-item v-for="a in aanvragen" :key="`${a.op}-${a.artikel}`" size="md" button @click="vraagAan(a)">
+                <nldd-icon-cell size="20"><nldd-icon icon="add"></nldd-icon></nldd-icon-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell :text="a.knop" :supporting-text="a.titel"></nldd-text-cell>
+                <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </template>
           <nldd-spacer size="24"></nldd-spacer>
         </template>
 

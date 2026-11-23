@@ -7,10 +7,11 @@ import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/Oorde
 import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 import type { Formulierveld } from './formulier';
 
-const props = withDefaults(defineProps<{ veld: Formulierveld; modelValue?: unknown; oordeel?: boolean; kaal?: boolean }>(), {
+const props = withDefaults(defineProps<{ veld: Formulierveld; modelValue?: unknown; oordeel?: boolean; kaal?: boolean; artikel?: boolean }>(), {
   modelValue: undefined,
   oordeel: false,
   kaal: false,
+  artikel: true,
 });
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
 
@@ -31,8 +32,11 @@ const alsKeuze = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? 
   <VeldInvoer
     v-else
     :kaal="kaal"
+    :artikel="artikel"
     :autocomplete="veld.deel?.autocomplete"
     :keyboard="veld.deel?.keyboard"
+    :width="veld.deel?.width"
+    :verplicht="veld.verplicht"
     :veld="veld.veld"
     :label="veld.label"
     :help="veld.help"

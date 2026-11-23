@@ -3,8 +3,10 @@
 // the status bar that says this is a trial at the very top, then a bar with
 // the sections of the side as tabs at the start, or its name where it has no
 // sections, the account menu at the end with the side's one action beside it,
-// and the screen of the route in the main pane. On a narrow screen that
-// bar moves under the screen, as in the editor. The shell knows no side: the
+// and the screen of the route in the main pane. On a narrow screen a side
+// with tabs moves them into a bar under the screen, as in the editor; a side
+// without keeps its bar on top, in a toolbar of its own for that size, where
+// the action is an icon button. The shell knows no side: the
 // tabs come from the route (schil.ts), who is in and how to leave from the
 // shell that uses it.
 import { computed } from 'vue';
@@ -51,11 +53,11 @@ const ga = (hash: string) => {
   if (route.hash !== hash) void router.push({ path: route.path, query: route.query, hash });
 };
 // Whether the coach mark points at the action: the screen asks for it, the
-// action has words for it, and it is not the screen already open. It carries
+// action has words for it, and nothing it opens is open. It carries
 // no dismiss button: it goes when the screen says the action is done, so a
 // way to hide it would hide the only thing on an empty screen.
 const wijzen = computed(
-  () => !!(props.actie?.uitleg && wijsDeWeg.value && route.hash !== props.actie.hash),
+  () => !!(props.actie?.uitleg && wijsDeWeg.value && !route.hash),
 );
 </script>
 
@@ -64,7 +66,7 @@ const wijzen = computed(
     <nldd-bar-split-view>
       <div slot="proefstrook"><ProefStrook :klok="klok" /></div>
 
-      <nldd-container slot="primary-bar" above="md" padding="8">
+      <nldd-container slot="primary-bar" above="md" padding="8" padding-left="16">
         <nldd-toolbar size="md">
           <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
           <nldd-toolbar-item v-if="zichtbaar.length" slot="start" :priority="1">
@@ -118,13 +120,36 @@ const wijzen = computed(
         </nldd-toolbar>
       </nldd-container>
 
+      <nldd-container v-if="!zichtbaar.length" slot="primary-bar-sm" only="sm" padding="8" padding-left="16">
+        <nldd-toolbar size="md">
+          <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
+          <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
+            <nldd-icon-button size="md" appearance="primary" :icon="actie.icoon" :text="actie.tekst" @click="ga(actie.hash)"></nldd-icon-button>
+            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-icon-button size="md" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
+              <nldd-avatar v-if="naam" slot="icon" :name="naam" color="content" icon-aligned decorative></nldd-avatar>
+              <nldd-menu slot="popup">
+                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
+              </nldd-menu>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="account" text="Account">
+              <nldd-menu>
+                <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" @afmelden="emit('afmelden')" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
+
       <div slot="main"><slot /></div>
 
       <nldd-container v-if="$slots.voet" slot="voet" padding="8">
         <slot name="voet" />
       </nldd-container>
 
-      <nldd-container slot="mobile-bar" only="sm" padding="8">
+      <nldd-container v-if="zichtbaar.length" slot="mobile-bar" only="sm" padding="8">
         <nldd-toolbar size="lg">
           <nldd-toolbar-item v-if="zichtbaar.length" slot="start">
             <nldd-tab-bar navigation accessible-label="Onderdelen">

@@ -3,7 +3,7 @@
 // decision who filled it, and per answer of a cell what it answered.
 // `beslisser` is the name of the cell that took the decision: a finding is
 // its finding, whether it is a municipality or a court.
-import { schermveld } from './formulier';
+import { kaalSchermveld } from './formulier';
 import { artikelNaam } from './keten';
 import type { Vormen, Waarom } from './types';
 import { antwoordTekst, ingevuldDoor } from './waarom';
@@ -14,7 +14,7 @@ const props = defineProps<{
   celNaam: (cel: string) => string;
   beslisser: string;
 }>();
-const naam = (term: string) => schermveld({ naam: term, type: null }, props.teksten).label;
+const naam = (term: string) => kaalSchermveld(term, props.teksten).label;
 </script>
 
 <template>

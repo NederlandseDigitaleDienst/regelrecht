@@ -184,7 +184,7 @@ async function klaar(naam: string) {
               </nldd-text>
               <template v-if="c.handelingen.length">
                 <nldd-spacer size="8"></nldd-spacer>
-                <nldd-button-group orientation="horizontal">
+                <nldd-button-group>
                   <nldd-button
                     v-for="h in c.handelingen"
                     :key="h.feit"

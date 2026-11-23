@@ -20,9 +20,16 @@ export interface Schermveld {
   groep: string;
 }
 
-/** `veld` as a screen shows it, with the texts the UI spec gives it. */
-export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}): Schermveld {
-  const tekst: Veldtekst = teksten[veld.naam] ?? {};
+/**
+ * `veld` as a screen shows it, with the texts the UI spec gives it. A form
+ * speaks to whoever fills it in; a screen that shows a recorded submission
+ * (`stuk`) takes the UI spec's `record` texts, and the form's where it gives
+ * none.
+ */
+export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}, stuk = false): Schermveld {
+  const eigen: Veldtekst = teksten?.[veld.naam] ?? {};
+  // The server leaves out what the UI spec does not give, so a key `record` lacks keeps the form's.
+  const tekst: Veldtekst = stuk ? { ...eigen, ...eigen.record } : eigen;
   return {
     // The article a field comes from, in words for the screen, such as `Awb artikel 4:2`.
     veld: veld.basis ? { ...veld, basis: artikelNaam(veld.basis) } : veld,
@@ -32,9 +39,9 @@ export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}): Schermv
   };
 }
 
-/** The field `naam` of a record as a screen shows it, where the law's own description is not at hand. */
+/** The field `naam` of a record as a screen that shows it names it, where the law's own description is not at hand. */
 export const kaalSchermveld = (naam: string, teksten: Vormen['teksten'] = {}): Schermveld =>
-  schermveld({ naam, type: null }, teksten);
+  schermveld({ naam, type: null }, teksten, true);
 
 /** The fields the login fills: those the system fills without a value or a source. */
 export const doorInloggen = (vorm: Indieningsvorm): Set<string> =>
@@ -75,7 +82,9 @@ export interface Formulierveld extends Schermveld {
   /** Set when the system fills the field: its value and where it comes from. */
   systeem?: { waarde: unknown; herkomst: string };
   /** Set on an input of a field the screen asks in parts: the law field it answers, and the part. */
-  deel?: { veld: string; naam: string; autocomplete?: string; keyboard?: string };
+  deel?: { veld: string; naam: string; autocomplete?: string; keyboard?: string; width?: string };
+  /** The form does not submit without it (`required` in the UI spec); a part of such a field is too. */
+  verplicht?: boolean;
 }
 
 /** The key a part of `veld` holds its value under, which is no field of the law. */
@@ -90,7 +99,7 @@ function metDelen(veld: Formulierveld, delen: Vormen['delen'] = {}): Formulierve
     veld: { ...veld.veld, naam: deelsleutel(veld.veld.naam, d.naam) },
     label: d.label ?? d.naam,
     help: d.help ?? '',
-    deel: { veld: veld.veld.naam, naam: d.naam, autocomplete: d.autocomplete, keyboard: d.keyboard },
+    deel: { veld: veld.veld.naam, naam: d.naam, autocomplete: d.autocomplete, keyboard: d.keyboard, width: d.width },
   }));
 }
 
@@ -164,7 +173,8 @@ export const herkomsten = (vorm: Indieningsvorm | undefined): Record<string, str
  * system fills shows read-only with the value the server will record (the
  * server gives it to a citizen with the forms), or for the login field the
  * identifier of the login (`identiteit`), and where that value comes from.
- * The form never sends such a field ([`aanvraagVelden`]).
+ * The form never sends such a field ([`aanvraagVelden`]). A field the UI
+ * spec requires (`verplicht`) the applicant has to fill, every part of it.
  */
 export function aanvraagformulier(
   vorm: Indieningsvorm,
@@ -172,6 +182,7 @@ export function aanvraagformulier(
   identiteit: string | null = null,
   volgorde: string[] = [],
   delen: Vormen['delen'] = {},
+  verplicht: Vormen['verplicht'] = [],
 ): Aanvraagformulier {
   const systeem = vorm.systeem ?? {};
   const verborgen = vorm.verborgen ?? [];
@@ -182,7 +193,7 @@ export function aanvraagformulier(
   ).map((v) => {
     const hoe = systeem[v.naam];
     const veld: Formulierveld = schermveld(v, teksten);
-    if (!hoe) return veld;
+    if (!hoe) return verplicht?.includes(v.naam) ? { ...veld, verplicht: true } : veld;
     const waarde = 'waarde' in hoe ? hoe.waarde : inloggen.has(v.naam) && !hoe.inlog ? identiteit : undefined;
     return { ...veld, systeem: { waarde, herkomst: herkomst(hoe) } };
   })

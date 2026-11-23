@@ -34,7 +34,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { herkomsten, schermveld } from '../gedeeld/formulier';
+import { herkomsten, kaalSchermveld, schermveld } from '../gedeeld/formulier';
 import type { Schermveld } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
@@ -208,7 +208,7 @@ const weigering = computed(() => {
   const fout = voorvertoning.value?.geweigerd;
   if (!fout) return '';
   const woorden = {
-    veld: (naam: string) => schermveld({ naam, type: null }, props.vormen?.teksten).label,
+    veld: (naam: string) => kaalSchermveld(naam, props.vormen?.teksten).label,
     rol: props.casus.rol ?? 'het bestuursorgaan',
   };
   return weigeringInWoorden(fout, woorden) ?? `Het besluit is nog niet te berekenen. De melding van het systeem, in het Engels: ${fout}`;
@@ -426,7 +426,7 @@ async function beslissen() {
           <nldd-text v-if="rekent && voorvertoning" size="sm" color="secondary"><p>De voorvertoning wordt bijgewerkt.</p></nldd-text>
 
           <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
-          <nldd-button-group orientation="horizontal">
+          <nldd-button-group>
             <nldd-button appearance="primary" text="Besluit nemen" :loading="bezig || undefined" @click="beslissen"></nldd-button>
           </nldd-button-group>
         </nldd-container>

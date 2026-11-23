@@ -125,7 +125,7 @@ function verwijder(index: number) {
         </nldd-table-row>
         <nldd-inline-dialog slot="empty" icon="info" text="Nog geen rijen"></nldd-inline-dialog>
       </nldd-table>
-      <nldd-button-group v-if="!alleenLezen" orientation="horizontal">
+      <nldd-button-group v-if="!alleenLezen">
         <nldd-button appearance="secondary" start-icon="add" text="Rij toevoegen" @click="nieuw"></nldd-button>
       </nldd-button-group>
       <nldd-text v-if="herkomst" size="sm" color="secondary"><p>{{ herkomst }}</p></nldd-text>
@@ -166,7 +166,7 @@ function verwijder(index: number) {
               />
             </template>
             <nldd-form-actions>
-              <nldd-button-group orientation="horizontal">
+              <nldd-button-group>
                 <nldd-button appearance="primary" type="submit" text="Bewaar"></nldd-button>
               </nldd-button-group>
             </nldd-form-actions>

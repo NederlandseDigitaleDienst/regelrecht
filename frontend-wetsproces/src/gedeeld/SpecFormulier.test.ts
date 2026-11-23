@@ -63,20 +63,32 @@ describe('SpecFormulier', () => {
     expect(labels).toEqual(['Dagtekening', 'Ondertekend', 'Wil een vergunning']);
   });
 
-  it('shows a field that is already filled read-only, in its place in its group', () => {
+  it('shows a field that is already filled as a row of a list, not as an input, in its place in its group', () => {
     const { groepen } = aanvraagformulier(vorm, {
       nummer_aanvrager: { group: 'Over u', help: 'Uw nummer.' },
       wil_een_vergunning: { group: 'Over u' },
     }, '999990019');
     const w = mount(SpecFormulier, { props: { velden: groepen.flatMap((g) => g.velden), waarden: {}, volgorde: ['nummer_aanvrager', 'wil_een_vergunning'] } });
     expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over u']);
-    const eerste = w.findAll('nldd-form-field, nldd-checkbox-field')[0]!;
-    expect(eerste.attributes('label')).toBe('Nummer aanvrager');
-    expect(eerste.find('nldd-text-field').attributes('value')).toBe('999990019');
-    expect(eerste.find('nldd-text-field').attributes()).toHaveProperty('readonly');
-    expect(eerste.find('nldd-form-field-help-text').text()).toBe(
+    // The list stands before the question that follows it.
+    const lijst = w.find('nldd-list');
+    expect(lijst.element.compareDocumentPosition(w.find('nldd-checkbox-field').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const [naam, waarde] = lijst.findAll('nldd-text-cell');
+    expect(naam!.attributes('text')).toBe('Nummer aanvrager');
+    expect(naam!.attributes('supporting-text')).toBe(
       `Uw nummer. Volgens ${artikelNaam('voorbeeldwet#3')}. Uit de inlog van de aanvrager.`,
     );
+    // The value itself stands on the right of its row.
+    expect(waarde!.attributes('text')).toBe('999990019');
+    expect(waarde!.attributes('horizontal-alignment')).toBe('right');
+    expect(w.find('nldd-text-field').exists()).toBe(false);
+    // Without a caption the list stands on its own; with one, the caption names it.
+    expect(w.find('nldd-container nldd-text').exists()).toBe(false);
+    const metKop = mount(SpecFormulier, {
+      props: { velden: groepen.flatMap((g) => g.velden), waarden: {}, bekendKop: 'Al bekend' },
+    });
+    expect(metKop.find('nldd-list').attributes('accessible-label')).toBe('Al bekend');
+    expect(metKop.html()).toContain('<p>Al bekend</p>');
     // A field filled already is never sent up as a change.
     expect(w.emitted('zet')).toBeUndefined();
   });
@@ -119,6 +131,29 @@ describe('SpecFormulier', () => {
     expect(veld.getAttribute('label')).toBe('Uw aanvraag');
     expect(veld.querySelector('nldd-form-field-help-text')?.textContent).toBe(`Volgens ${artikelNaam('voorbeeldwet#3')}.`);
     expect(w.findAll('nldd-title')).toHaveLength(0);
+  });
+
+  it('leaves the article out where a screen of its own holds it', () => {
+    const { invullen } = aanvraagformulier(vorm, { dagtekening: { help: 'De dag waarop u ondertekent.' } }, null);
+    const w = mount(SpecFormulier, { props: { velden: invullen, waarden: {}, artikelen: false } });
+    const veld = w.findAll('nldd-form-field').find((e) => e.attributes('label') === 'Dagtekening');
+    // The help the UI spec gives stays; only the article goes.
+    expect(veld?.find('nldd-form-field-help-text').text()).toBe('De dag waarop u ondertekent.');
+    expect(w.html()).not.toContain('Volgens');
+  });
+
+  it('drops the optional badge of a field the UI spec requires, and has the browser refuse it empty', () => {
+    const { invullen } = aanvraagformulier(vorm, {}, null, [], {}, ['dagtekening']);
+    const w = mount(SpecFormulier, { props: { velden: invullen, waarden: {} } });
+    const veld = w.findAll('nldd-form-field').find((e) => e.attributes('label') === 'Dagtekening')!;
+    expect(veld.attributes()).not.toHaveProperty('optional');
+    expect(veld.find('nldd-date-field').attributes()).toHaveProperty('required');
+    // The list says what is wrong once the form refuses it; it has no rule of its own.
+    expect(veld.find('nldd-validation-list').exists()).toBe(true);
+    // A field the UI spec leaves alone keeps what the law says of it.
+    const los = teken().findAll('nldd-form-field').find((e) => e.attributes('label') === 'Dagtekening')!;
+    expect(los.attributes()).toHaveProperty('optional');
+    expect(los.find('nldd-validation-list').exists()).toBe(false);
   });
 
   it('sends a change of a field up by its name', async () => {
