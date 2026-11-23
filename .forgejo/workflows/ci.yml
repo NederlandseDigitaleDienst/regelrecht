@@ -7,6 +7,9 @@
 # on Kubernetes as uid 1000 with HOME=/tmp, which cannot install packages. The
 # Rust jobs therefore use the image from ci-image.yml. There is no build cache,
 # so every Rust job compiles from scratch.
+#
+# Without --maxWorkers the frontend job was killed with exit code 137 during
+# the editor tests. "Runner resources" prints what a job gets.
 name: CI
 on:
   push:
@@ -21,6 +24,12 @@ jobs:
       image: code.digitaledienst.overheid.nl/regelrecht/fieldlab-ci:main
     steps:
       - uses: actions/checkout@v4
+      - name: Runner resources
+        run: |
+          echo "nproc: $(nproc)"
+          echo "cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown)"
+          echo "memory.max: $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo unknown)"
+          df -h . /tmp
       - run: just format
       - run: just lint
       - run: just validate
@@ -33,6 +42,12 @@ jobs:
       image: code.digitaledienst.overheid.nl/regelrecht/fieldlab-ci:main
     steps:
       - uses: actions/checkout@v4
+      - name: Runner resources
+        run: |
+          echo "nproc: $(nproc)"
+          echo "cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown)"
+          echo "memory.max: $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo unknown)"
+          df -h . /tmp
       - run: just test-no-docker
 
   rust-test-db:
@@ -53,6 +68,12 @@ jobs:
       TEST_POSTGRES_URL: postgres://postgres:postgres@postgres:5432
     steps:
       - uses: actions/checkout@v4
+      - name: Runner resources
+        run: |
+          echo "nproc: $(nproc)"
+          echo "cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown)"
+          echo "memory.max: $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo unknown)"
+          df -h . /tmp
       - run: just test-db
 
   frontend:
@@ -63,21 +84,27 @@ jobs:
       image: node:24-bookworm
     steps:
       - uses: actions/checkout@v4
+      - name: Runner resources
+        run: |
+          echo "nproc: $(nproc)"
+          echo "cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown)"
+          echo "memory.max: $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo unknown)"
+          df -h . /tmp
       - run: npm ci --ignore-scripts
       - name: BDD grammar codegen is in sync
         run: |
           node bdd/codegen/gen-js.mjs
           git diff --exit-code packages/frontend-shared/src/gherkin/grammar.generated.js \
             || { echo "grammar.generated.js is stale: run 'just bdd-codegen' and commit the result"; exit 1; }
-      - run: npm test -w packages/frontend-shared
+      - run: npm test -w packages/frontend-shared -- --maxWorkers=2
       - run: npm run typecheck -w packages/frontend-shared
-      - run: npm test -w frontend
+      - run: npm test -w frontend -- --maxWorkers=2
       - run: npm run typecheck -w frontend
-      - run: npm test -w frontend-lawmaking
+      - run: npm test -w frontend-lawmaking -- --maxWorkers=2
       - run: npm run typecheck -w frontend-lawmaking
-      - run: npm test -w frontend-demo
+      - run: npm test -w frontend-demo -- --maxWorkers=2
       - run: npm run typecheck -w frontend-demo
-      - run: npm test -w frontend-wetsproces
+      - run: npm test -w frontend-wetsproces -- --maxWorkers=2
       - run: npm run typecheck -w frontend-wetsproces
-      - run: npm test -w packages/poc-chronolexografie/frontend
-      - run: npm test -w frontend-poc-wetsgeschiedenis
+      - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
+      - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
