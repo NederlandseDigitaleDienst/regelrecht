@@ -2,14 +2,70 @@
 {{- $instances := include "wetsproces.instances" . | fromJsonArray }}
 {{- $issuer := printf "%s-letsencrypt-%s" .Release.Name .Values.tls.acme }}
 {{- $shared := eq .Values.gateway.mode "shared" }}
+{{- $listenerSet := eq .Values.gateway.mode "listenerSet" }}
 {{- /*
 The listener port 80 traffic arrives on: the shared Gateway's HTTP listener,
 or this release's own.
 */}}
 {{- $httpParent := dict "group" "gateway.networking.k8s.io" "kind" "Gateway" "name" .Release.Name "sectionName" "http" }}
-{{- if $shared }}
+{{- if or $shared $listenerSet }}
 {{- $httpParent = dict "group" "gateway.networking.k8s.io" "kind" "Gateway" "name" .Values.gateway.shared.name "namespace" .Values.gateway.shared.namespace "sectionName" .Values.gateway.shared.httpListener }}
 {{- end }}
+{{- if $listenerSet }}
+{{- /*
+Mode listenerSet: an HTTPS listener per host on the shared Gateway, added
+from this namespace with a ListenerSet. cert-manager makes the certificate of
+each listener from the annotation, with the cluster's own ClusterIssuer, so
+this release needs no Gateway, Issuer or TLSRoute of its own.
+*/}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "wetsproces.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.gateway.shared.clusterIssuer | default (printf "letsencrypt-%s" .Values.tls.acme) }}
+spec:
+  parentRef:
+    name: {{ .Values.gateway.shared.name }}
+    namespace: {{ .Values.gateway.shared.namespace }}
+  listeners:
+    {{- range $instances }}
+    - name: https{{ .suffix }}
+      hostname: {{ .host }}
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .name }}-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+    {{- end }}
+{{- range $instances }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "wetsproces.labels" $ | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: ListenerSet
+      name: {{ $.Release.Name }}
+      sectionName: https{{ .suffix }}
+  hostnames:
+    - {{ .host }}
+  rules:
+    - backendRefs:
+        - name: {{ .name }}
+          port: 8000
+{{- end }}
+{{- else }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
@@ -138,6 +194,7 @@ spec:
           kind: Service
           name: {{ printf "%s-%s" .Release.Name .Values.gateway.className }}
           port: 443
+{{- end }}
 {{- end }}
 ---
 # Plain HTTP goes to HTTPS. The ACME solver's route on the same listener

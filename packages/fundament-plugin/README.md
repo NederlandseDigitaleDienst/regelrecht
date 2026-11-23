@@ -120,14 +120,27 @@ says why in its log.
 
 ## The chart behind a shared Gateway
 
-`charts/wetsproces` reaches its hosts in one of two ways, chosen by
-`gateway.mode`. The default, `shared`, is the one the plugin uses on
-`cluster-a`:
+`charts/wetsproces` reaches its hosts in one of three ways, chosen by
+`gateway.mode`. The default, `listenerSet`, is the one the plugin uses on
+`cluster-a` and `cluster-b`:
 
-- the cluster's shared Gateway (`public-gateway` in `istio-gateway`, the
-  address the wildcard record points at) has a TLS listener on port 443 that
-  passes TLS through unopened. A `TLSRoute` of the release sends its hosts to
-  the release's own Gateway;
+- a `ListenerSet` in the release's namespace adds an HTTPS listener per host to
+  the cluster's shared Gateway (`public-gateway` in `istio-gateway`, the
+  address the wildcard record points at). The annotation
+  `cert-manager.io/cluster-issuer` makes cert-manager issue each certificate
+  with the cluster's ClusterIssuer, `letsencrypt-<tls.acme>`;
+- an `HTTPRoute` per instance attaches to its listener in the `ListenerSet`,
+  and one on the shared Gateway's HTTP listener redirects to HTTPS;
+- the release makes no Gateway, Issuer or `TLSRoute` of its own. A host can be
+  claimed once per cluster; a listener on a name someone else holds shows
+  `Conflicted` (`kubectl get listenerset <release> -o yaml`).
+
+`gateway.mode: shared` is for a shared Gateway that takes no ListenerSets yet,
+such as `cluster-c` for now:
+
+- the cluster's shared Gateway has a TLS listener on port 443 that passes TLS
+  through unopened. A `TLSRoute` of the release sends its hosts to the
+  release's own Gateway;
 - the release's own Gateway terminates TLS with a Let's Encrypt certificate per
   host and routes each host to its instance. Its Service is a ClusterIP, through
   the annotation `networking.istio.io/service-type` on the Gateway. Istio reads

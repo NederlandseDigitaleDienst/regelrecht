@@ -190,6 +190,8 @@ jobs:
           helm template wetsproces "$C" --set domain=example.org $SMALL > /dev/null
           helm template wetsproces "$C" --set domain=example.org $CNPG \
             --set gateway.mode=own > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set gateway.mode=shared > /dev/null
           # Captured and matched rather than piped into `grep -q`: grep stops
           # at the first match, helm is still writing then and gets SIGPIPE,
           # and with pipefail that fails the step with exit code 141.

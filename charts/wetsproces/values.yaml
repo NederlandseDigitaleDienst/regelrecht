@@ -99,29 +99,41 @@ theme:
   accentColor: ''
 
 gateway:
-  # How the hosts are reached. Both modes make a Gateway API Gateway of this
-  # release, which terminates TLS with a Let's Encrypt certificate per host,
-  # and an HTTPRoute per host to its instance.
+  # How the hosts are reached.
   #
-  # - shared (the default): behind a Gateway the cluster already has, such as
-  #   the Haven+ `public-gateway` on cluster-a, whose wildcard DNS name covers
-  #   every host under the cluster's domain. Its TLS listener passes the TLS
-  #   of this release's hosts through to this release's Gateway (a TLSRoute),
-  #   and its HTTP listener carries the ACME challenge and the redirect to
-  #   HTTPS. This release's Gateway then needs no public address: its Service
-  #   is a ClusterIP. A host must be one label under the wildcard
-  #   (x.cluster-a.fieldlab2026.nl); burger.x.cluster-a.fieldlab2026.nl is not
-  #   covered by it, so set surfaces.*.host.
+  # - listenerSet (the default): on a Gateway the cluster already has, such as
+  #   the Haven+ `public-gateway` on cluster-a and -b, whose wildcard DNS name
+  #   covers every host under the cluster's domain. A ListenerSet in this
+  #   release's namespace adds an HTTPS listener per host to that Gateway, and
+  #   cert-manager makes each certificate from its annotation with the
+  #   cluster's ClusterIssuer. An HTTPRoute per host leads to its instance;
+  #   the Gateway's HTTP listener carries the redirect to HTTPS. This release
+  #   makes no Gateway of its own. The shared Gateway must allow ListenerSets
+  #   from this namespace (spec.allowedListeners).
+  # - shared: for a shared Gateway that takes no ListenerSets. Its TLS
+  #   listener passes the TLS of this release's hosts through to a Gateway of
+  #   this release (a TLSRoute), which terminates it with a certificate from
+  #   an Issuer of its own and needs no public address: its Service is a
+  #   ClusterIP. The HTTP listener carries the ACME challenge and the redirect.
   # - own: this release's Gateway takes a public address of its own, with an
   #   HTTP listener of its own; the hosts need DNS records to it (see dns).
-  mode: shared
-  # The shared Gateway and its listeners, for mode shared. Both listeners
-  # must accept routes from this namespace.
+  #
+  # With listenerSet and shared, a host must be one label under the wildcard
+  # (x.cluster-a.fieldlab2026.nl); burger.x.cluster-a.fieldlab2026.nl is not
+  # covered by it, so set surfaces.*.host. A host can be claimed once per
+  # cluster: a listener on another's name shows `Conflicted`.
+  mode: listenerSet
+  # The shared Gateway and its listeners, for modes listenerSet and shared.
+  # Both listeners must accept routes from this namespace.
   shared:
     name: public-gateway
     namespace: istio-gateway
     httpListener: http
+    # Mode shared only: the listener that passes TLS through.
     tlsListener: tls-passthrough
+    # Mode listenerSet only: the ClusterIssuer of the certificates. Empty
+    # means letsencrypt-<tls.acme>, as Haven+ names them.
+    clusterIssuer: ''
   enabled: true
   className: istio
   # Mode own only: a fixed address for the Gateway. Empty lets the cluster pick one. On
@@ -149,12 +161,13 @@ dns:
   ttl: 300
 
 tls:
-  # The chart creates a namespaced cert-manager Issuer for Let's Encrypt, with
-  # the HTTP-01 solver on the Gateway above: staging or production. Use staging
-  # until the Gateway and the route work; production has a weekly rate limit
-  # per domain.
+  # Let's Encrypt staging or production. With mode listenerSet it picks the
+  # cluster's ClusterIssuer letsencrypt-<acme>; with shared and own the chart
+  # creates a namespaced Issuer for it, with the HTTP-01 solver on the HTTP
+  # listener. Use staging until the routes work; production has a weekly rate
+  # limit per domain.
   acme: staging
-  # Contact address for the ACME account; optional.
+  # Contact address for the ACME account of the chart's own Issuer; optional.
   email: ''
 
 resources:
