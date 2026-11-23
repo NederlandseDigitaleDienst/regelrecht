@@ -1,0 +1,98 @@
+---
+apiVersion: fundament.io/v1
+kind: PluginDefinition
+metadata:
+  name: wetsproces
+  displayName: Wetsproces
+  version: v0.1.0
+  description: >-
+    Runs the regelrecht wetsprocessysteem for one case from a public git
+    repository, in test mode, with Flux, in an existing Fundament namespace.
+  author: regelrecht
+  license: EUPL-1.2
+  urls:
+    homepage: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
+    repository: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
+    documentation: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/src/branch/main/packages/fundament-plugin/README.md
+  tags:
+    - regelrecht
+    - wetsproces
+    - flux
+# There is deliberately no spec.image here. Publishing injects the pushed
+# image's digest, so the stored definition always pins immutable code.
+spec:
+  configSchema:
+    - name: CASE_REPO_URL
+      displayName: Case repository
+      type: string
+      default: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
+      description: HTTPS URL of the public git repository with the case.
+    - name: CASE_REF
+      displayName: Case branch or tag
+      type: string
+      default: main
+      description: Branch or tag of the case repository.
+    - name: CASE_PATH
+      displayName: Manifest path
+      type: string
+      default: packages/wetsproces/bron.yaml
+      description: Path of the source manifest (bron.yaml) in the case repository.
+    - name: NAMESPACE
+      displayName: Namespace
+      type: string
+      required: true
+      description: >-
+        Full name of an existing Fundament namespace, tnt-<project>--<name>.
+        The plugin deploys into it and never creates a namespace.
+    - name: DOMAIN
+      displayName: Base domain
+      type: string
+      required: true
+      description: >-
+        The app is served on wetsproces.<domain>. Without a DNS record of your
+        own, use <gateway-ip-with-dashes>.sslip.io.
+    - name: IMAGE
+      displayName: Image
+      type: string
+      default: code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7
+      advanced: true
+      description: The regelrecht-wetsproces image.
+    - name: CHART_REF
+      displayName: Chart branch or tag
+      type: string
+      default: main
+      advanced: true
+      description: Branch or tag of the regelrecht repository that the Helm chart is read from.
+    - name: GATEWAY_ADDRESS
+      displayName: Gateway address
+      type: string
+      default: ''
+      advanced: true
+      description: >-
+        Fixed public IP address for the Gateway; it must be a static IP of the
+        project. Empty lets the cluster pick one.
+    - name: ACME
+      displayName: Let's Encrypt environment
+      type: enum
+      default: production
+      values:
+        - staging
+        - production
+      advanced: true
+      description: Use staging until the Gateway and the route work; production has a weekly rate limit.
+
+  permissions:
+    rbac:
+      # The plugin checks that the configured namespace exists; Fundament
+      # creates it.
+      - apiGroups: ['']
+        resources: [namespaces]
+        verbs: [get]
+      # Flux, which the cluster already runs, does the rest: helm-controller
+      # installs the chart with its own service account.
+      - apiGroups: [source.toolkit.fluxcd.io]
+        resources: [gitrepositories]
+        verbs: [get, list, watch, create, patch, update, delete]
+      - apiGroups: [helm.toolkit.fluxcd.io]
+        resources: [helmreleases]
+        verbs: [get, list, watch, create, patch, update, delete]

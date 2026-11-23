@@ -79,6 +79,8 @@ ignore: |
   .tox/
   node_modules/
   .github/workflows/
+  # Helm templates are Go templates that render to YAML, not YAML.
+  charts/*/templates/
   # Casus-inhoud van de proof-of-concepts: overgenomen uit de losse PoC-repo's
   # en daar met de hand geschreven in een eigen stijl. Het is geen geldend
   # recht en het gaat niet door `just validate`; het herformatteren van

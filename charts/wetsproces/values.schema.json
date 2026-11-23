@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "domain",
+    "image",
+    "case",
+    "wetsproces"
+  ],
+  "properties": {
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+    },
+    "host": {
+      "type": "string"
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "ref"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "required": [
+        "repoUrl",
+        "ref",
+        "path"
+      ],
+      "properties": {
+        "repoUrl": {
+          "type": "string",
+          "pattern": "^https://[^@/]+/.+"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^-\\s][^\\s]*$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/].*$"
+        }
+      }
+    },
+    "wetsproces": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "test"
+        },
+        "surface": {
+          "enum": [
+            "all",
+            "burger",
+            "backoffice"
+          ]
+        },
+        "store": {
+          "const": "memory"
+        },
+        "login": {
+          "const": "testlogin"
+        }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "required": [
+        "acme"
+      ],
+      "properties": {
+        "acme": {
+          "enum": [
+            "staging",
+            "production"
+          ]
+        },
+        "email": {
+          "type": "string"
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "className": {
+          "type": "string",
+          "minLength": 1
+        },
+        "address": {
+          "type": "string"
+        },
+        "serviceAnnotations": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

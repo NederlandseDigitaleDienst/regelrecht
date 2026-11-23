@@ -1,6 +1,7 @@
 ---
 # A minimal CI for the fieldlab copy on Forgejo: Rust format, lint, corpus
-# validation and tests, and the frontend unit tests and type checks.
+# validation and tests, the frontend unit tests and type checks, and the tests
+# of the Fundament plugin and its Helm chart.
 #
 # The GitHub workflows in .github/workflows/ do not run here: Forgejo reads
 # .forgejo/workflows/ when it exists. Most jobs run on `default`, a container
@@ -121,3 +122,61 @@ jobs:
       - run: npm run typecheck -w frontend-wetsproces
       - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
       - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
+
+  # The images below have git but no node, so they check out with git itself:
+  # the exact commit of the push, shallow.
+  fundament-plugin:
+    name: Fundament plugin
+    runs-on: default
+    timeout-minutes: 15
+    container:
+      image: golang:1.27.3-bookworm@sha256:dc0963f32053e4bc451d24d87e3892d42d01021b61f093e98eb95c0352bb84b0
+    env:
+      GOPATH: /tmp/go
+      GOCACHE: /tmp/go-build
+      # Like cargo, go builds a package per CPU it sees, and the Kubernetes
+      # client libraries are large; this keeps the job under 6 GiB.
+      GOFLAGS: -p=8
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          git init -q .
+          git fetch -q --depth 1 \
+            "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" "${{ forgejo.sha }}"
+          git checkout -q FETCH_HEAD
+      - name: go vet and go test
+        working-directory: ${{ forgejo.workspace }}/packages/fundament-plugin
+        run: |
+          go vet ./...
+          go test ./...
+
+  chart:
+    name: Helm chart
+    runs-on: default
+    timeout-minutes: 10
+    container:
+      image: alpine/helm:3.20.0@sha256:2240b3c3e917a156c4af570c7f8bdf951072196de69f2a0d06e2cd2fc0ba40a8
+    steps:
+      - name: Check out
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          git init -q .
+          git fetch -q --depth 1 \
+            "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" "${{ forgejo.sha }}"
+          git checkout -q FETCH_HEAD
+      - name: helm lint and template
+        run: |
+          helm lint charts/wetsproces --strict --set domain=example.org
+          helm template wetsproces charts/wetsproces --set domain=example.org > /dev/null
+          helm template wetsproces charts/wetsproces --set domain=example.org \
+            --set gateway.enabled=false > /dev/null
+      - name: The schema refuses an empty domain
+        run: |
+          if helm template wetsproces charts/wetsproces > /dev/null 2>&1; then
+            echo "an empty domain was accepted"; exit 1
+          fi

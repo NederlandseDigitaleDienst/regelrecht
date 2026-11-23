@@ -1,0 +1,71 @@
+---
+# The base domain. The app is served on wetsproces.<domain>, unless `host` is set.
+domain: ''
+# The full hostname; empty means wetsproces.<domain>.
+host: ''
+
+image:
+  # Built from this repository by .forgejo/workflows/wetsproces-image.yml, which
+  # tags every build on main with its commit. The screens come from the image
+  # and the case from case.ref, so keep the two close: a case from a later
+  # commit than the image may need code the image does not have yet.
+  ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7
+  pullPolicy: IfNotPresent
+
+# The case: a public git repository with a source manifest (bron.yaml). An init
+# container clones it, shallow, into /case before the server starts.
+case:
+  # HTTPS URL of the public repository.
+  repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
+  # Branch or tag.
+  ref: main
+  # Path of the manifest inside the repository. The manifest's `repo_root` is
+  # resolved from there, so ../.. points at /case for the default path.
+  path: packages/wetsproces/bron.yaml
+
+# The image that clones the case.
+gitImage:
+  ref: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
+  pullPolicy: IfNotPresent
+
+# Step 1 of the plan: test mode, one address for both sides, the test login and
+# the chronicles in memory. Stable mode needs PostgreSQL and Keycloak and is not
+# supported by this chart yet.
+wetsproces:
+  mode: test
+  surface: all
+  store: memory
+  login: testlogin
+
+gateway:
+  # A Gateway API Gateway of this release, in its own namespace, with its own
+  # public address: an HTTP listener (for the ACME HTTP-01 challenge and a
+  # redirect to HTTPS) and an HTTPS listener for the host. An HTTPRoute sends
+  # the host to the service.
+  enabled: true
+  className: istio
+  # A fixed address for the Gateway. Empty lets the cluster pick one. On
+  # cluster-a the addresses are ephemeral: the cloud controller allocates one
+  # per Service and releases it with the Service, and refuses an address that
+  # is not allocated to the project. Leave it empty there.
+  address: ''
+  # Annotations on the Service the gateway controller creates. On cluster-a the
+  # MetalLB pool does not assign addresses on its own, so the Service names it.
+  serviceAnnotations:
+    metallb.io/address-pool: internet-fire-ephemeral
+
+tls:
+  # The chart creates a namespaced cert-manager Issuer for Let's Encrypt, with
+  # the HTTP-01 solver on the Gateway above: staging or production. Use staging
+  # until the Gateway and the route work; production has a weekly rate limit
+  # per domain.
+  acme: staging
+  # Contact address for the ACME account; optional.
+  email: ''
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 1Gi

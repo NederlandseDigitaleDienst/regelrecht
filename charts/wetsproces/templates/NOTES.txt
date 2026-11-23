@@ -1,0 +1,7 @@
+wetsproces runs the case from {{ .Values.case.repoUrl }} at {{ .Values.case.ref }} ({{ .Values.case.path }}).
+{{- if .Values.gateway.enabled }}
+
+URL: https://{{ include "wetsproces.host" . }} (Let's Encrypt {{ .Values.tls.acme }})
+The host must resolve to the address of Gateway {{ .Release.Name }}:
+  kubectl -n {{ .Release.Namespace }} get gateway {{ .Release.Name }}
+{{- end }}

@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "wetsproces.labels" . | nindent 4 }}
+spec:
+  # Memory store: a second replica would hold a second, separate set of
+  # chronicles. Recreate keeps it at one during a rollout too.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "wetsproces.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wetsproces.selectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        # The user `app` of the wetsproces image.
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: clone-case
+          image: {{ .Values.gitImage.ref }}
+          imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
+          command: ["git"]
+          args:
+            - clone
+            - --depth=1
+            - --single-branch
+            - --branch={{ .Values.case.ref }}
+            - --
+            - {{ .Values.case.repoUrl | quote }}
+            - /case
+          env:
+            - name: HOME
+              value: /tmp
+            # A public repository needs no credentials; never prompt for them.
+            - name: GIT_TERMINAL_PROMPT
+              value: "0"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: case
+              mountPath: /case
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: wetsproces
+          image: {{ .Values.image.ref }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: WETSPROCES_MODE
+              value: {{ .Values.wetsproces.mode | quote }}
+            - name: WETSPROCES_SURFACE
+              value: {{ .Values.wetsproces.surface | quote }}
+            - name: WETSPROCES_STORE
+              value: {{ .Values.wetsproces.store | quote }}
+            - name: WETSPROCES_LOGIN
+              value: {{ .Values.wetsproces.login | quote }}
+            - name: WETSPROCES_MANIFEST
+              value: {{ printf "/case/%s" (include "wetsproces.casePath" .) | quote }}
+            - name: WETSPROCES_PORT
+              value: "8000"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: case
+              mountPath: /case
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: case
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

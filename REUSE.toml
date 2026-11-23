@@ -26,6 +26,7 @@ path = [
   "**.sh",
   "**.sql",
   "**.toml",
+  "**.tpl",
   "**.ts",
   "**.txt",
   "**.vue",
@@ -37,6 +38,7 @@ path = [
   "**Justfile",
   "**.dockerignore",
   "**.gitignore",
+  "**.helmignore",
   "**.npmrc",
   "**.skill-path-exceptions",
   "**.yamllint",
@@ -198,3 +200,14 @@ path = "frontend-poc-*/public/img/digid-logo.svg"
 precedence = "override"
 SPDX-FileCopyrightText = "Staat der Nederlanden (Logius)"
 SPDX-License-Identifier = "LicenseRef-Trademark"
+
+# De Fundament-plugin is afgeleid van de Haven+-plugin
+# (gitlab.com/commonground/haven/havenplus/plugin-fundament), ook onder de
+# EUPL-1.2: de opzet, de statusrapportage en de tests komen daarvandaan.
+[[annotations]]
+path = "packages/fundament-plugin/**"
+SPDX-FileCopyrightText = [
+  "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)",
+  "De auteurs van Haven+ plugin-fundament (https://gitlab.com/commonground/haven/havenplus/plugin-fundament)",
+]
+SPDX-License-Identifier = "EUPL-1.2"
