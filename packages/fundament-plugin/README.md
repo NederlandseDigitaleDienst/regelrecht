@@ -47,7 +47,7 @@ status:
 | Field | What it is |
 |---|---|
 | `manifest.repoUrl` | HTTPS URL of the git repository with the case, without credentials |
-| `manifest.ref` | branch or tag, `main` by default |
+| `manifest.ref` | branch, tag or full commit, `main` by default; a commit pins the case to one version |
 | `manifest.path` | path of the source manifest (`bron.yaml`) in that repository. The case file and the articles it runs are named there, so the wizard does not ask for them |
 | `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository |
 | `version` | the regelrecht commit whose wetsproces image runs, the full 40-character hash. Empty follows the latest build of main |

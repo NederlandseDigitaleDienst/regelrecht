@@ -4,7 +4,8 @@
 # code.digitaledienst.overheid.nl/regelrecht/wetsproces:main and :<commit>.
 #
 # After a push from main, the job `chart` points charts/wetsproces at the new
-# image and commits that to main. Flux follows the chart on main, so the
+# image, and its case at the same commit while the case comes from this
+# repository, and commits that to main. Flux follows the chart on main, so the
 # deployment on the cluster picks up every build without credentials for the
 # cluster in CI. A push with the job's own token starts no workflow, so the
 # commit cannot loop; `[skip ci]` in its message says the same to a reader.
@@ -82,23 +83,35 @@ jobs:
           cd repo
           git config user.name "Forgejo Actions"
           git config user.email "actions@noreply.${HOST}"
+          OWN_REPO="${SERVER}/${{ forgejo.repository }}.git"
+          # The values of one top-level block, such as `case`, without the
+          # same key in another block (image.ref, gitImage.ref).
+          case_value() { sed -n "/^case:/,/^[^ #]/ s|^  $1: *||p" "$VALUES"; }
           for attempt in 1 2 3 4 5; do
             CURRENT="$(sed -n 's|^  ref: .*/regelrecht/wetsproces:\([0-9a-f]\{40\}\)$|\1|p' "$VALUES")"
             if [ -z "$CURRENT" ]; then
               echo "no image.ref with a commit tag in ${VALUES}"; exit 1
             fi
-            if [ "$CURRENT" = "$SHA" ]; then
+            # A case from this repository is pinned to the image's commit, so
+            # the case never runs ahead of the code that reads it. A case
+            # from another repository keeps the ref it has.
+            PIN_CASE=no
+            if [ "$(case_value repoUrl)" = "$OWN_REPO" ]; then PIN_CASE=yes; fi
+            if [ "$CURRENT" = "$SHA" ] && { [ "$PIN_CASE" = no ] || [ "$(case_value ref)" = "$SHA" ]; }; then
               echo "the chart already runs ${SHORT}"; exit 0
             fi
             # Builds can finish out of order; never replace a later build.
-            if git merge-base --is-ancestor "$SHA" "$CURRENT" 2>/dev/null; then
+            if [ "$CURRENT" != "$SHA" ] && git merge-base --is-ancestor "$SHA" "$CURRENT" 2>/dev/null; then
               echo "the chart runs ${CURRENT}, which is later than ${SHA}; leaving it"; exit 0
             fi
             sed -i "s|^  ref: .*/regelrecht/wetsproces:[0-9a-f]\{40\}\$|  ref: ${NEW}|" "$VALUES"
             sed -i "s|^appVersion: .*|appVersion: ${SHORT}|" charts/wetsproces/Chart.yaml
+            if [ "$PIN_CASE" = yes ]; then
+              sed -i "/^case:/,/^[^ #]/ s|^  ref: .*|  ref: ${SHA}|" "$VALUES"
+            fi
             git commit -q -am "chore(dev): wetsproces-image ${SHORT} in de chart [skip ci]"
             if git push -q origin HEAD:main; then
-              echo "the chart now runs ${SHORT}"; exit 0
+              echo "the chart now runs ${SHORT} (case pinned: ${PIN_CASE})"; exit 0
             fi
             echo "main moved on (attempt ${attempt}); trying again on the new main"
             git fetch -q origin main

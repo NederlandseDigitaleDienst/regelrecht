@@ -22,7 +22,10 @@ image:
 case:
   # HTTPS URL of the public repository.
   repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
-  # Branch or tag.
+  # Branch, tag or full commit. .forgejo/workflows/wetsproces-image.yml sets
+  # it to the commit of each new image while repoUrl is this repository, so
+  # the case and the code that reads it always come from the same commit: a
+  # case from a later commit may need a parser the image does not have yet.
   ref: main
   # Path of the manifest inside the repository. The manifest's `repo_root` is
   # resolved from there, so ../.. points at /case for the default path.

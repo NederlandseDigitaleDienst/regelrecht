@@ -57,23 +57,29 @@ spec:
         - name: clone-case
           image: {{ .Values.gitImage.ref }}
           imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
-          command: ["git"]
+          # Fetch rather than clone: `git clone --branch` takes a branch or a
+          # tag, `git fetch` also a commit, so a release can pin the case to
+          # the commit its image was built from. Repository and ref come in
+          # through the environment and never become part of the script.
+          command: ["sh", "-c"]
           args:
-            {{- if .Values.case.credentialsSecret }}
-            # git asks this helper for the credentials of repoUrl; it reads
-            # them from the environment, so they never appear in the
-            # arguments of a process.
-            - -c
-            - credential.helper=!f() { echo "username=${GIT_USERNAME}"; echo "password=${GIT_TOKEN}"; }; f
-            {{- end }}
-            - clone
-            - --depth=1
-            - --single-branch
-            - --branch={{ .Values.case.ref }}
-            - --
-            - {{ .Values.case.repoUrl | quote }}
-            - /case
+            - |
+              set -eu
+              git init -q /case
+              cd /case
+              {{- if .Values.case.credentialsSecret }}
+              # git asks this helper for the credentials of repoUrl; it reads
+              # them from the environment, so they never appear in the
+              # arguments of a process.
+              git config credential.helper '!f() { echo "username=${GIT_USERNAME}"; echo "password=${GIT_TOKEN}"; }; f'
+              {{- end }}
+              git fetch -q --depth=1 "$CASE_REPO" "$CASE_REF"
+              git checkout -q FETCH_HEAD
           env:
+            - name: CASE_REPO
+              value: {{ .Values.case.repoUrl | quote }}
+            - name: CASE_REF
+              value: {{ .Values.case.ref | quote }}
             - name: HOME
               value: /tmp
             # Never prompt for credentials: a public repository needs none,
