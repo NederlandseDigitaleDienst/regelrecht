@@ -4,12 +4,14 @@ kind: PluginDefinition
 metadata:
   name: wetsproces
   displayName: Wetsproces
-  version: v0.1.1
+  version: v0.2.0
   description: >-
-    Runs the regelrecht wetsprocessysteem for one case from a public git
-    repository, in test mode, with Flux, in an existing Fundament namespace.
+    Offers the regelrecht wetsprocessysteem to the projects of a cluster.
+    Installed once per cluster; project members then create a wetsproces per
+    case from the console, each on its own address with its own database.
   author: regelrecht
   license: EUPL-1.2
+  icon: document
   urls:
     homepage: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
     repository: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
@@ -21,57 +23,33 @@ metadata:
 # There is deliberately no spec.image here. Publishing injects the pushed
 # image's digest, so the stored definition always pins immutable code.
 spec:
+  # Defaults only: each wetsproces has its case, version, colour and address in
+  # its own Wetsproces object. The Keycloak URL of stable mode joins these once
+  # the chart supports stable mode.
   configSchema:
-    - name: CASE_REPO_URL
-      displayName: Case repository
-      type: string
-      default: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
-      description: HTTPS URL of the public git repository with the case.
-    - name: CASE_REF
-      displayName: Case branch or tag
-      type: string
-      default: main
-      description: Branch or tag of the case repository.
-    - name: CASE_PATH
-      displayName: Manifest path
-      type: string
-      default: packages/wetsproces/bron.yaml
-      description: Path of the source manifest (bron.yaml) in the case repository.
-    - name: NAMESPACE
-      displayName: Namespace
-      type: string
-      required: true
-      description: >-
-        Full name of an existing Fundament namespace, tnt-<project>--<name>.
-        The plugin deploys into it and never creates a namespace.
     - name: DOMAIN
       displayName: Base domain
       type: string
       required: true
       description: >-
-        Citizens use burger.wetsproces.<domain> and employees
-        medewerkers.wetsproces.<domain>. Without a DNS record of your own, use
-        <gateway-ip-with-dashes>.sslip.io.
-    - name: IMAGE
-      displayName: Image
+        A wetsproces with hostname x is served on x.<domain> for citizens and
+        x-medewerkers.<domain> for employees, e.g. cluster-a.fieldlab2026.nl,
+        whose wildcard record points at the cluster's shared Gateway.
+    - name: DEFAULT_IMAGE
+      displayName: Image repository
       type: string
-      default: code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7
+      default: code.digitaledienst.overheid.nl/regelrecht/wetsproces
       advanced: true
-      description: The regelrecht-wetsproces image.
+      description: >-
+        Repository of the wetsproces image, without a tag. A wetsproces with a
+        version runs <repository>:<version>; one without runs the build of
+        main that the chart names.
     - name: CHART_REF
       displayName: Chart branch or tag
       type: string
       default: main
       advanced: true
       description: Branch or tag of the regelrecht repository that the Helm chart is read from.
-    - name: GATEWAY_ADDRESS
-      displayName: Gateway address
-      type: string
-      default: ''
-      advanced: true
-      description: >-
-        Fixed public IP address for the Gateway; it must be a static IP of the
-        project. Empty lets the cluster pick one.
     - name: ACME
       displayName: Let's Encrypt environment
       type: enum
@@ -80,15 +58,45 @@ spec:
         - staging
         - production
       advanced: true
-      description: Use staging until the Gateway and the route work; production has a weekly rate limit.
+      description: Use staging until the routes work; production has a weekly rate limit.
 
   permissions:
     rbac:
-      # The plugin checks that the configured namespace exists; Fundament
-      # creates it.
-      - apiGroups: ['']
-        resources: [namespaces]
-        verbs: [get]
+      # Install time: the plugin's own CRD. get for the establishment wait;
+      # patch for the server-side apply. create cannot be kept to one name.
+      - apiGroups: [apiextensions.k8s.io]
+        resources: [customresourcedefinitions]
+        verbs: [create]
+      - apiGroups: [apiextensions.k8s.io]
+        resources: [customresourcedefinitions]
+        resourceNames:
+          - wetsprocessen.wetsproces.regelrecht.nl
+          # The check that Flux is there.
+          - gitrepositories.source.toolkit.fluxcd.io
+          - helmreleases.helm.toolkit.fluxcd.io
+        verbs: [get, patch]
+      # The roles that let project admins and viewers use wetsprocessen
+      # (setup.go). They grant nothing the plugin does not hold itself.
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [clusterroles]
+        verbs: [create]
+      - apiGroups: [rbac.authorization.k8s.io]
+        resources: [clusterroles]
+        resourceNames: [fundament-wetsproces-admin, fundament-wetsproces-view]
+        verbs: [get, update, patch, delete]
+      # The controller and the console pages: the pages act with the rights
+      # the user and the plugin share, so the plugin holds what the wizard and
+      # the detail page do (create, delete).
+      - apiGroups: [wetsproces.regelrecht.nl]
+        resources: [wetsprocessen]
+        verbs: [get, list, watch, create, update, patch, delete]
+      - apiGroups: [wetsproces.regelrecht.nl]
+        resources: [wetsprocessen/status]
+        verbs: [get, update, patch]
+      # Owner references with blockOwnerDeletion need update on finalizers.
+      - apiGroups: [wetsproces.regelrecht.nl]
+        resources: [wetsprocessen/finalizers]
+        verbs: [update]
       # Flux, which the cluster already runs, does the rest: helm-controller
       # installs the chart with its own service account.
       - apiGroups: [source.toolkit.fluxcd.io]
@@ -97,3 +105,50 @@ spec:
       - apiGroups: [helm.toolkit.fluxcd.io]
         resources: [helmreleases]
         verbs: [get, list, watch, create, patch, update, delete]
+      # The wizard makes the Secret with the token of a private case
+      # repository. Create only: neither the plugin nor its pages read one.
+      - apiGroups: ['']
+        resources: [secrets]
+        verbs: [create]
+  crds:
+    - wetsprocessen.wetsproces.regelrecht.nl
+
+  menu:
+    project:
+      - crd: wetsprocessen.wetsproces.regelrecht.nl
+        list: true
+        detail: true
+        icon: document
+        label: Wetsprocessen
+        singularLabel: Wetsproces
+
+  customComponents:
+    Wetsproces:
+      list: wetsprocessen-list.html
+      detail: wetsprocessen-detail.html
+      create: wetsprocessen-create.html
+
+  allowedResources:
+    - group: wetsproces.regelrecht.nl
+      version: v1alpha1
+      resource: wetsprocessen
+      verbs: [list, get, create, delete]
+    - group: ''
+      version: v1
+      resource: secrets
+      verbs: [create]
+
+  uiHints:
+    wetsprocessen.wetsproces.regelrecht.nl:
+      statusMapping:
+        jsonPath: .status.phase
+        values:
+          Ready:
+            badge: success
+            label: Draait
+          Failed:
+            badge: danger
+            label: Mislukt
+        default:
+          badge: warning
+          label: Bezig

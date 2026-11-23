@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -21,30 +20,22 @@ const (
 )
 
 // pluginConfig holds the install-time configuration from spec.configSchema in
-// definition.yaml, which the plugin-controller injects as FUNP_* env vars.
+// definition.yaml, which the plugin-controller injects as FUNP_* env vars. It
+// holds defaults only: every wetsprocessysteem is a Wetsproces object of its
+// own, with its case, version, colour and address in its spec.
+//
+// The Keycloak of stable mode will be one more default here, its URL, once
+// the chart supports stable mode.
 type pluginConfig struct {
-	// CaseRepoURL is the public repository with the case. HTTPS only: the
-	// repository is public and needs no credential.
-	CaseRepoURL string `env:"FUNP_CASE_REPO_URL" envDefault:"https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git"`
-	// CaseRef is the branch or tag of the case repository.
-	CaseRef string `env:"FUNP_CASE_REF" envDefault:"main"`
-	// CasePath is the path of the source manifest (bron.yaml) in the case
-	// repository.
-	CasePath string `env:"FUNP_CASE_PATH" envDefault:"packages/wetsproces/bron.yaml"`
-	// Namespace is the existing Fundament namespace (tnt-<project>--<name>)
-	// the app goes into. Fundament creates namespaces; the plugin never does.
-	Namespace string `env:"FUNP_NAMESPACE,required"`
-	// Domain is the base domain: citizens use burger.wetsproces.<domain> and
-	// employees medewerkers.wetsproces.<domain>.
+	// Domain is the base domain: a Wetsproces with hostname x is served on
+	// x.<domain>, unless its hostname is a domain name of its own.
 	Domain string `env:"FUNP_DOMAIN,required"`
-	// Image is the wetsproces image.
-	Image string `env:"FUNP_IMAGE" envDefault:"code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7"`
+	// DefaultImage is the image repository of the wetsproces server. A
+	// Wetsproces with a version runs <DefaultImage>:<version>.
+	DefaultImage string `env:"FUNP_DEFAULT_IMAGE" envDefault:"code.digitaledienst.overheid.nl/regelrecht/wetsproces"`
 	// ChartRef is the branch or tag of the fork that the chart is read from.
 	ChartRef string `env:"FUNP_CHART_REF" envDefault:"main"`
-	// GatewayAddress is a fixed public address for the Gateway; empty lets
-	// the LoadBalancer pool pick one.
-	GatewayAddress string `env:"FUNP_GATEWAY_ADDRESS"`
-	// ACME is the Let's Encrypt environment of the certificate.
+	// ACME is the Let's Encrypt environment of the certificates.
 	ACME string `env:"FUNP_ACME" envDefault:"production"`
 }
 
@@ -63,34 +54,19 @@ func loadConfig() (pluginConfig, error) {
 // ref name and a leading dash, which git clone would read as an option.
 var gitRefPattern = regexp.MustCompile(`^[A-Za-z0-9._/][A-Za-z0-9._/-]*$`)
 
-// imagePattern accepts an image reference with a tag or a digest, without
+// imageRepositoryPattern accepts an image repository without a tag, a digest,
 // whitespace or a scheme.
-var imagePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9._-]+)+(:[A-Za-z0-9._-]+)?(@sha256:[a-f0-9]{64})?$`)
+var imageRepositoryPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9._-]+)+$`)
 
 func (c pluginConfig) validate() error {
-	if err := validatePublicHTTPS("CASE_REPO_URL", c.CaseRepoURL); err != nil {
-		return err
-	}
-	if err := validateRef("CASE_REF", c.CaseRef); err != nil {
-		return err
-	}
 	if err := validateRef("CHART_REF", c.ChartRef); err != nil {
 		return err
-	}
-	if c.CasePath == "" || strings.HasPrefix(c.CasePath, "/") || strings.Contains(c.CasePath, "..") {
-		return fmt.Errorf("CASE_PATH must be a relative path inside the repository, got %q", c.CasePath)
 	}
 	if errs := validation.IsDNS1123Subdomain(c.Domain); len(errs) > 0 {
 		return fmt.Errorf("DOMAIN %q is not a valid domain: %s", c.Domain, strings.Join(errs, "; "))
 	}
-	if !imagePattern.MatchString(c.Image) || !strings.ContainsAny(c.Image, ":@") {
-		return fmt.Errorf("IMAGE must be an image reference with a tag or digest, got %q", c.Image)
-	}
-	if errs := validation.IsDNS1123Label(c.Namespace); len(errs) > 0 || !strings.HasPrefix(c.Namespace, "tnt-") {
-		return fmt.Errorf("NAMESPACE must be the full name of a Fundament namespace, tnt-<project>--<name>, got %q", c.Namespace)
-	}
-	if c.GatewayAddress != "" && net.ParseIP(c.GatewayAddress) == nil {
-		return fmt.Errorf("GATEWAY_ADDRESS must be an IP address or empty, got %q", c.GatewayAddress)
+	if !imageRepositoryPattern.MatchString(c.DefaultImage) {
+		return fmt.Errorf("DEFAULT_IMAGE must be an image repository without a tag, got %q", c.DefaultImage)
 	}
 	if c.ACME != acmeStaging && c.ACME != acmeProduction {
 		return fmt.Errorf("ACME must be %q or %q, got %q", acmeStaging, acmeProduction, c.ACME)
@@ -98,7 +74,9 @@ func (c pluginConfig) validate() error {
 	return nil
 }
 
-func validatePublicHTTPS(key, raw string) error {
+// validateHTTPS accepts an https:// URL without credentials in it: those
+// belong in a Secret, not in a spec anyone with read access sees.
+func validateHTTPS(key, raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return fmt.Errorf("%s: %w", key, err)
@@ -107,7 +85,7 @@ func validatePublicHTTPS(key, raw string) error {
 		return fmt.Errorf("%s must be an https:// URL, got %q", key, raw)
 	}
 	if u.User != nil {
-		return fmt.Errorf("%s must not carry credentials: the repository must be public", key)
+		return fmt.Errorf("%s must not carry credentials: name a Secret in credentialsSecretRef", key)
 	}
 	return nil
 }

@@ -1,4 +1,7 @@
 {{- if and .Values.gateway.enabled .Values.dns.enabled }}
+{{- if eq .Values.gateway.mode "shared" }}
+{{- fail "dns.enabled is for gateway.mode own: behind the shared Gateway the cluster's wildcard record covers the hosts" }}
+{{- end }}
 {{- /*
 The address the records point at: dns.target, or else gateway.address. Both
 must be an address reserved for the project. A record that follows an

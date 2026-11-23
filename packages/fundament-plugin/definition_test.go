@@ -60,11 +60,20 @@ func TestConfigSchemaMatchesPluginConfig(t *testing.T) {
 	}
 }
 
-// The default case is the fork the chart comes from.
-func TestDefaultCaseIsTheFork(t *testing.T) {
+// menu, customComponents and the files under console/ are one contract that
+// nothing checks at build time: every page the definition names must be
+// embedded, and the menu must offer the CRD the pages are for.
+func TestCustomComponentsAreEmbedded(t *testing.T) {
 	t.Parallel()
 
-	f, ok := reflect.TypeFor[pluginConfig]().FieldByName("CaseRepoURL")
+	def := loadSourceDefinition(t)
+	pages, ok := def.Spec.CustomComponents["Wetsproces"]
 	require.True(t, ok)
-	assert.Equal(t, forkURL, f.Tag.Get("envDefault"))
+	for view, file := range map[string]string{"list": pages.List, "detail": pages.Detail, "create": pages.Create} {
+		require.NotEmpty(t, file, "the %s page", view)
+		_, err := consoleFiles.ReadFile("console/" + file)
+		require.NoError(t, err, "the %s page %s is not embedded", view, file)
+	}
+	require.Len(t, def.Spec.Menu.Project, 1)
+	assert.Equal(t, crdName, def.Spec.Menu.Project[0].CRD)
 }

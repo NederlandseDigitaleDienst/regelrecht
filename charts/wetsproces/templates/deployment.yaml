@@ -59,6 +59,13 @@ spec:
           imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
           command: ["git"]
           args:
+            {{- if .Values.case.credentialsSecret }}
+            # git asks this helper for the credentials of repoUrl; it reads
+            # them from the environment, so they never appear in the
+            # arguments of a process.
+            - -c
+            - credential.helper=!f() { echo "username=${GIT_USERNAME}"; echo "password=${GIT_TOKEN}"; }; f
+            {{- end }}
             - clone
             - --depth=1
             - --single-branch
@@ -69,9 +76,22 @@ spec:
           env:
             - name: HOME
               value: /tmp
-            # A public repository needs no credentials; never prompt for them.
+            # Never prompt for credentials: a public repository needs none,
+            # and a private one gets them from the Secret below.
             - name: GIT_TERMINAL_PROMPT
               value: "0"
+            {{- with .Values.case.credentialsSecret }}
+            - name: GIT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: username
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: token
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

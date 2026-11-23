@@ -1,173 +1,218 @@
 # Wetsproces Fundament plugin
 
-A [Fundament](https://github.com/fundament-oss/fundament) plugin that runs the
-wetsprocessysteem (`packages/wetsproces`) for one case on a Fundament cluster.
-You pick the case in the install form: a public git repository, a branch or
-tag, and the path of its source manifest (`bron.yaml`).
-
-The plugin does little itself. It expects Flux on the cluster, as Haven+
-installs it, and a namespace that Fundament made (console or functl), named in
-`NAMESPACE`. A namespace made with kubectl stays invisible to Fundament, and
-its project members get no rights in it, so the plugin never creates one. In
-that namespace it creates two objects:
-
-1. a Flux `GitRepository` named `wetsproces-chart` for this repository, kept to
-   `charts/wetsproces`;
-2. a `HelmRelease` named `wetsproces` that installs that chart with the install
-   form as values.
-
-Flux installs the chart and keeps the app running while the plugin pod is
-down. The plugin reports the `Ready` condition of the `HelmRelease` as its
-status: `running` once the release is ready, `degraded` once Flux has stalled
-on it, `installing` before that.
+A [Fundament](https://github.com/fundament-oss/fundament) plugin that offers
+the wetsprocessysteem (`packages/wetsproces`) to the projects of a cluster. It
+is installed once per cluster. After that a project member creates a
+wetsproces in the console under **Wetsprocessen**, and each one runs one case
+on an address of its own, with a database of its own. Several can run in one
+namespace or spread over several. The model is that of Fundament's
+CloudNativePG plugin, where a project makes its own databases.
 
 The plugin is derived from the Haven+ plugin
 ([plugin-fundament](https://gitlab.com/commonground/haven/havenplus/plugin-fundament),
-EUPL-1.2). The lifecycle, the status reporter and most of the tests come from
-there.
+EUPL-1.2), and its console pages from those of Fundament's CloudNativePG plugin
+(Apache-2.0).
 
-## The chart
+## The Wetsproces resource
 
-`charts/wetsproces` runs the server in test mode, as the fieldlab deployment
-on ZAD does: an instance per side on one PostgreSQL database, `burger` for
-citizens on `burger.wetsproces.<domain>` and `backoffice` for employees on
-`medewerkers.wetsproces.<domain>`, both with the test login. An init container
-clones the case repository, shallow, into an
-`emptyDir` at `/case`, and `WETSPROCES_MANIFEST` points at
-`/case/<CASE_PATH>`. The manifest's `repo_root` is resolved from there, so
-`../..` in `packages/wetsproces/bron.yaml` is the root of the clone. The screens
-come from the image (`/app/frontend`), not from the case.
+A wetsproces is a namespaced object of kind `Wetsproces`
+(`wetsproces.regelrecht.nl/v1alpha1`, CRD in `crds/`). The plugin installs the
+CRD when it starts.
 
-The database is a CloudNativePG `Cluster` of the release, `wetsproces-db`, with
-one instance and no backups. The CloudNativePG operator must run on the
-cluster; on `cluster-a` it does, as a Fundament plugin, and without it the
-chart refuses to render. helm-controller creates the `Cluster`, so the
-release's namespace needs no extra rights. Both instances read the connection
-URL from the secret `wetsproces-db-app` that CloudNativePG writes, and migrate
-the schema `wetsproces` at start under an advisory lock. The chronicles survive
-a restart; an uninstall removes the `Cluster` and its volume with them.
-
-`database.enabled: false` with `surfaces.split: false` is the small setup: one
-instance on `wetsproces.<domain>` for both sides, the chronicles in memory and
-emptied by every restart. The chart refuses two instances on memory, because
-each would keep its own chronicles. `dns.enabled` adds a `DNSEndpoint` for an
-external-dns that reads them, such as the one on `cluster-a` for its zone
-`cluster-a.fieldlab2026.nl`. It needs an address reserved for the project in
-`dns.target` or `gateway.address`, because a record left on an ephemeral
-Gateway address would point at whoever gets that address next; an external-dns
-with upsert-only never removes a record, so remove them by hand after an
-uninstall. The plugin does not pass `dns`, so this is for a release installed
-by hand.
-
-The values are described in `charts/wetsproces/values.yaml`. Without the
-plugin, into a Fundament namespace:
-
-```sh
-helm upgrade --install wetsproces charts/wetsproces -n tnt-rr-voorbeeld--wetsproces \
-  --set domain=194-135-48-156.sslip.io --set tls.acme=staging
+```yaml
+apiVersion: wetsproces.regelrecht.nl/v1alpha1
+kind: Wetsproces
+metadata:
+  name: zorgtoeslag
+  namespace: tnt-rr-voorbeeld--wetsproces
+spec:
+  manifest:
+    repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
+    ref: main
+    path: packages/wetsproces/bron.yaml
+    # For a private repository: a Secret with the keys username and token.
+    # credentialsSecretRef:
+    #   name: zorgtoeslag-repo
+  # Empty runs the latest build of main; a full commit hash pins one.
+  version: ''
+  theme:
+    accentColor: paars
+  hostname: zorgtoeslag
+status:
+  phase: Ready
+  url: https://zorgtoeslag.cluster-a.fieldlab2026.nl/
+  backofficeUrl: https://zorgtoeslag-medewerkers.cluster-a.fieldlab2026.nl/
 ```
 
-### How the host is reached
+| Field | What it is |
+|---|---|
+| `manifest.repoUrl` | HTTPS URL of the git repository with the case, without credentials |
+| `manifest.ref` | branch or tag, `main` by default |
+| `manifest.path` | path of the source manifest (`bron.yaml`) in that repository. The case file and the articles it runs are named there, so the wizard does not ask for them |
+| `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository |
+| `version` | the regelrecht commit whose wetsproces image runs, the full 40-character hash. Empty follows the latest build of main |
+| `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
+| `hostname` | a name under the base domain, or a domain of your own with a dot in it |
 
-Everything stays in the release's namespace. The chart creates:
+The name of the object is at most 40 characters, because it names the Helm
+release and every object of the chart.
 
-- a Gateway API `Gateway` (class `istio`) with its own public address, an HTTP
-  listener and an HTTPS listener per host, each with a certificate of its own;
-- a namespaced cert-manager `Issuer` for Let's Encrypt, with the HTTP-01
-  solver on the Gateway's HTTP listener, and the annotation
-  `cert-manager.io/issuer` on the Gateway, from which cert-manager makes the
-  `Certificate`;
-- an `HTTPRoute` per instance from its HTTPS listener to its service, and one on the HTTP
-  listener that redirects to HTTPS.
+### Addresses
 
-`tls.acme` picks the staging or the production environment of Let's Encrypt.
-Production has a weekly rate limit, shared by everyone on the same domain, so
-start on staging and switch once the Gateway answers.
+A hostname `zorgtoeslag` gives two addresses: citizens use
+`zorgtoeslag.<domain>` and employees `zorgtoeslag-medewerkers.<domain>`. Both
+stay one label under the base domain, because the wildcard record of
+`cluster-a` (`*.cluster-a.fieldlab2026.nl`) covers one label only, and
+`medewerkers.zorgtoeslag.cluster-a.fieldlab2026.nl` would not resolve. A
+hostname with a dot in it is a domain of its own; employees then get
+`medewerkers.<hostname>`, and you make the DNS records for both yourself.
 
-Istio asks the LoadBalancer pool for the Gateway's address. On `cluster-a`
-MetalLB assigns no address unless the Service names its pool, which
-`gateway.serviceAnnotations` does. The addresses there are ephemeral: the cloud
-controller allocates one when the Gateway's Service is created and releases it
-when the Service goes, so an uninstall can cost the address the DNS name points
-at. `gateway.address` asks for a fixed one, but the controller refuses an
-address that is not allocated to the project, and it does so for a released
-ephemeral one too. A stable address needs a static IP for the project.
+Two wetsprocessen cannot share an address. The older one keeps it; the newer
+one goes to `Failed` with the reason `HostnameInUse` and makes nothing until
+its hostname changes or the other one is gone.
 
-Without a DNS record of your own, `<ip-with-dashes>.sslip.io` resolves to the
-Gateway's address. The first install then runs with a placeholder domain until
-the address is known; the certificate for that placeholder fails, and an
-upgrade with the real domain fixes it.
+## What the plugin makes
+
+For each Wetsproces the plugin's controller makes two Flux objects in the
+namespace of the object, both owned by it:
+
+1. a `GitRepository` named `<name>-chart` for this repository, kept to
+   `charts/wetsproces` at `CHART_REF`;
+2. a `HelmRelease` named `<name>` that installs that chart with values from the
+   spec.
+
+Flux installs the chart and keeps it running while the plugin pod is down. The
+plugin writes the HelmRelease's `Ready` condition back into the status: phase
+`Ready` once the release is ready, `Failed` once Flux has stalled on it or the
+spec is refused, `Pending` before that.
+
+The chart then runs what it runs by default since PR #7: a CloudNativePG
+`Cluster` as the database of the release, one instance for citizens and one for
+employees, each on its own address. Behind the shared Gateway (below) a release
+needs no public address of its own, so two wetsprocessen take no more IP
+addresses than one.
+
+### Deleting a wetsproces deletes its data
+
+Deleting a Wetsproces deletes its `HelmRelease` through the owner reference,
+and helm-controller uninstalls the release. That removes the CloudNativePG
+`Cluster`, which removes its PVCs, and with them every chronicle of the
+wetsproces. There is no retention option and there are no backups. The detail
+page in the console and the last step of the wizard say this.
+
+One Secret stays behind: `<name>-letsencrypt-<acme>-account`, the key of the
+ACME account, which cert-manager makes for the release's Issuer without an
+owner. It holds no data of the wetsproces; delete it by hand if you like.
+
+### Version
+
+Without a `version` the HelmRelease leaves `image` out of its values, so the
+chart's own `image.ref` counts. That line names the latest build of main:
+`.forgejo/workflows/wetsproces-image.yml` sets it after every build, in a
+commit of its own. Because the HelmRelease rebuilds the chart on every new
+commit of its source (`reconcileStrategy: Revision`), a wetsproces without a
+version rolls out each new build within the interval of its `GitRepository`.
+With a `version` it runs `<DEFAULT_IMAGE>:<version>` and stays there.
+
+The case comes from `manifest.ref`, not from the image. A case on `main` that
+needs a newer server than the pinned image can stop the server at start; it
+says why in its log.
+
+## The chart behind a shared Gateway
+
+`charts/wetsproces` reaches its hosts in one of two ways, chosen by
+`gateway.mode`. The default, `shared`, is the one the plugin uses on
+`cluster-a`:
+
+- the cluster's shared Gateway (`public-gateway` in `istio-gateway`, the
+  address the wildcard record points at) has a TLS listener on port 443 that
+  passes TLS through unopened. A `TLSRoute` of the release sends its hosts to
+  the release's own Gateway;
+- the release's own Gateway terminates TLS with a Let's Encrypt certificate per
+  host and routes each host to its instance. Its Service is a ClusterIP, through
+  the annotation `networking.istio.io/service-type` on the Gateway. Istio reads
+  that annotation from the Gateway's own metadata; under `spec.infrastructure`
+  it only reaches the Service and is ignored, which leaves a LoadBalancer with
+  a public address;
+- the shared Gateway's HTTP listener on port 80 carries the ACME HTTP-01
+  challenge (the Issuer's solver names it) and an `HTTPRoute` that redirects
+  everything else to HTTPS.
+
+`gateway.mode: own` is the setup from before: a Gateway with a public address
+of its own and an HTTP listener of its own, with `dns.*` for the records.
+
+## Console
+
+The plugin adds **Wetsprocessen** to the project sidebar, with pages of its own
+under `console/`: a list, a detail page with the addresses and the status, and
+a wizard that asks, one step at a time, for the case, the access, the version,
+the accent color and the address, and shows what it will make before it makes
+it. For a private repository the wizard makes the Secret with the token as well,
+owned by the Wetsproces so the two go together.
+
+The version step offers the latest build or a commit typed in. It does not list
+the available builds: the console's content security policy lets a page reach
+only Fundament's own APIs, not the registry.
+
+The pages are plain ES modules with the NLDD components the console serves
+(0.15.0). Their logic outside the DOM is in `console/wetsprocessen-body.js`,
+with tests in `console-test/`.
 
 ## Configuration
 
-The console shows these keys in the install form. The plugin reads each key as
-the `FUNP_<name>` environment variable.
+The install form holds defaults only; everything per wetsproces is in its
+object. The plugin reads each key as the `FUNP_<name>` environment variable.
 
 | Key | Required | Default | What it is |
 |---|---|---|---|
-| `CASE_REPO_URL` | no | `https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git` | HTTPS URL of the public repository with the case |
-| `CASE_REF` | no | `main` | branch or tag of that repository |
-| `CASE_PATH` | no | `packages/wetsproces/bron.yaml` | path of the manifest in that repository |
-| `NAMESPACE` | yes | | the full name of an existing Fundament namespace, `tnt-<project>--<name>` |
-| `DOMAIN` | yes | | citizens use `burger.wetsproces.<domain>` and employees `medewerkers.wetsproces.<domain>`, e.g. `194-135-48-156.sslip.io` |
-| `IMAGE` | no (advanced) | `code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7` | the wetsproces image |
+| `DOMAIN` | yes | | the base domain, e.g. `cluster-a.fieldlab2026.nl` |
+| `DEFAULT_IMAGE` | no (advanced) | `code.digitaledienst.overheid.nl/regelrecht/wetsproces` | image repository for a wetsproces with a version |
 | `CHART_REF` | no (advanced) | `main` | branch or tag of this repository that the chart is read from |
-| `GATEWAY_ADDRESS` | no (advanced) | empty | a fixed public IP for the Gateway; must be a static IP of the project |
 | `ACME` | no (advanced) | `production` | Let's Encrypt environment: `staging` or `production` |
 
-`CASE_REPO_URL` has a default and is therefore not marked required: a
-Fundament config schema refuses a key that is both.
+The Keycloak URL of stable mode will join these once the chart supports stable
+mode.
 
-The default `IMAGE` is a build of this repository's `main` by
-`.forgejo/workflows/wetsproces-image.yml`, which tags each build with its
-commit: here `f619755c`. The plugin pins it, so an installation runs the same
-code until its `IMAGE` changes; the screens come from the image, and only the
-case comes from `CASE_REF`.
-
-The chart itself follows `main`: after each build, the same workflow sets
-`image.ref` in `charts/wetsproces/values.yaml` to the new image, in a commit of
-its own on `main`. A `HelmRelease` that reads the chart from `main` and leaves
-`image` out of its values therefore rolls out every build, within the interval
-of its `GitRepository`.
-
-An install config for `cluster-a`, as a `PluginInstallation` takes it:
-
-```yaml
-config:
-  NAMESPACE: tnt-rr-voorbeeld--wetsproces
-  DOMAIN: 194-135-48-156.sslip.io
-  CASE_REPO_URL: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
-  CASE_REF: main
-  CASE_PATH: packages/wetsproces/bron.yaml
-```
+v0.1 took the case, the namespace and the image in the install form. Those keys
+are gone, and the config schema is closed, so an installation of v0.1 is
+reinstalled rather than upgraded. The `GitRepository` and `HelmRelease` that
+v0.1 made stay in their namespace until they are deleted by hand.
 
 ## Lifecycle
 
 | Event | What the plugin does |
 |---|---|
-| Install | Checks that the namespace exists, applies the `GitRepository` and the `HelmRelease`. A missing namespace is retried. |
-| Reconcile | Applies both again and reports the release status, every `FUNP_RECONCILE_INTERVAL` (default 5m). |
-| Uninstall | Deletes the `HelmRelease` and waits until helm-controller has uninstalled the release, then deletes the `GitRepository`. The namespace stays. |
+| Start, install, upgrade | Checks that Flux is there, applies the CRD and the two roles below, then runs the controller. A failed set-up is retried every 30 seconds. |
+| Reconcile | Repairs the CRD and the roles and reports how many wetsprocessen are ready, every `FUNP_RECONCILE_INTERVAL` (default 5m). |
+| Uninstall | Deletes the two roles. It keeps the CRD and every Wetsproces: deleting the CRD would delete every wetsproces with its data. Flux keeps them running; without the plugin nobody reconciles a change. |
 
-A new `CASE_REF` changes the values of the `HelmRelease`, and the changed pod
-template makes Kubernetes start a pod that clones that ref. A new commit on the
-same branch does not: the pod keeps the clone it made at start until it
-restarts.
+To remove everything after an uninstall, delete the Wetsproces objects first
+(`kubectl delete wetsprocessen --all -n <namespace>`), then the CRD.
 
 ## Permissions
 
-The plugin may read namespaces and manage `GitRepository` and `HelmRelease`
-objects. Fundament makes `spec.permissions.rbac` a ClusterRole, so the rules
-cannot be kept to one namespace. It needs no internet access: Flux pulls the chart and
-the cluster pulls the images. helm-controller installs the chart with its own
-service account.
+Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept
+to the namespaces of a project. The rules in `definition.yaml` say per group
+why the plugin needs them. In short: create and get the plugin's own CRD,
+manage two ClusterRoles by name, manage Wetsproces objects and their status,
+manage Flux `GitRepository` and `HelmRelease` objects, and create Secrets. The
+last one is for the wizard: a console page acts with the rights the user and the
+plugin share, so the plugin must hold every right a page uses. Neither the
+plugin nor its pages read a Secret.
+
+The two ClusterRoles aggregate into `admin` and `view`, the roles Fundament
+binds project admins and viewers to. Admins may create and delete
+wetsprocessen; viewers may read them.
 
 ## Develop
 
-The plugin needs Go 1.27.3 (`go.mod`).
+The plugin needs Go 1.27.3 (`go.mod`). After a change to `api/v1alpha1`,
+regenerate the deep copies and the CRD with controller-gen 0.20:
 
 ```sh
+controller-gen object paths=./api/... crd:crdVersions=v1 output:crd:dir=./crds
 go -C packages/fundament-plugin test ./...
+node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
 docker build -t wetsproces-fundament-plugin:dev packages/fundament-plugin
 ```
 
@@ -176,17 +221,14 @@ tests run from a checkout of the whole repository.
 
 ## Publish
 
-A tag `wetsproces-plugin-vX.Y.Z` on `main` has
-`.forgejo/workflows/fundament-plugin-image.yml` build the image and push it to
-the Forgejo registry as `wetsproces-plugin:vX.Y.Z`. The tag must match
-`metadata.version` in `definition.yaml`, and a version already in the registry
-is never overwritten. Images there are public, so nothing secret goes into one.
-`functl plugin publish` takes the image by digest and injects it into the
-definition:
+The image goes to the Forgejo registry under the version in `definition.yaml`.
+Images there are public, so nothing secret goes into one. `functl plugin
+publish` takes the image by digest and injects it into the definition:
 
 ```sh
-git tag wetsproces-plugin-v0.1.1 origin/main && git push origin wetsproces-plugin-v0.1.1
-docker buildx imagetools inspect code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.1.1
+docker buildx build --platform linux/amd64 --push \
+  -t code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.2.0 packages/fundament-plugin
+docker buildx imagetools inspect code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.2.0
 FUNCTL_REGISTRY_URL=https://marketplace-registry-api.fundament-poc.nl \
   functl plugin publish packages/fundament-plugin/definition.yaml --create --submit \
   --image=code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin@sha256:<digest>

@@ -27,6 +27,11 @@ case:
   # Path of the manifest inside the repository. The manifest's `repo_root` is
   # resolved from there, so ../.. points at /case for the default path.
   path: packages/wetsproces/bron.yaml
+  # A Secret in the release's namespace with the keys `username` and `token`,
+  # for a private repository; empty for a public one. The init container
+  # hands them to git as the credentials of repoUrl, and they stay out of the
+  # pod's arguments.
+  credentialsSecret: ''
 
 # The image that clones the case.
 gitImage:
@@ -91,24 +96,43 @@ theme:
   accentColor: ''
 
 gateway:
-  # A Gateway API Gateway of this release, in its own namespace, with its own
-  # public address: an HTTP listener (for the ACME HTTP-01 challenge and a
-  # redirect to HTTPS) and an HTTPS listener for the host. An HTTPRoute sends
-  # the host to the service.
+  # How the hosts are reached. Both modes make a Gateway API Gateway of this
+  # release, which terminates TLS with a Let's Encrypt certificate per host,
+  # and an HTTPRoute per host to its instance.
+  #
+  # - shared (the default): behind a Gateway the cluster already has, such as
+  #   the Haven+ `public-gateway` on cluster-a, whose wildcard DNS name covers
+  #   every host under the cluster's domain. Its TLS listener passes the TLS
+  #   of this release's hosts through to this release's Gateway (a TLSRoute),
+  #   and its HTTP listener carries the ACME challenge and the redirect to
+  #   HTTPS. This release's Gateway then needs no public address: its Service
+  #   is a ClusterIP. A host must be one label under the wildcard
+  #   (x.cluster-a.fieldlab2026.nl); burger.x.cluster-a.fieldlab2026.nl is not
+  #   covered by it, so set surfaces.*.host.
+  # - own: this release's Gateway takes a public address of its own, with an
+  #   HTTP listener of its own; the hosts need DNS records to it (see dns).
+  mode: shared
+  # The shared Gateway and its listeners, for mode shared. Both listeners
+  # must accept routes from this namespace.
+  shared:
+    name: public-gateway
+    namespace: istio-gateway
+    httpListener: http
+    tlsListener: tls-passthrough
   enabled: true
   className: istio
-  # A fixed address for the Gateway. Empty lets the cluster pick one. On
+  # Mode own only: a fixed address for the Gateway. Empty lets the cluster pick one. On
   # cluster-a the addresses are ephemeral: the cloud controller allocates one
   # per Service and releases it with the Service, and refuses an address that
   # is not allocated to the project. Leave it empty there.
   address: ''
-  # Annotations on the Service the gateway controller creates. On cluster-a the
+  # Mode own only: annotations on the Service the gateway controller creates. On cluster-a the
   # MetalLB pool does not assign addresses on its own, so the Service names it.
   serviceAnnotations:
     metallb.io/address-pool: internet-fire-ephemeral
 
 dns:
-  # A DNSEndpoint with an A record per host, for an external-dns that reads
+  # Mode own only. A DNSEndpoint with an A record per host, for an external-dns that reads
   # them (source crd), such as the one on cluster-a for its zone
   # cluster-a.fieldlab2026.nl.
   enabled: false

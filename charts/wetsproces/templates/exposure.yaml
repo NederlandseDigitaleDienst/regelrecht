@@ -1,6 +1,15 @@
 {{- if .Values.gateway.enabled }}
 {{- $instances := include "wetsproces.instances" . | fromJsonArray }}
 {{- $issuer := printf "%s-letsencrypt-%s" .Release.Name .Values.tls.acme }}
+{{- $shared := eq .Values.gateway.mode "shared" }}
+{{- /*
+The listener port 80 traffic arrives on: the shared Gateway's HTTP listener,
+or this release's own.
+*/}}
+{{- $httpParent := dict "group" "gateway.networking.k8s.io" "kind" "Gateway" "name" .Release.Name "sectionName" "http" }}
+{{- if $shared }}
+{{- $httpParent = dict "group" "gateway.networking.k8s.io" "kind" "Gateway" "name" .Values.gateway.shared.name "namespace" .Values.gateway.shared.namespace "sectionName" .Values.gateway.shared.httpListener }}
+{{- end }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
@@ -23,10 +32,7 @@ spec:
       - http01:
           gatewayHTTPRoute:
             parentRefs:
-              - group: gateway.networking.k8s.io
-                kind: Gateway
-                name: {{ .Release.Name }}
-                sectionName: http
+              - {{- toYaml $httpParent | nindent 16 }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -37,8 +43,15 @@ metadata:
   annotations:
     # cert-manager's gateway shim makes the Certificate for the HTTPS listener.
     cert-manager.io/issuer: {{ $issuer }}
+    {{- if $shared }}
+    # Behind the shared Gateway this one needs no public address. Istio reads
+    # the service type from the Gateway's own annotations; under
+    # spec.infrastructure it only lands on the Service and is ignored.
+    networking.istio.io/service-type: ClusterIP
+    {{- end }}
 spec:
   gatewayClassName: {{ .Values.gateway.className }}
+  {{- if not $shared }}
   {{- with .Values.gateway.address }}
   addresses:
     - type: IPAddress
@@ -49,7 +62,9 @@ spec:
     annotations:
       {{- toYaml . | nindent 6 }}
   {{- end }}
+  {{- end }}
   listeners:
+    {{- if not $shared }}
     # One HTTP listener for every host: the ACME challenges and the redirect.
     - name: http
       port: 80
@@ -57,6 +72,7 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
+    {{- end }}
     # An HTTPS listener per host, each with a certificate of its own.
     {{- range $instances }}
     - name: https{{ .suffix }}
@@ -94,6 +110,35 @@ spec:
         - name: {{ .name }}
           port: 8000
 {{- end }}
+{{- if $shared }}
+---
+# Port 443 of the shared Gateway passes the TLS of these hosts through,
+# unopened, to this release's Gateway, which terminates it with its own
+# certificate. Istio names the Service of a Gateway <name>-<class>.
+apiVersion: gateway.networking.k8s.io/v1
+kind: TLSRoute
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "wetsproces.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .Values.gateway.shared.name }}
+      namespace: {{ .Values.gateway.shared.namespace }}
+      sectionName: {{ .Values.gateway.shared.tlsListener }}
+  hostnames:
+    {{- range $instances }}
+    - {{ .host }}
+    {{- end }}
+  rules:
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ printf "%s-%s" .Release.Name .Values.gateway.className }}
+          port: 443
+{{- end }}
 ---
 # Plain HTTP goes to HTTPS. The ACME solver's route on the same listener
 # matches its exact path, which takes precedence over this one.
@@ -105,10 +150,7 @@ metadata:
     {{- include "wetsproces.labels" . | nindent 4 }}
 spec:
   parentRefs:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: {{ .Release.Name }}
-      sectionName: http
+    - {{- toYaml $httpParent | nindent 6 }}
   hostnames:
     {{- range $instances }}
     - {{ .host }}

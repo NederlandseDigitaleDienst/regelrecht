@@ -2,219 +2,151 @@ package main
 
 import (
 	"context"
-	"errors"
 	"os"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
 	"github.com/fundament-oss/fundament/plugin-sdk/pluginruntime"
-	pluginerrors "github.com/fundament-oss/fundament/plugin-sdk/pluginruntime/errors"
+
+	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
-
-func TestPluginImplementsInterfaces(t *testing.T) {
-	t.Parallel()
-	plugin := NewWetsprocesPlugin()
-
-	var _ pluginruntime.Plugin = plugin
-	var _ pluginruntime.Installer = plugin
-	var _ pluginruntime.Reconciler = plugin
-
-	assert.NotNil(t, plugin)
-}
-
-func validConfig() pluginConfig {
-	return pluginConfig{
-		CaseRepoURL: forkURL,
-		CaseRef:     "main",
-		CasePath:    "packages/wetsproces/bron.yaml",
-		Namespace:   testNamespace,
-		Domain:      "cluster.example.org",
-		Image:       "ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:sha-fa89c17",
-		ChartRef:    "main",
-		ACME:        acmeProduction,
-	}
-}
 
 const testNamespace = "tnt-voorbeeld--wetsproces"
 
+func validConfig() pluginConfig {
+	return pluginConfig{
+		Domain:       "cluster.example.org",
+		DefaultImage: "registry.example.org/regelrecht/wetsproces",
+		ChartRef:     "main",
+		ACME:         acmeStaging,
+	}
+}
+
+func newWetsproces(name, hostname string) *v1alpha1.Wetsproces {
+	return &v1alpha1.Wetsproces{
+		TypeMeta: metav1.TypeMeta{APIVersion: v1alpha1.GroupVersion.String(), Kind: "Wetsproces"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testNamespace,
+			UID:       types.UID("uid-" + name),
+		},
+		Spec: v1alpha1.WetsprocesSpec{
+			Manifest: v1alpha1.Manifest{RepoURL: "https://git.example.org/casus/a.git"},
+			Hostname: hostname,
+		},
+	}
+}
+
+func TestPluginImplementsInterfaces(t *testing.T) {
+	t.Parallel()
+	var p any = NewWetsprocesPlugin()
+	_, ok := p.(pluginruntime.Plugin)
+	assert.True(t, ok)
+	_, ok = p.(pluginruntime.Installer)
+	assert.True(t, ok)
+	_, ok = p.(pluginruntime.Reconciler)
+	assert.True(t, ok)
+	_, ok = p.(pluginruntime.ConsoleProvider)
+	assert.True(t, ok, "without ConsoleProvider the console's iframes stay empty")
+}
+
 func TestConfigValidate(t *testing.T) {
 	t.Parallel()
-
-	tests := []struct {
-		name    string
-		mutate  func(*pluginConfig)
-		wantErr string
-	}{
-		{name: "valid", mutate: func(*pluginConfig) {}},
-		{name: "tag as case ref", mutate: func(c *pluginConfig) { c.CaseRef = "v1.2.0" }},
-		{name: "branch with slash", mutate: func(c *pluginConfig) { c.CaseRef = "feat/casus-b" }},
-		{name: "image by digest", mutate: func(c *pluginConfig) {
-			c.Image = "ghcr.io/x/y@sha256:" + strings.Repeat("a", 64)
-		}},
-		{name: "staging", mutate: func(c *pluginConfig) { c.ACME = acmeStaging }},
-		{name: "fixed gateway address", mutate: func(c *pluginConfig) { c.GatewayAddress = "194.135.48.156" }},
-		{name: "ssh url", mutate: func(c *pluginConfig) { c.CaseRepoURL = "ssh://git@example.org/x/y.git" }, wantErr: "https://"},
-		{name: "credentials in url", mutate: func(c *pluginConfig) { c.CaseRepoURL = "https://user:token@example.org/x/y.git" }, wantErr: "credentials"},
-		{name: "ref as option", mutate: func(c *pluginConfig) { c.CaseRef = "--upload-pack=x" }, wantErr: "CASE_REF"},
-		{name: "full ref", mutate: func(c *pluginConfig) { c.CaseRef = "refs/heads/main" }, wantErr: "CASE_REF"},
-		{name: "ref with dots", mutate: func(c *pluginConfig) { c.CaseRef = "a..b" }, wantErr: "CASE_REF"},
-		{name: "empty chart ref", mutate: func(c *pluginConfig) { c.ChartRef = "" }, wantErr: "CHART_REF"},
-		{name: "absolute path", mutate: func(c *pluginConfig) { c.CasePath = "/etc/passwd" }, wantErr: "CASE_PATH"},
-		{name: "path escapes repo", mutate: func(c *pluginConfig) { c.CasePath = "packages/../../x" }, wantErr: "CASE_PATH"},
-		{name: "domain with scheme", mutate: func(c *pluginConfig) { c.Domain = "https://example.org" }, wantErr: "DOMAIN"},
-		{name: "upper case domain", mutate: func(c *pluginConfig) { c.Domain = "Example.org" }, wantErr: "DOMAIN"},
-		{name: "image without tag", mutate: func(c *pluginConfig) { c.Image = "ghcr.io/x/y" }, wantErr: "IMAGE"},
-		{name: "image with space", mutate: func(c *pluginConfig) { c.Image = "ghcr.io/x/y:a b" }, wantErr: "IMAGE"},
-		{name: "unknown acme", mutate: func(c *pluginConfig) { c.ACME = "prod" }, wantErr: "ACME"},
-		{name: "gateway address no ip", mutate: func(c *pluginConfig) { c.GatewayAddress = "gw.example.org" }, wantErr: "GATEWAY_ADDRESS"},
-		{name: "namespace without tenant prefix", mutate: func(c *pluginConfig) { c.Namespace = "wetsproces" }, wantErr: "NAMESPACE"},
-		{name: "empty namespace", mutate: func(c *pluginConfig) { c.Namespace = "" }, wantErr: "NAMESPACE"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			cfg := validConfig()
-			tt.mutate(&cfg)
-			err := cfg.validate()
-			if tt.wantErr == "" {
-				assert.NoError(t, err)
-				return
-			}
-			assert.ErrorContains(t, err, tt.wantErr)
-		})
+	require.NoError(t, validConfig().validate())
+	for name, mutate := range map[string]func(*pluginConfig){
+		"a domain that is no domain": func(c *pluginConfig) { c.Domain = "not a domain" },
+		"an image with a tag":        func(c *pluginConfig) { c.DefaultImage = "registry.example.org/wetsproces:main" },
+		"a chart ref with dots":      func(c *pluginConfig) { c.ChartRef = "a..b" },
+		"an unknown ACME":            func(c *pluginConfig) { c.ACME = "test" },
+	} {
+		cfg := validConfig()
+		mutate(&cfg)
+		assert.Error(t, cfg.validate(), name)
 	}
 }
 
-func TestLoadConfigDefaults(t *testing.T) {
-	// An empty value counts as unset, so a developer's .envrc cannot leak in.
-	for _, key := range []string{"CASE_REPO_URL", "CASE_REF", "CASE_PATH", "IMAGE", "CHART_REF", "GATEWAY_ADDRESS", "ACME"} {
-		t.Setenv("FUNP_"+key, "")
-	}
-	t.Setenv("FUNP_DOMAIN", "example.org")
-	t.Setenv("FUNP_NAMESPACE", testNamespace)
+//nolint:paralleltest // sets process environment
+func TestLoadConfigRequiresTheDomainOnly(t *testing.T) {
+	t.Setenv("FUNP_DOMAIN", "")
+	require.NoError(t, os.Unsetenv("FUNP_DOMAIN"))
+	_, err := loadConfig()
+	require.ErrorContains(t, err, "DOMAIN")
 
+	t.Setenv("FUNP_DOMAIN", "cluster-a.example.org")
 	cfg, err := loadConfig()
 	require.NoError(t, err)
-	assert.Equal(t, forkURL, cfg.CaseRepoURL)
-	assert.Equal(t, "main", cfg.CaseRef)
-	assert.Equal(t, "packages/wetsproces/bron.yaml", cfg.CasePath)
-	assert.Equal(t, "main", cfg.ChartRef)
+	assert.Equal(t, "code.digitaledienst.overheid.nl/regelrecht/wetsproces", cfg.DefaultImage)
 	assert.Equal(t, acmeProduction, cfg.ACME)
-	assert.Empty(t, cfg.GatewayAddress)
 }
 
-func TestLoadConfigRequiresDomainAndNamespace(t *testing.T) {
-	for _, key := range []string{"FUNP_DOMAIN", "FUNP_NAMESPACE"} {
-		t.Run(key, func(t *testing.T) {
-			t.Setenv("FUNP_DOMAIN", "example.org")
-			t.Setenv("FUNP_NAMESPACE", testNamespace)
-			// t.Setenv restores the old value after the test; then unset it,
-			// because an empty value does not count as missing for a required key.
-			require.NoError(t, os.Unsetenv(key))
+func TestHostsStayOneLabelUnderTheDomain(t *testing.T) {
+	t.Parallel()
+	h := hostsOf(newWetsproces("zorgtoeslag", "zorgtoeslag"), "cluster.example.org")
+	assert.Equal(t, hosts{burger: "zorgtoeslag.cluster.example.org", backoffice: "zorgtoeslag-medewerkers.cluster.example.org"}, h)
 
-			_, err := loadConfig()
-			assert.ErrorContains(t, err, key)
-		})
+	own := hostsOf(newWetsproces("zorg", "zorg.example.nl"), "cluster.example.org")
+	assert.Equal(t, hosts{burger: "zorg.example.nl", backoffice: "medewerkers.zorg.example.nl"}, own)
+
+	assert.True(t, h.overlaps(hostsOf(newWetsproces("x", "zorgtoeslag-medewerkers"), "cluster.example.org").swapped()))
+	assert.False(t, h.overlaps(own))
+}
+
+// swapped is a hosts whose backoffice is another's citizens' host, for the
+// overlap test.
+func (h hosts) swapped() hosts { return hosts{burger: h.backoffice, backoffice: h.burger} }
+
+func TestValidateSpec(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, validateSpec(newWetsproces("a", "a"), "cluster.example.org"))
+	for name, mutate := range map[string]func(*v1alpha1.Wetsproces){
+		"credentials in the URL": func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.RepoURL = "https://u:p@git.example.org/a.git" },
+		"plain http":             func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.RepoURL = "http://git.example.org/a.git" },
+		"a full ref":             func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.Ref = "refs/heads/main" },
+		"a path out of the repo": func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.Path = "../etc/passwd" },
+		"a label too long":       func(w *v1alpha1.Wetsproces) { w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345" },
+	} {
+		w := newWetsproces("a", "a")
+		mutate(w)
+		assert.Error(t, validateSpec(w, "cluster.example.org"), name)
 	}
 }
 
-func newFakeClient(t *testing.T, objs ...client.Object) client.Client {
-	t.Helper()
-	scheme := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
-}
-
-func TestInstallNeedsAnExistingNamespace(t *testing.T) {
+func TestChartValuesFollowTheSpec(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	c := newFakeClient(t)
-	p := &WetsprocesPlugin{k8sClient: c, cfg: validConfig()}
-	p.initOnce.Do(func() {})
-
-	err := p.Install(ctx, nil)
-	require.Error(t, err)
-	assert.True(t, pluginerrors.IsTransient(err), "a namespace created later must let a retry succeed")
-	assert.ErrorContains(t, err, "Fundament")
-
-	var list corev1.NamespaceList
-	require.NoError(t, c.List(ctx, &list))
-	assert.Empty(t, list.Items, "the plugin must never create a namespace")
-
-	ns := &corev1.Namespace{}
-	ns.SetName(testNamespace)
-	require.NoError(t, c.Create(ctx, ns))
-	require.NoError(t, p.Install(ctx, nil))
-	gone, err := objectGone(ctx, c, helmReleaseGVK, testNamespace, releaseName)
-	require.NoError(t, err)
-	assert.False(t, gone, "the HelmRelease goes into the configured namespace")
-}
-
-func TestNewGitRepository(t *testing.T) {
-	t.Parallel()
-	cfg := validConfig()
-	cfg.ChartRef = "feat/fundament-plugin"
-	src := newGitRepository(cfg)
-
-	assert.Equal(t, gitRepositoryGVK, src.GroupVersionKind())
-	assert.Equal(t, testNamespace, src.GetNamespace())
-
-	url, _, _ := unstructured.NestedString(src.Object, "spec", "url")
-	assert.Equal(t, forkURL, url, "the chart comes from the fork, whatever the case repository is")
-	branch, _, _ := unstructured.NestedString(src.Object, "spec", "ref", "branch")
-	assert.Equal(t, "feat/fundament-plugin", branch)
-	ignore, _, _ := unstructured.NestedString(src.Object, "spec", "ignore")
-	assert.Contains(t, ignore, "!/charts/wetsproces/", "the artifact must keep the chart")
-
-	_, hasSecret, _ := unstructured.NestedFieldNoCopy(src.Object, "spec", "secretRef")
-	assert.False(t, hasSecret, "the repository is public: no secret")
-}
-
-func TestNewHelmReleaseCarriesTheConfig(t *testing.T) {
-	t.Parallel()
-	cfg := validConfig()
-	cfg.CaseRepoURL = "https://git.example.org/casus/b.git"
-	cfg.CaseRef = "v2"
-	cfg.CasePath = "bron.yaml"
-	cfg.ACME = acmeStaging
-	cfg.GatewayAddress = "194.135.48.156"
-	hr := newHelmRelease(cfg)
-
-	assert.Equal(t, helmReleaseGVK, hr.GroupVersionKind())
-	assert.Equal(t, testNamespace, hr.GetNamespace())
-	assert.Equal(t, releaseName, hr.GetName())
-
-	chart, _, _ := unstructured.NestedString(hr.Object, "spec", "chart", "spec", "chart")
-	assert.Equal(t, "./charts/wetsproces", chart)
-	strategy, _, _ := unstructured.NestedString(hr.Object, "spec", "chart", "spec", "reconcileStrategy")
-	assert.Equal(t, "Revision", strategy)
-	ref, _, _ := unstructured.NestedStringMap(hr.Object, "spec", "chart", "spec", "sourceRef")
-	assert.Equal(t, map[string]string{"kind": "GitRepository", "name": sourceName}, ref)
-
-	values, _, _ := unstructured.NestedMap(hr.Object, "spec", "values")
+	w := newWetsproces("zorgtoeslag", "zorgtoeslag")
+	values := chartValues(w, validConfig())
+	_, pinned := values["image"]
+	assert.False(t, pinned, "without a version the chart's own image.ref, the latest build of main, must count")
 	assert.Equal(t, map[string]any{
-		"domain": "cluster.example.org",
-		"image":  map[string]any{"ref": cfg.Image},
-		"case": map[string]any{
-			"repoUrl": "https://git.example.org/casus/b.git",
-			"ref":     "v2",
-			"path":    "bron.yaml",
-		},
-		"gateway": map[string]any{"address": "194.135.48.156"},
-		"tls":     map[string]any{"acme": acmeStaging},
-	}, values)
+		"repoUrl": "https://git.example.org/casus/a.git",
+		"ref":     "main",
+		"path":    "packages/wetsproces/bron.yaml",
+	}, values["case"])
+	assert.Equal(t, "zorgtoeslag.cluster.example.org", values["host"])
+	assert.Equal(t, map[string]any{
+		"burger":     map[string]any{"host": "zorgtoeslag.cluster.example.org"},
+		"backoffice": map[string]any{"host": "zorgtoeslag-medewerkers.cluster.example.org"},
+	}, values["surfaces"])
+
+	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
+	w.Spec.Theme.AccentColor = "paars"
+	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "zorgtoeslag-repo"}
+	values = chartValues(w, validConfig())
+	assert.Equal(t, map[string]any{"ref": "registry.example.org/regelrecht/wetsproces:0123456789abcdef0123456789abcdef01234567"}, values["image"])
+	assert.Equal(t, map[string]any{"accentColor": "paars"}, values["theme"])
+	assert.Equal(t, "zorgtoeslag-repo", values["case"].(map[string]any)["credentialsSecret"])
 }
 
 // The chart is the other half of chartValues: every value the plugin sets must
@@ -238,206 +170,185 @@ func TestChartValuesExistInChart(t *testing.T) {
 			}
 		}
 	}
-	check("", chartValues(validConfig()), chart)
+	w := newWetsproces("a", "a")
+	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
+	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "a-repo"}
+	check("", chartValues(w, validConfig()), chart)
 }
 
-func withCondition(obj *unstructured.Unstructured, conditions ...map[string]any) *unstructured.Unstructured {
-	list := make([]any, 0, len(conditions))
-	for _, c := range conditions {
-		list = append(list, c)
+func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {
+	t.Helper()
+	scheme, err := buildScheme()
+	require.NoError(t, err)
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&v1alpha1.Wetsproces{}).
+		Build()
+	return &WetsprocesReconciler{Client: c, Scheme: scheme, Config: validConfig()}
+}
+
+func reconcileOnce(t *testing.T, r *WetsprocesReconciler, w *v1alpha1.Wetsproces) *v1alpha1.Wetsproces {
+	t.Helper()
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(w)})
+	require.NoError(t, err)
+	var got v1alpha1.Wetsproces
+	require.NoError(t, r.Client.Get(context.Background(), client.ObjectKeyFromObject(w), &got))
+	return &got
+}
+
+func TestReconcileMakesFluxObjectsOwnedByTheWetsproces(t *testing.T) {
+	t.Parallel()
+	w := newWetsproces("zorgtoeslag", "zorgtoeslag")
+	r := newReconciler(t, w)
+	got := reconcileOnce(t, r, w)
+
+	for _, want := range []struct {
+		gvkKind string
+		name    string
+	}{{"GitRepository", "zorgtoeslag-chart"}, {"HelmRelease", "zorgtoeslag"}} {
+		obj := fluxObject(t, r.Client, want.gvkKind, want.name)
+		refs := obj.GetOwnerReferences()
+		require.Len(t, refs, 1, want.name)
+		assert.Equal(t, "Wetsproces", refs[0].Kind)
+		assert.Equal(t, w.UID, refs[0].UID)
+		require.NotNil(t, refs[0].Controller)
+		assert.True(t, *refs[0].Controller, "the garbage collector deletes it with the Wetsproces")
+		assert.Equal(t, "zorgtoeslag", obj.GetLabels()[nameLabel])
 	}
-	_ = unstructured.SetNestedSlice(obj.Object, list, "status", "conditions")
+	hr := fluxObject(t, r.Client, "HelmRelease", "zorgtoeslag")
+	source, _, _ := unstructured.NestedString(hr.Object, "spec", "chart", "spec", "sourceRef", "name")
+	assert.Equal(t, "zorgtoeslag-chart", source)
+
+	assert.Equal(t, v1alpha1.PhasePending, got.Status.Phase)
+	assert.Equal(t, "https://zorgtoeslag.cluster.example.org/", got.Status.URL)
+	assert.Equal(t, "https://zorgtoeslag-medewerkers.cluster.example.org/", got.Status.BackofficeURL)
+}
+
+func fluxObject(t *testing.T, c client.Client, kind, name string) *unstructured.Unstructured {
+	t.Helper()
+	obj := &unstructured.Unstructured{}
+	switch kind {
+	case "GitRepository":
+		obj.SetGroupVersionKind(gitRepositoryGVK)
+	default:
+		obj.SetGroupVersionKind(helmReleaseGVK)
+	}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Namespace: testNamespace, Name: name}, obj))
 	return obj
 }
 
-func ready(status, message string) map[string]any {
-	return map[string]any{"type": "Ready", "status": status, "message": message}
+func setReleaseConditions(t *testing.T, c client.Client, name string, conditions ...map[string]any) {
+	t.Helper()
+	hr := fluxObject(t, c, "HelmRelease", name)
+	list := make([]any, 0, len(conditions))
+	for _, cond := range conditions {
+		list = append(list, cond)
+	}
+	require.NoError(t, unstructured.SetNestedSlice(hr.Object, list, "status", "conditions"))
+	require.NoError(t, c.Update(context.Background(), hr))
 }
 
-func TestCondition(t *testing.T) {
+func TestTheStatusFollowsTheRelease(t *testing.T) {
 	t.Parallel()
+	w := newWetsproces("a", "a")
+	r := newReconciler(t, w)
+	reconcileOnce(t, r, w)
 
-	ok, msg := condition(&unstructured.Unstructured{Object: map[string]any{}}, "Ready")
-	assert.False(t, ok)
-	assert.Equal(t, "not reconciled yet", msg)
+	setReleaseConditions(t, r.Client, "a", map[string]any{"type": "Ready", "status": "True", "message": "Helm install succeeded"})
+	got := reconcileOnce(t, r, w)
+	assert.Equal(t, v1alpha1.PhaseReady, got.Status.Phase)
+	assert.True(t, apimeta.IsStatusConditionTrue(got.Status.Conditions, v1alpha1.ConditionReady))
+	assert.Contains(t, got.Status.Message, "Helm install succeeded")
 
-	ok, msg = condition(withCondition(&unstructured.Unstructured{Object: map[string]any{}}, ready("True", "Helm install succeeded")), "Ready")
-	assert.True(t, ok)
-	assert.Equal(t, "Helm install succeeded", msg)
-
-	ok, _ = condition(withCondition(&unstructured.Unstructured{Object: map[string]any{}}, ready("False", "clone failed")), "Ready")
-	assert.False(t, ok)
+	setReleaseConditions(t, r.Client, "a",
+		map[string]any{"type": "Ready", "status": "False", "message": "install retries exhausted"},
+		map[string]any{"type": "Stalled", "status": "True", "message": "install retries exhausted"})
+	got = reconcileOnce(t, r, w)
+	assert.Equal(t, v1alpha1.PhaseFailed, got.Status.Phase)
+	assert.False(t, apimeta.IsStatusConditionTrue(got.Status.Conditions, v1alpha1.ConditionReady))
 }
 
-func TestPluginStatusFollowsTheRelease(t *testing.T) {
+func TestAnInvalidSpecMakesNothing(t *testing.T) {
 	t.Parallel()
+	w := newWetsproces("a", "a")
+	w.Spec.Manifest.Path = "../buiten"
+	r := newReconciler(t, w)
+	got := reconcileOnce(t, r, w)
+	assert.Equal(t, v1alpha1.PhaseFailed, got.Status.Phase)
+	assert.Equal(t, reasonInvalidSpec, apimeta.FindStatusCondition(got.Status.Conditions, v1alpha1.ConditionReady).Reason)
 
-	running := fluxStatus{sourceReady: true, sourceMessage: "stored artifact", releaseReady: true, releaseMessage: "Helm install succeeded"}.pluginStatus()
-	assert.Equal(t, pluginruntime.PhaseRunning, running.Phase)
-	assert.Contains(t, running.Message, "Helm install succeeded")
-
-	installing := fluxStatus{sourceMessage: "cloning", releaseMessage: "not reconciled yet"}.pluginStatus()
-	assert.Equal(t, pluginruntime.PhaseInstalling, installing.Phase)
-
-	stalled := fluxStatus{sourceReady: true, releaseStalled: true, releaseMessage: "install retries exhausted"}.pluginStatus()
-	assert.Equal(t, pluginruntime.PhaseDegraded, stalled.Phase)
+	var list unstructured.UnstructuredList
+	list.SetGroupVersionKind(helmReleaseGVK.GroupVersion().WithKind("HelmReleaseList"))
+	require.NoError(t, r.Client.List(context.Background(), &list))
+	assert.Empty(t, list.Items)
 }
 
-func fluxObjects(releaseConditions ...map[string]any) []client.Object {
-	cfg := validConfig()
-	src := withCondition(newGitRepository(cfg), ready("True", "stored artifact"))
-	hr := withCondition(newHelmRelease(cfg), releaseConditions...)
-	return []client.Object{src, hr}
-}
-
-func TestReadFluxStatus(t *testing.T) {
+// Two wetsprocessen side by side: each gets its own release and source; one
+// that wants an address another one has is refused, and the older keeps it.
+func TestTwoWetsprocessenSideBySide(t *testing.T) {
 	t.Parallel()
-	c := fake.NewClientBuilder().WithObjects(fluxObjects(
-		ready("False", "install retries exhausted"),
-		map[string]any{"type": "Stalled", "status": "True", "message": "retries exhausted"},
-	)...).Build()
+	older := newWetsproces("zorgtoeslag", "zorgtoeslag")
+	older.CreationTimestamp = metav1.NewTime(time.Unix(1000, 0))
+	other := newWetsproces("parkeerkaart", "parkeerkaart")
+	other.CreationTimestamp = metav1.NewTime(time.Unix(2000, 0))
+	clash := newWetsproces("tweede", "zorgtoeslag")
+	clash.Namespace = "tnt-voorbeeld--ander"
+	clash.CreationTimestamp = metav1.NewTime(time.Unix(3000, 0))
+	r := newReconciler(t, older, other, clash)
 
-	s, err := readFluxStatus(context.Background(), c, testNamespace)
-	require.NoError(t, err)
-	assert.True(t, s.sourceReady)
-	assert.False(t, s.releaseReady)
-	assert.True(t, s.releaseStalled)
-	assert.Equal(t, pluginruntime.PhaseDegraded, s.pluginStatus().Phase)
+	for _, w := range []*v1alpha1.Wetsproces{older, other} {
+		got := reconcileOnce(t, r, w)
+		assert.Equal(t, v1alpha1.PhasePending, got.Status.Phase, w.Name)
+		fluxObject(t, r.Client, "HelmRelease", w.Name)
+		fluxObject(t, r.Client, "GitRepository", w.Name+"-chart")
+	}
+	got := reconcileOnce(t, r, clash)
+	assert.Equal(t, v1alpha1.PhaseFailed, got.Status.Phase)
+	ready := apimeta.FindStatusCondition(got.Status.Conditions, v1alpha1.ConditionReady)
+	assert.Equal(t, reasonHostnameInUse, ready.Reason)
+	assert.Contains(t, ready.Message, testNamespace+"/zorgtoeslag")
 }
 
-func TestApplyFluxObjectsIsIdempotent(t *testing.T) {
+func TestUserRolesAggregateIntoAdminAndViewAndGoOnUninstall(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	c := newFakeClient(t)
-	cfg := validConfig()
+	r := newReconciler(t)
+	require.NoError(t, applyUserRoles(ctx, r.Client))
+	require.NoError(t, applyUserRoles(ctx, r.Client), "a second apply must update, not fail")
 
-	require.NoError(t, applyFluxObjects(ctx, c, cfg))
-	cfg.CaseRef = "v2"
-	require.NoError(t, applyFluxObjects(ctx, c, cfg), "a second apply with a new value must update, not fail")
+	var admin rbacv1.ClusterRole
+	require.NoError(t, r.Client.Get(ctx, client.ObjectKey{Name: "fundament-wetsproces-admin"}, &admin))
+	assert.Equal(t, "true", admin.Labels["rbac.authorization.k8s.io/aggregate-to-admin"])
+	assert.Contains(t, admin.Rules[0].Verbs, "create")
+	var view rbacv1.ClusterRole
+	require.NoError(t, r.Client.Get(ctx, client.ObjectKey{Name: "fundament-wetsproces-view"}, &view))
+	assert.NotContains(t, view.Rules[0].Verbs, "create")
 
-	hr := &unstructured.Unstructured{}
-	hr.SetGroupVersionKind(helmReleaseGVK)
-	require.NoError(t, c.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: releaseName}, hr))
-	ref, _, _ := unstructured.NestedString(hr.Object, "spec", "values", "case", "ref")
-	assert.Equal(t, "v2", ref)
+	require.NoError(t, deleteUserRoles(ctx, r.Client))
+	require.NoError(t, deleteUserRoles(ctx, r.Client), "deleting twice is no error")
+	var roles rbacv1.ClusterRoleList
+	require.NoError(t, r.Client.List(ctx, &roles))
+	assert.Empty(t, roles.Items)
 }
 
-func TestUninstallRemovesTheFluxObjectsAndKeepsTheNamespace(t *testing.T) {
+func TestTheEmbeddedCRDIsTheOneTheDefinitionNames(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	ns := &corev1.Namespace{}
-	ns.SetName(testNamespace)
-	c := newFakeClient(t, append(fluxObjects(ready("True", "ok")), ns)...)
-	p := &WetsprocesPlugin{k8sClient: c, cfg: validConfig(), deletePollInterval: time.Millisecond}
-	p.initOnce.Do(func() {})
-
-	require.NoError(t, p.Uninstall(ctx, nil))
-
-	for _, obj := range []struct {
-		gvk  string
-		gone func() (bool, error)
-	}{
-		{"HelmRelease", func() (bool, error) { return objectGone(ctx, c, helmReleaseGVK, testNamespace, releaseName) }},
-		{"GitRepository", func() (bool, error) { return objectGone(ctx, c, gitRepositoryGVK, testNamespace, sourceName) }},
-	} {
-		gone, err := obj.gone()
-		require.NoError(t, err)
-		assert.True(t, gone, "%s must be gone", obj.gvk)
+	var crd struct {
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
 	}
-	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: testNamespace}, &corev1.Namespace{}), "the namespace is Fundament's and stays")
-
-	// A second uninstall, after a crash halfway, must succeed too.
-	require.NoError(t, p.Uninstall(ctx, nil))
+	require.NoError(t, yaml.Unmarshal(wetsprocesCRD, &crd))
+	assert.Equal(t, crdName, crd.Metadata.Name)
+	assert.Equal(t, []string{crdName}, loadSourceDefinition(t).Spec.CRDs)
 }
 
-// recordingHost records each status that the plugin reports. The embedded
-// Host is nil: a call to another method fails the test.
-type recordingHost struct {
-	pluginruntime.Host
-	mu       sync.Mutex
-	statuses []pluginruntime.PluginStatus
-}
-
-func (h *recordingHost) ReportStatus(s pluginruntime.PluginStatus) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.statuses = append(h.statuses, s)
-}
-
-func (h *recordingHost) ReportReady() {}
-
-func (h *recordingHost) all() []pluginruntime.PluginStatus {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return append([]pluginruntime.PluginStatus(nil), h.statuses...)
-}
-
-func TestStatusReporterSendsOnlyChanges(t *testing.T) {
+func TestSummary(t *testing.T) {
 	t.Parallel()
-	host := &recordingHost{}
-	var r statusReporter
-
-	s := fluxStatus{sourceReady: true, sourceMessage: "ok", releaseMessage: "installing"}
-	r.flux(host, s)
-	r.flux(host, s)
-	s.releaseReady, s.releaseMessage = true, "Helm install succeeded"
-	r.flux(host, s)
-
-	got := host.all()
-	require.Len(t, got, 2)
-	assert.Equal(t, pluginruntime.PhaseRunning, got[1].Phase)
-}
-
-func TestStatusReporterKeepsReconcileError(t *testing.T) {
-	t.Parallel()
-	host := &recordingHost{}
-	var r statusReporter
-	healthy := fluxStatus{sourceReady: true, releaseReady: true, releaseMessage: "ok"}
-
-	err := pluginerrors.NewTransient(errors.New("apply HelmRelease wetsproces: conflict"))
-	r.reconciled(host, errorStatus(err), err)
-	r.flux(host, healthy)
-	got := host.all()
-	require.Len(t, got, 1, "the Flux poll must not hide a failed Reconcile")
-	assert.Equal(t, pluginruntime.PhaseDegraded, got[0].Phase)
-
-	r.reconciled(host, healthy.pluginStatus(), nil)
-	got = host.all()
-	require.Len(t, got, 2)
-	assert.Equal(t, pluginruntime.PhaseRunning, got[1].Phase)
-}
-
-func TestWatchFluxReportsReleaseChanges(t *testing.T) {
-	t.Parallel()
-	objs := fluxObjects(ready("False", "installing"))
-	c := fake.NewClientBuilder().WithObjects(objs...).Build()
-	p := &WetsprocesPlugin{k8sClient: c, cfg: validConfig(), pollInterval: 10 * time.Millisecond}
-	host := &recordingHost{}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-	go func() {
-		p.watchFlux(ctx, host)
-		close(done)
-	}()
-
-	hasPhase := func(phase pluginruntime.PluginPhase) func() bool {
-		return func() bool {
-			for _, s := range host.all() {
-				if s.Phase == phase {
-					return true
-				}
-			}
-			return false
-		}
-	}
-	require.Eventually(t, hasPhase(pluginruntime.PhaseInstalling), time.Second, 5*time.Millisecond)
-
-	hr := objs[1].(*unstructured.Unstructured)
-	withCondition(hr, ready("True", "Helm install succeeded"))
-	require.NoError(t, c.Update(ctx, hr))
-	require.Eventually(t, hasPhase(pluginruntime.PhaseRunning), time.Second, 5*time.Millisecond)
-
-	cancel()
-	<-done
+	ready := v1alpha1.Wetsproces{Status: v1alpha1.WetsprocesStatus{Phase: v1alpha1.PhaseReady}}
+	pending := v1alpha1.Wetsproces{}
+	s := summary([]v1alpha1.Wetsproces{ready, pending})
+	assert.Equal(t, pluginruntime.PhaseRunning, s.Phase)
+	assert.Equal(t, "1 of 2 wetsprocessen ready", s.Message)
 }

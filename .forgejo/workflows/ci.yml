@@ -120,6 +120,8 @@ jobs:
       - run: npm run typecheck -w frontend-demo
       - run: npm test -w frontend-wetsproces -- --maxWorkers=2
       - run: npm run typecheck -w frontend-wetsproces
+      # The console pages of the Fundament plugin: plain modules, no build.
+      - run: node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
       - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
       - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
 
@@ -182,10 +184,14 @@ jobs:
           helm template wetsproces "$C" --set domain=example.org $CNPG \
             --set gateway.enabled=false > /dev/null
           helm template wetsproces "$C" --set domain=example.org $CNPG \
-            --set dns.enabled=true --set dns.target=192.0.2.1 > /dev/null
+            --set gateway.mode=own --set dns.enabled=true --set dns.target=192.0.2.1 > /dev/null
           helm template wetsproces "$C" --set domain=example.org $CNPG \
-            --set dns.enabled=true --set gateway.address=192.0.2.1 > /dev/null
+            --set gateway.mode=own --set dns.enabled=true --set gateway.address=192.0.2.1 > /dev/null
           helm template wetsproces "$C" --set domain=example.org $SMALL > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set gateway.mode=own > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set case.credentialsSecret=repo | grep -q GIT_TOKEN
           helm template wetsproces "$C" --set domain=example.org $SMALL \
             --set theme.accentColor=paars | grep -q WETSPROCES_ACCENT_COLOR
       # Each refusal must fail for its own reason, so the check matches the
@@ -208,7 +214,9 @@ jobs:
             --set database.enabled=false --set surfaces.split=true
           refuse "needs the CloudNativePG operator" --set domain=example.org
           refuse "dns.enabled needs a fixed address" --set domain=example.org $CNPG \
-            --set dns.enabled=true
+            --set gateway.mode=own --set dns.enabled=true
+          refuse "dns.enabled is for gateway.mode own" --set domain=example.org $CNPG \
+            --set dns.enabled=true --set dns.target=192.0.2.1
           refuse "must differ" --set domain=example.org $CNPG \
             --set surfaces.burger.host=a.example.org --set surfaces.backoffice.host=a.example.org
           refuse "surfaces" --set domain=example.org $CNPG \
