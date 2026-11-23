@@ -6,7 +6,7 @@
 // groups, names, fills or hides.
 import { hoofdletter, leesbaar, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { tegenBesluit } from '@regelrecht/frontend-shared/chronolex/voorinvulling';
-import { artikelNaam } from './keten';
+import { artikelNaam, waardeTekst } from './keten';
 import type { Indieningsvorm, Systeemvulling, Veld, Veldtekst, Vormen } from './types';
 
 /** A field as a screen shows it. */
@@ -42,6 +42,18 @@ export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}, stuk = f
 /** The field `naam` of a record as a screen that shows it names it, where the law's own description is not at hand. */
 export const kaalSchermveld = (naam: string, teksten: Vormen['teksten'] = {}): Schermveld =>
   schermveld({ naam, type: null }, teksten, true);
+
+/**
+ * The value `v` of the field `naam` of a record in words, as it stands on its
+ * own in a row: a yes or no as the UI spec's `record` names it, anything else
+ * as `waardeTekst` does, with a capital.
+ */
+export function stukWaarde(naam: string, v: unknown, teksten: Vormen['teksten'] = {}, noem?: (id: string) => string | undefined): string {
+  const record = teksten?.[naam]?.record;
+  if (v === true && record?.when_true) return record.when_true;
+  if (v === false && record?.when_false) return record.when_false;
+  return hoofdletter(waardeTekst(v, noem));
+}
 
 /** The fields the login fills: those the system fills without a value or a source. */
 export const doorInloggen = (vorm: Indieningsvorm): Set<string> =>

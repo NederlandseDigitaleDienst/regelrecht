@@ -31,7 +31,7 @@ use std::path::Path;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::Request;
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware;
 use axum::response::IntoResponse;
 use sqlx::PgPool;
@@ -190,6 +190,13 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
 /// under `/api/` or `/auth/` that is no route stays a `404` of the API, so
 /// a mistyped call never gets a page back. Without the frontend the server
 /// serves the API alone.
+///
+/// The page names its scripts by a hash of their content, so a new build
+/// gives them new names and removes the old. A browser that kept the old
+/// page would then ask for scripts that are gone, and get the page back in
+/// their place: the app opens without its screens. So the page goes out with
+/// `no-cache`, which has the browser check it on every load, and a missing
+/// file under `/assets/` is a `404`, never the page.
 fn with_frontend(app: Router, dir: &Path) -> Router {
     let index = dir.join("index.html");
     if !index.is_file() {
@@ -198,8 +205,10 @@ fn with_frontend(app: Router, dir: &Path) -> Router {
     }
     tracing::info!(frontend = %dir.display(), "serving the frontend");
     let files = ServeDir::new(dir).fallback(ServeFile::new(index));
+    let assets = ServeDir::new(dir);
     app.fallback(move |request: Request| {
         let files = files.clone();
+        let assets = assets.clone();
         async move {
             let path = request.uri().path();
             // `/fsc4b/` too: a route of FSC voor Burgers that does not exist,
@@ -211,10 +220,27 @@ fn with_frontend(app: Router, dir: &Path) -> Router {
                 return ApiError::new(StatusCode::NOT_FOUND, "there is no such route")
                     .into_response();
             }
-            match files.oneshot(request).await {
-                Ok(response) => response.map(Body::new),
-                Err(e) => match e {},
+            let mut response = if path.starts_with("/assets/") {
+                match assets.oneshot(request).await {
+                    Ok(response) => response.map(Body::new),
+                    Err(e) => match e {},
+                }
+            } else {
+                match files.oneshot(request).await {
+                    Ok(response) => response.map(Body::new),
+                    Err(e) => match e {},
+                }
+            };
+            let is_page = response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .is_some_and(|t| t.as_bytes().starts_with(b"text/html"));
+            if is_page {
+                response
+                    .headers_mut()
+                    .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
             }
+            response
         }
     })
 }

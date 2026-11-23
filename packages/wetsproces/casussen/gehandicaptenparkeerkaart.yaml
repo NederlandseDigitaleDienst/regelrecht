@@ -42,6 +42,8 @@ andere_cellen:
 # antwoordt met het advies van artikel 5; een advies hoort bij een verzoek
 # als het over dezelfde aanvrager gaat en het onderzoek op of na de dag van
 # het verzoek plaatsvond.
+# `taak` is hoe dat antwoord heet zolang het nog moet komen; het feit noemt
+# wat er daarna vastligt.
 bij_aanvraag:
   - artikel: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9
     parameters:
@@ -50,6 +52,7 @@ bij_aanvraag:
     antwoord:
       feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
       datum: datum_onderzoek
+      taak: Geneeskundig advies uitbrengen
 # Wat er na een toekenning met de kaart gebeurt: de gemeente bestelt haar bij
 # de drukker, de postkamer stelt vast dat de gedrukte kaart binnen is, en de
 # gemeente reikt haar uit. Elk is een feit van artikel 5 van het fictieve
@@ -59,7 +62,8 @@ bij_aanvraag:
 # plaatsvond (gedaan). De handelingen komen in deze volgorde en elk één keer;
 # na een weigering, of een verstrekking die op bezwaar is herroepen of door de
 # rechter vernietigd, komt er geen. `knop` is wat de medewerker aanklikt,
-# `stand` wat de burger leest zodra de handeling gedaan is.
+# `taak` hoe de handeling als volgende stap heet, en `stand` wat de burger
+# leest zodra de handeling gedaan is.
 na_toekenning:
   aggregaat: reductie_geldige_gehandicaptenparkeerkaart#kaart
   toekenning: toekenningsbesluit
@@ -67,6 +71,7 @@ na_toekenning:
   handelingen:
     - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7#kaart_besteld_bij_drukker
       gedaan: datum_bestelling
+      taak: Kaart bij de drukker bestellen
       # Geen mens nodig: het systeem bestelt zelf zodra de toekenning geldt
       # (artikel 7), in dezelfde stap als het besluit.
       door_het_systeem:
@@ -78,10 +83,12 @@ na_toekenning:
     - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#gedrukte_kaart_ontvangen
       gedaan: datum_ontvangst
       knop: Ontvangst van de gedrukte kaart vastleggen
+      taak: Gedrukte kaart ontvangen
       stand: Uw kaart ligt klaar.
     - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_uitgereikt
       gedaan: datum_uitreiking
       knop: Kaart uitreiken
+      taak: Kaart uitreiken
       stand: Uw kaart is op {datum} aan u uitgereikt.
   # Wat de burger leest onder een kaart die niet meer geldt omdat er een
   # nieuwe voor in de plaats kwam, zoals een duplicaat (artikel 53, eerste

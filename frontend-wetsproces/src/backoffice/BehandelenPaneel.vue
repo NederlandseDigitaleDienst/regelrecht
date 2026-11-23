@@ -310,7 +310,9 @@ async function beslissen() {
 
         <nldd-container gap="8">
           <nldd-title heading-level="4" size="display-5" text="Wat er is ingediend"></nldd-title>
-          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
+          <nldd-container>
+            <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
+          </nldd-container>
         </nldd-container>
 
         <nldd-inline-dialog
@@ -341,7 +343,9 @@ async function beslissen() {
             :text="`Het besluit van ${longDate(laatste.recorded_on)} geldt niet meer`"
             :supporting-text="`${herroeping.tekst}.`"
           ></nldd-banner>
-          <Gegevens :waarden="laatste.outputs" :teksten="vormen?.teksten" label="Uitkomst van het eerdere besluit" />
+          <nldd-container>
+            <Gegevens :waarden="laatste.outputs" :teksten="vormen?.teksten" label="Uitkomst van het eerdere besluit" />
+          </nldd-container>
         </nldd-container>
 
         <nldd-container v-if="inDePlaats && herroeping && !genomen" gap="16">
@@ -358,7 +362,9 @@ async function beslissen() {
               :color="stand(inDePlaats) ? 'success' : 'critical'"
             ></nldd-tag>
           </nldd-title>
-          <Gegevens :waarden="inDePlaats.outputs" :teksten="vormen?.teksten" label="Uitkomst van het geldende besluit" />
+          <nldd-container>
+            <Gegevens :waarden="inDePlaats.outputs" :teksten="vormen?.teksten" label="Uitkomst van het geldende besluit" />
+          </nldd-container>
         </nldd-container>
 
         <nldd-container v-if="besluit" gap="16">

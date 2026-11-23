@@ -66,12 +66,15 @@ pub enum Next {
         #[serde(skip_serializing_if = "Option::is_none")]
         na: Option<String>,
     },
-    /// The cell `cel` answers the request `op` with the fact `feit`.
+    /// The cell `cel` answers the request `op` with the fact `feit`; `taak`
+    /// names that as a step to take, where the case does.
     Antwoord {
         wie: Actor,
         cel: String,
         op: String,
         feit: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        taak: Option<String>,
     },
     /// The executor records the act `feit` after the grant `op`.
     Handeling {
@@ -82,6 +85,9 @@ pub enum Next {
         /// The article by which the system takes it, for the system's act.
         #[serde(skip_serializing_if = "Option::is_none")]
         artikel: Option<String>,
+        /// The act as a step to take, where the case names it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        taak: Option<String>,
     },
     /// The cell `cel` sends a copy of its decision `op`.
     Toezending { wie: Actor, cel: String, op: String },
@@ -243,6 +249,7 @@ fn answers(src: &Sources<'_>, within: &dyn Fn(&str) -> bool, next: &mut Vec<Next
                 cel: r.aan.clone(),
                 op: r.verzoek.id.clone(),
                 feit: feit.clone(),
+                taak: r.antwoordtaak.clone(),
             });
         }
     }
@@ -255,10 +262,8 @@ fn acts(src: &Sources<'_>, within: &dyn Fn(&str) -> bool, next: &mut Vec<Next>) 
         let Some(feit) = &grant.volgende else {
             continue;
         };
-        let artikel = na
-            .handelingen
-            .iter()
-            .find(|h| &h.feit == feit)
+        let handeling = na.handelingen.iter().find(|h| &h.feit == feit);
+        let artikel = handeling
             .and_then(|h| h.door_het_systeem.as_ref())
             .map(|o| o.artikel.clone());
         next.push(Next::Handeling {
@@ -271,6 +276,7 @@ fn acts(src: &Sources<'_>, within: &dyn Fn(&str) -> bool, next: &mut Vec<Next>) 
             op: grant.toekenning.clone(),
             feit: feit.clone(),
             artikel,
+            taak: handeling.and_then(|h| h.taak.clone()),
         });
     }
 }

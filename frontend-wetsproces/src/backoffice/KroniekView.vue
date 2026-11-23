@@ -169,10 +169,14 @@ function naarWerkvoorraad(g: Gram) {
               </p>
             </nldd-text>
             <nldd-title size="display-6"><h3>Gegevens</h3></nldd-title>
-            <Gegevens :waarden="open.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noem" label="Gegevens van het stuk" />
+            <nldd-container>
+              <Gegevens :waarden="open.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noem" label="Gegevens van het stuk" />
+            </nldd-container>
             <template v-if="open.outputs">
               <nldd-title size="display-6"><h3>Uitkomst</h3></nldd-title>
-              <Gegevens :waarden="open.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
+              <nldd-container>
+                <Gegevens :waarden="open.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
+              </nldd-container>
             </template>
             <VolledigeKeten v-if="waarom?.keten" :keten="waarom.keten" :casus="casus" :teksten="vormen?.teksten" />
             <nldd-inline-dialog v-if="waaromFout" icon="warning" text="De keten van dit besluit laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>

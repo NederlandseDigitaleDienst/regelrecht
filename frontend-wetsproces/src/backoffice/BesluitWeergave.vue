@@ -45,12 +45,14 @@ const tag = computed(() => {
     >
       <nldd-tag v-if="tag" slot="end" :text="tag.tekst" :color="tag.kleur"></nldd-tag>
     </nldd-title>
-    <Gegevens
-      :waarden="besluit.outputs"
-      :teksten="vormen?.teksten"
-      :volgorde="vormen?.volgorde"
-      :label="voorlopig ? 'Uitkomst van de voorvertoning' : 'Uitkomst van het besluit'"
-    />
+    <nldd-container>
+      <Gegevens
+        :waarden="besluit.outputs"
+        :teksten="vormen?.teksten"
+        :volgorde="vormen?.volgorde"
+        :label="voorlopig ? 'Uitkomst van de voorvertoning' : 'Uitkomst van het besluit'"
+      />
+    </nldd-container>
     <template v-if="waarom">
       <nldd-title heading-level="5" size="display-6" text="Waarom"></nldd-title>
       <WaaromLijst :waarom="waarom" :teksten="vormen?.teksten" :cel-naam="celNaam" :beslisser="celNaam(besluit.recording_actor)" />

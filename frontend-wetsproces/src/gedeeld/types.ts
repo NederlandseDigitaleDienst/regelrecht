@@ -25,7 +25,7 @@ export interface Veldtekst {
   /** The heading of the group the field stands in. */
   group?: string;
   /** The texts on a screen that shows a recorded submission, where they differ from the form's. */
-  record?: { label?: string; help?: string; group?: string };
+  record?: { label?: string; help?: string; group?: string; summary?: boolean; when_true?: string; when_false?: string };
 }
 
 /** How the system fills a field of the application (`fill: {by: system}`): shared with the poc. */
@@ -337,10 +337,10 @@ export type AanZet = 'uitvoerder' | 'systeem' | 'externe_partij' | 'indiener';
 export type VolgendeStap =
   /** The cell `cel` decides on the submission `op`; with `na` again, after that record. */
   | { soort: 'besluit'; wie: AanZet; cel: string; op: string; na?: string }
-  /** The cell `cel` answers the request `op` with the fact `feit`. */
-  | { soort: 'antwoord'; wie: AanZet; cel: string; op: string; feit: string }
-  /** The act `feit` after the grant `op`; with `artikel`, the system takes it by that article. */
-  | { soort: 'handeling'; wie: AanZet; cel: string; op: string; feit: string; artikel?: string }
+  /** The cell `cel` answers the request `op` with the fact `feit`; `taak` names that as a step to take. */
+  | { soort: 'antwoord'; wie: AanZet; cel: string; op: string; feit: string; taak?: string }
+  /** The act `feit` after the grant `op`; with `artikel`, the system takes it by that article; `taak` names it as a step to take. */
+  | { soort: 'handeling'; wie: AanZet; cel: string; op: string; feit: string; artikel?: string; taak?: string }
   /** The cell `cel` sends a copy of its decision `op`. */
   | { soort: 'toezending'; wie: AanZet; cel: string; op: string }
   /** A submission against the decision `op` can be made until `tot`, the value of its output `veld`. */

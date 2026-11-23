@@ -109,6 +109,11 @@ async fn route_one_from_the_application_to_the_card_handed_out() {
         ]
     );
     assert_eq!(next(&t), ["besluit uitvoerder", "antwoord externe_partij"]);
+    // The case names the answer as a step to take, not by what it records.
+    assert_eq!(
+        t["volgende"][1]["taak"],
+        json!("Geneeskundig advies uitbrengen")
+    );
     // The request the system made says by which article.
     let verzoek = &t["grammen"][1]["id"];
     assert!(
@@ -135,6 +140,7 @@ async fn route_one_from_the_application_to_the_card_handed_out() {
         t["volgende"]
     );
     assert_eq!(t["volgende"][0]["feit"], json!(RECEIPT));
+    assert_eq!(t["volgende"][0]["taak"], json!("Gedrukte kaart ontvangen"));
     assert_eq!(t["volgende"][1]["op"], besluit["id"]);
     assert_eq!(
         t["volgende"][1]["tot"],

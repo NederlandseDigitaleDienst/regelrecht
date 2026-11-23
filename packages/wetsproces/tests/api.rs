@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use axum::Router;
 use axum::body::Body;
-use axum::http::{Method, Request, StatusCode};
+use axum::http::{Method, Request, StatusCode, header};
 use common::*;
 use http_body_util::BodyExt;
 use regelrecht_wetsproces::app;
@@ -790,10 +790,13 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
         .map(|v| v.as_str().unwrap())
         .collect();
     assert_eq!(
-        volgorde[..3],
+        volgorde[..6],
         [
+            "gevraagde_beschikking",
             "kaart_als_bestuurder",
             "kaart_als_passagier",
+            "naam_aanvrager",
+            "bsn_aanvrager",
             "adres_aanvrager"
         ]
     );
@@ -821,7 +824,7 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
     );
     assert_eq!(
         vormen["teksten"]["adres_aanvrager"]["record"]["group"],
-        json!("Aanvrager")
+        json!("Persoonsgegevens")
     );
     // The deadline of a submission follows from the law: the date Awb 6:9
     // reads the receipt of an objection or appeal against. An application
@@ -948,6 +951,19 @@ async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404(
     assert_eq!(status, StatusCode::OK);
     assert!(page.contains("<title>app</title>"));
     assert_eq!(body("/assets/app.js").await.1, "console.log(1)");
+    // The page is checked on every load, so a browser never keeps a page
+    // that names scripts a new build removed; such a script is a 404, not
+    // the page in its place.
+    let response = app
+        .clone()
+        .oneshot(Request::get("/burger").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).unwrap(),
+        "no-cache"
+    );
+    assert_eq!(body("/assets/weg-a1b2c3.js").await.0, StatusCode::NOT_FOUND);
     let (status, fout) = body("/api/bestaat-niet").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(fout.contains("fout"), "{fout}");

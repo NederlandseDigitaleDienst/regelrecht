@@ -28,6 +28,41 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): RouteLoc
   return undefined;
 }
 
+/** Where the path of a reload after a missing script waits, so a second miss does not reload again. */
+const HERLADEN = 'wetsproces-herladen';
+
+/**
+ * Whether `e` says a screen did not load because its script is gone: a new
+ * build replaced it while this page was open. Each browser words it its own
+ * way.
+ */
+export const isChunkfout = (e: unknown): boolean =>
+  e instanceof TypeError &&
+  /dynamically imported module|importing a module script failed/i.test(e.message);
+
+/**
+ * Load `pad` anew after the error `e`, once, when a script of the app is
+ * gone: the page then gets the scripts of the new build. Whether it did.
+ */
+export function herstelNaChunkfout(
+  e: unknown,
+  pad: string,
+  opslag: Pick<Storage, 'getItem' | 'setItem'>,
+  laad: (pad: string) => void,
+): boolean {
+  if (!isChunkfout(e)) return false;
+  try {
+    // Missing after a reload as well: reloading again would not help.
+    if (opslag.getItem(HERLADEN) === pad) return false;
+    opslag.setItem(HERLADEN, pad);
+  } catch {
+    // Without storage it cannot tell a first miss from a second, so it does not loop.
+    return false;
+  }
+  laad(pad);
+  return true;
+}
+
 /** The router of a web build with the sides `kanten`. */
 export function maakRouter(kanten: RouteRecordRaw[]) {
   const router = createRouter({
@@ -40,6 +75,15 @@ export function maakRouter(kanten: RouteRecordRaw[]) {
     ],
   });
   router.beforeEach(async (to) => omleiding(to, await laadIk()));
+  router.onError((e, to) => herstelNaChunkfout(e, to.fullPath, sessionStorage, (pad) => window.location.assign(pad)));
+  router.afterEach((_to, _from, mislukt) => {
+    if (mislukt) return;
+    try {
+      sessionStorage.removeItem(HERLADEN);
+    } catch {
+      // Without storage there is nothing to clear.
+    }
+  });
   return router;
 }
 

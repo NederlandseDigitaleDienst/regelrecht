@@ -38,20 +38,49 @@
 # die schermen staan onder `record` dezelfde drie sleutels; wat daar
 # ontbreekt, nemen ze van het formulier over. Een lege `help` onder `record`
 # zet er niets onder: een hulpregel die alleen bij het invullen helpt.
+# `summary: true` onder `record` zet een veld bij de paar gegevens die zo'n
+# scherm bovenaan toont, naast de stand: wat er is aangevraagd. Daaronder
+# staat het dan niet nog eens. `when_true` en `when_false` noemen een ja of
+# nee in woorden: "Aangevraagd" zegt waar het antwoord over gaat, "ja" niet.
 elements:
   - id: UI1
     element: aanvraagformulier
     fields:
+      # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
+      # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
+      # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren
+      # noemen haar herkomst voor een scherm dat de aanvraag toont. Ze staat
+      # vooraan: wat er gevraagd is, gaat voor hoe.
+      - name: gevraagde_beschikking
+        group: Over deze aanvraag
+        visibility: hidden
+        fill: {by: system, value: gehandicaptenparkeerkaart}
+        label: Wat vraagt u aan?
+        record: {label: Gevraagd besluit, summary: true}
       # De twee keuzes delen het begin van de zin; dat staat één keer in de
       # kop, zodat elke keuze alleen noemt waarin ze verschilt.
       - name: kaart_als_bestuurder
         group: Vraag gehandicaptenparkeerkaart aan als
         label: Bestuurder van de auto
-        record: {group: Gevraagde kaart, label: Kaart als bestuurder}
+        record: {group: Gevraagde kaart, label: Kaart als bestuurder, summary: true,
+                 when_true: Aangevraagd, when_false: Niet aangevraagd}
       - name: kaart_als_passagier
         group: Vraag gehandicaptenparkeerkaart aan als
         label: Passagier
-        record: {group: Gevraagde kaart, label: Kaart als passagier}
+        record: {group: Gevraagde kaart, label: Kaart als passagier, summary: true,
+                 when_true: Aangevraagd, when_false: Niet aangevraagd}
+      - name: naam_aanvrager
+        group: Uw persoonsgegevens
+        visibility: shown
+        fill: {by: system, login: naam}
+        label: Naam
+        record: {group: Persoonsgegevens}
+      - name: bsn_aanvrager
+        group: Uw persoonsgegevens
+        visibility: shown
+        fill: {by: system}
+        label: Burgerservicenummer
+        record: {group: Persoonsgegevens}
       # De wet vraagt één adres (Awb 4:2, eerste lid, onder a); het scherm
       # vraagt het in de stukken waarin mensen het kennen. Het formulier voegt
       # ze in deze volgorde samen tot de ene waarde die de wet kent.
@@ -62,7 +91,7 @@ elements:
       - name: adres_aanvrager
         group: Uw persoonsgegevens
         label: Adres
-        record: {group: Aanvrager}
+        record: {group: Persoonsgegevens}
         required: true
         parts:
           - name: straat_huisnummer
@@ -78,28 +107,6 @@ elements:
           - name: woonplaats
             label: Woonplaats
             autocomplete: address-level2
-      - name: bsn_aanvrager
-        group: Uw persoonsgegevens
-        visibility: shown
-        fill: {by: system}
-        label: Burgerservicenummer
-        record: {group: Aanvrager}
-      - name: naam_aanvrager
-        group: Uw persoonsgegevens
-        visibility: shown
-        fill: {by: system, login: naam}
-        label: Naam
-        record: {group: Aanvrager}
-      # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
-      # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
-      # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren
-      # noemen haar herkomst voor een scherm dat de aanvraag toont.
-      - name: gevraagde_beschikking
-        group: Over deze aanvraag
-        visibility: hidden
-        fill: {by: system, value: gehandicaptenparkeerkaart}
-        label: Wat vraagt u aan?
-        record: {label: Gevraagd besluit}
       # Awb 4:2, eerste lid, onder b: de dag van indiening, volgens de klok
       # van de server. Niet op het formulier: zij vraagt niets van de burger
       # en staat pas vast als de server de aanvraag vastlegt. Het scherm

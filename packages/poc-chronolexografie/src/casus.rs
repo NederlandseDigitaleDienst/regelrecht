@@ -130,12 +130,16 @@ pub enum Aanvraaggegeven {
 /// The fact by which the other party answers a request (`feit`,
 /// `<regelwerk>#<article>#<fact>`). An answer belongs to a request when it
 /// holds the same values in the fields both have, and its field `datum` is a
-/// day on or after the day of the request.
+/// day on or after the day of the request. `taak` names the answer as a step
+/// still to take, such as "Geneeskundig advies uitbrengen": the fact names
+/// what is recorded once it is taken.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Verzoekantwoord {
     pub feit: String,
     pub datum: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taak: Option<String>,
 }
 
 /// Logging in to apply, without a real means of login. `feit`

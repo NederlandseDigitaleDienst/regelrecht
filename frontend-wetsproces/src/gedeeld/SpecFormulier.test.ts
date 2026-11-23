@@ -63,16 +63,18 @@ describe('SpecFormulier', () => {
     expect(labels).toEqual(['Dagtekening', 'Ondertekend', 'Wil een vergunning']);
   });
 
-  it('shows a field that is already filled as a row of a list, not as an input, in its place in its group', () => {
+  it('shows what is already filled apart, under the questions, as a list of what is known, not as inputs', () => {
     const { groepen } = aanvraagformulier(vorm, {
       nummer_aanvrager: { group: 'Over u', help: 'Uw nummer.' },
       wil_een_vergunning: { group: 'Over u' },
     }, '999990019');
     const w = mount(SpecFormulier, { props: { velden: groepen.flatMap((g) => g.velden), waarden: {}, volgorde: ['nummer_aanvrager', 'wil_een_vergunning'] } });
-    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over u']);
-    // The list stands before the question that follows it.
+    // The question keeps its group; what is known gets a heading of its own.
+    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over u', 'Wat al bekend is']);
+    // The list stands after the questions, although the UI spec names the field first.
     const lijst = w.find('nldd-list');
-    expect(lijst.element.compareDocumentPosition(w.find('nldd-checkbox-field').element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(lijst.element.compareDocumentPosition(w.find('nldd-checkbox-field').element) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(lijst.attributes('accessible-label')).toBe('Wat al bekend is');
     const [naam, waarde] = lijst.findAll('nldd-text-cell');
     expect(naam!.attributes('text')).toBe('Nummer aanvrager');
     expect(naam!.attributes('supporting-text')).toBe(
@@ -82,12 +84,11 @@ describe('SpecFormulier', () => {
     expect(waarde!.attributes('text')).toBe('999990019');
     expect(waarde!.attributes('horizontal-alignment')).toBe('right');
     expect(w.find('nldd-text-field').exists()).toBe(false);
-    // Without a caption the list stands on its own; with one, the caption names it.
+    // Without a caption the list follows its heading; with one, the caption stands between.
     expect(w.find('nldd-container nldd-text').exists()).toBe(false);
     const metKop = mount(SpecFormulier, {
       props: { velden: groepen.flatMap((g) => g.velden), waarden: {}, bekendKop: 'Al bekend' },
     });
-    expect(metKop.find('nldd-list').attributes('accessible-label')).toBe('Al bekend');
     expect(metKop.html()).toContain('<p>Al bekend</p>');
     // A field filled already is never sent up as a change.
     expect(w.emitted('zet')).toBeUndefined();

@@ -125,20 +125,24 @@ async function indienen() {
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
     <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn aanvragen" collapse-anchor="besluit-titel" @back="router.push({ name: 'dossier' })"></nldd-top-title-bar>
-    <nldd-simple-section width="full">
+    <nldd-two-thirds-one-third-section>
+      <nldd-title
+        v-if="besluit"
+        id="besluit-titel"
+        slot="header"
+        size="display-2"
+        :supporting-text="`${naamVanCel(besluit.recording_actor)} · onder ${artikelNaam(besluit.basis)}`"
+      >
+        <h3>{{ titel }}</h3>
+        <nldd-tag
+          v-if="uitkomst !== undefined"
+          slot="end"
+          :text="uitkomst ? 'Toegewezen' : 'Afgewezen'"
+          :color="uitkomst ? 'success' : 'critical'"
+        ></nldd-tag>
+      </nldd-title>
       <nldd-inline-dialog v-if="!besluit" icon="info" text="Dit besluit staat niet in uw dossier"></nldd-inline-dialog>
       <template v-else>
-        <nldd-title id="besluit-titel" size="display-3">
-          <h3>{{ titel }}</h3>
-          <nldd-tag
-            v-if="uitkomst !== undefined"
-            slot="end"
-            :text="uitkomst ? 'Toegewezen' : 'Afgewezen'"
-            :color="uitkomst ? 'success' : 'critical'"
-          ></nldd-tag>
-        </nldd-title>
-        <nldd-text color="secondary"><p>{{ naamVanCel(besluit.recording_actor) }} · onder {{ artikelNaam(besluit.basis) }}</p></nldd-text>
-        <nldd-spacer size="24"></nldd-spacer>
         <template v-if="herroeping">
           <nldd-banner variant="warning" text="Dit besluit geldt niet meer" :supporting-text="herroeping"></nldd-banner>
           <nldd-spacer size="24"></nldd-spacer>
@@ -202,11 +206,12 @@ async function indienen() {
           </nldd-button-group>
         </template>
       </template>
-    </nldd-simple-section>
-    <!-- What the dossier puts under the record, such as the timeline of its application. -->
-    <nldd-simple-section v-if="$slots.onder" width="full">
-      <slot name="onder"></slot>
-    </nldd-simple-section>
+      <!-- What the dossier puts beside the record, such as the timeline of its application. -->
+      <nldd-container v-if="$slots.naast" slot="right">
+        <slot name="naast"></slot>
+      </nldd-container>
+    </nldd-two-thirds-one-third-section>
+    <nldd-page-footer slot="footer"></nldd-page-footer>
   </nldd-page>
 
   <Teleport to="body">

@@ -83,6 +83,10 @@ pub struct Vervolghandeling {
     /// What the button that records it says, for an act a person records.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knop: Option<String>,
+    /// The act as a step still to take, such as "Kaart uitreiken": the fact
+    /// names what is recorded once it is taken.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taak: Option<String>,
     /// For an act no person needs to do, such as ordering the card: the
     /// article of the cell's own policy that has the system record it, in
     /// the form `bij_aanvraag` takes ([`crate::verzoek::opvolgen`]). Its

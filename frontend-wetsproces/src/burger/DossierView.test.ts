@@ -117,6 +117,21 @@ describe('the dossier', () => {
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/burger/dossier/a');
     expect(w.find('nldd-list[accessible-label="Mijn aanvragen"]').exists()).toBe(false);
+    // The page takes the name of its row; when and where stand under it.
+    expect(w.find('nldd-top-title-bar').attributes('text')).toBe('Aanvraag');
+    expect(w.find('#stuk-titel').attributes('supporting-text')).toBe('13 oktober 2026 · gemeente Voorbeeld');
+    // The article it rests on closes what was submitted, and the day is not said twice.
+    const wat = w.find('nldd-list[accessible-label="Wat u indiende"]');
+    expect(wat.findAll('nldd-list-item').at(-1)!.find('nldd-text-cell').attributes('text')).toBe('Op grond van');
+    expect(w.text()).not.toContain('Ingediend op');
+  });
+
+  it('opens a waiting application with its status on top, and what was submitted right under it without a heading', async () => {
+    dossier.mockReset().mockResolvedValue([aanvraag]);
+    const { w } = await toon('/burger/dossier/a');
+    const status = w.find('nldd-list[accessible-label="Samenvatting"] nldd-list-item').findAll('nldd-text-cell');
+    expect(status.map((c) => c.attributes('text'))).toEqual(['Status', 'In behandeling']);
+    expect(w.findAll('h4')).toHaveLength(0);
   });
 
   it('says an application waits while nothing answers it', async () => {
@@ -132,7 +147,10 @@ describe('the dossier', () => {
     expect(t).toContain('Besluit (beschikking) van 13 oktober 2026');
     // What was filed, under the label of the UI spec.
     expect(t).toContain('Waarom u het er niet mee eens bent');
-    expect(w.text()).toContain('In behandeling bij gemeente Voorbeeld');
+    const status = w.find('nldd-list[accessible-label="Samenvatting"] nldd-list-item').findAll('nldd-text-cell');
+    expect(status.map((c) => c.attributes('text'))).toEqual(['Status', 'In behandeling']);
+    // After what it contests, what was filed has its heading again.
+    expect(w.findAll('h4').map((h) => h.text())).toContain('Wat u indiende');
   });
 
   it('returns from a record to the list with the back button', async () => {

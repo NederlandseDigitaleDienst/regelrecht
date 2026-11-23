@@ -50,7 +50,11 @@
 //! submission speaks to someone else, or about the past: the applicant's own
 //! dossier, the authority's work queue and chronicle. Under `record` a field
 //! gives the same three texts for those screens ([`Stuktekst`]); a key it
-//! leaves out falls back on the form's. Without them a screen names the
+//! leaves out falls back on the form's. `summary: true` there puts the field
+//! among the few such a screen shows first, before the rest of the record.
+//! `when_true` and `when_false` there name a yes-or-no value in words, such
+//! as "aangevraagd" for a card that was asked for, where a bare "ja" would
+//! leave the reader to work out what it answers. Without them a screen names the
 //! field after the regelwerk. They count by field name over every element
 //! and every form, so the same field is named the same on the application,
 //! the objection and the decision; two elements that name one field
@@ -127,6 +131,10 @@ struct Record {
     label: Option<String>,
     help: Option<String>,
     group: Option<String>,
+    #[serde(default)]
+    summary: bool,
+    when_true: Option<String>,
+    when_false: Option<String>,
 }
 
 /// One input of a field the applicant answers in parts: the law asks one
@@ -203,6 +211,16 @@ pub struct Stuktekst {
     pub help: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// Whether the screen shows the field first, among the few that say what
+    /// the submission is about.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub summary: bool,
+    /// The value `true` in words, such as "aangevraagd".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when_true: Option<String>,
+    /// The value `false` in words, such as "niet aangevraagd".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when_false: Option<String>,
 }
 
 /// One input of a field the screen asks in parts. The law asks one value, so
@@ -575,13 +593,14 @@ fn volgorde(elements: &[Element]) -> Vec<String> {
         .collect()
 }
 
-/// Per field the `label`, `help` and `group` the elements give it. Two
-/// elements that give one field a different label, help or group are
-/// refused.
+/// Per field the `label`, `help` and `group` the elements give it, and
+/// whether one of them puts it in the summary of a record. Two elements that
+/// give one field a different label, help or group are refused.
 fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> {
     // Per field and per key (`label`, `help`, `group`, and each of them under
     // `record`): the text, and the element that gave it.
     let mut gegeven: BTreeMap<(String, &'static str), (String, String)> = BTreeMap::new();
+    let mut samenvatting: BTreeSet<String> = BTreeSet::new();
     for (i, element) in elements.iter().enumerate() {
         let naam = element_name(element.id.as_ref(), i);
         for field in &element.fields {
@@ -593,8 +612,17 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
                 ("record.label", record.and_then(|r| r.label.as_ref())),
                 ("record.help", record.and_then(|r| r.help.as_ref())),
                 ("record.group", record.and_then(|r| r.group.as_ref())),
+                (
+                    "record.when_true",
+                    record.and_then(|r| r.when_true.as_ref()),
+                ),
+                (
+                    "record.when_false",
+                    record.and_then(|r| r.when_false.as_ref()),
+                ),
             ];
-            if teksten.iter().all(|(_, t)| t.is_none()) {
+            let in_samenvatting = record.is_some_and(|r| r.summary);
+            if teksten.iter().all(|(_, t)| t.is_none()) && !in_samenvatting {
                 continue;
             }
             let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
@@ -602,6 +630,9 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
                     "the UI spec: {naam} gives a `label`, `help`, `group` or `record` to a field without a `name`"
                 ));
             };
+            if in_samenvatting {
+                samenvatting.insert(veld.to_string());
+            }
             for (wat, tekst) in teksten {
                 let Some(tekst) = tekst else { continue };
                 match gegeven.get(&(veld.to_string(), wat)) {
@@ -627,8 +658,17 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
             "group" => t.group = Some(tekst),
             "record.label" => t.record.get_or_insert_default().label = Some(tekst),
             "record.help" => t.record.get_or_insert_default().help = Some(tekst),
+            "record.when_true" => t.record.get_or_insert_default().when_true = Some(tekst),
+            "record.when_false" => t.record.get_or_insert_default().when_false = Some(tekst),
             _ => t.record.get_or_insert_default().group = Some(tekst),
         }
+    }
+    for veld in samenvatting {
+        uit.entry(veld)
+            .or_default()
+            .record
+            .get_or_insert_default()
+            .summary = true;
     }
     Ok(uit)
 }
@@ -1431,7 +1471,22 @@ elements:
         assert_eq!(record.group.as_deref(), Some("Gevraagde kaart"));
         // What `record` leaves out, the screen takes from the form.
         assert_eq!(record.help, None);
+        assert!(!record.summary);
         assert_eq!(spec.teksten["y"].record, None);
+        // A field in the summary of a record says so, also without a text of its own there.
+        let spec =
+            lees("elements: [{id: UI1, fields: [{name: x, record: {summary: true}}, {name: y}]}]")
+                .unwrap();
+        assert!(spec.teksten["x"].record.as_ref().unwrap().summary);
+        assert!(!spec.teksten.contains_key("y"));
+        // A yes-or-no value has its own words on such a screen.
+        let spec = lees(
+            "elements: [{id: UI1, fields: [{name: x, record: {when_true: Aangevraagd, when_false: Niet aangevraagd}}]}]",
+        )
+        .unwrap();
+        let record = spec.teksten["x"].record.as_ref().unwrap();
+        assert_eq!(record.when_true.as_deref(), Some("Aangevraagd"));
+        assert_eq!(record.when_false.as_deref(), Some("Niet aangevraagd"));
         // Two elements that name one field differently on such a screen are refused.
         let e = lees(
             "elements: [{id: UI1, fields: [{name: x, record: {label: Een}}]},

@@ -41,6 +41,10 @@ pub struct Verzoek {
     pub ontvangen: Option<Gram>,
     /// The fact by which `aan` answers it, `<regelwerk>#<article>#<fact>`.
     pub antwoordfeit: Option<String>,
+    /// That answer as a step still to take, where the case names it
+    /// ([`Verzoekantwoord::taak`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub antwoordtaak: Option<String>,
     /// The answer in the chronicle of `aan`, once it came.
     pub antwoord: Option<Gram>,
     /// The receipt of that answer in the chronicle of the case's cell.
@@ -375,6 +379,7 @@ fn volg(
         verzoek: verzoek.clone(),
         ontvangen,
         antwoordfeit: opvolging.antwoord.as_ref().map(|a| a.feit.clone()),
+        antwoordtaak: opvolging.antwoord.as_ref().and_then(|a| a.taak.clone()),
         antwoord,
         antwoord_ontvangen,
     })

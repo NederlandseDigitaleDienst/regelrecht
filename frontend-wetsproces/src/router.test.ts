@@ -1,9 +1,9 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { backofficeRoutes } from './backoffice/routes';
-import { omleiding } from './router';
+import { herstelNaChunkfout, isChunkfout, omleiding } from './router';
 import type { Ik } from './gedeeld/types';
 
 const naar = (path: string, kant?: 'burger' | 'backoffice', name?: string) =>
@@ -67,5 +67,39 @@ describe('omleiding', () => {
 
   it('always lets the login open', () => {
     expect(omleiding(naar('/inloggen', undefined, 'inloggen'), burger)).toBeUndefined();
+  });
+});
+
+describe('herstelNaChunkfout', () => {
+  const opslag = () => {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  };
+
+  it('knows the words each browser gives a script that is gone', () => {
+    expect(isChunkfout(new TypeError('Failed to fetch dynamically imported module: /assets/a.js'))).toBe(true);
+    expect(isChunkfout(new TypeError('Importing a module script failed.'))).toBe(true);
+    expect(isChunkfout(new TypeError('error loading dynamically imported module'))).toBe(true);
+    expect(isChunkfout(new Error('Failed to fetch dynamically imported module'))).toBe(false);
+    expect(isChunkfout(new TypeError('x is undefined'))).toBe(false);
+  });
+
+  it('loads the page anew once when a script is gone, and not again when it is still gone', () => {
+    const o = opslag();
+    const laad = vi.fn();
+    const fout = new TypeError('Importing a module script failed.');
+    expect(herstelNaChunkfout(fout, '/burger', o, laad)).toBe(true);
+    expect(laad).toHaveBeenCalledWith('/burger');
+    expect(herstelNaChunkfout(fout, '/burger', o, laad)).toBe(false);
+    expect(laad).toHaveBeenCalledTimes(1);
+    // Another error is no reason to reload.
+    expect(herstelNaChunkfout(new Error('anders'), '/inloggen', o, laad)).toBe(false);
+  });
+
+  it('does not reload without storage, where it cannot tell the second miss', () => {
+    const laad = vi.fn();
+    const zonder = { getItem: () => { throw new Error('geen opslag'); }, setItem: () => undefined };
+    expect(herstelNaChunkfout(new TypeError('Importing a module script failed.'), '/burger', zonder, laad)).toBe(false);
+    expect(laad).not.toHaveBeenCalled();
   });
 });

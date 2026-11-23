@@ -8,7 +8,8 @@
 // whose back button returns to the list (StukPaneel.vue). What followed on it
 // opens from there: its decision, and every record in the timeline of the
 // application (gedeeld/TijdlijnLijst.vue, `GET /api/dossier/tijdlijn/{id}`), a
-// decision in BesluitPaneel.vue, anything else in StukPaneel.vue. An
+// decision in BesluitPaneel.vue, a request of the policy in a sheet over the
+// page (gedeeld/VerzoekSheet.vue), anything else in StukPaneel.vue. An
 // application about a grant, such as a duplicate, is a row of its own; the way
 // in to one stands on the page of the application whose grant it is about.
 import { computed, onMounted, ref, watch } from 'vue';
@@ -70,6 +71,7 @@ const tijdlijnVan = (c: Casus) => ({
   teksten: vormen.value?.teksten,
   huidig: props.id,
   naar: (g: Gram) => ({ name: 'stuk', params: { id: g.id } }),
+  verzoeken: verzoeken.value,
 });
 
 /** What the citizen just submitted, as its kind in words, from the address. */
@@ -118,6 +120,11 @@ const aanvragen = computed(() => {
 });
 /** What the application of the address offers after its grant, for its own page. */
 const huidige = computed(() => aanvragen.value.find((a) => a.gram.id === props.id));
+/** How the record of the address stands, an objection as well as an application. */
+const statusVanStuk = computed(() => {
+  const g = dossier.value.find((x) => x.id === props.id);
+  return g ? aanvraagStand(g) : null;
+});
 
 /** What an application asks, in words: the case's own after its title, one about a grant by the title of its form. */
 function aanvraagNaam(g: Gram, c: Casus): string {
@@ -207,7 +214,7 @@ const gekozenIsBesluit = computed(() => {
 <template>
   <template v-if="!leeg">
     <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier">
-      <template #onder><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
+      <template #naast><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
     </BesluitPaneel>
     <StukPaneel
       v-else-if="id && casus && !laden"
@@ -218,8 +225,10 @@ const gekozenIsBesluit = computed(() => {
       :stand="standVanDossier"
       :vervolg="huidige?.vervolg"
       :aanvragen="huidige?.aanvragen"
+      :naam="huidige?.tekst"
+      :status="statusVanStuk"
     >
-      <template #onder><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
+      <template #naast><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
     </StukPaneel>
     <nldd-page v-else-if="id" landmarks="page">
       <nldd-simple-section>
@@ -229,7 +238,7 @@ const gekozenIsBesluit = computed(() => {
     <nldd-page v-else landmarks="page" sticky-header accessible-label="Mijn aanvragen">
       <nldd-top-title-bar slot="header" text="Mijn aanvragen" heading-level="3" collapse-anchor="dossier-titel"></nldd-top-title-bar>
       <nldd-simple-section>
-        <nldd-title id="dossier-titel" size="display-3"><h3>Mijn aanvragen</h3></nldd-title>
+        <nldd-title id="dossier-titel" size="display-2"><h3>Mijn aanvragen</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <nldd-activity-indicator v-if="laden" text="Uw aanvragen laden" show-text></nldd-activity-indicator>
         <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Uw aanvragen laden niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -264,6 +273,7 @@ const gekozenIsBesluit = computed(() => {
           </nldd-list>
         </template>
       </nldd-simple-section>
+      <nldd-page-footer slot="footer"></nldd-page-footer>
     </nldd-page>
   </template>
 

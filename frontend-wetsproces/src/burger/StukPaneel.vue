@@ -10,12 +10,15 @@
 // decision on it was annulled. Under that, for an application, how far the
 // acts after its grant are and what the citizen can apply for about it, such
 // as a duplicate, as the dossier gives them (`vervolg`, `aanvragen`). A
-// decision opens in BesluitPaneel.vue.
+// decision opens in BesluitPaneel.vue. On top, without a heading, stand how
+// an application stands (`status`) and the few fields the UI spec puts in the
+// summary of a record (`record.summary`): what was asked. Those are not shown
+// again under what was submitted.
 import { computed } from 'vue';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
-import { herkomsten } from '../gedeeld/formulier';
+import { herkomsten, kaalSchermveld, opVolgorde, stukWaarde } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import {
   antwoordOp,
@@ -43,6 +46,10 @@ const props = defineProps<{
   vervolg?: string;
   /** What the citizen can apply for about that grant, each with the record it is about (`op`). */
   aanvragen?: (Vervolgaanvraag & { op: string })[];
+  /** The name of the application as the list of applications gives it, such as `Aanvraag gehandicaptenparkeerkaart`. */
+  naam?: string;
+  /** How the application stands, as the list of applications says it. */
+  status?: { tekst: string; kleur: string } | null;
 }>();
 const router = useRouter();
 const route = useRoute();
@@ -58,12 +65,33 @@ const noemId = (id: string) => {
   const g = props.dossier.find((x) => x.id === id);
   return g ? noem(g) : undefined;
 };
-const titel = computed(() => (stuk.value ? `${omschrijf(stuk.value)} van ${longDate(stuk.value.recorded_on)}` : 'Stuk'));
+// What it is goes in the title; when and where stand under it.
+const titel = computed(() => props.naam ?? (stuk.value ? omschrijf(stuk.value) : 'Stuk'));
 const indiening = computed(() => !!stuk.value && isIndiening(stuk.value, props.stand));
 /** Where the system filled a field of this submission, by its form's UI spec. */
 const herkomst = computed(() => (stuk.value ? herkomsten(props.vormen?.indieningen[stuk.value.basis]) : {}));
 const over = computed(() => (stuk.value ? waarover(stuk.value, props.dossier) : undefined));
+/** The fields of this record the UI spec puts in its summary, in the order of the UI spec. */
+const samenvatting = computed(() => {
+  const teksten = props.vormen?.teksten ?? {};
+  const velden = stuk.value?.fields ?? {};
+  const namen = Object.keys(teksten).filter((n) => teksten[n]?.record?.summary && velden[n] !== null && velden[n] !== undefined);
+  return opVolgorde(namen, props.vormen?.volgorde, (n) => n).map((n) => ({
+    naam: n,
+    label: kaalSchermveld(n, teksten).label,
+    waarde: stukWaarde(n, velden[n], teksten),
+  }));
+});
+/** What was submitted, without what the summary already shows. */
+const rest = computed(() => {
+  const weg = new Set(samenvatting.value.map((s) => s.naam));
+  return Object.fromEntries(Object.entries(stuk.value?.fields ?? {}).filter(([n]) => !weg.has(n)));
+});
 const vind = (id: string) => props.dossier.find((g) => g.id === id);
+/** Whether the section on how it stands has anything to say: what answered it, or what followed. Only that it waits says the status on top. */
+const metStand = computed(
+  () => indiening.value && !!(antwoord.value.geldend || antwoord.value.vervallen || antwoord.value.opnieuw || props.vervolg || props.aanvragen?.length),
+);
 /**
  * What answers this submission now, for the screen: the decision that holds
  * (a record of its own, or the new one a decision took in the place of the
@@ -108,7 +136,14 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
     <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn aanvragen" collapse-anchor="stuk-titel" @back="router.push({ name: 'dossier' })"></nldd-top-title-bar>
-    <nldd-simple-section width="full">
+    <nldd-two-thirds-one-third-section>
+      <nldd-title
+        v-if="stuk"
+        id="stuk-titel"
+        slot="header"
+        size="display-2"
+        :supporting-text="`${longDate(stuk.recorded_on)} · ${naamVanCel(stuk.recording_actor)}`"
+      ><h3>{{ titel }}</h3></nldd-title>
       <nldd-inline-dialog
         v-if="!stuk"
         icon="info"
@@ -116,9 +151,24 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
         supporting-text="Kies een stuk uit de lijst. U ziet alleen wat over u is vastgelegd."
       ></nldd-inline-dialog>
       <template v-else>
-        <nldd-title id="stuk-titel" size="display-3"><h3>{{ titel }}</h3></nldd-title>
-        <nldd-text color="secondary"><p>{{ naamVanCel(stuk.recording_actor) }} · onder {{ artikelNaam(stuk.basis) }}</p></nldd-text>
-        <nldd-spacer size="24"></nldd-spacer>
+        <template v-if="(status && indiening) || samenvatting.length">
+          <nldd-list appearance="box-base" accessible-label="Samenvatting">
+            <nldd-list-item v-if="status && indiening" size="md">
+              <nldd-text-cell text="Status"></nldd-text-cell>
+              <nldd-spacer-cell size="16"></nldd-spacer-cell>
+              <!-- The word says it, so the dot beside it is decorative. -->
+              <nldd-cell><nldd-badge :color="status.kleur" size="sm" decorative></nldd-badge></nldd-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-text-cell :text="status.tekst" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
+            </nldd-list-item>
+            <nldd-list-item v-for="s in samenvatting" :key="s.naam" size="md">
+              <nldd-text-cell :text="s.label"></nldd-text-cell>
+              <nldd-spacer-cell size="16"></nldd-spacer-cell>
+              <nldd-text-cell :text="s.waarde" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
+            </nldd-list-item>
+          </nldd-list>
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
 
         <template v-if="over">
           <nldd-title size="display-5"><h4>{{ indiening ? 'Gericht tegen' : 'Over' }}</h4></nldd-title>
@@ -136,7 +186,8 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
           <nldd-spacer size="24"></nldd-spacer>
         </template>
 
-        <template v-if="indiening">
+        <!-- That it waits says the status on top; this says what answered it, and what followed. -->
+        <template v-if="metStand">
           <nldd-title size="display-5"><h4>Stand</h4></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-list v-if="antwoord.geldend || antwoord.vervallen" appearance="box-base" accessible-label="Stand">
@@ -175,11 +226,6 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
               {{ hoofdletter(naamVanCel(stuk.recording_actor)) }} neemt een nieuw besluit. Het verschijnt hier zodra het genomen is.
             </p>
           </nldd-text>
-          <nldd-text v-else-if="!antwoord.geldend && !antwoord.vervallen">
-            <p>
-              In behandeling bij {{ naamVanCel(stuk.recording_actor) }}. Het besluit verschijnt hier zodra het genomen is.
-            </p>
-          </nldd-text>
           <template v-if="vervolg || aanvragen?.length">
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-list appearance="box-base" accessible-label="Na de toekenning">
@@ -199,26 +245,27 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
           <nldd-spacer size="24"></nldd-spacer>
         </template>
 
-        <nldd-title size="display-5"><h4>{{ indiening ? 'Wat u indiende' : 'Wat er is vastgelegd' }}</h4></nldd-title>
-        <nldd-text color="secondary">
-          <p>
-            {{ indiening ? `Ingediend op ${longDate(stuk.recorded_on)}.` : `Vastgelegd op ${longDate(stuk.recorded_on)} door ${naamVanCel(stuk.recording_actor)}.` }}
-          </p>
-        </nldd-text>
-        <nldd-spacer size="8"></nldd-spacer>
+        <!-- Right under the summary the record needs no heading; after another section it does, or it reads as part of that one. -->
+        <template v-if="over || metStand">
+          <nldd-title size="display-5"><h4>{{ indiening ? 'Wat u indiende' : 'Wat er is vastgelegd' }}</h4></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
+        </template>
+        <!-- When and where stand under the title of the page; the article it rests on closes the record. -->
         <Gegevens
-          :waarden="stuk.fields"
+          :waarden="rest"
           :teksten="vormen?.teksten"
           :volgorde="vormen?.volgorde"
           :noem="noemId"
           :herkomst="herkomst"
           :label="indiening ? 'Wat u indiende' : 'Wat er is vastgelegd'"
+          :bij="[{ naam: 'grondslag', label: 'Op grond van', waarde: artikelNaam(stuk.basis) }]"
         />
       </template>
-    </nldd-simple-section>
-    <!-- What the dossier puts under the record, such as the timeline of its application. -->
-    <nldd-simple-section v-if="$slots.onder" width="full">
-      <slot name="onder"></slot>
-    </nldd-simple-section>
+      <!-- What the dossier puts beside the record, such as the timeline of its application. -->
+      <nldd-container v-if="$slots.naast" slot="right">
+        <slot name="naast"></slot>
+      </nldd-container>
+    </nldd-two-thirds-one-third-section>
+    <nldd-page-footer slot="footer"></nldd-page-footer>
   </nldd-page>
 </template>
