@@ -76,6 +76,15 @@ spec:
               git fetch -q --depth=1 "$CASE_REPO" "$CASE_REF"
               git checkout -q FETCH_HEAD
           env:
+            # The emptyDir at /case belongs to root and the step runs as
+            # another user, so git would refuse to work in it ("dubious
+            # ownership"). This marks it safe, without a config file.
+            - name: GIT_CONFIG_COUNT
+              value: "1"
+            - name: GIT_CONFIG_KEY_0
+              value: safe.directory
+            - name: GIT_CONFIG_VALUE_0
+              value: /case
             - name: CASE_REPO
               value: {{ .Values.case.repoUrl | quote }}
             - name: CASE_REF

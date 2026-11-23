@@ -140,6 +140,8 @@ path = [
   "frontend-demo/public/logos/SZW.png",
   "frontend-demo/public/logos/TOESLAGEN.png",
   "frontend-demo/public/logos/VWS.png",
+  "frontend-wetsproces/public/favicon.svg",
+  "frontend-wetsproces/public/touch-icon.png",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "Staat der Nederlanden"

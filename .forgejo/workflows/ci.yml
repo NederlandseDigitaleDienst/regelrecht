@@ -190,10 +190,19 @@ jobs:
           helm template wetsproces "$C" --set domain=example.org $SMALL > /dev/null
           helm template wetsproces "$C" --set domain=example.org $CNPG \
             --set gateway.mode=own > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $CNPG \
-            --set case.credentialsSecret=repo | grep -q GIT_TOKEN
-          helm template wetsproces "$C" --set domain=example.org $SMALL \
-            --set theme.accentColor=paars | grep -q WETSPROCES_ACCENT_COLOR
+          # Captured and matched rather than piped into `grep -q`: grep stops
+          # at the first match, helm is still writing then and gets SIGPIPE,
+          # and with pipefail that fails the step with exit code 141.
+          contains() {
+            want="$1"; shift
+            out="$(helm template wetsproces "$C" --set domain=example.org "$@")"
+            case "$out" in
+              *"$want"*) ;;
+              *) echo "the render lacks '$want': $*"; exit 1 ;;
+            esac
+          }
+          contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
+          contains WETSPROCES_ACCENT_COLOR $SMALL --set theme.accentColor=paars
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work
@@ -205,9 +214,12 @@ jobs:
             if out="$(helm template wetsproces "$C" "$@" 2>&1)"; then
               echo "accepted, expected a refusal with '$want': $*"; exit 1
             fi
-            if ! printf '%s' "$out" | grep -qF "$want"; then
-              echo "refused for another reason than '$want': $*"; printf '%s\n' "$out"; exit 1
-            fi
+            # A pattern match rather than a pipe into `grep -q`: grep stops at
+            # the first match, and a writer still busy then gets SIGPIPE.
+            case "$out" in
+              *"$want"*) ;;
+              *) echo "refused for another reason than '$want': $*"; printf '%s\n' "$out"; exit 1 ;;
+            esac
           }
           refuse "domain" $CNPG
           refuse "surfaces.split needs database.enabled" --set domain=example.org \
