@@ -197,7 +197,7 @@ fn all_actions(section: &MachineReadable) -> impl Iterator<Item = &Action> {
     let steps = section
         .projection
         .iter()
-        .flat_map(|p| p.steps.iter().flat_map(|step| step.actions.iter()));
+        .flat_map(|p| p.steps().iter().flat_map(|step| step.actions.iter()));
     execution.chain(defaults).chain(steps)
 }
 
@@ -493,7 +493,7 @@ fn check_projections_targets<'l>(
                 continue;
             };
             let refuse = |why: String| format!("{where_}: input '{}': {why}", input.name);
-            let projection =
+            let (_, projection) =
                 crate::projection::aggregate_projection(held, article).map_err(refuse)?;
             // The roots' law may load later; then the cell checks `where`
             // when it plays the aggregates.
@@ -1107,8 +1107,8 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                 "has a projection; only a reduction plays a chronicle forward".to_string(),
             );
         }
-        if projection.state.is_empty() {
-            return refuse(where_, "has a projection without a state".to_string());
+        if let Err(why) = check_copy_form(law, projection) {
+            return refuse(where_, why);
         }
         // From schema v0.8.17 a projection plays one aggregate per record
         // (`per`); up to v0.8.16 it played the records of one `key`.
@@ -1137,7 +1137,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             let named = projection
                 .per_basis_and_kind()
                 .into_iter()
-                .chain(projection.steps.iter().map(|s| s.basis_and_kind()))
+                .chain(projection.steps().iter().map(|s| s.basis_and_kind()))
                 .find_map(|(_, segment)| segment.filter(|s| names_fact(s)));
             if let Some(fact) = named {
                 return refuse(
@@ -1170,7 +1170,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             }
             // A row of the aggregates holds the id of its root under `id`.
             if projection
-                .state
+                .state()
                 .iter()
                 .any(|p| p.name == crate::projection::ROOT_ID)
             {
@@ -1213,7 +1213,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         }
         let mut names: Vec<&str> = Vec::new();
         let since_v0_8_20 = from_version(law, (0, 8, 20));
-        for property in &projection.state {
+        for property in projection.state() {
             if let Err(why) = check_state_property(property, since_v0_8_20) {
                 return refuse(where_, why);
             }
@@ -1225,7 +1225,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             }
             names.push(&property.name);
         }
-        for (i, step) in projection.steps.iter().enumerate() {
+        for (i, step) in projection.steps().iter().enumerate() {
             // Two steps for one record would leave which one applies to the
             // order they are written in.
             let (basis, kind) = step.basis_and_kind();
@@ -1239,7 +1239,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
                         || (a == crate::projection::EXECUTOGRAM && names_fact(b))
                 }
             };
-            if projection.steps[..i].iter().any(|earlier| {
+            if projection.steps()[..i].iter().any(|earlier| {
                 let (earlier_basis, earlier_kind) = earlier.basis_and_kind();
                 earlier_basis == basis && overlap(earlier_kind, kind)
             }) {
@@ -1264,6 +1264,41 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
+/// A projection writes its `state` and its `steps`, or since schema v0.8.25
+/// neither, and then copies the fact `per` names
+/// ([`crate::projection::written_out`]). One without the other is refused,
+/// as is an empty state: a copy is written by leaving both out, not by
+/// leaving the steps empty. Whether `per` names a fact, and whether the
+/// article requires it, is for [`crate::projection::written_out`], which
+/// the loader runs on every projection.
+fn check_copy_form(
+    law: &ArticleBasedLaw,
+    projection: &regelrecht_law_model::Projection,
+) -> std::result::Result<(), String> {
+    match (&projection.state, &projection.steps) {
+        (Some(state), Some(_)) if state.is_empty() => {
+            Err("has a projection without a state".to_string())
+        }
+        (Some(_), Some(_)) => Ok(()),
+        (Some(_), None) => Err(
+            "has a projection with a state and no steps; write both, or since schema v0.8.25 \
+             neither, to copy the fact per names"
+                .to_string(),
+        ),
+        (None, Some(_)) => Err(
+            "has a projection with steps and no state; write both, or since schema v0.8.25 \
+             neither, to copy the fact per names"
+                .to_string(),
+        ),
+        (None, None) if !from_version(law, (0, 8, 25)) => Err(
+            "has a projection without a state; a projection that writes neither state nor steps \
+             copies the fact per names, which came with schema v0.8.25"
+                .to_string(),
+        ),
+        (None, None) => Ok(()),
+    }
+}
+
 /// Whether `ty` is a scalar: the type of a column of an array of rows, and
 /// of every property of a projection's state but such an array.
 fn is_scalar(ty: ParameterType) -> bool {
@@ -1283,7 +1318,7 @@ fn is_scalar(ty: ParameterType) -> bool {
 /// the state is never null. Before v0.8.20 an array in the state is refused as
 /// any other type a state cannot have, unless it declares columns, which
 /// the message then names.
-fn check_state_property(
+pub(crate) fn check_state_property(
     property: &StateProperty,
     since_v0_8_20: bool,
 ) -> std::result::Result<(), String> {
@@ -1576,6 +1611,12 @@ pub(crate) fn check_projection_wiring<'l>(
         let Some(projection) = &section.projection else {
             continue;
         };
+        // A projection that copies its fact (schema v0.8.25) is checked as
+        // the state and the step it stands for.
+        let projection =
+            crate::projection::written_out(projection, lookup, crate::projection::Versions::Loaded)
+                .map_err(|why| format!("{where_}: {why}"))?;
+        let projection = projection.as_ref();
         let question = section
             .execution
             .as_ref()
@@ -1593,7 +1634,7 @@ pub(crate) fn check_projection_wiring<'l>(
                 projection.per.as_deref().unwrap_or_default()
             )
         })?;
-        for step in &projection.steps {
+        for step in projection.steps() {
             crate::projection::check_step(
                 projection,
                 step,
@@ -1667,7 +1708,7 @@ pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
                 "reads ${first}, but only a projection gives a state, and it has none"
             ));
         };
-        let declared: Vec<&str> = projection.state.iter().map(|p| p.name.as_str()).collect();
+        let declared: Vec<&str> = projection.state().iter().map(|p| p.name.as_str()).collect();
         for path in &reads {
             let property = path
                 .strip_prefix(&format!("{STATE}."))

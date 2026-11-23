@@ -471,9 +471,14 @@ impl LawExecutionService {
             // reduction on v0.8.18 or earlier reads a field of that name, as
             // it did.
             let own_id = crate::load_check::from_version(law, (0, 8, 19));
-            let projection = aggregate_projection(law, article)
-                .map_err(EngineError::InvalidOperation)?
-                .clone();
+            let (number, projection) =
+                aggregate_projection(law, article).map_err(EngineError::InvalidOperation)?;
+            let law_of = |id: &str| self.resolver().get_law_for_date(id, Some(day));
+            let projection = written_out(projection, &law_of, Versions::InForce(day))
+                .map_err(|why| {
+                    EngineError::InvalidOperation(format!("'{law_id}' article {number}: {why}"))
+                })?
+                .into_owned();
             (projection, own_id)
         };
         let Some(per) = projection.per_basis_and_kind() else {
@@ -587,12 +592,12 @@ impl LawExecutionService {
 
         // Phase 2: fold over the records that count.
         let mut state: BTreeMap<String, Value> = projection
-            .state
+            .state()
             .iter()
             .map(|p| (p.name.clone(), p.start()))
             .collect();
         let mut set_by: BTreeMap<String, Option<String>> = projection
-            .state
+            .state()
             .iter()
             .map(|p| (p.name.clone(), None))
             .collect();
@@ -677,7 +682,7 @@ impl LawExecutionService {
                 projection.per.as_deref().unwrap_or_default()
             ))
         })?;
-        for step in &projection.steps {
+        for step in projection.steps() {
             check_step(
                 projection,
                 step,
@@ -819,7 +824,7 @@ impl LawExecutionService {
             let (property, value) = step_action(action).map_err(fail)?;
             let source = set_source(value).map_err(fail)?;
             let read_value = read(&source, &inputs)?;
-            let to = match projection.state.iter().find(|p| &p.name == property) {
+            let to = match projection.state().iter().find(|p| &p.name == property) {
                 Some(declared) => conform(declared, read_value)
                     .map_err(|why| fail(format!("it sets '{property}' from {source} {why}")))?,
                 None => read_value,
@@ -1203,21 +1208,22 @@ pub const RECORD_ID: &str = "id";
 /// The name under which a row of aggregates holds the id of its root.
 pub const ROOT_ID: &str = "id";
 
-/// The projection whose aggregates `article` of `law` plays: the article a
-/// reference names (`<regulation>#<article>`, schema v0.8.19), or without
-/// one, as up to v0.8.18, the first article of the law that plays one.
-/// Refused when the article does not exist or plays no aggregate per
-/// record.
+/// The article whose aggregates a reference to `law` names, and its
+/// projection: the article a reference names (`<regulation>#<article>`,
+/// schema v0.8.19), or without one, as up to v0.8.18, the first article of
+/// the law that plays one. Refused when the article does not exist or plays
+/// no aggregate per record.
 pub(crate) fn aggregate_projection<'l>(
     law: &'l ArticleBasedLaw,
     article: Option<&str>,
-) -> std::result::Result<&'l Projection, String> {
+) -> std::result::Result<(&'l str, &'l Projection), String> {
     let per_projection = |a: &'l Article| {
         a.machine_readable
             .as_ref()?
             .projection
             .as_ref()
             .filter(|p| p.per.is_some())
+            .map(|p| (a.number.as_str(), p))
     };
     match article {
         Some(number) => {
@@ -1240,6 +1246,127 @@ pub(crate) fn aggregate_projection<'l>(
             )
         }),
     }
+}
+
+/// The projection as it plays. One that writes its `state` and `steps` plays
+/// as written. One that writes neither copies the fact `per` names (schema
+/// v0.8.25): its state holds every field of that fact, with the type,
+/// `nullable` and `columns` of the parameter of the same name, and its one
+/// step, on the root, sets each property from the field of the same name
+/// (`$record.<field>`). The fields come from the article `law_of` gives in
+/// `versions`, the same version a written step is checked against. With
+/// [`Versions::Loaded`] and that law not loaded yet, the projection comes
+/// back as written: the play writes it out.
+///
+/// # Errors
+///
+/// For a projection that copies its fact: when `per` names no fact, when
+/// the article it names does not exist or requires no such fact, and when a
+/// field has no copy in the state ([`copied_property`]).
+pub(crate) fn written_out<'p, 'l>(
+    projection: &'p Projection,
+    law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+    versions: Versions,
+) -> std::result::Result<std::borrow::Cow<'p, Projection>, String> {
+    use std::borrow::Cow;
+    if !projection.copies_fact() {
+        return Ok(Cow::Borrowed(projection));
+    }
+    let per = projection.per.as_deref().unwrap_or_default();
+    let refuse = |why: String| {
+        format!(
+            "the projection writes neither state nor steps, so it copies the fact {per}, but {why}"
+        )
+    };
+    let Some((basis, Some(fact))) = projection
+        .per_basis_and_kind()
+        .filter(|(_, segment)| segment.is_some_and(names_fact))
+    else {
+        return Err(refuse(
+            "per names no fact (<regulation>#<article>#<fact>)".to_string(),
+        ));
+    };
+    let Some(article) = record_article(basis, law_of, versions).map_err(refuse)? else {
+        return Ok(Cow::Borrowed(projection));
+    };
+    let required = article
+        .required_fact(fact)
+        .ok_or_else(|| refuse(format!("{basis} requires no fact '{fact}' {versions}")))?;
+    // A fact holds at least one field: the loader refuses its law otherwise
+    // (RFC-051).
+    let fields = required.parameters.as_deref().unwrap_or_default();
+    let state = fields
+        .iter()
+        .map(|field| copied_property(article, field).map_err(refuse))
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let actions = fields
+        .iter()
+        .map(|field| regelrecht_law_model::Action {
+            output: Some(field.clone()),
+            value: Some(regelrecht_law_model::ActionValue::Literal(Value::String(
+                format!("$record.{field}"),
+            ))),
+            operation: None,
+            values: None,
+            subject: None,
+            conditions: None,
+            precision: None,
+            resolve: None,
+            legal_basis: None,
+        })
+        .collect();
+    Ok(Cow::Owned(Projection {
+        state: Some(state),
+        steps: Some(vec![ProjectionStep {
+            record: per.to_string(),
+            input: Vec::new(),
+            actions,
+        }]),
+        ..projection.clone()
+    }))
+}
+
+/// The property of the state a projection that copies its fact gives the
+/// field `name` of that fact: the type, `nullable` and `columns` of the
+/// parameter of the same name in `article`, held to the rules a property
+/// written by hand meets. An array that may be null has no copy: in the
+/// state an array is never null. `nullable` is written only where it
+/// changes the start value, for a boolean, a number or an amount: a string
+/// or a date may hold null anyway.
+fn copied_property(article: &Article, name: &str) -> std::result::Result<StateProperty, String> {
+    if name == ROOT_ID {
+        return Err(format!(
+            "the fact holds a field '{ROOT_ID}', the name under which a row of the aggregates \
+             holds its root"
+        ));
+    }
+    let parameter = article
+        .get_parameters()
+        .iter()
+        .find(|p| p.name == name)
+        .ok_or_else(|| format!("the fact holds '{name}', which is no parameter of the article"))?;
+    let ty = parameter.param_type;
+    if ty == ParameterType::Array && parameter.is_nullable() {
+        return Err(format!(
+            "the fact holds '{name}' as an array that may be null, and an array in the state \
+             is never null"
+        ));
+    }
+    let nullable = parameter.is_nullable()
+        && matches!(
+            ty,
+            ParameterType::Boolean | ParameterType::Number | ParameterType::Amount
+        );
+    let property = StateProperty {
+        name: name.to_string(),
+        property_type: ty,
+        nullable: nullable.then_some(true),
+        columns: parameter.columns.clone(),
+        description: None,
+    };
+    crate::load_check::check_state_property(&property, true)
+        .map_err(|why| format!("the copy of field '{name}' {why}"))?;
+    Ok(property)
 }
 
 /// Refuse a `where` (`source.projections`, schema v0.8.17) that names
@@ -1285,7 +1412,7 @@ pub(crate) fn check_where<'n>(
         return Ok(());
     };
     let per = per_name(per);
-    if projection.state.iter().any(|p| p.name == name) {
+    if projection.state().iter().any(|p| p.name == name) {
         return Err(format!(
             "where names '{name}', which a root of {per} does not hold as a field or an \
              output; it is in the state of the aggregate, and where does not read the state. \
@@ -1603,7 +1730,7 @@ fn check_filling(
     source: &StepSource,
     since_v0_8_20: bool,
 ) -> std::result::Result<(), String> {
-    let declared = projection.state.iter().find(|p| p.name == property);
+    let declared = projection.state().iter().find(|p| p.name == property);
     if since_v0_8_20
         && declared.is_some_and(|p| !p.is_nullable())
         && source_nullable(projection, step, record, source)
@@ -1637,6 +1764,25 @@ pub(crate) struct StepRules {
     pub(crate) since_v0_8_20: bool,
 }
 
+/// The article `basis` (`<regulation>#<article>`) names, as `law_of` gives
+/// its law in `versions`: `Ok(None)` when the loader does not hold that law
+/// yet ([`Versions::Loaded`]), so there is nothing to check against.
+fn record_article<'l>(
+    basis: &str,
+    law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+    versions: Versions,
+) -> std::result::Result<Option<&'l Article>, String> {
+    let (law_id, number) = basis.split_once('#').unwrap_or((basis, ""));
+    match (law_of(law_id), versions) {
+        (Some(law), _) => law
+            .find_article_by_number(number)
+            .map(Some)
+            .ok_or_else(|| format!("{basis} names no article {versions}")),
+        (None, Versions::Loaded) => Ok(None),
+        (None, Versions::InForce(_)) => Err(format!("'{law_id}' has no version {versions}")),
+    }
+}
+
 /// `per` held to the law it names, as a step is ([`record_kind`]): the
 /// kind it names must be one the article gives, the fact one it requires,
 /// and without either the article must give one kind of record and require
@@ -1655,13 +1801,9 @@ pub(crate) fn check_per<'l>(
     if !since_v0_8_18 && !segment.is_some_and(names_fact) {
         return Ok(());
     }
-    let (law_id, number) = basis.split_once('#').unwrap_or((basis, ""));
-    let article = match (law_of(law_id), versions) {
-        (Some(law), _) => law.find_article_by_number(number),
-        (None, Versions::Loaded) => return Ok(()),
-        (None, Versions::InForce(_)) => None,
-    }
-    .ok_or_else(|| format!("{basis} names no article {versions}"))?;
+    let Some(article) = record_article(basis, law_of, versions)? else {
+        return Ok(());
+    };
     match record_kind(article, basis, segment)? {
         None => Err("the article gives no record, so no record is a root".to_string()),
         Some(_) => Ok(()),
@@ -1752,7 +1894,7 @@ fn step_for<'p>(
     projection: &'p Projection,
     record: &ChronicleRecord,
 ) -> Option<&'p ProjectionStep> {
-    projection.steps.iter().find(|s| {
+    projection.steps().iter().find(|s| {
         let (basis, selector) = s.basis_and_kind();
         basis == record.basis && selects(selector, record)
     })
@@ -1860,7 +2002,7 @@ fn set_source(
 /// The type of property `name` of the projection's state.
 fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
     projection
-        .state
+        .state()
         .iter()
         .find(|p| p.name == name)
         .map(|p| p.property_type)
@@ -1907,7 +2049,7 @@ fn source_nullable(
             None => false,
         },
         StepSource::State(property) => projection
-            .state
+            .state()
             .iter()
             .find(|p| &p.name == property)
             .is_some_and(StateProperty::is_nullable),
@@ -1934,7 +2076,7 @@ fn source_columns<'a>(
             RecordField::Output(_) => None,
         },
         StepSource::State(property) => projection
-            .state
+            .state()
             .iter()
             .find(|p| &p.name == property)?
             .columns
@@ -3918,7 +4060,7 @@ articles:
             let projection = projection_of("reductie", article).unwrap();
             let law_of = |id: &str| (id == "wet").then_some(&law);
             projection
-                .steps
+                .steps()
                 .iter()
                 .map(|step| {
                     check_step(

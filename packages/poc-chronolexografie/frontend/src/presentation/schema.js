@@ -142,6 +142,24 @@ function opzet(alle, id) {
     doc.articles.find((a) => a.machine_readable?.execution?.output?.some((o) => o.name === naam));
   const metFeit = (doc, feit) => doc.articles.find((a) => a.machine_readable?.requires?.some((r) => r.fact === feit));
 
+  /**
+   * A projection as it plays: as written, or for one that writes neither
+   * `state` nor `steps` (schema v0.8.25), the copy of the fact `per` names,
+   * a property per field of that fact, each set from the field of the same
+   * name of the root.
+   */
+  function uitgeschreven(projection) {
+    if (!projection || projection.state || projection.steps) return projection;
+    const [pLaw, pArt, feit] = String(projection.per ?? '').split('#');
+    const w = feit ? wet(pLaw) : null;
+    const velden = (w && artikelVan(w.doc, pArt)?.machine_readable?.requires?.find((r) => r.fact === feit)?.parameters) ?? [];
+    return {
+      ...projection,
+      state: velden.map((name) => ({ name })),
+      steps: [{ record: projection.per, actions: velden.map((v) => ({ output: v, value: `$record.${v}` })) }],
+    };
+  }
+
   // Every `implements` in the case's files, per open term it fills in, for
   // the way back from an open term to what fills it in.
   const invullers = new Map();
@@ -186,7 +204,7 @@ function opzet(alle, id) {
     }
   }
 
-  return { cellen, wet, cel, bestand, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, effecten, uitkomst };
+  return { cellen, wet, cel, bestand, wetBestand, celBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, uitgeschreven, invullers, effecten, uitkomst };
 }
 
 /** Every property of the state a value reads (`$state.<name>`). */
@@ -239,7 +257,7 @@ function namenIn(waarde, uit = new Set()) {
  * gets its step (`genummerd`).
  */
 export function keten(alle, id, { law, article, naam }) {
-  const { wet, cel, cellen, bestand, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, invullers, effecten, uitkomst } = opzet(alle, id);
+  const { wet, cel, cellen, bestand, celBestand, wetBestand, begrip, lijn, artikelVan, metUitvoer, metFeit, uitgeschreven, invullers, effecten, uitkomst } = opzet(alle, id);
   const klaar = new Map();
 
   /** The one box of the chronicle: what the cells recorded, which a reduction reads. */
@@ -339,7 +357,7 @@ export function keten(alle, id, { law, article, naam }) {
         const art = doel?.doc.articles.find((a) =>
           pArt === undefined ? a.machine_readable?.projection : String(a.number) === pArt,
         );
-        const projection = art?.machine_readable?.projection;
+        const projection = uitgeschreven(art?.machine_readable?.projection);
         for (const eigenschap of (projection?.state ?? []).map((p) => p.name)) {
           const d = toestand(pLaw, art.number, projection, eigenschap);
           if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'source.projections');
@@ -380,11 +398,12 @@ export function keten(alle, id, { law, article, naam }) {
    * records the step plays, and the records whose effects decide which
    * records count. Null without a projection.
    */
-  function toestand(lawId, nummer, projection, eigenschap) {
+  function toestand(lawId, nummer, geschreven, eigenschap) {
     const k = `${lawId}#${nummer}#state.${eigenschap}`;
     if (klaar.has(k)) return klaar.get(k);
     klaar.set(k, null);
     const w = wet(lawId);
+    const projection = uitgeschreven(geschreven);
     if (!w || !projection) return null;
     const box = wetBestand(w);
     const uit = { box, begrip: { naam: eigenschap, artikel: String(nummer), rol: 'state' } };
