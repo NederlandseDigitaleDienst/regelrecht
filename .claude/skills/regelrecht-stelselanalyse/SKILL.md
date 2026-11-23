@@ -25,8 +25,8 @@ praktijk, scope-keuzes) routeren naar de workshop-skill **`regelrecht-audit-prod
 feitelijke defecten blijven hier. De *judgment*-set untranslatables wordt de beslispunten
 van een workshop; de scope-analyse daar komt uit de desk-producten `cross-law-diagram` +
 `corpus-status`. Workshop-correctiepunten komen terug de cyclus in (fixes + verificatie).
-Twijfel je waar te beginnen → **`regelrecht-traject`** (router). Canonieke flow:
-`regelrecht-traject/references/routing.md`.
+Twijfel je waar te beginnen → **`regelrecht-traject`** (voordeur: de cyclus, en welke skill
+wanneer).
 
 ## De cyclus
 
@@ -199,7 +199,7 @@ alleen naar private repos). Draai als preflight vóór elke push; PUBLIC/INTERNA
 - `regelrecht-scenario-traces` — techniek-skill voor keten-checkpoints + golden-trace-
   snapshots (zie de *Meta-check*): maakt elke ketenschakel los toetsbaar tegen de wettekst,
   niet alleen de endpoint.
-- `regelrecht-traject` — voordeur (`references/routing.md` = canonieke flow).
+- `regelrecht-traject` — voordeur: de cyclus, en welke skill wanneer.
 - `law-wetsgeschiedenis` — de wetsgeschiedenis per artikel en lid, uit de afgespeelde
   Kamerstukken: waar een regel vandaan komt, welke nota's en amendementen haar raakten,
   hoe zij op een datum luidde, en wat de toelichting erover zegt. Gebruik in stap 7

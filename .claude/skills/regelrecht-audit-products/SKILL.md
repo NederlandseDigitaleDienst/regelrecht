@@ -21,7 +21,12 @@ praktijkvragen naar de workshop (hier). Twee workshop-modi: **verkennend** (vroe
 gate — domeinkennis ontginnen op een ruwe scope-analyse) en **validerend** (gate: schema
 valide + tests groen + modellering-fouten gefixt + resterende open punten zijn judgment).
 Na de sessie gaan correctiepunten + bevestigde interpretaties terug de desk-cyclus in.
-Canonieke flow: zie `regelrecht-traject/references/routing.md`.
+De cyclus en de routing: `regelrecht-traject`.
+
+**Een sessie levert uitspraken op.** De agenda bestaat uit de claims die nog op een uitspraak
+wachten. Elk antwoord landt als `replying`-notitie bij die claim, met wie sprak, het verdict
+en de reden. Een verslag mag erbij, maar staat er niet voor in de plaats. Vorm:
+`regelrecht-verantwoording`, stap 4.
 
 Deze skill bevat **geen casus-inhoud**. Hij is generiek over trajecten; alleen de
 regelrecht-*methode* ligt vast. Concrete casus-inhoud (welke wet, welke gronden,

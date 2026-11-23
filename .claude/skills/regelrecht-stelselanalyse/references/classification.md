@@ -5,6 +5,11 @@ bepaalt waar de bevinding landt en welke actie volgt. Verkeerd labelen leidt tot
 verkeerde actie (een wet "fixen" die we niet kunnen wijzigen, of onze YAML niet
 corrigeren omdat we de fout bij de wet legden).
 
+> Het label zegt wat voor *soort* bevinding het is en welke actie volgt, niet wie haar mag
+> sluiten. Dat is een aparte vraag, die je afleidt uit waar de bevinding aan hangt (zie
+> `regelrecht-verantwoording`, stap 2). Kiest een bevinding een lezing, leg haar dan vast als
+> claim.
+
 | Label | Wat | Waar het landt | Actie |
 |---|---|---|---|
 | **Modellering-fout** | Onze YAML/feature wijkt af van de (correcte) wettekst | `modellering-fixes-plan` | Wij fixen de YAML |

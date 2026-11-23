@@ -1,72 +1,77 @@
 # Regelrecht — zakkaart voor regelanalisten
 
-*Eén A4. Waar begin ik · welke skill · hoe loopt een casus. (Methode bekend verondersteld.)*
+*Eén A4: waar begin ik, welke skill, hoe loopt een traject. De methode is bekend verondersteld.*
 
 ## Bij twijfel: de voordeur
-**Beschrijf je casus → `regelrecht-traject` (router) wijst de weg.** Je hoeft geen
-skill-namen te onthouden — zeg wat je wilt, de router triageert en dispatcht.
 
-## Drie deuren (op intentie)
+**Beschrijf wat je wilt, dan wijst `regelrecht-traject` de weg.** Skillnamen hoef je niet te
+onthouden.
 
-| Je wilt… | Deur |
+| je wilt… | skill |
 |---|---|
-| nieuwe casus · waar begin ik · welke producten heb ik nodig | **router** — `regelrecht-traject` |
-| wet machine-leesbaar maken · corpus reviewen · fouten in de wet vinden | **desk** — `regelrecht-stelselanalyse` |
-| expert-/validatiesessie voorbereiden | **workshop** — `regelrecht-audit-products` |
+| een wet machine-leesbaar maken | `law-interpret` |
+| een corpus reviewen, fouten in de wet vinden | `regelrecht-stelselanalyse` |
+| een interpretatiekeuze vastleggen, of erover uitspraak doen | `regelrecht-verantwoording` |
+| een expert- of validatiesessie voorbereiden | `regelrecht-audit-products` |
+| weten waar een bepaling vandaan komt | `law-wetsgeschiedenis` |
 
-Achter elke deur: **waar komt deze tekst vandaan, wat bedoelde de wetgever, hoe luidde
-het artikel op die datum?** → `law-wetsgeschiedenis`, per artikel en lid, met het
-Kamerstuk om te citeren.
-
-## De flow (gesloten lus)
+## De cyclus
 
 ```
- NIEUWE CASUS → [router] → feitelijk? ┐        ┌ oordeel/praktijk?
-                                      ▼        ▼
-   ┌──────────── DESK (machinekamer) ────────────┐  handoff  ┌──── WORKSHOP (live) ────┐
-   │ plan → harvest → modelleer → valideer →      │ ◄───────► │ scope-analyse → audit-  │
-   │ CLASSIFICEER (4-weg) → fix → documenteer →   │           │ doc → sessie → consensus│
-   │ verifieer (bronnen/tracker) → eindrapport    │           │ + correctiepunten +     │
-   └──────────────────────────────────────────────┘           │ testcases               │
-        └─ correctiepunten + bevestigde interpretaties ◄────────┘ terug de desk in
+ werkronde ──▶ uitspraak ──▶ verwerken ──▶ attestatie ──▶ volgende versie
+     ▲                           │
+     └──────── gecorrigeerd ─────┘
 ```
 
-## Router-taal: 4-weg-classificatie — waar gaat een bevinding heen?
-
-| Label | Betekenis | Route |
+| moment | wie | wat |
 |---|---|---|
-| **modellering-fout** | onze YAML ≠ (correcte) wet | desk fixt de YAML |
-| **wetgevings-fout** | de wet zelf fout/achterhaald/onuitvoerbaar | → wetgevings-notitie |
-| **engine-limitatie** | wet + modellering kloppen, engine kan 't niet | → engine-issue |
-| **untranslatable / praktijk** | open norm, oordeel nodig | → **workshop** |
+| werkronde | model, analist | tekst wordt YAML; keuzes worden claims, vastgelegd in scenario's |
+| uitspraak | de bevoegde | bekrachtigt, corrigeert, weerlegt, of laat met reden open; in de editor of in een sessie |
+| verwerken | analist | het corpus volgt; een correctie wordt een nieuwe claim |
+| attestatie | de bevoegde | versie H is productiewaardig: gedrag groen, toelichting compleet |
 
-> **Eén regel**: feitelijke defecten → naar binnen (desk); oordeels-/praktijkvragen → naar buiten (workshop).
-> Open norm = *acceptabele untranslatable* bij kenbare beslisser + kader, anders *wetgevings-fout*.
+## Een claim — de toelichting per artikel
 
-Canonieke definities: `regelrecht-stelselanalyse/references/classification.md` — deze kaart is de spiekversie.
+Een interpretatiekeuze, als notitie bij de wettekst: **lezing · grond · verworpen alternatief
+met gevolg · wie moet erover spreken · voor welke regelwerkversie (hash).** Wie de claim
+vastlegt, sluit haar niet zelf. De kroniek groeit alleen: een correctie is een nieuwe claim.
 
-## Workshop: twee modi (gate is mode-afhankelijk)
+Een scenario legt de lezing vast als het **rood wordt onder het alternatief**. Toelichting
+nodig hebben alleen artikelen waarin het model meer doet dan de letter: een open term,
+aanname, untranslatable of override.
 
-- **Verkennend** — vroeg, géén gate: domeinkennis ontginnen op een ruwe scope-analyse.
-- **Validerend** — gate: schema valide + tests groen + modellering-fouten gefixt + resterende punten zijn *judgment*.
+| toelichting | scenario | |
+|---|---|---|
+| ✓ | ✓ | sterkst |
+| — | ✓ | alleen zonder interpretatieruimte |
+| ✓ | — | alleen bij oordeel per geval |
 
-## Beslis-kaart
+## Soort bevinding
 
-| Situatie | Ga naar |
+| label | actie |
 |---|---|
-| Geen/ruw corpus | desk — harvest + modelleer |
-| Modellering onzeker/ongevalideerd | desk — valideer + classificeer + fix |
-| Open punt is **feitelijk** (YAML/wet/engine) | desk — fixes / wetgevings-analyse / engine-issues |
-| Open punt is **oordeel/praktijk** | workshop — validerend |
-| Domeinkennis/buy-in nodig die je mist | workshop — verkennend (mag vroeg) |
-| Na een workshop | desk — implementeer + verifieer |
-| Repetitief batchwerk / terugkerende controle | `/loop` (lokaal) · `/schedule` (cloud) |
+| modellering-fout | desk fixt de YAML |
+| wetgevings-fout | desk documenteert; normsteller is bevoegd |
+| engine-limitatie | engine-issue |
+| acceptabele untranslatable | claim met een bevoegde; rekent door als werkhypothese |
+
+Een feitelijk defect lost de desk zelf op, een oordeel wacht op de bevoegde.
+
+## Sessies
+
+- **Verkennend**: vroeg, zonder voorwaarden. Domeinkennis ophalen.
+- **Validerend**: schema valide, tests groen, modelfouten gefixt; wat overblijft is oordeel.
+
+## Het bestandssysteem is de interface
+
+Wat je in de repo achterlaat, ziet de editor: wet-YAML in `regulation/`, scenario's in
+`scenarios/`, claims en uitspraken in `annotations/{law_id}/annotations.yaml`. Dat bestand is
+**append-only**: nooit herbouwen.
 
 ## Autonomie & veiligheid
 
-`/loop` = lokale batch (zichzelf afmakend) · `/schedule` = cloud-routine (onbeheerd, cron).
-Commits door routines gaan **alleen naar private repos** (push-guard); bewust publiek
-pushen: `ALLOW_PUBLIC_PUSH=1`.
+`/loop` is een lokale batch, `/schedule` een cloud-routine. Commits door routines gaan **alleen
+naar private repos** (push-guard); wie bewust publiek wil pushen zet `ALLOW_PUBLIC_PUSH=1`.
 
 ---
-Canonieke flow & details: `regelrecht-traject/references/routing.md`
+Voordeur: `regelrecht-traject/SKILL.md` · claims: `regelrecht-verantwoording/SKILL.md`

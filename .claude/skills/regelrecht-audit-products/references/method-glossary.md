@@ -26,6 +26,9 @@ De gedeelde taal van alle audit- en workshop-producten. Generiek: vul de
 | **Untranslatable** | Wettekst die bewust níet in een formule zit (menselijk oordeel) |
 | **Override** | Een andere regeling vervangt jouw formule/waarde |
 | **legal_basis** | De juridische grondslag onder een regel + per-formule wettekst-quote |
+| **Traject** | De werkeenheid: één vertaling in wording, met een eigen branch, corpus, notities, taken en leden |
+| **Claim** | Een interpretatiekeuze als notitie bij de tekst: lezing, grond, verworpen alternatief, bevoegde, regelwerkversie |
+| **Attestatie** | Het besluit dat een versie productiewaardig is: gedrag vastgelegd in scenario's, toelichting per artikel met interpretatieruimte |
 
 ## Definities
 
