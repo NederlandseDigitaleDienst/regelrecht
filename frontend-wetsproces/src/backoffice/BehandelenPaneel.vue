@@ -390,7 +390,7 @@ async function beslissen() {
             oordeel
             @zet="(n, v) => (bevindingen[n] = v)"
           />
-          <nldd-text v-else color="secondary">Dit besluit vraagt {{ naamVanCel(cel) }} geen bevindingen.</nldd-text>
+          <nldd-text v-else color="secondary"><p>Dit besluit vraagt {{ naamVanCel(cel) }} geen bevindingen.</p></nldd-text>
 
           <nldd-inline-dialog
             v-if="voorvertoningFout"
@@ -423,7 +423,7 @@ async function beslissen() {
               </nldd-list-item>
             </nldd-list>
           </template>
-          <nldd-text v-if="rekent && voorvertoning" size="sm" color="secondary">De voorvertoning wordt bijgewerkt.</nldd-text>
+          <nldd-text v-if="rekent && voorvertoning" size="sm" color="secondary"><p>De voorvertoning wordt bijgewerkt.</p></nldd-text>
 
           <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
           <nldd-button-group orientation="horizontal">

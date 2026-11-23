@@ -41,7 +41,7 @@ describe('the shell', () => {
   it('shows the screen in the main pane of a bar split view', async () => {
     const w = await toon({});
     expect(w.find('nldd-shell nldd-bar-split-view').exists()).toBe(true);
-    expect(w.find('nldd-split-view-pane[slot="main"] #scherm').exists()).toBe(true);
+    expect(w.find('[slot="main"] #scherm').exists()).toBe(true);
   });
 
   it('shows a tab only to who holds the right it needs, in the bar and in the mobile bar', async () => {

@@ -52,33 +52,37 @@ const SOORTEN = [
       <nldd-title size="display-5" :heading-level="3" text="De drie uitkomsten"></nldd-title>
       <div v-for="b in BEGRIPPEN.slice(0, 2)" :id="`uitleg-${b.id}`" :key="b.id" class="begrip">
         <span class="stip" :class="b.kleur"></span>
-        <div><nldd-text><strong>{{ b.kop }}</strong></nldd-text><nldd-text size="sm">{{ b.tekst }}</nldd-text></div>
+        <div><nldd-text><p><strong>{{ b.kop }}</strong></p></nldd-text><nldd-text size="sm"><p>{{ b.tekst }}</p></nldd-text></div>
       </div>
       <div class="begrip">
         <span class="stip open"></span>
-        <div><nldd-text><strong>Onthouding</strong></nldd-text><nldd-text size="sm">Zie hieronder.</nldd-text></div>
+        <div><nldd-text><p><strong>Onthouding</strong></p></nldd-text><nldd-text size="sm"><p>Zie hieronder.</p></nldd-text></div>
       </div>
     </section>
 
     <section id="uitleg-onthouding" class="blok nadruk">
       <nldd-title size="display-5" :heading-level="3" overline="De belangrijkste" text="Onthouding"></nldd-title>
       <nldd-text size="sm">
-        Een onthouding betekent: <strong>de engine zegt niet ja en niet nee, omdat er een gegeven ontbreekt dat de regel nodig heeft.</strong>
-        Het is geen "misschien" en geen kans. Het is een gat dat iemand moet vullen.
+        <p>
+          Een onthouding betekent: <strong>de engine zegt niet ja en niet nee, omdat er een gegeven ontbreekt dat de regel nodig heeft.</strong>
+          Het is geen "misschien" en geen kans. Het is een gat dat iemand moet vullen.
+        </p>
       </nldd-text>
       <nldd-text size="sm">
-        De engine verzint niets. Ontbreekt een gegeven, dan raadt hij niet, maar zegt hij welk gegeven ontbreekt.
-        Liever geen antwoord dan een antwoord dat klinkt als waar. In de Toets staat bij elke onthouding welke gegevens missen.
+        <p>
+          De engine verzint niets. Ontbreekt een gegeven, dan raadt hij niet, maar zegt hij welk gegeven ontbreekt.
+          Liever geen antwoord dan een antwoord dat klinkt als waar. In de Toets staat bij elke onthouding welke gegevens missen.
+        </p>
       </nldd-text>
 
-      <nldd-text size="sm"><strong>Waar een onthouding vandaan komt</strong></nldd-text>
+      <nldd-text size="sm"><p><strong>Waar een onthouding vandaan komt</strong></p></nldd-text>
       <nldd-rich-text>
         <ul>
           <li v-for="s in SOORTEN" :key="s.kop"><strong>{{ s.kop }}.</strong> {{ s.tekst }}</li>
         </ul>
       </nldd-rich-text>
 
-      <nldd-text size="sm"><strong>Hoe ja, nee en onbekend samengaan</strong></nldd-text>
+      <nldd-text size="sm"><p><strong>Hoe ja, nee en onbekend samengaan</strong></p></nldd-text>
       <table class="logica">
         <caption class="sr-only">Hoe de engine ja, nee en onbekend combineert</caption>
         <thead><tr><th scope="col">Soort regel</th><th scope="col">Uitkomst</th></tr></thead>
@@ -94,32 +98,36 @@ const SOORTEN = [
         </tbody>
       </table>
       <nldd-text size="sm">
-        Daarom kan een plek "niet toegestaan" zijn terwijl er nog dingen onbekend zijn: één harde nee is genoeg.
-        En daarom is een plek zonder harde nee nog geen "toegestaan": welstand en bodem uit artikel 22.29 zijn in een
-        verkenning altijd onbekend. Zonder invullen is onthouding dus het beste wat er op de kaart kan staan.
+        <p>
+          Daarom kan een plek "niet toegestaan" zijn terwijl er nog dingen onbekend zijn: één harde nee is genoeg.
+          En daarom is een plek zonder harde nee nog geen "toegestaan": welstand en bodem uit artikel 22.29 zijn in een
+          verkenning altijd onbekend. Zonder invullen is onthouding dus het beste wat er op de kaart kan staan.
+        </p>
       </nldd-text>
 
-      <nldd-text size="sm"><strong>Wat je ermee doet</strong></nldd-text>
+      <nldd-text size="sm"><p><strong>Wat je ermee doet</strong></p></nldd-text>
       <nldd-text size="sm">
-        Vul onder Simuleren, Gegevens invullen, in wat je aanneemt. De onthouding wordt dan ja of nee, en op de kaartlaag
-        Uitkomst zie je waar. Met "Alles gunstig" zie je de plekken waar alleen nog oordelen en onderzoeken in de weg
-        staan: daar beslist de aanvraag, niet het plan. Blijft het nee, dan zegt het plan zelf nee.
+        <p>
+          Vul onder Simuleren, Gegevens invullen, in wat je aanneemt. De onthouding wordt dan ja of nee, en op de kaartlaag
+          Uitkomst zie je waar. Met "Alles gunstig" zie je de plekken waar alleen nog oordelen en onderzoeken in de weg
+          staan: daar beslist de aanvraag, niet het plan. Blijft het nee, dan zegt het plan zelf nee.
+        </p>
       </nldd-text>
     </section>
 
     <section id="uitleg-plannen" class="blok">
       <nldd-title size="display-5" :heading-level="3" text="Plannen en lagen"></nldd-title>
       <div v-for="b in PLAN" :id="`uitleg-${b.id}`" :key="b.id" class="begrip zonder-stip">
-        <nldd-text><strong>{{ b.kop }}</strong></nldd-text>
-        <nldd-text size="sm">{{ b.tekst }}</nldd-text>
+        <nldd-text><p><strong>{{ b.kop }}</strong></p></nldd-text>
+        <nldd-text size="sm"><p>{{ b.tekst }}</p></nldd-text>
       </div>
       <div :id="`uitleg-${BEGRIPPEN[2].id}`" class="begrip zonder-stip">
-        <nldd-text><strong>{{ BEGRIPPEN[2].kop }}</strong></nldd-text>
-        <nldd-text size="sm">{{ BEGRIPPEN[2].tekst }}</nldd-text>
+        <nldd-text><p><strong>{{ BEGRIPPEN[2].kop }}</strong></p></nldd-text>
+        <nldd-text size="sm"><p>{{ BEGRIPPEN[2].tekst }}</p></nldd-text>
       </div>
     </section>
 
-    <nldd-text size="xs" color="secondary">Verkenning, geen besluit. Een vergunning vraagt altijd de beoordeling van het bevoegd gezag.</nldd-text>
+    <nldd-text size="xs" color="secondary"><p>Verkenning, geen besluit. Een vergunning vraagt altijd de beoordeling van het bevoegd gezag.</p></nldd-text>
   </nldd-container>
 </template>
 

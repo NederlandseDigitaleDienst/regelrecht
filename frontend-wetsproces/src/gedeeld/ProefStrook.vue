@@ -33,10 +33,12 @@ const testklok = computed(() => {
         <nldd-simple-section>
           <nldd-container gap="16">
             <nldd-text>
-              De casus, de personen en de gegevens zijn verzonnen. Een uitkomst op dit scherm is uitgerekend en is geen
-              besluit van een bestuursorgaan.
+              <p>
+                De casus, de personen en de gegevens zijn verzonnen. Een uitkomst op dit scherm is uitgerekend en is geen
+                besluit van een bestuursorgaan.
+              </p>
             </nldd-text>
-            <nldd-text v-if="testklok">{{ testklok }}</nldd-text>
+            <nldd-text v-if="testklok"><p>{{ testklok }}</p></nldd-text>
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>

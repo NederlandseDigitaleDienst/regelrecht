@@ -115,7 +115,7 @@ function saveName(e: Event) {
                  tekst, dan bleven ze Nederlands in elke taal. -->
             <span v-for="hint in hints" :key="hint.id" class="hint">
               <template v-for="(seg, j) in hint.segments" :key="j">
-                <nldd-keyboard-shortcut v-if="seg.key" size="sm" color="inherit" :keys="seg.key" always-visible></nldd-keyboard-shortcut>
+                <nldd-keyboard-shortcut v-if="seg.key" size="sm" color="content" :keys="seg.key" always-visible></nldd-keyboard-shortcut>
                 <template v-else>{{ seg.text }}</template>
               </template>
             </span>
@@ -127,7 +127,7 @@ function saveName(e: Event) {
              op het donkerblauwe vlak zonder eigen kleurregels. -->
         <nldd-button-bar>
           <nldd-icon-button
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             icon="back"
             :text="t('deck.previous')"
             tooltip-timing="never"
@@ -136,13 +136,13 @@ function saveName(e: Event) {
           ></nldd-icon-button>
           <nldd-button
             v-if="isLast"
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             :text="t('deck.close')"
             @click="p.stop()"
           ></nldd-button>
           <nldd-icon-button
             v-else
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             icon="forward"
             :text="t('deck.next')"
             tooltip-timing="never"

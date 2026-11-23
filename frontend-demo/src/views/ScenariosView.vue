@@ -341,7 +341,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
 
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('app.tabs.scenarios')">
-    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
+    <nldd-split-view-pane slot="primary-sidebar" has-content background="tinted">
       <nldd-page sticky-header background="inherit" :accessible-label="t('app.tabs.scenarios')">
         <nldd-container slot="header" padding="12" gap="8">
           <nldd-top-title-bar :text="t('app.tabs.scenarios')" :supporting-text="t.plural(features.length, 'scenario.files')"></nldd-top-title-bar>
@@ -359,8 +359,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
       </nldd-page>
     </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
+    <nldd-page slot="main" landmarks="page" sticky-header>
         <nldd-container slot="header" padding="8">
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start">
@@ -469,7 +468,6 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
     <!-- The engine's trace is wide; a 320px inspector column cuts every line,
          so it opens in a broad sheet, as the tile's "Berekening" does. As wide

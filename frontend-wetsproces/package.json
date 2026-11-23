@@ -17,7 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@nldd/design-system": "^0.22.0",
+    "@nldd/design-system": "^0.28.0",
     "@regelrecht/frontend-shared": "*",
     "@tauri-apps/api": "^2.12.4",
     "vue": "^3.5.43",

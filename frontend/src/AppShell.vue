@@ -352,8 +352,7 @@ function restoreTabSelection() {
            on the library it sits under this bar; on the editor the document-tab-
            bar sits between, so toolbar + tabs read as one group above the single
            main divider. -->
-      <nldd-split-view-pane slot="primary-bar-md" only="md">
-        <nldd-container padding="8">
+      <nldd-container slot="primary-bar-md" only="md" padding="8">
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start" :priority="1">
               <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
@@ -423,7 +422,7 @@ function restoreTabSelection() {
                 <TrajectMenu />
                 <nldd-button-bar-divider></nldd-button-bar-divider>
                 <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
-                  <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
+                  <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="content" icon-aligned decorative></nldd-avatar>
                 <nldd-menu slot="popup">
                   <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
                 </nldd-menu>
@@ -438,11 +437,9 @@ function restoreTabSelection() {
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>
-      </nldd-split-view-pane>
 
       <!-- Primary Bar: lg+ - search as input field in center slot -->
-      <nldd-split-view-pane slot="primary-bar-lg" above="lg">
-        <nldd-container padding="8">
+      <nldd-container slot="primary-bar-lg" above="lg" padding="8">
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start" :priority="1">
               <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
@@ -513,7 +510,7 @@ function restoreTabSelection() {
                 <TrajectMenu />
                 <nldd-button-bar-divider></nldd-button-bar-divider>
                 <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
-                  <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
+                  <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="content" icon-aligned decorative></nldd-avatar>
                 <nldd-menu slot="popup">
                   <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
                 </nldd-menu>
@@ -528,14 +525,12 @@ function restoreTabSelection() {
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>
-      </nldd-split-view-pane>
 
       <!-- Document Tab Bar (editor only, md+). Hidden on sm - there the tabs
            live in the MobileTrajectSheet opened from the traject row. Rendered
            only while the active view publishes open tabs, so the library never
            shows an empty bar. -->
-      <nldd-split-view-pane v-if="hasDocumentTabs" slot="document-tabs" above="md">
-        <nldd-container padding-inline="8" padding-top="0" padding-bottom="8">
+      <nldd-container v-if="hasDocumentTabs" slot="document-tabs" above="md" padding-inline="8" padding-top="0" padding-bottom="8">
           <!-- Drag-reorder: the bar reorders its items visually and fires
                `reorder`; without this listener that move never reaches
                `openTabs`, so it was lost (reverted from localStorage) the next
@@ -576,26 +571,21 @@ function restoreTabSelection() {
             </nldd-document-tab-bar-item>
           </nldd-document-tab-bar>
         </nldd-container>
-      </nldd-split-view-pane>
 
       <!-- Review-melding (editor only): direct onder de document-tab-bar, dus
            vóór `main` in de DOM. Eigen pane in de bar-split-view zodat hij niet
            met de panes meescrollt. Op sm bestaat de tab-bar niet (above="md"),
            daar landt hij dus vanzelf bovenaan. -->
-      <nldd-split-view-pane v-if="reviewNotice" slot="review-notice">
-        <nldd-container padding="8" padding-top="0">
-          <nldd-banner
-            size="sm"
-            :variant="editorChanges?.reviewVariant || 'accent'"
-            :text="reviewNotice"
-          ></nldd-banner>
-        </nldd-container>
-      </nldd-split-view-pane>
+      <nldd-container v-if="reviewNotice" slot="review-notice" padding="8" padding-top="0">
+        <nldd-banner
+          size="sm"
+          :variant="editorChanges?.reviewVariant || 'accent'"
+          :text="reviewNotice"
+        ></nldd-banner>
+      </nldd-container>
 
       <!-- Main content area - the active section's body. -->
-      <nldd-split-view-pane slot="main">
-        <router-view />
-      </nldd-split-view-pane>
+      <router-view slot="main" />
 
 
       <!-- Wijzigingenbalk (editor only): one article-level bar with Opslaan +
@@ -603,127 +593,125 @@ function restoreTabSelection() {
            footers. Published by EditorView via the chrome store; shown only while
            the article has unsaved changes. Sits after `main` in the DOM, so on
            sm it lands above the two mobile bars and on md+ it's the bottom bar. -->
-      <nldd-split-view-pane v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar">
-        <nldd-container padding="8" sm-padding-bottom="0">
-          <nldd-toolbar size="md" accessible-label="Wijzigingen">
-            <!-- Undo en redo zijn losse knoppen: die gebruik je herhaald, en
-                 dan is elke klik door een menu er één te veel. De discard is
-                 destructief en houdt daarom z'n eigen chevron-knop, zodat hij
-                 niet per ongeluk geraakt wordt naast de twee ernaast. -->
-            <nldd-toolbar-item slot="start" label="Wijzigingen" :priority="1">
-              <nldd-button-bar>
-                <nldd-icon-button
-                  icon="undo"
-                  text="Ongedaan maken"
-                  :disabled="!editorChanges.canUndo || undefined"
-                  @click="editorActions?.undo?.()"
-                ></nldd-icon-button>
-                <nldd-button-bar-divider></nldd-button-bar-divider>
-                <nldd-icon-button
-                  icon="redo"
-                  text="Opnieuw"
-                  :disabled="!editorChanges.canRedo || undefined"
-                  @click="editorActions?.redo?.()"
-                ></nldd-icon-button>
-                <nldd-button-bar-divider></nldd-button-bar-divider>
-                <nldd-icon-button icon="chevron-down" text="Meer acties" tooltip-timing="never">
-                  <nldd-menu slot="popup">
-                    <nldd-menu-item
-                      text="Maak alle wijzigingen ongedaan"
-                      destructive
-                      @select="editorActions?.discard?.()"
-                    ></nldd-menu-item>
-                    <nldd-menu-item
-                      v-if="canRejectRest"
-                      text="Rond af, neem de rest niet over"
-                      destructive
-                      @select="rejectRestConfirm?.show()"
-                    ></nldd-menu-item>
-                  </nldd-menu>
-                </nldd-icon-button>
-              </nldd-button-bar>
-              <nldd-menu-item
-                slot="overflow"
+      <nldd-container v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar" padding="8" sm-padding-bottom="0">
+        <nldd-toolbar size="md" accessible-label="Wijzigingen">
+          <!-- Undo en redo zijn losse knoppen: die gebruik je herhaald, en
+               dan is elke klik door een menu er één te veel. De discard is
+               destructief en houdt daarom z'n eigen chevron-knop, zodat hij
+               niet per ongeluk geraakt wordt naast de twee ernaast. -->
+          <nldd-toolbar-item slot="start" label="Wijzigingen" :priority="1">
+            <nldd-button-bar>
+              <nldd-icon-button
                 icon="undo"
                 text="Ongedaan maken"
                 :disabled="!editorChanges.canUndo || undefined"
-                @select="editorActions?.undo?.()"
-              ></nldd-menu-item>
-              <nldd-menu-item
-                slot="overflow"
+                @click="editorActions?.undo?.()"
+              ></nldd-icon-button>
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <nldd-icon-button
                 icon="redo"
                 text="Opnieuw"
                 :disabled="!editorChanges.canRedo || undefined"
-                @select="editorActions?.redo?.()"
-              ></nldd-menu-item>
-              <nldd-menu-item
-                slot="overflow"
-                text="Maak alle wijzigingen ongedaan"
-                destructive
-                @select="editorActions?.discard?.()"
-              ></nldd-menu-item>
-              <nldd-menu-item
-                v-if="canRejectRest"
-                slot="overflow"
-                text="Rond af, neem de rest niet over"
-                destructive
-                @select="rejectRestConfirm?.show()"
-              ></nldd-menu-item>
-            </nldd-toolbar-item>
-            <!-- Review-modus zet de beslissing hier. Twee losse toolbar-items,
-                 geen button-bar: die plakt een destructieve knop tegen een
-                 bevestigende aan, precies wat de ontwerprichtlijn ("geef ze
-                 visuele en fysieke afstand") wil voorkomen. Verwerp heeft de
-                 lagere prioriteit, dus die wijkt als eerste naar het
-                 overloopmenu. -->
-            <nldd-toolbar-item v-if="inReview" slot="end" label="Verwerp voorstel" :priority="2">
-              <nldd-button
-                appearance="destructive"
-                size="md"
-                start-icon="dismiss-circle"
-                text="Verwerp voorstel"
-                :disabled="editorChanges.saving || undefined"
-                @click="rejectConfirm?.show()"
-              ></nldd-button>
-              <nldd-menu-item
-                slot="overflow"
-                icon="dismiss"
-                text="Verwerp voorstel"
-                destructive
-                :disabled="editorChanges.saving || undefined"
-                @select="rejectConfirm?.show()"
-              ></nldd-menu-item>
-            </nldd-toolbar-item>
-            <!-- Buiten review staat Opslaan er alleen, en dan houdt hij zijn
-                 eigen brede vlak: geen icoon nodig om zich van een buurknop te
-                 onderscheiden. In review staat Verwerp ernaast, en daar doen de
-                 iconen het onderscheidende werk op eigen breedte. -->
-            <nldd-toolbar-item
-              slot="end"
-              :label="saveLabel"
-              :width="inReview ? undefined : '320px'"
-              :priority="3"
-            >
-              <nldd-button
-                appearance="primary"
-                size="md"
-                :start-icon="inReview ? 'check-mark-circle' : undefined"
-                :width="inReview ? undefined : 'full'"
-                :text="saveLabel"
-                :loading="editorChanges.saving || undefined"
-                @click="editorActions?.save?.()"
-              ></nldd-button>
-              <nldd-menu-item
-                slot="overflow"
-                icon="save"
-                :text="saveLabel"
-                :disabled="editorChanges.saving || undefined"
-                @select="editorActions?.save?.()"
-              ></nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
+                @click="editorActions?.redo?.()"
+              ></nldd-icon-button>
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <nldd-icon-button icon="chevron-down" text="Meer acties" tooltip-timing="never">
+                <nldd-menu slot="popup">
+                  <nldd-menu-item
+                    text="Maak alle wijzigingen ongedaan"
+                    destructive
+                    @select="editorActions?.discard?.()"
+                  ></nldd-menu-item>
+                  <nldd-menu-item
+                    v-if="canRejectRest"
+                    text="Rond af, neem de rest niet over"
+                    destructive
+                    @select="rejectRestConfirm?.show()"
+                  ></nldd-menu-item>
+                </nldd-menu>
+              </nldd-icon-button>
+            </nldd-button-bar>
+            <nldd-menu-item
+              slot="overflow"
+              icon="undo"
+              text="Ongedaan maken"
+              :disabled="!editorChanges.canUndo || undefined"
+              @select="editorActions?.undo?.()"
+            ></nldd-menu-item>
+            <nldd-menu-item
+              slot="overflow"
+              icon="redo"
+              text="Opnieuw"
+              :disabled="!editorChanges.canRedo || undefined"
+              @select="editorActions?.redo?.()"
+            ></nldd-menu-item>
+            <nldd-menu-item
+              slot="overflow"
+              text="Maak alle wijzigingen ongedaan"
+              destructive
+              @select="editorActions?.discard?.()"
+            ></nldd-menu-item>
+            <nldd-menu-item
+              v-if="canRejectRest"
+              slot="overflow"
+              text="Rond af, neem de rest niet over"
+              destructive
+              @select="rejectRestConfirm?.show()"
+            ></nldd-menu-item>
+          </nldd-toolbar-item>
+          <!-- Review-modus zet de beslissing hier. Twee losse toolbar-items,
+               geen button-bar: die plakt een destructieve knop tegen een
+               bevestigende aan, precies wat de ontwerprichtlijn ("geef ze
+               visuele en fysieke afstand") wil voorkomen. Verwerp heeft de
+               lagere prioriteit, dus die wijkt als eerste naar het
+               overloopmenu. -->
+          <nldd-toolbar-item v-if="inReview" slot="end" label="Verwerp voorstel" :priority="2">
+            <nldd-button
+              appearance="destructive"
+              size="md"
+              start-icon="dismiss-circle"
+              text="Verwerp voorstel"
+              :disabled="editorChanges.saving || undefined"
+              @click="rejectConfirm?.show()"
+            ></nldd-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="dismiss"
+              text="Verwerp voorstel"
+              destructive
+              :disabled="editorChanges.saving || undefined"
+              @select="rejectConfirm?.show()"
+            ></nldd-menu-item>
+          </nldd-toolbar-item>
+          <!-- Buiten review staat Opslaan er alleen, en dan houdt hij zijn
+               eigen brede vlak: geen icoon nodig om zich van een buurknop te
+               onderscheiden. In review staat Verwerp ernaast, en daar doen de
+               iconen het onderscheidende werk op eigen breedte. -->
+          <nldd-toolbar-item
+            slot="end"
+            :label="saveLabel"
+            :width="inReview ? undefined : '320px'"
+            :priority="3"
+          >
+            <nldd-button
+              appearance="primary"
+              size="md"
+              :start-icon="inReview ? 'check-mark-circle' : undefined"
+              :width="inReview ? undefined : 'full'"
+              :text="saveLabel"
+              :loading="editorChanges.saving || undefined"
+              @click="editorActions?.save?.()"
+            ></nldd-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="save"
+              :text="saveLabel"
+              :disabled="editorChanges.saving || undefined"
+              @select="editorActions?.save?.()"
+            ></nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
 
       <!-- Mobile Bar (sm only): the combined MobileTrajectSheet button on top
            (traject + open articles in one sheet), then the tab bar + search +
@@ -794,7 +782,7 @@ function restoreTabSelection() {
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-icon-button size="lg" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never">
-                <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
+                <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="content" icon-aligned decorative></nldd-avatar>
                 <nldd-menu slot="popup">
                   <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
                 </nldd-menu>

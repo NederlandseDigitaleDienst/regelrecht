@@ -272,7 +272,9 @@ const pathname = '/roadmap';
                     >
                       <nldd-container padding="16" gap="12">
                         <nldd-text size="sm" weight="medium" color="secondary">
-                          {groep.titel}
+                          <p>
+                            {groep.titel}
+                          </p>
                         </nldd-text>
                         {/*
                           Nog steeds een fieldset: het blijft een groep vinkjes
@@ -411,10 +413,12 @@ const pathname = '/roadmap';
                     class="rr-matrix__header rr-matrix__header--fase"
                   >
                     <nldd-container gap="4" horizontal-alignment="center">
-                      <nldd-text size="md" weight="bold">{fase.naam}</nldd-text>
+                      <nldd-text size="md" weight="bold"><p>{fase.naam}</p></nldd-text>
                       {fase.ondertitel && (
                         <nldd-text size="xs" color="secondary">
-                          {fase.ondertitel}
+                          <p>
+                            {fase.ondertitel}
+                          </p>
                         </nldd-text>
                       )}
                     </nldd-container>
@@ -440,7 +444,9 @@ const pathname = '/roadmap';
                           weight="bold"
                           class={rij.bar.zichtbaar ? undefined : 'rr-sr-only'}
                         >
-                          {rij.bar.naam}
+                          <p>
+                            {rij.bar.naam}
+                          </p>
                         </nldd-text>
                       </th>
                     )}
@@ -450,10 +456,12 @@ const pathname = '/roadmap';
                       class="rr-matrix__header rr-matrix__header--discipline"
                     >
                       <nldd-container gap="4">
-                        <nldd-text size="md" weight="bold">{rij.label}</nldd-text>
+                        <nldd-text size="md" weight="bold"><p>{rij.label}</p></nldd-text>
                         {rij.discipline.ondertitel && (
                           <nldd-text size="xs" color="secondary">
-                            {rij.discipline.ondertitel}
+                            <p>
+                              {rij.discipline.ondertitel}
+                            </p>
                           </nldd-text>
                         )}
                       </nldd-container>

@@ -176,12 +176,11 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
 
 <template>
   <nldd-navigation-split-view v-if="!leeg" @back="router.push('/burger')">
-    <nldd-split-view-pane slot="primary-sidebar" has-content>
-      <nldd-page sticky-header accessible-label="Mijn dossier">
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Mijn dossier">
         <nldd-top-title-bar slot="header" text="Mijn dossier" heading-level="3" collapse-anchor="dossier-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
           <nldd-title id="dossier-titel" size="display-3"><h3>Mijn dossier</h3></nldd-title>
-          <nldd-text color="secondary">Alles wat over u is vastgelegd, per aanvraag.</nldd-text>
+          <nldd-text color="secondary"><p>Alles wat over u is vastgelegd, per aanvraag.</p></nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden" text="Het dossier laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het dossier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -235,9 +234,8 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
           </template>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" :has-content="id || undefined">
+    <div slot="main" :empty="id ? undefined : true">
       <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier">
         <template #onder><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
       </BesluitPaneel>
@@ -254,7 +252,7 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
           <nldd-inline-dialog text="Kies een stuk" supporting-text="Wat u kiest, opent hier, naast uw dossier."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
+    </div>
   </nldd-navigation-split-view>
 
   <AanvraagView :open="route.name === 'aanvraag'" @sluit="router.push('/burger')" />

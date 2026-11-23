@@ -91,12 +91,11 @@ function naarWerkvoorraad(g: Gram) {
 
 <template>
   <nldd-navigation-split-view @back="router.push('/backoffice/kroniek')">
-    <nldd-split-view-pane slot="primary-sidebar" has-content>
-      <nldd-page sticky-header accessible-label="Kroniek">
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Kroniek">
         <nldd-top-title-bar slot="header" text="Kroniek" heading-level="3" collapse-anchor="kroniek-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
           <nldd-title id="kroniek-titel" size="display-3"><h3>Kroniek</h3></nldd-title>
-          <nldd-text color="secondary">Alles wat een cel vastlegde, in de volgorde waarin het gebeurde.</nldd-text>
+          <nldd-text color="secondary"><p>Alles wat een cel vastlegde, in de volgorde waarin het gebeurde.</p></nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden" text="De kronieken laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De kroniek laadt niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -119,9 +118,8 @@ function naarWerkvoorraad(g: Gram) {
           </nldd-list>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" :has-content="gekozen ? true : undefined">
+    <div slot="main" :empty="gekozen ? undefined : true">
       <nldd-page v-if="gekozen && casus" landmarks="page" sticky-header :accessible-label="`Kroniek van ${gekozen.cel_naam}`">
         <nldd-top-title-bar
           slot="header"
@@ -151,7 +149,7 @@ function naarWerkvoorraad(g: Gram) {
           <nldd-inline-dialog text="Kies een cel" supporting-text="De kroniek van een cel opent hier."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
+    </div>
   </nldd-navigation-split-view>
 
   <Teleport to="body">
@@ -166,7 +164,9 @@ function naarWerkvoorraad(g: Gram) {
         <nldd-simple-section v-if="open && casus">
           <nldd-container gap="16">
             <nldd-text color="secondary">
-              {{ `${artikelNaam(open.basis)}${open.refers_to ? ` · verwijst naar ${noem(open.refers_to)}` : ''}` }}
+              <p>
+                {{ `${artikelNaam(open.basis)}${open.refers_to ? ` · verwijst naar ${noem(open.refers_to)}` : ''}` }}
+              </p>
             </nldd-text>
             <nldd-title size="display-6"><h3>Gegevens</h3></nldd-title>
             <Gegevens :waarden="open.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noem" label="Gegevens van het stuk" />

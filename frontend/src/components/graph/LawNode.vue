@@ -44,7 +44,7 @@ defineProps<{
   background: var(--semantics-content-color);
   background: color-mix(in oklch, var(--semantics-content-color), transparent 35%);
   padding: 4px;
-  color: var(--semantics-surfaces-background-color);
+  color: var(--semantics-surfaces-base-background-color);
   border: 0;
   line-height: 0;
 }

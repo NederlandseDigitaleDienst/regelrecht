@@ -108,11 +108,11 @@ async function indienen() {
         <nldd-top-title-bar slot="header" heading-level="2" text="Nieuwe aanvraag" dismiss-text="Sluit"></nldd-top-title-bar>
         <nldd-simple-section>
           <nldd-container gap="24">
-            <nldd-text v-if="inleiding">{{ inleiding }}</nldd-text>
+            <nldd-text v-if="inleiding"><p>{{ inleiding }}</p></nldd-text>
             <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
             <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het formulier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
             <template v-else-if="formulier">
-              <nldd-text v-if="overToekenning">{{ overToekenning.uitleg }}</nldd-text>
+              <nldd-text v-if="overToekenning"><p>{{ overToekenning.uitleg }}</p></nldd-text>
               <nldd-inline-dialog
                 v-if="overToekenning && !op"
                 icon="warning"
@@ -128,7 +128,7 @@ async function indienen() {
                 :supporting-text="vorm.systeem_fout"
               ></nldd-inline-dialog>
               <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
-              <nldd-text v-if="casus">Dagtekening: {{ longDate(casus.vandaag) }}, de dag van indiening volgens de klok van het systeem.</nldd-text>
+              <nldd-text v-if="casus"><p>Dagtekening: {{ longDate(casus.vandaag) }}, de dag van indiening volgens de klok van het systeem.</p></nldd-text>
               <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
               <nldd-button-group orientation="horizontal">
                 <nldd-button appearance="primary" text="Dien aanvraag in" :loading="bezig || undefined" @click="indienen"></nldd-button>

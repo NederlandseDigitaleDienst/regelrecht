@@ -144,12 +144,11 @@ async function klaar(naam: string) {
 
 <template>
   <nldd-navigation-split-view @back="router.push('/backoffice')">
-    <nldd-split-view-pane slot="primary-sidebar" has-content>
-      <nldd-page sticky-header accessible-label="Werkvoorraad">
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Werkvoorraad">
         <nldd-top-title-bar slot="header" text="Werkvoorraad" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
           <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Werkvoorraad</h3></nldd-title>
-          <nldd-text color="secondary">De indieningen die op een besluit wachten.</nldd-text>
+          <nldd-text color="secondary"><p>De indieningen die op een besluit wachten.</p></nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden" text="De werkvoorraad laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De werkvoorraad laadt niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -179,9 +178,9 @@ async function klaar(naam: string) {
                   <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                 </nldd-list-item>
               </nldd-list>
-              <nldd-text v-else color="secondary">Geen open indieningen.</nldd-text>
+              <nldd-text v-else color="secondary"><p>Geen open indieningen.</p></nldd-text>
               <nldd-text v-if="c.open.length && !c.recht.beslissen" size="sm" color="secondary">
-                Een beslisser neemt het besluit; u ziet de indieningen wel.
+                <p>Een beslisser neemt het besluit; u ziet de indieningen wel.</p>
               </nldd-text>
               <template v-if="c.handelingen.length">
                 <nldd-spacer size="8"></nldd-spacer>
@@ -199,7 +198,7 @@ async function klaar(naam: string) {
               <template v-if="c.recht.cel === casus.cel && casus.na_toekenning">
                 <nldd-spacer size="24"></nldd-spacer>
                 <nldd-title size="display-6"><h5>Na de toekenning</h5></nldd-title>
-                <nldd-text color="secondary">Wat er na een toekenning nog moet gebeuren, per toekenning de volgende stap.</nldd-text>
+                <nldd-text color="secondary"><p>Wat er na een toekenning nog moet gebeuren, per toekenning de volgende stap.</p></nldd-text>
                 <nldd-spacer size="8"></nldd-spacer>
                 <nldd-inline-dialog v-if="vervolgFout" icon="warning" icon-color="critical" text="Dit overzicht laadt niet" :supporting-text="vervolgFout"></nldd-inline-dialog>
                 <nldd-list v-else-if="openToekenningen.length" appearance="simple" accessible-label="Na de toekenning">
@@ -218,15 +217,14 @@ async function klaar(naam: string) {
                     </template>
                   </nldd-list-item>
                 </nldd-list>
-                <nldd-text v-else color="secondary">Er wacht niets na een toekenning.</nldd-text>
+                <nldd-text v-else color="secondary"><p>Er wacht niets na een toekenning.</p></nldd-text>
               </template>
             </template>
           </template>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" :has-content="id || undefined">
+    <div slot="main" :empty="id ? undefined : true">
       <BehandelenPaneel
         v-if="cel && id && casus"
         :key="id"
@@ -244,7 +242,7 @@ async function klaar(naam: string) {
           <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de werkvoorraad."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
+    </div>
   </nldd-navigation-split-view>
 
   <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :vastleggen="backofficeApi.vastleggen" @sluit="keuze = null" @vastgelegd="klaar" />

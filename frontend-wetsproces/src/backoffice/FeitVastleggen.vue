@@ -128,7 +128,7 @@ async function opslaan() {
         <nldd-simple-section v-if="keuze">
           <nldd-container gap="16">
             <slot></slot>
-            <nldd-text color="secondary">De gegevens komen uit {{ artikelNaam(artikelVan(keuze.handeling.feit)) }}.</nldd-text>
+            <nldd-text color="secondary"><p>De gegevens komen uit {{ artikelNaam(artikelVan(keuze.handeling.feit)) }}.</p></nldd-text>
             <SpecFormulier :velden="formvelden" :waarden="waarden" :volgorde="volgorde" @zet="(n, v) => (waarden[n] = v)" />
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
             <nldd-button-group orientation="horizontal">

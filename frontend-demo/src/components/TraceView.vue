@@ -73,13 +73,13 @@ const currentLine = computed(() => (current.value < 0 ? -1 : parsed.value.sectio
     <nldd-container v-if="parsed.laws.length" ref="nav" class="trace-view__nav" layout="wrap" gap="8" padding-block="8" vertical-alignment="center" role="navigation" :aria-label="t('trace.nav.label')">
       <nldd-icon-button size="sm" appearance="neutral-tinted" icon="chevron-up" :text="t('trace.nav.prev')" :disabled="current <= 0 || undefined" @click="step(-1)"></nldd-icon-button>
       <nldd-icon-button size="sm" appearance="neutral-tinted" icon="chevron-down" :text="t('trace.nav.next')" :disabled="current >= parsed.sections.length - 1 || undefined" @click="step(1)"></nldd-icon-button>
-      <nldd-text size="sm" color="secondary">{{ t('trace.nav.position', { n: current + 1, total: parsed.sections.length }) }}</nldd-text>
+      <nldd-text size="sm" color="secondary"><p>{{ t('trace.nav.position', { n: current + 1, total: parsed.sections.length }) }}</p></nldd-text>
       <nldd-button
         v-for="law in parsed.laws"
         :key="law"
         class="trace-view__law"
         size="xs"
-        appearance="inherit-tinted"
+        appearance="content-tinted"
         :text="nameOf(law)"
         :style="colorOf(law)"
         @click="jumpTo(law)"

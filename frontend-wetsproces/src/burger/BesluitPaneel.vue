@@ -137,7 +137,7 @@ async function indienen() {
             :color="uitkomst ? 'success' : 'critical'"
           ></nldd-tag>
         </nldd-title>
-        <nldd-text color="secondary">{{ naamVanCel(besluit.recording_actor) }} · onder {{ artikelNaam(besluit.basis) }}</nldd-text>
+        <nldd-text color="secondary"><p>{{ naamVanCel(besluit.recording_actor) }} · onder {{ artikelNaam(besluit.basis) }}</p></nldd-text>
         <nldd-spacer size="24"></nldd-spacer>
         <template v-if="herroeping">
           <nldd-banner variant="warning" text="Dit besluit geldt niet meer" :supporting-text="herroeping"></nldd-banner>
@@ -148,7 +148,7 @@ async function indienen() {
             <h4>Het nieuwe besluit</h4>
             <nldd-badge slot="end" text="Geldt" color="success" size="sm"></nldd-badge>
           </nldd-title>
-          <nldd-text color="secondary">Dit besluit herriep het eerdere besluit en nam een nieuw besluit in de plaats daarvan.</nldd-text>
+          <nldd-text color="secondary"><p>Dit besluit herriep het eerdere besluit en nam een nieuw besluit in de plaats daarvan.</p></nldd-text>
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-tag
             v-if="nieuwUitkomst !== undefined"
@@ -165,7 +165,7 @@ async function indienen() {
         <nldd-spacer size="24"></nldd-spacer>
 
         <nldd-title size="display-5"><h4>Waarom</h4></nldd-title>
-        <nldd-text color="secondary">Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte.</nldd-text>
+        <nldd-text color="secondary"><p>Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte.</p></nldd-text>
         <nldd-spacer size="8"></nldd-spacer>
         <WaaromLijst
           v-if="waarom && besluit"
@@ -188,7 +188,7 @@ async function indienen() {
               :text="`De termijn liep tot en met ${longDate(deadline.einde)}`"
               :supporting-text="[`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat.`, teLaat, 'Schrijf in de gronden waarom u later bent.'].filter(Boolean).join(' ')"
             ></nldd-inline-dialog>
-            <nldd-text v-else>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</nldd-text>
+            <nldd-text v-else><p>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</p></nldd-text>
             <nldd-spacer size="8"></nldd-spacer>
           </template>
           <nldd-button-group orientation="horizontal">
@@ -221,8 +221,10 @@ async function indienen() {
         <nldd-simple-section v-if="keuze">
           <nldd-container gap="16">
             <nldd-text color="secondary">
-              De vragen komen uit de wet. Wat het besluit al vastlegt, zoals de termijn, neemt
-              {{ naamVanCel(keuze.cel) }} uit het besluit zelf.
+              <p>
+                De vragen komen uit de wet. Wat het besluit al vastlegt, zoals de termijn, neemt
+                {{ naamVanCel(keuze.cel) }} uit het besluit zelf.
+              </p>
             </nldd-text>
             <SpecFormulier :velden="velden" :waarden="waarden" :volgorde="vormen?.volgorde" @zet="(n, v) => (waarden[n] = v)" />
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>

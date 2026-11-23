@@ -60,7 +60,7 @@ async function activeer(bsn: string) {
             text="Testomgeving: kies een verzonnen burger"
             supporting-text="In de testmodus geeft de demo-Activatiedienst van de server deze app een bewijs voor een fictief BSN uit de testreeks. Niemand controleert wie u bent. Een echte app krijgt dat bewijs pas nadat u zich bij een Activatiedienst hebt geïdentificeerd."
           ></nldd-banner>
-          <nldd-text color="secondary">Server: {{ appStatus.server }}</nldd-text>
+          <nldd-text color="secondary"><p>Server: {{ appStatus.server }}</p></nldd-text>
           <nldd-list appearance="box-base" accessible-label="Fictieve burgers">
             <nldd-list-item v-for="bsn in appStatus.test_bsns" :key="bsn" button @click="activeer(bsn)">
               <nldd-text-cell :text="`Burger met BSN ${bsn}`" supporting-text="Het BSN is fictief."></nldd-text-cell>
@@ -68,7 +68,7 @@ async function activeer(bsn: string) {
             </nldd-list-item>
           </nldd-list>
           <nldd-activity-indicator v-if="bezig"></nldd-activity-indicator>
-          <nldd-text color="secondary">{{ opslagTekst(appStatus) }}</nldd-text>
+          <nldd-text color="secondary"><p>{{ opslagTekst(appStatus) }}</p></nldd-text>
         </template>
         <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Activeren lukt niet" :supporting-text="fout"></nldd-inline-dialog>
       </nldd-container>

@@ -100,7 +100,7 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
       ></nldd-inline-dialog>
       <template v-else>
         <nldd-title id="stuk-titel" size="display-3"><h3>{{ titel }}</h3></nldd-title>
-        <nldd-text color="secondary">{{ naamVanCel(stuk.recording_actor) }} · onder {{ artikelNaam(stuk.basis) }}</nldd-text>
+        <nldd-text color="secondary"><p>{{ naamVanCel(stuk.recording_actor) }} · onder {{ artikelNaam(stuk.basis) }}</p></nldd-text>
         <nldd-spacer size="24"></nldd-spacer>
 
         <template v-if="over">
@@ -154,17 +154,23 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
             </nldd-list-item>
           </nldd-list>
           <nldd-text v-if="antwoord.opnieuw">
-            {{ hoofdletter(naamVanCel(stuk.recording_actor)) }} neemt een nieuw besluit. Het verschijnt hier zodra het genomen is.
+            <p>
+              {{ hoofdletter(naamVanCel(stuk.recording_actor)) }} neemt een nieuw besluit. Het verschijnt hier zodra het genomen is.
+            </p>
           </nldd-text>
           <nldd-text v-else-if="!antwoord.geldend && !antwoord.vervallen">
-            In behandeling bij {{ naamVanCel(stuk.recording_actor) }}. Het besluit verschijnt hier zodra het genomen is.
+            <p>
+              In behandeling bij {{ naamVanCel(stuk.recording_actor) }}. Het besluit verschijnt hier zodra het genomen is.
+            </p>
           </nldd-text>
           <nldd-spacer size="24"></nldd-spacer>
         </template>
 
         <nldd-title size="display-5"><h4>{{ indiening ? 'Wat u indiende' : 'Wat er is vastgelegd' }}</h4></nldd-title>
         <nldd-text color="secondary">
-          {{ indiening ? `Ingediend op ${longDate(stuk.recorded_on)}.` : `Vastgelegd op ${longDate(stuk.recorded_on)} door ${naamVanCel(stuk.recording_actor)}.` }}
+          <p>
+            {{ indiening ? `Ingediend op ${longDate(stuk.recorded_on)}.` : `Vastgelegd op ${longDate(stuk.recorded_on)} door ${naamVanCel(stuk.recording_actor)}.` }}
+          </p>
         </nldd-text>
         <nldd-spacer size="8"></nldd-spacer>
         <Gegevens

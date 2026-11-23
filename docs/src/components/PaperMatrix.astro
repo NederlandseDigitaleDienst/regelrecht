@@ -51,19 +51,19 @@ const smTracks = fit === 'fit' ? `minmax(0, 1fr) repeat(${columns.length}, auto)
 
 <nldd-table accessible-label={label} background={background} columns={tracks} sm-columns={smTracks}>
   <nldd-table-row slot="header">
-    <nldd-cell width="full" vertical-alignment="bottom"><nldd-text size="sm" weight="bold">{rowHeader}</nldd-text></nldd-cell>
+    <nldd-cell width="full" vertical-alignment="bottom"><nldd-text size="sm" weight="bold"><p>{rowHeader}</p></nldd-text></nldd-cell>
     {columns.map((c) => (
-      <nldd-cell width="full" vertical-alignment="bottom"><nldd-text size="sm" weight="bold">{c}</nldd-text></nldd-cell>
+      <nldd-cell width="full" vertical-alignment="bottom"><nldd-text size="sm" weight="bold"><p>{c}</p></nldd-text></nldd-cell>
     ))}
   </nldd-table-row>
   {rows.map((row) => (
     <nldd-table-row selected={row.highlight || undefined}>
-      <nldd-cell width="full" vertical-alignment="top"><nldd-text size="sm" weight={row.highlight ? 'bold' : undefined}>{row.label}</nldd-text></nldd-cell>
+      <nldd-cell width="full" vertical-alignment="top"><nldd-text size="sm" weight={row.highlight ? 'bold' : undefined}><p>{row.label}</p></nldd-text></nldd-cell>
       {row.cells.map((c) => (
         <nldd-cell width="full" vertical-alignment="top">
           <nldd-container gap="4">
             <nldd-container layout="wrap"><nldd-tag size="sm" color={color(c.v)} text={word(c.v)} /></nldd-container>
-            {c.note && <nldd-text size="sm" color="secondary">{c.note}</nldd-text>}
+            {c.note && <nldd-text size="sm" color="secondary"><p>{c.note}</p></nldd-text>}
           </nldd-container>
         </nldd-cell>
       ))}

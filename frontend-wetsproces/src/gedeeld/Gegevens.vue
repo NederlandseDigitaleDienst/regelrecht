@@ -40,7 +40,7 @@ const groepen = computed(() => {
 <template>
   <nldd-container v-if="groepen.length" gap="8">
     <template v-for="(g, i) in groepen" :key="i">
-      <nldd-text v-if="g.titel" weight="medium">{{ g.titel }}</nldd-text>
+      <nldd-text v-if="g.titel" weight="medium"><p>{{ g.titel }}</p></nldd-text>
       <nldd-list appearance="box-base" :accessible-label="g.titel || label">
         <nldd-list-item v-for="r in g.rijen" :key="r.naam" size="sm">
           <nldd-text-cell :text="r.label" :supporting-text="r.waarde"></nldd-text-cell>
@@ -48,5 +48,5 @@ const groepen = computed(() => {
       </nldd-list>
     </template>
   </nldd-container>
-  <nldd-text v-else color="secondary">Geen gegevens.</nldd-text>
+  <nldd-text v-else color="secondary"><p>Geen gegevens.</p></nldd-text>
 </template>

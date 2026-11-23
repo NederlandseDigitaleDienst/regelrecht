@@ -569,7 +569,7 @@ function exportJson() {
     :primary-sidebar-as-sheet="narrow || undefined"
     :primary-sidebar-accessible-label="t('sim.settings.label')"
   >
-    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
+    <nldd-split-view-pane slot="primary-sidebar" has-content background="tinted">
       <!-- Kop, keuze en zoekveld horen in de header, zoals Wetten het doet: de
            burger/ondernemer-keuze is de hoofdknop van dit paneel, want alles
            eronder gaat over de gekozen soort.
@@ -649,8 +649,7 @@ function exportJson() {
       </nldd-page>
     </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
+    <nldd-page slot="main" landmarks="page" sticky-header>
         <!-- De koptekst staat er altijd, ook zonder run: hij draagt de knop
              naar de instellingen, en die is op een smal scherm de enige
              ingang naar het zijpaneel. Stond hij achter `runs.length`, dan
@@ -1013,10 +1012,8 @@ function exportJson() {
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
-    <nldd-split-view-pane v-if="inspector && inspectorLaw" slot="inspector" has-content>
-      <nldd-page :accessible-label="inspectorLaw.name">
+    <nldd-page v-if="inspector && inspectorLaw" slot="inspector" :accessible-label="inspectorLaw.name">
         <nldd-container slot="header" padding="12">
           <!-- `inspectorLaw` comes from the corpus, so the corpus is loaded here. -->
           <nldd-top-title-bar :text="inspectorLaw.name" :supporting-text="inspector.type === 'params' ? t('sim.inspector.params') : serviceInfo(corpus!, inspectorLaw.service).name" :dismiss-text="t('sim.inspector.close')" @dismiss="inspector = null"></nldd-top-title-bar>
@@ -1065,6 +1062,5 @@ function exportJson() {
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
   </nldd-navigation-split-view>
 </template>

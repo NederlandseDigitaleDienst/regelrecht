@@ -27,8 +27,8 @@ const naam = (term: string) => schermveld({ naam: term, type: null }, props.teks
         ></nldd-text-cell>
       </nldd-list-item>
     </nldd-list>
-    <nldd-text v-else color="secondary">Dit besluit vulde geen open begrip in.</nldd-text>
-    <nldd-text v-if="waarom.antwoorden.length" weight="medium">De antwoorden van cellen die het besluit gebruikte</nldd-text>
+    <nldd-text v-else color="secondary"><p>Dit besluit vulde geen open begrip in.</p></nldd-text>
+    <nldd-text v-if="waarom.antwoorden.length" weight="medium"><p>De antwoorden van cellen die het besluit gebruikte</p></nldd-text>
     <nldd-list v-if="waarom.antwoorden.length" appearance="box-base" accessible-label="Antwoorden van cellen">
       <nldd-list-item v-for="(a, i) in waarom.antwoorden" :key="i" size="sm">
         <nldd-text-cell

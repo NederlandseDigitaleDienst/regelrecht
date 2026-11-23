@@ -16,7 +16,7 @@
     "nldd:check": "node ../script/check-nldd-imports.mjs src src/nldd-components.js"
   },
   "dependencies": {
-    "@nldd/design-system": "^0.22.0",
+    "@nldd/design-system": "^0.28.0",
     "vue": "^3.5.43"
   },
   "devDependencies": {

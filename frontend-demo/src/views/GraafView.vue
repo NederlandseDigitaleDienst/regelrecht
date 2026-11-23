@@ -311,7 +311,7 @@ function unique(laws: LawEntry[]) {
 
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('wet.graph.sidebar.label')" :inspector-accessible-label="t('wet.graph.inspector.label')">
-    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
+    <nldd-split-view-pane slot="primary-sidebar" has-content background="tinted">
       <nldd-page sticky-header background="inherit" :accessible-label="t('wet.graph.sidebar.label')">
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="t('wet.graph.sidebar.label')" :supporting-text="t('wet.graph.selection', { chosen: selected.size, shown: shownLaws.length })"></nldd-top-title-bar>
@@ -322,8 +322,7 @@ function unique(laws: LawEntry[]) {
       </nldd-page>
     </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
+    <nldd-page slot="main" landmarks="page" sticky-header>
         <nldd-container slot="header" padding="8">
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start">
@@ -406,7 +405,6 @@ function unique(laws: LawEntry[]) {
           </div>
         </nldd-full-bleed-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
     <!-- A focus law means the corpus is loaded. -->
     <nldd-split-view-pane v-if="focusLaw" slot="inspector" has-content background="tinted">
@@ -421,7 +419,7 @@ function unique(laws: LawEntry[]) {
               <nldd-button appearance="neutral-tinted" size="sm" :text="t('wet.graph.only_this')" @click="only(focusLaw.id)"></nldd-button>
             </nldd-button-group>
             <nldd-container gap="4">
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.graph.reads_from') }}</nldd-text></nldd-container>
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('wet.graph.reads_from') }}</p></nldd-text></nldd-container>
               <nldd-list appearance="box-base" :accessible-label="t('wet.graph.reads_from')">
                 <nldd-list-item v-if="uses.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.graph.no_law_in_view')"></nldd-text-cell></nldd-list-item>
                 <nldd-list-item v-for="l in unique(uses)" :key="l.id" size="sm" button @click="focus = l.id">

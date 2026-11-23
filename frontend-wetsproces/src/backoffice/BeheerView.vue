@@ -114,13 +114,12 @@ async function toezenden(besluit: Gram) {
 
 <template>
   <nldd-navigation-split-view @back="router.push('/backoffice/beheer')">
-    <nldd-split-view-pane slot="primary-sidebar" has-content>
-      <nldd-page sticky-header accessible-label="Beheerpaneel">
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Beheerpaneel">
         <nldd-top-title-bar slot="header" text="Beheerpaneel" heading-level="3" collapse-anchor="beheer-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
           <nldd-title id="beheer-titel" size="display-3"><h3>Beheerpaneel</h3></nldd-title>
           <nldd-text color="secondary">
-            Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.
+            <p>Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.</p>
           </nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden || (!panel && !fout)" text="Het beheerpaneel laden" show-text></nldd-activity-indicator>
@@ -139,7 +138,7 @@ async function toezenden(besluit: Gram) {
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
               <template v-if="p.verzoeken.length">
-                <nldd-text color="secondary">Open verzoeken. Kies er een om het antwoord vast te leggen.</nldd-text>
+                <nldd-text color="secondary"><p>Open verzoeken. Kies er een om het antwoord vast te leggen.</p></nldd-text>
                 <nldd-list appearance="simple" :accessible-label="`Open verzoeken aan ${p.cel_naam}`">
                   <nldd-list-item
                     v-for="v in p.verzoeken"
@@ -202,7 +201,7 @@ async function toezenden(besluit: Gram) {
               <template v-if="p.zonderVerzoek.length">
                 <nldd-spacer size="8"></nldd-spacer>
                 <nldd-text color="secondary">
-                  Zonder verzoek, alleen voor een aanvrager voor wie geen verzoek openstaat, zoals iemand die eerder een kaart kreeg:
+                  <p>Zonder verzoek, alleen voor een aanvrager voor wie geen verzoek openstaat, zoals iemand die eerder een kaart kreeg:</p>
                 </nldd-text>
                 <nldd-button-group orientation="horizontal">
                   <nldd-button
@@ -216,15 +215,16 @@ async function toezenden(besluit: Gram) {
                 </nldd-button-group>
               </template>
               <nldd-text v-if="!p.verzoeken.length && !p.open.length && !p.toe_te_zenden.length && !p.handelingen.length && !p.zonderVerzoek.length" color="secondary">
-                Op dit moment vraagt het proces niets van {{ p.cel_naam }}.
+                <p>
+                  Op dit moment vraagt het proces niets van {{ p.cel_naam }}.
+                </p>
               </nldd-text>
             </template>
           </template>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" :has-content="id || undefined">
+    <div slot="main" :empty="id ? undefined : true">
       <BehandelenPaneel
         v-if="cel && id && casus"
         :key="id"
@@ -243,7 +243,7 @@ async function toezenden(besluit: Gram) {
           <nldd-inline-dialog text="Kies wat op een partij wacht" supporting-text="Een indiening opent hier, naast het beheerpaneel."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
+    </div>
   </nldd-navigation-split-view>
 
   <FeitVastleggen

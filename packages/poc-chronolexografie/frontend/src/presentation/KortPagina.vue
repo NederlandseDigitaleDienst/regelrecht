@@ -49,7 +49,7 @@ function volg(e, doe) {
         <nldd-button ref="terugKnop" appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
       </nldd-button-bar>
       <nldd-title size="display-2" heading-level="1" :overline="intro.overline" :text="intro.title">
-        <nldd-text slot="supporting-text">{{ intro.lead }}</nldd-text>
+        <nldd-text slot="supporting-text"><p>{{ intro.lead }}</p></nldd-text>
       </nldd-title>
     </nldd-container>
   </nldd-simple-section>
@@ -64,12 +64,12 @@ function volg(e, doe) {
   <nldd-simple-section>
     <nldd-container gap="8">
       <KortSchema beschrijving="kort-bijschrift" />
-      <nldd-text id="kort-bijschrift" size="sm" color="secondary">{{ schema.bijschrift }}</nldd-text>
+      <nldd-text id="kort-bijschrift" size="sm" color="secondary"><p>{{ schema.bijschrift }}</p></nldd-text>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
     <nldd-title slot="header" size="display-3" heading-level="2" :overline="casusBlok.overline" :text="casusBlok.title">
-      <nldd-text slot="supporting-text">{{ casusBlok.lead }}</nldd-text>
+      <nldd-text slot="supporting-text"><p>{{ casusBlok.lead }}</p></nldd-text>
     </nldd-title>
     <nldd-container gap="16">
       <nldd-rich-text>

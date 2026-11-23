@@ -225,7 +225,9 @@ const kerngegevens = [
           kerngegevens.map((veld) => (
             <nldd-container gap="2">
               <nldd-text size="xs" weight="medium" color="secondary">
-                {veld.label}
+                <p>
+                  {veld.label}
+                </p>
               </nldd-text>
               {veld.tag ? (
                 <nldd-container layout="wrap" gap="4">
@@ -240,13 +242,15 @@ const kerngegevens = [
                   size="sm"
                   color={veld.value ? 'content' : 'secondary'}
                 >
-                  {veld.value || veld.leeg || NIET_BEPAALD}
+                  <p>
+                    {veld.value || veld.leeg || NIET_BEPAALD}
+                  </p>
                 </nldd-text>
               )}
               {/* Een stille tweede regel onder de tag. Alleen de belegging
                   gebruikt hem, voor de ouderdom van de claim. */}
               {veld.onder && (
-                <nldd-text size="xs" color="secondary">{veld.onder}</nldd-text>
+                <nldd-text size="xs" color="secondary"><p>{veld.onder}</p></nldd-text>
               )}
             </nldd-container>
           ))
@@ -304,7 +308,7 @@ const kerngegevens = [
             </nldd-rich-text>
           ) : (
             <nldd-text size="sm" color="secondary">
-              Nog geen onderzoeksvragen geregistreerd.
+              <p>Nog geen onderzoeksvragen geregistreerd.</p>
             </nldd-text>
           )
         }
@@ -319,7 +323,7 @@ const kerngegevens = [
             </nldd-rich-text>
           ) : (
             <nldd-text size="sm" color="secondary">
-              Geen toelichting toegevoegd.
+              <p>Geen toelichting toegevoegd.</p>
             </nldd-text>
           )
         }
@@ -360,7 +364,7 @@ const kerngegevens = [
             {wachtOp.length > 0 && (
               <nldd-container gap="8">
                 <nldd-text size="sm" weight="medium" color="secondary">
-                  Kan pas beginnen als dit opgeleverd is
+                  <p>Kan pas beginnen als dit opgeleverd is</p>
                 </nldd-text>
                 <nldd-list type="navigation" appearance="box-tinted">
                   {wachtOp.map((related) => (
@@ -385,7 +389,7 @@ const kerngegevens = [
             {blokkeert.length > 0 && (
               <nldd-container gap="8">
                 <nldd-text size="sm" weight="medium" color="secondary">
-                  Wacht op dit werkpakket
+                  <p>Wacht op dit werkpakket</p>
                 </nldd-text>
                 <nldd-list type="navigation" appearance="box-tinted">
                   {blokkeert.map((related) => (
@@ -443,7 +447,7 @@ const kerngegevens = [
             </nldd-list>
           ) : (
             <nldd-text size="sm" color="secondary">
-              Geen samenhang met andere werkpakketten geregistreerd.
+              <p>Geen samenhang met andere werkpakketten geregistreerd.</p>
             </nldd-text>
           )
         }
@@ -468,7 +472,7 @@ const kerngegevens = [
     margin-top: var(--primitives-space-4, 0.25rem);
     font: var(--primitives-font-body-xs-regular-snug, inherit);
     color: var(--semantics-content-secondary-color);
-    text-decoration-color: var(--semantics-surfaces-tinted-border-color);
+    text-decoration-color: var(--semantics-surfaces-tinted-highlight-border-color);
   }
 
   .rr-papersectie:hover,

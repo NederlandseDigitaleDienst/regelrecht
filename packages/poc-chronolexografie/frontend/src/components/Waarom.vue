@@ -24,7 +24,7 @@ const herkomst = (a) =>
 
 <template>
   <nldd-container gap="12">
-    <nldd-text size="sm" color="secondary">Waarom: wie elk open begrip invulde.</nldd-text>
+    <nldd-text size="sm" color="secondary"><p>Waarom: wie elk open begrip invulde.</p></nldd-text>
     <nldd-list appearance="box-base" accessible-label="Open begrippen">
       <nldd-list-item v-for="f in waarom.ingevuld" :key="`${f.law_id}#${f.article}#${f.term}`" size="sm">
         <nldd-text-cell

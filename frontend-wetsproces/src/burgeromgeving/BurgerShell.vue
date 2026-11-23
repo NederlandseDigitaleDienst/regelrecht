@@ -45,7 +45,7 @@ async function afmelden() {
     <RouterView />
     <template v-if="fout || (toegang.binnen && vervoer?.onderschrift())" #voet>
       <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Afmelden lukt niet" :supporting-text="fout"></nldd-inline-dialog>
-      <nldd-text v-else color="secondary">{{ vervoer?.onderschrift() }}</nldd-text>
+      <nldd-text v-else color="secondary"><p>{{ vervoer?.onderschrift() }}</p></nldd-text>
     </template>
   </Schil>
 </template>

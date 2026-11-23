@@ -78,6 +78,6 @@ function positie(i: number): 'first' | 'between' | 'last' | 'only' {
         <nldd-text-cell overline="Volgende stap" :text="s.tekst" :supporting-text="s.regel"></nldd-text-cell>
       </nldd-list-item>
     </nldd-list>
-    <nldd-text v-if="tijdlijn && !volgende.length" size="sm" color="secondary">Er staat nu niets open bij deze aanvraag.</nldd-text>
+    <nldd-text v-if="tijdlijn && !volgende.length" size="sm" color="secondary"><p>Er staat nu niets open bij deze aanvraag.</p></nldd-text>
   </nldd-container>
 </template>

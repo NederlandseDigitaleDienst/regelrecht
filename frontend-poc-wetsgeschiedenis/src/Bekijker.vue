@@ -9,7 +9,7 @@
 <nldd-page class="app" sticky-header>
   <div slot="header" class="paginakop">
     <div class="toolbar">
-      <nldd-toolbar size="md" label="Wetsgeschiedenis">
+      <nldd-toolbar size="md" accessible-label="Wetsgeschiedenis">
         <nldd-toolbar-title slot="start" id="titel" text="Concept Wetsgeschiedenis"
           supporting-text=""></nldd-toolbar-title>
       <nldd-toolbar-item slot="start" label="Voorbehoud">

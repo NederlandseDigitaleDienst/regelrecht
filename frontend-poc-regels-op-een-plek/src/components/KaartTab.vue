@@ -591,11 +591,11 @@ onBeforeUnmount(() => { kaart?.remove(); });
       <GraafTab v-if="weergave === 'graaf'" :stapel="stapel" :rd="rd" class="graaflaag" />
 
       <div v-show="weergave === 'kaart'" class="legenda" aria-label="Kaartlagen en legenda">
-        <nldd-text size="sm"><strong>Kaartlagen</strong></nldd-text>
+        <nldd-text size="sm"><p><strong>Kaartlagen</strong></p></nldd-text>
         <nldd-segmented-control :value="thema" size="sm" accessible-label="Thema op de kaart" class="thema" @change="thema = $event.target.value">
           <nldd-segmented-control-item v-for="t in THEMA" :key="t.id" :value="t.id" :text="t.kort" :selected="thema === t.id || undefined"></nldd-segmented-control-item>
         </nldd-segmented-control>
-        <nldd-text size="xs"><strong>{{ themaNu.tekst }}</strong></nldd-text>
+        <nldd-text size="xs"><p><strong>{{ themaNu.tekst }}</strong></p></nldd-text>
         <!-- DSO-spoor: welke uitkomst de vakken van 40 m kleuren, met de aantallen. -->
         <template v-if="thema === 'dso'">
           <nldd-segmented-control :value="dsoLaag" size="sm" accessible-label="Wat de kaart kleurt" @change="dsoLaag = $event.target.value">
@@ -605,21 +605,21 @@ onBeforeUnmount(() => { kaart?.remove(); });
             <nldd-segmented-control-item value="geldend" text="Geldend recht" :selected="uitkomstWeergave === 'geldend' || undefined"></nldd-segmented-control-item>
             <nldd-segmented-control-item value="beoogd" text="Ontwerp-TAM" :selected="uitkomstWeergave === 'beoogd' || undefined"></nldd-segmented-control-item>
           </nldd-segmented-control>
-          <nldd-text v-if="dsoFout" size="xs" color="critical">Gegevens van het DSO-spoor niet geladen: {{ dsoFout }}</nldd-text>
+          <nldd-text v-if="dsoFout" size="xs" color="critical"><p>Gegevens van het DSO-spoor niet geladen: {{ dsoFout }}</p></nldd-text>
           <template v-else>
-            <nldd-text size="xs"><strong>{{ dsoLaagNu.tekst }}</strong></nldd-text>
+            <nldd-text size="xs"><p><strong>{{ dsoLaagNu.tekst }}</strong></p></nldd-text>
             <template v-if="dsoLaag === 'sim'">
-              <nldd-text size="xs" color="secondary">{{ simTekst }}. <a href="#" @click.prevent="dsoDeel = 'simuleren'; openPaneel('dso')">Wijzigen</a></nldd-text>
+              <nldd-text size="xs" color="secondary"><p>{{ simTekst }}. <a href="#" @click.prevent="dsoDeel = 'simuleren'; openPaneel('dso')">Wijzigen</a></p></nldd-text>
               <nldd-progress-bar v-if="simVoortgang !== null" :value="Math.round(simVoortgang * 100)" max="100" size="sm" text="Simulatie rekenen"></nldd-progress-bar>
-              <nldd-text v-if="simFout" size="xs" color="critical">{{ simFout }}</nldd-text>
+              <nldd-text v-if="simFout" size="xs" color="critical"><p>{{ simFout }}</p></nldd-text>
             </template>
             <div class="legenda-groep">
-              <nldd-text size="xs" color="secondary">{{ dsoLaagNu.uitleg }} Vakken van 40 m; vooraf gerekend voor 5 lagen van 3,2 m, open gegevens gunstig.</nldd-text>
+              <nldd-text size="xs" color="secondary"><p>{{ dsoLaagNu.uitleg }} Vakken van 40 m; vooraf gerekend voor 5 lagen van 3,2 m, open gegevens gunstig.</p></nldd-text>
               <span v-for="l in dsoLegenda" :key="l.klasse" class="legenda-item">
                 <i class="lg-vlak" :style="{ borderColor: l.kleur, background: `color-mix(in srgb, ${l.kleur} 72%, transparent)` }"></i>
-                <nldd-text size="xs">{{ l.tekst }} ({{ dsoTelling[l.klasse] ?? 0 }})</nldd-text>
+                <nldd-text size="xs"><p>{{ l.tekst }} ({{ dsoTelling[l.klasse] ?? 0 }})</p></nldd-text>
               </span>
-              <span class="legenda-item"><i class="lg-nummer sc">{{ dsoReeks === 'besluiten' ? 'B1' : 'W1' }}</i><nldd-text size="xs">Scenario ({{ dsoReeks === 'besluiten' ? 'besluiten' : 'woontoren' }}), <a href="#" @click.prevent="dsoDeel = 'scenarios'; openPaneel('dso')">lijst</a></nldd-text></span>
+              <span class="legenda-item"><i class="lg-nummer sc">{{ dsoReeks === 'besluiten' ? 'B1' : 'W1' }}</i><nldd-text size="xs"><p>Scenario ({{ dsoReeks === 'besluiten' ? 'besluiten' : 'woontoren' }}), <a href="#" @click.prevent="dsoDeel = 'scenarios'; openPaneel('dso')">lijst</a></p></nldd-text></span>
             </div>
           </template>
         </template>
@@ -629,51 +629,53 @@ onBeforeUnmount(() => { kaart?.remove(); });
             <nldd-segmented-control-item value="beoogd" text="Ontwerp-TAM" :selected="uitkomstWeergave === 'beoogd' || undefined"></nldd-segmented-control-item>
           </nldd-segmented-control>
           <nldd-text size="xs" color="secondary">
-            {{ bouwplanTekst }}, {{ ingevuld ? `${ingevuld} aannames` : 'geen aannames' }}.
-            <a href="#" @click.prevent="naarInvoer">Wijzigen</a>
+            <p>
+              {{ bouwplanTekst }}, {{ ingevuld ? `${ingevuld} aannames` : 'geen aannames' }}.
+              <a href="#" @click.prevent="naarInvoer">Wijzigen</a>
+            </p>
           </nldd-text>
           <nldd-progress-bar v-if="uitkomstVoortgang !== null" :value="Math.round(uitkomstVoortgang * 100)" max="100" size="sm" text="Uitkomst rekenen"></nldd-progress-bar>
-          <nldd-text v-if="uitkomstFout" size="xs" color="critical">{{ uitkomstFout }}</nldd-text>
+          <nldd-text v-if="uitkomstFout" size="xs" color="critical"><p>{{ uitkomstFout }}</p></nldd-text>
         </template>
         <div v-if="themaNu.items.length" class="legenda-groep">
-          <nldd-text size="xs" color="secondary">{{ themaNu.uitleg }}</nldd-text>
+          <nldd-text size="xs" color="secondary"><p>{{ themaNu.uitleg }}</p></nldd-text>
           <span v-for="l in themaNu.items" :key="l.tekst" class="legenda-item">
             <i class="lg-vlak" :style="{ borderColor: l.kleur, background: `color-mix(in srgb, ${l.kleur} 72%, transparent)` }"></i>
-            <nldd-text size="xs">{{ l.tekst }}<template v-if="thema === 'uitkomst' && uitkomstTelling && uitkomstVoortgang === null"> ({{ uitkomstTelling[l.klasse] }})</template></nldd-text>
+            <nldd-text size="xs"><p>{{ l.tekst }}<template v-if="thema === 'uitkomst' && uitkomstTelling && uitkomstVoortgang === null"> ({{ uitkomstTelling[l.klasse] }})</template></p></nldd-text>
           </span>
-          <a v-if="thema === 'uitkomst'" href="#" @click.prevent="naarUitleg('onthouding')"><nldd-text size="xs">Wat is een onthouding?</nldd-text></a>
+          <a v-if="thema === 'uitkomst'" href="#" @click.prevent="naarUitleg('onthouding')"><nldd-text size="xs"><p>Wat is een onthouding?</p></nldd-text></a>
         </div>
         <div v-if="thema === 'plan'" class="legenda-groep">
-          <nldd-text size="xs" color="secondary">{{ themaNu.uitleg }}</nldd-text>
+          <nldd-text size="xs" color="secondary"><p>{{ themaNu.uitleg }}</p></nldd-text>
           <details class="overig">
-            <summary><nldd-text size="xs"><strong>Alle {{ planLijst.length }} plannen</strong> (klik op een naam om erheen te gaan)</nldd-text></summary>
+            <summary><nldd-text size="xs"><p><strong>Alle {{ planLijst.length }} plannen</strong> (klik op een naam om erheen te gaan)</p></nldd-text></summary>
             <a v-for="pn in planLijst" :key="pn.id" href="#" class="plan-rij" @click.prevent="zoomNaarPlan(pn)">
               <i class="lg-plan" :style="{ background: pn.kleur, color: pn.licht ? '#1b1b1b' : '#fff' }">{{ pn.nr }}</i>
-              <nldd-text size="xs">{{ pn.naam }}<template v-if="pn.noot"> ({{ pn.noot }})</template></nldd-text>
+              <nldd-text size="xs"><p>{{ pn.naam }}<template v-if="pn.noot"> ({{ pn.noot }})</template></p></nldd-text>
             </a>
           </details>
         </div>
         <details v-if="thema === 'uitkomst' && ontbreektLijst.length && uitkomstVoortgang === null" class="overig ontbreekt" open>
-          <summary><nldd-text size="xs"><strong>Wat ontbreekt nog</strong> (aantal vakken)</nldd-text></summary>
+          <summary><nldd-text size="xs"><p><strong>Wat ontbreekt nog</strong> (aantal vakken)</p></nldd-text></summary>
           <ul class="ontbreekt-lijst">
             <li v-for="o in ontbreektLijst" :key="o.id">
-              <a v-if="o.invulbaar" href="#" @click.prevent="naarInvoer"><nldd-text size="xs">{{ o.tekst }}</nldd-text></a>
-              <nldd-text v-else size="xs" color="secondary">{{ o.tekst }}</nldd-text>
-              <nldd-text size="xs" color="secondary" class="aantal">{{ o.aantal }}</nldd-text>
+              <a v-if="o.invulbaar" href="#" @click.prevent="naarInvoer"><nldd-text size="xs"><p>{{ o.tekst }}</p></nldd-text></a>
+              <nldd-text v-else size="xs" color="secondary"><p>{{ o.tekst }}</p></nldd-text>
+              <nldd-text size="xs" color="secondary" class="aantal"><p>{{ o.aantal }}</p></nldd-text>
             </li>
           </ul>
         </details>
         <nldd-checkbox-field label="Bouwvlakken (waar een hoofdgebouw mag)" :checked="toonBouwvlak || undefined" @change="toonBouwvlak = $event.target.checked"></nldd-checkbox-field>
         <details class="overig">
-        <summary><nldd-text size="xs"><strong>Overige tekens</strong></nldd-text></summary>
+        <summary><nldd-text size="xs"><p><strong>Overige tekens</strong></p></nldd-text></summary>
         <div v-for="g in LEGENDA" :key="g.kop" class="legenda-groep">
-          <nldd-text size="xs" color="secondary">{{ g.kop }}</nldd-text>
+          <nldd-text size="xs" color="secondary"><p>{{ g.kop }}</p></nldd-text>
           <span v-for="l in g.items" :key="l.tekst" class="legenda-item">
             <i v-if="l.vorm === 'lijn'" class="lg-lijn" :style="{ borderTopColor: l.kleur, borderTopStyle: l.stippel ? 'dashed' : 'solid' }"></i>
             <i v-else-if="l.vorm === 'vlak'" class="lg-vlak" :style="{ borderColor: l.kleur, borderStyle: l.stippel ? 'dashed' : 'solid', background: `color-mix(in srgb, ${l.kleur} 14%, transparent)` }"></i>
             <i v-else-if="l.vorm === 'punt'" class="lg-punt"></i>
             <i v-else class="lg-nummer">P1</i>
-            <nldd-text size="xs">{{ l.tekst }}</nldd-text>
+            <nldd-text size="xs"><p>{{ l.tekst }}</p></nldd-text>
           </span>
         </div>
         </details>
@@ -689,7 +691,7 @@ onBeforeUnmount(() => { kaart?.remove(); });
             @click="openPaneel(t.id)"
           ></nldd-icon-button>
           </div>
-          <nldd-text v-if="rd" size="xs" color="secondary" class="klein-punt">{{ tabNu?.tekst }} · RD {{ Math.round(rd[0]) }}, {{ Math.round(rd[1]) }}</nldd-text>
+          <nldd-text v-if="rd" size="xs" color="secondary" class="klein-punt"><p>{{ tabNu?.tekst }} · RD {{ Math.round(rd[0]) }}, {{ Math.round(rd[1]) }}</p></nldd-text>
         </div>
         <div v-show="!paneelKlein" class="paneel-kop">
           <nldd-tab-bar accessible-label="Paneel">
@@ -716,11 +718,13 @@ onBeforeUnmount(() => { kaart?.remove(); });
             <nldd-container v-else layout="stack" gap="12">
               <nldd-title size="display-3" :heading-level="2" text="Klik op een plek in de Spoorzone"></nldd-title>
               <nldd-text>
-                Je ziet dan welke plannen daar liggen, welk plan ter plaatse de regels geeft, wat erbovenop komt en wat opzij gaat,
-                met de reden. Een vastgesteld TAM-plan schakelt alles eronder uit. Anders geldt het nieuwste basisplan, met de
-                paraplu alleen volgens zijn tabellen.
+                <p>
+                  Je ziet dan welke plannen daar liggen, welk plan ter plaatse de regels geeft, wat erbovenop komt en wat opzij gaat,
+                  met de reden. Een vastgesteld TAM-plan schakelt alles eronder uit. Anders geldt het nieuwste basisplan, met de
+                  paraplu alleen volgens zijn tabellen.
+                </p>
               </nldd-text>
-              <nldd-text size="sm" color="secondary">Of kies een plek onder Testpunten. Verkenning, geen besluit.</nldd-text>
+              <nldd-text size="sm" color="secondary"><p>Of kies een plek onder Testpunten. Verkenning, geen besluit.</p></nldd-text>
             </nldd-container>
           </div>
 
@@ -751,8 +755,10 @@ onBeforeUnmount(() => { kaart?.remove(); });
               </nldd-list-item>
             </nldd-list>
             <nldd-text size="sm" color="secondary">
-              P1 tot en met P4 zijn de testpunten voor de toets en staan genummerd op de kaart.
-              Stationsplein en Industrielaan liggen op bestemming Verkeer.
+              <p>
+                P1 tot en met P4 zijn de testpunten voor de toets en staan genummerd op de kaart.
+                Stationsplein en Industrielaan liggen op bestemming Verkeer.
+              </p>
             </nldd-text>
           </nldd-container>
         </div>

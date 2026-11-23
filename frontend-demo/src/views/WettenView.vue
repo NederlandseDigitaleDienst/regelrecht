@@ -176,7 +176,7 @@ const referencedBy = computed(() => {
 
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('wet.sidebar.label')" :inspector-accessible-label="t('wet.inspector.label')">
-    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
+    <nldd-split-view-pane slot="primary-sidebar" has-content background="tinted">
       <nldd-page sticky-header background="inherit" :accessible-label="t('wet.sidebar.label')">
         <nldd-container slot="header" padding="12" gap="8">
           <nldd-top-title-bar :text="t('wet.sidebar.label')" :supporting-text="t.plural(sidebarLaws.length, 'wet.sidebar.count')"></nldd-top-title-bar>
@@ -188,8 +188,7 @@ const referencedBy = computed(() => {
       </nldd-page>
     </nldd-split-view-pane>
 
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
+    <nldd-page slot="main" landmarks="page" sticky-header>
         <nldd-container slot="header" padding="8">
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start">
@@ -265,7 +264,6 @@ const referencedBy = computed(() => {
           </nldd-box>
         </nldd-simple-section>
       </nldd-page>
-    </nldd-split-view-pane>
 
     <nldd-split-view-pane v-if="activeLaw" slot="inspector" has-content background="tinted">
       <nldd-page background="inherit" :accessible-label="t('wet.inspector.label')">

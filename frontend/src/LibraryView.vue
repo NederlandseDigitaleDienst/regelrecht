@@ -2403,8 +2403,7 @@ watch(activeTrajectRef, () => {
 
         <nldd-navigation-split-view v-else @back="onPaneBack">
 
-          <nldd-split-view-pane slot="sidebar" has-content>
-            <nldd-page sticky-header :accessible-label="sidebarTitle">
+          <nldd-page slot="primary-sidebar" sticky-header :accessible-label="sidebarTitle">
               <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" heading-level="3" collapse-anchor="home-titel"></nldd-top-title-bar>
 
               <nldd-simple-section width="full">
@@ -2547,93 +2546,85 @@ watch(activeTrajectRef, () => {
                 </template>
               </nldd-simple-section>
             </nldd-page>
-          </nldd-split-view-pane>
 
           <!-- Secondary Sidebar (instellingen mode): the settings tabs. -->
-          <nldd-split-view-pane v-if="isInstellingenMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header accessible-label="Instellingen">
-              <nldd-top-title-bar slot="header" text="Instellingen" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
-              <nldd-simple-section width="full">
-                <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <nldd-list appearance="simple">
-                  <!-- Zelfde iconen als in TrajectMenu/MobileTrajectSheet: deze
-                       twee openen dezelfde bestemmingen, dus ze horen er niet
-                       anders uit te zien afhankelijk van waar je ze aanklikt. -->
-                  <nldd-list-item size="md" button :current="instellingenTab === 'details' || undefined" @click="goToInstellingen('details')">
-                    <nldd-icon-cell size="20"><nldd-icon icon="traject"></nldd-icon></nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="Algemeen"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </nldd-list-item>
-                  <nldd-list-item size="md" button :current="instellingenTab === 'leden' || undefined" @click="goToInstellingen('leden')">
-                    <nldd-icon-cell size="20"><nldd-icon icon="person-2"></nldd-icon></nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="Leden"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </nldd-list-item>
-                </nldd-list>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-if="isInstellingenMode" slot="secondary-sidebar" sticky-header accessible-label="Instellingen">
+            <nldd-top-title-bar slot="header" text="Instellingen" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
+            <nldd-simple-section width="full">
+              <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-list appearance="simple">
+                <!-- Zelfde iconen als in TrajectMenu/MobileTrajectSheet: deze
+                     twee openen dezelfde bestemmingen, dus ze horen er niet
+                     anders uit te zien afhankelijk van waar je ze aanklikt. -->
+                <nldd-list-item size="md" button :current="instellingenTab === 'details' || undefined" @click="goToInstellingen('details')">
+                  <nldd-icon-cell size="20"><nldd-icon icon="traject"></nldd-icon></nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="Algemeen"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                </nldd-list-item>
+                <nldd-list-item size="md" button :current="instellingenTab === 'leden' || undefined" @click="goToInstellingen('leden')">
+                  <nldd-icon-cell size="20"><nldd-icon icon="person-2"></nldd-icon></nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="Leden"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar (taken mode): the categories, mirroring the
                Instellingen panel - the list itself lives in main. -->
-          <nldd-split-view-pane v-else-if="isTakenMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header accessible-label="Taken">
-              <nldd-top-title-bar slot="header" text="Taken" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
-              <nldd-simple-section width="full">
-                <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <TasksCategoriesPane
-                  :traject-ref="activeTrajectRef"
-                  :categorie="takenCategorie"
-                  :law-id="takenLawId"
-                  @select="goToTakenCategorie"
-                ></TasksCategoriesPane>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-else-if="isTakenMode" slot="secondary-sidebar" sticky-header accessible-label="Taken">
+            <nldd-top-title-bar slot="header" text="Taken" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
+            <nldd-simple-section width="full">
+              <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <TasksCategoriesPane
+                :traject-ref="activeTrajectRef"
+                :categorie="takenCategorie"
+                :law-id="takenLawId"
+                @select="goToTakenCategorie"
+              ></TasksCategoriesPane>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar (werkdoc mode): the document list. -->
-          <nldd-split-view-pane v-else-if="isWerkdocMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header accessible-label="Werkdocumenten">
-              <nldd-top-title-bar slot="header" text="Werkdocumenten" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
-              <nldd-simple-section width="full">
-                <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <!-- In a row: an icon button directly in the section stretches
-                     its host over the full width. -->
-                <nldd-container layout="row">
-                  <nldd-icon-button
-                    icon="plus-small"
-                    text="Document toevoegen"
-                    expandable
-                    tooltip-timing="never"
-                  >
-                    <nldd-menu slot="popup">
-                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
-                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-icon-button>
-                </nldd-container>
-                <nldd-spacer size="16"></nldd-spacer>
-                <nldd-activity-indicator v-if="docsLoading && !docList.length && !conversionJobs.length" text="Documenten laden" show-text></nldd-activity-indicator>
-                <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="(docsError as Error).message"></nldd-inline-dialog>
-                <DocumentList v-else-if="docList.length || conversionJobs.length" :documents="docList" :jobs="conversionJobs" :selected-path="docSelectedPath" @select="onDocSelect"></DocumentList>
-                <nldd-inline-dialog v-else text="Geen werkdocumenten"></nldd-inline-dialog>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-else-if="isWerkdocMode" slot="secondary-sidebar" sticky-header accessible-label="Werkdocumenten">
+            <nldd-top-title-bar slot="header" text="Werkdocumenten" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
+            <nldd-simple-section width="full">
+              <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <!-- In a row: an icon button directly in the section stretches
+                   its host over the full width. -->
+              <nldd-container layout="row">
+                <nldd-icon-button
+                  icon="plus-small"
+                  text="Document toevoegen"
+                  expandable
+                  tooltip-timing="never"
+                >
+                  <nldd-menu slot="popup">
+                    <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
+                    <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
+                  </nldd-menu>
+                </nldd-icon-button>
+              </nldd-container>
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-activity-indicator v-if="docsLoading && !docList.length && !conversionJobs.length" text="Documenten laden" show-text></nldd-activity-indicator>
+              <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="(docsError as Error).message"></nldd-inline-dialog>
+              <DocumentList v-else-if="docList.length || conversionJobs.length" :documents="docList" :jobs="conversionJobs" :selected-path="docSelectedPath" @select="onDocSelect"></DocumentList>
+              <nldd-inline-dialog v-else text="Geen werkdocumenten"></nldd-inline-dialog>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar: Artikelen Lijst - only when a law is
                selected. When deselected the pane is removed from the DOM
                so the navigation-split-view reflows to spatial mode and
                shows the sidebar (Wetten Browser) alongside main. -->
-          <nldd-split-view-pane v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" has-content>
-            <nldd-page ref="lawPage" sticky-header :accessible-label="lawTitle || 'Regelwerk'">
+          <nldd-page v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" ref="lawPage" sticky-header :accessible-label="lawTitle || 'Regelwerk'">
               <nldd-top-title-bar
                 slot="header"
                 heading-level="3"
@@ -2850,38 +2841,34 @@ watch(activeTrajectRef, () => {
                 </template>
               </nldd-simple-section>
             </nldd-page>
-          </nldd-split-view-pane>
 
           <!-- Main (instellingen mode): the selected settings pane. -->
-          <nldd-split-view-pane v-if="isInstellingenMode" slot="main" :has-content="instellingenTab || undefined">
-            <nldd-page landmarks="page" sticky-header>
-              <nldd-top-title-bar
-                slot="header"
-                :text="instellingenTab === 'leden' ? 'Leden' : (instellingenTab === 'details' ? 'Algemeen' : undefined)"
-                back-text="Instellingen"
-                :collapse-anchor="instellingenTab ? 'instellingen-pane-titel' : undefined"
-              ></nldd-top-title-bar>
-              <TrajectDetailsPane
-                v-if="instellingenTab === 'details'"
-                :traject-id="activeTraject?.id"
-                @deleted="onTrajectGone"
-                @left="onTrajectGone"
-              ></TrajectDetailsPane>
-              <TrajectMembersPane
-                v-else-if="instellingenTab === 'leden'"
-                :traject-id="activeTraject?.id"
-              ></TrajectMembersPane>
-              <nldd-simple-section v-else width="full">
-                <nldd-inline-dialog text="Kies een instelling"></nldd-inline-dialog>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-if="isInstellingenMode" slot="main" landmarks="page" sticky-header>
+            <nldd-top-title-bar
+              slot="header"
+              :text="instellingenTab === 'leden' ? 'Leden' : (instellingenTab === 'details' ? 'Algemeen' : undefined)"
+              back-text="Instellingen"
+              :collapse-anchor="instellingenTab ? 'instellingen-pane-titel' : undefined"
+            ></nldd-top-title-bar>
+            <TrajectDetailsPane
+              v-if="instellingenTab === 'details'"
+              :traject-id="activeTraject?.id"
+              @deleted="onTrajectGone"
+              @left="onTrajectGone"
+            ></TrajectDetailsPane>
+            <TrajectMembersPane
+              v-else-if="instellingenTab === 'leden'"
+              :traject-id="activeTraject?.id"
+            ></TrajectMembersPane>
+            <nldd-simple-section v-else width="full">
+              <nldd-inline-dialog text="Kies een instelling"></nldd-inline-dialog>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Main (taken-modus): de takenlijst van de gekozen categorie. Een
                taak zelf opent nog steeds niet hier - "Beoordelen" navigeert naar
                de editor of het werkdocument. -->
-          <nldd-split-view-pane v-else-if="isTakenMode" slot="main" :has-content="takenCategorie || undefined">
-            <nldd-page landmarks="page" sticky-header>
+          <nldd-page v-else-if="isTakenMode" slot="main" landmarks="page" sticky-header>
               <nldd-top-title-bar
                 slot="header"
                 :text="takenTitle"
@@ -2904,7 +2891,6 @@ watch(activeTrajectRef, () => {
                 <nldd-inline-dialog text="Kies een categorie"></nldd-inline-dialog>
               </nldd-simple-section>
             </nldd-page>
-          </nldd-split-view-pane>
 
           <!-- Main (werkdoc mode): the document editor, or a placeholder. -->
           <nldd-split-view-pane v-else-if="isWerkdocMode" slot="main" :has-content="hasOpenDoc || !!viewingJobPath || undefined">
@@ -2985,8 +2971,7 @@ watch(activeTrajectRef, () => {
           </nldd-split-view-pane>
 
           <!-- Main: Artikel Detail -->
-          <nldd-split-view-pane v-else slot="main" :has-content="selectedArticle || isLawPage || lawError || articleNotFound ? true : undefined">
-            <nldd-page landmarks="page" sticky-header>
+          <nldd-page v-else slot="main" landmarks="page" sticky-header>
               <nldd-top-title-bar
                 slot="header"
                 :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : isVerwerkingen ? 'Verwerkingen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
@@ -3201,7 +3186,6 @@ watch(activeTrajectRef, () => {
                 </nldd-simple-section>
               </template>
             </nldd-page>
-          </nldd-split-view-pane>
 
         </nldd-navigation-split-view>
   <!-- Overlays teleported to body: as light-DOM siblings of the split view they

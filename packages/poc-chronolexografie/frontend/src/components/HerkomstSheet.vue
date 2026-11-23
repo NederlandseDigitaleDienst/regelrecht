@@ -56,7 +56,7 @@ const kop = computed(() => {
           ></nldd-top-title-bar>
         </nldd-container>
         <nldd-simple-section v-if="h?.artikel">
-          <nldd-text v-if="!tekst" size="sm" color="secondary">De tekst wordt geladen.</nldd-text>
+          <nldd-text v-if="!tekst" size="sm" color="secondary"><p>De tekst wordt geladen.</p></nldd-text>
           <nldd-inline-dialog
             v-else-if="tekst.fout || !tekst.leden.length"
             icon="info"
@@ -82,8 +82,10 @@ const kop = computed(() => {
             <nldd-container v-for="(a, i) in h.antwoorden" :key="`${i}-${a.answerer}-${a.answer}`" gap="12">
               <nldd-title heading-level="3" size="display-5" text="Reductie">
                 <nldd-text slot="supporting-text" size="sm" color="secondary">
-                  {{ celNaam(a.answerer) }} ·
-                  <ArtikelLink :basis="`${a.law_id}#${a.article}`" :datum="a.valid_from" />
+                  <p>
+                    {{ celNaam(a.answerer) }} ·
+                    <ArtikelLink :basis="`${a.law_id}#${a.article}`" :datum="a.valid_from" />
+                  </p>
                 </nldd-text>
               </nldd-title>
               <nldd-title heading-level="3"
@@ -92,7 +94,7 @@ const kop = computed(() => {
                 :supporting-text="gelezen(a, grammenVan(a.answerer, state.grammen))"
               ></nldd-title>
               <nldd-text v-if="a.last_record && !gelezenGrammen(a).length" size="sm" color="secondary">
-                Dat chronolexogram staat niet in een kroniek die de app heeft.
+                <p>Dat chronolexogram staat niet in een kroniek die de app heeft.</p>
               </nldd-text>
               <GramCode v-for="g in gelezenGrammen(a)" :key="g.id" :gram="g" :heading-level="4" />
             </nldd-container>

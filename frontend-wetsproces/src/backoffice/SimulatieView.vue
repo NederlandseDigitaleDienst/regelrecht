@@ -70,15 +70,15 @@ async function zet() {
     <nldd-top-title-bar slot="header" text="Simulatie" collapse-anchor="simulatie-titel"></nldd-top-title-bar>
     <nldd-simple-section>
       <nldd-title id="simulatie-titel" size="display-3"><h3>Simulatie</h3></nldd-title>
-      <nldd-text color="secondary">De testomgeving bijsturen: de datum waarop alles gebeurt, en een lege start.</nldd-text>
+      <nldd-text color="secondary"><p>De testomgeving bijsturen: de datum waarop alles gebeurt, en een lege start.</p></nldd-text>
       <nldd-spacer size="24"></nldd-spacer>
       <nldd-inline-dialog v-if="!klok && melding" icon="warning" icon-color="critical" text="De klok laadt niet" :supporting-text="melding"></nldd-inline-dialog>
       <nldd-container v-if="klok" gap="16">
         <nldd-inline-dialog v-if="!klok.bestuurbaar" icon="info" text="De klok volgt de echte datum" supporting-text="Alleen in de testmodus is de klok te zetten."></nldd-inline-dialog>
         <template v-else>
           <nldd-title size="display-5"><h4>Klok</h4></nldd-title>
-          <nldd-text color="secondary">Elke stap in deze testomgeving krijgt deze dag als datum.</nldd-text>
-          <nldd-text>Het is nu {{ longDate(klok.datum) }}.</nldd-text>
+          <nldd-text color="secondary"><p>Elke stap in deze testomgeving krijgt deze dag als datum.</p></nldd-text>
+          <nldd-text><p>Het is nu {{ longDate(klok.datum) }}.</p></nldd-text>
           <nldd-form-field label="Nieuwe datum">
             <nldd-date-field :value="datum" @change="lees"></nldd-date-field>
           </nldd-form-field>
@@ -91,8 +91,10 @@ async function zet() {
           <nldd-spacer size="24"></nldd-spacer>
           <nldd-title size="display-5"><h4>Testomgeving leegmaken</h4></nldd-title>
           <nldd-text color="secondary">
-            Begin opnieuw met een lege testomgeving: alle kronieken zijn daarna leeg en de klok staat weer op de
-            begindatum van de casus. Wie is ingelogd, blijft ingelogd.
+            <p>
+              Begin opnieuw met een lege testomgeving: alle kronieken zijn daarna leeg en de klok staat weer op de
+              begindatum van de casus. Wie is ingelogd, blijft ingelogd.
+            </p>
           </nldd-text>
           <nldd-banner v-if="leeg" variant="success" :text="`De testomgeving is leeg; de klok staat op ${longDate(klok.datum)}`"></nldd-banner>
           <nldd-button-group orientation="horizontal">

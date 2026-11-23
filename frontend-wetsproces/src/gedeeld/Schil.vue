@@ -62,107 +62,97 @@ const wijzen = computed(
 <template>
   <nldd-shell>
     <nldd-bar-split-view>
-      <nldd-split-view-pane slot="proefstrook">
-        <ProefStrook :klok="klok" />
-      </nldd-split-view-pane>
+      <div slot="proefstrook"><ProefStrook :klok="klok" /></div>
 
-      <nldd-split-view-pane slot="primary-bar" above="md">
-        <nldd-container padding="8">
-          <nldd-toolbar size="md">
-            <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
-            <nldd-toolbar-item v-if="zichtbaar.length" slot="start" :priority="1">
-              <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
-                <nldd-tab-bar-item
-                  v-for="t in zichtbaar"
-                  :key="t.naam"
-                  :text="t.tekst"
-                  :icon="t.icoon"
-                  :href="t.pad"
-                  :current="huidig(t) || undefined"
-                  @click.prevent="open(t)"
-                ></nldd-tab-bar-item>
-              </nldd-tab-bar>
-              <nldd-menu-group slot="overflow" text="Onderdelen">
-                <nldd-menu-item
-                  v-for="t in zichtbaar"
-                  :key="t.naam"
-                  type="radio"
-                  :icon="t.icoon"
-                  :text="t.tekst"
-                  :selected="huidig(t) || undefined"
-                  @select="open(t)"
-                ></nldd-menu-item>
-              </nldd-menu-group>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
-              <nldd-just-in-time-education
-                :active="wijzen || undefined"
-                :text="actie.uitleg?.tekst"
-                :supporting-text="actie.uitleg?.toelichting"
-                placement="bottom"
-              >
-                <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.pad)"></nldd-button>
-              </nldd-just-in-time-education>
-              <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.pad)"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-icon-button size="md" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
-                <nldd-avatar v-if="naam" slot="icon" :name="naam" color="inherit" icon-aligned decorative></nldd-avatar>
-                <nldd-menu slot="popup">
-                  <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
-                </nldd-menu>
-              </nldd-icon-button>
-              <nldd-menu-item slot="overflow" icon="account" text="Account">
-                <nldd-menu>
-                  <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" @afmelden="emit('afmelden')" />
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
-
-      <nldd-split-view-pane slot="main">
-        <slot />
-      </nldd-split-view-pane>
-
-      <nldd-split-view-pane v-if="$slots.voet" slot="voet">
-        <nldd-container padding="8">
-          <slot name="voet" />
-        </nldd-container>
-      </nldd-split-view-pane>
-
-      <nldd-split-view-pane slot="mobile-bar" only="sm">
-        <nldd-container padding="8">
-          <nldd-toolbar size="lg">
-            <nldd-toolbar-item v-if="zichtbaar.length" slot="start">
-              <nldd-tab-bar navigation accessible-label="Onderdelen">
-                <nldd-tab-bar-item
-                  v-for="t in zichtbaar"
-                  :key="t.naam"
-                  :text="t.tekst"
-                  :icon="t.icoon"
-                  :href="t.pad"
-                  :current="huidig(t) || undefined"
-                  @click.prevent="open(t)"
-                ></nldd-tab-bar-item>
-              </nldd-tab-bar>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
+      <nldd-container slot="primary-bar" above="md" padding="8">
+        <nldd-toolbar size="md">
+          <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
+          <nldd-toolbar-item v-if="zichtbaar.length" slot="start" :priority="1">
+            <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
+              <nldd-tab-bar-item
+                v-for="t in zichtbaar"
+                :key="t.naam"
+                :text="t.tekst"
+                :icon="t.icoon"
+                :href="t.pad"
+                :current="huidig(t) || undefined"
+                @click.prevent="open(t)"
+              ></nldd-tab-bar-item>
+            </nldd-tab-bar>
+            <nldd-menu-group slot="overflow" text="Onderdelen">
+              <nldd-menu-item
+                v-for="t in zichtbaar"
+                :key="t.naam"
+                type="radio"
+                :icon="t.icoon"
+                :text="t.tekst"
+                :selected="huidig(t) || undefined"
+                @select="open(t)"
+              ></nldd-menu-item>
+            </nldd-menu-group>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
+            <nldd-just-in-time-education
+              :active="wijzen || undefined"
+              :text="actie.uitleg?.tekst"
+              :supporting-text="actie.uitleg?.toelichting"
+              placement="bottom"
+            >
               <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.pad)"></nldd-button>
-              <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.pad)"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-icon-button size="lg" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
-                <nldd-avatar v-if="naam" slot="icon" :name="naam" color="inherit" icon-aligned decorative></nldd-avatar>
-                <nldd-menu slot="popup">
-                  <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
-                </nldd-menu>
-              </nldd-icon-button>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
+            </nldd-just-in-time-education>
+            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.pad)"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-icon-button size="md" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
+              <nldd-avatar v-if="naam" slot="icon" :name="naam" color="content" icon-aligned decorative></nldd-avatar>
+              <nldd-menu slot="popup">
+                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
+              </nldd-menu>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="account" text="Account">
+              <nldd-menu>
+                <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" @afmelden="emit('afmelden')" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
+
+      <div slot="main"><slot /></div>
+
+      <nldd-container v-if="$slots.voet" slot="voet" padding="8">
+        <slot name="voet" />
+      </nldd-container>
+
+      <nldd-container slot="mobile-bar" only="sm" padding="8">
+        <nldd-toolbar size="lg">
+          <nldd-toolbar-item v-if="zichtbaar.length" slot="start">
+            <nldd-tab-bar navigation accessible-label="Onderdelen">
+              <nldd-tab-bar-item
+                v-for="t in zichtbaar"
+                :key="t.naam"
+                :text="t.tekst"
+                :icon="t.icoon"
+                :href="t.pad"
+                :current="huidig(t) || undefined"
+                @click.prevent="open(t)"
+              ></nldd-tab-bar-item>
+            </nldd-tab-bar>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
+            <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.pad)"></nldd-button>
+            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.pad)"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-icon-button size="lg" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
+              <nldd-avatar v-if="naam" slot="icon" :name="naam" color="content" icon-aligned decorative></nldd-avatar>
+              <nldd-menu slot="popup">
+                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
+              </nldd-menu>
+            </nldd-icon-button>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
     </nldd-bar-split-view>
   </nldd-shell>
 </template>
