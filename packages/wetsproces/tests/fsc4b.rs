@@ -55,6 +55,7 @@ fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
         login: LoginChoice::TestLogin,
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
         fsc4b,
+        accent: None,
     }
 }
 

@@ -24,6 +24,10 @@
 //!   `all`), by default `frontend-wetsproces/dist` of this checkout. The
 //!   server serves the build of its own surface beside the API, and the API
 //!   alone when that build has no `index.html`.
+//! - `WETSPROCES_ACCENT_COLOR`: the accent colour of the screens, a theme
+//!   of the NLDD design system such as `paars` ([`crate::theme`]). Without
+//!   it the screens keep the design system's own accent; a name that is no
+//!   theme does not start.
 //!
 //! The login ([`LoginChoice`]):
 //!
@@ -75,6 +79,7 @@ use regelrecht_auth::OidcConfig;
 use crate::access::{CITIZEN, Level, ROLE_PREFIX};
 use crate::store::postgres::PoolSize;
 use crate::surface::Surface;
+use crate::theme::AccentColor;
 
 /// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
 /// them set without it is a configuration half done, not a choice for the
@@ -301,6 +306,8 @@ pub struct Config {
     pub subject_claim: String,
     /// The FSC voor Burgers channel.
     pub fsc4b: Fsc4bChoice,
+    /// The accent colour of the screens; none keeps the design system's.
+    pub accent: Option<AccentColor>,
 }
 
 /// Why the environment gives no configuration.
@@ -339,6 +346,8 @@ pub enum ConfigError {
          OIDC_CLIENT_SECRET and OIDC_DISCOVERY_URL (or KEYCLOAK_BASE_URL and KEYCLOAK_REALM)"
     )]
     OidcLoginWithoutOidc,
+    #[error("WETSPROCES_ACCENT_COLOR: {0}")]
+    UnknownAccentColor(#[from] crate::theme::UnknownAccentColor),
     #[error("WETSPROCES_PORT is `{0}`, which is no port")]
     BadPort(String),
     #[error("WETSPROCES_STORE is `{0}`: it is `memory` or `postgres`")]
@@ -418,8 +427,8 @@ impl Config {
     /// # Errors
     ///
     /// When the mode is missing or unknown, the port is no number, the
-    /// store is unknown or does not fit the mode, or the postgres store has
-    /// no database.
+    /// store is unknown or does not fit the mode, the postgres store has no
+    /// database, or the accent colour is no theme of the design system.
     pub fn from_env(env: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
         let set = |k: &str| env(k).filter(|v| !v.trim().is_empty());
         let mode = set("WETSPROCES_MODE").ok_or(ConfigError::NoMode)?.parse()?;
@@ -442,6 +451,9 @@ impl Config {
             || DEFAULT_SUBJECT_CLAIM.to_string(),
             |c| c.trim().to_string(),
         );
+        let accent = set("WETSPROCES_ACCENT_COLOR")
+            .map(|c| c.parse())
+            .transpose()?;
         let login = login_choice(mode, &subject_claim, &set)?;
         let fsc4b = fsc4b_choice(mode, &subject_claim, port, &set)?;
         if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
@@ -457,6 +469,7 @@ impl Config {
             login,
             subject_claim,
             fsc4b,
+            accent,
         })
     }
 }
@@ -778,6 +791,18 @@ mod tests {
             error(&[&[("WETSPROCES_MODE", "test"), ("WETSPROCES_PORT", "x")]]),
             ConfigError::BadPort("x".into())
         );
+    }
+
+    #[test]
+    fn the_accent_colour_is_a_theme_of_the_design_system_or_nothing() {
+        let test = &[("WETSPROCES_MODE", "test")];
+        assert_eq!(Config::from_env(env(&[test])).unwrap().accent, None);
+        let c = Config::from_env(env(&[test, &[("WETSPROCES_ACCENT_COLOR", "paars")]])).unwrap();
+        assert_eq!(c.accent.map(AccentColor::name), Some("paars"));
+        assert!(matches!(
+            error(&[test, &[("WETSPROCES_ACCENT_COLOR", "#7d3f98")]]),
+            ConfigError::UnknownAccentColor(_)
+        ));
     }
 
     #[test]

@@ -114,6 +114,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `OIDC_REQUIRED_ROLE` | none | The role every account needs to log in, `wetsproces-toegang`. Required with OIDC; a role without the `wetsproces-` prefix is refused, because the realm is shared with the editor. |
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
 | `WETSPROCES_SUBJECT_CLAIM` | `bsn` | The claim that identifies a citizen |
+| `WETSPROCES_ACCENT_COLOR` | none | The accent colour of the screens: the name of an NLDD design-system theme, such as `paars` or `donkergroen`. The server hands it to the screens on `GET /api/uiterlijk`, a route without a login, and they set it as `data-nldd-theme`. A name that is not a theme stops the server at startup. Without it the screens keep the design system's own accent |
 
 When the PostgreSQL store is chosen and the database cannot be reached or migrated, the server stops with that error. It does not fall back to memory.
 

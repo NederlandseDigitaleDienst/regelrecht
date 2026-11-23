@@ -214,6 +214,33 @@
           "minimum": 1
         }
       }
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "accentColor": {
+          "enum": [
+            "",
+            "bruin",
+            "donkerblauw",
+            "donkerbruin",
+            "donkergeel",
+            "donkergroen",
+            "geel",
+            "groen",
+            "hemelblauw",
+            "lichtblauw",
+            "mintgroen",
+            "mosgroen",
+            "oranje",
+            "paars",
+            "robijnrood",
+            "rood",
+            "roze",
+            "violet"
+          ]
+        }
+      }
     }
   }
 }

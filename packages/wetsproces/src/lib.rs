@@ -14,6 +14,8 @@
 //!
 //! - [`config`]: the mode (`test` or `stable`), the surface, the manifest,
 //!   the port and the login, from the environment;
+//! - [`theme`]: the accent colour of the screens, a theme of the NLDD
+//!   design system;
 //! - [`surface`]: which side of the process an instance serves, citizens or
 //!   the back office, and what differs between them;
 //! - [`access`]: the roles, and who a request comes from;
@@ -46,5 +48,6 @@ pub mod login;
 pub mod service;
 pub mod store;
 pub mod surface;
+pub mod theme;
 pub mod timeline;
 pub mod visibility;

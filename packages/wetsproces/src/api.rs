@@ -89,6 +89,7 @@ use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
 use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
 use crate::surface::Surface;
+use crate::theme::AccentColor;
 use crate::visibility;
 
 /// The header that carries a request's [`IdempotencyKey`].
@@ -109,6 +110,8 @@ pub struct AppState {
     http_client: reqwest::Client,
     /// The FSC voor Burgers channel, when it is configured.
     fsc4b: Option<Arc<Fsc4b>>,
+    /// The accent colour of the screens; none keeps the design system's.
+    accent: Option<AccentColor>,
 }
 
 impl AppState {
@@ -129,7 +132,14 @@ impl AppState {
             subject_claim: subject_claim.into(),
             http_client: regelrecht_auth::http_client(),
             fsc4b: None,
+            accent: None,
         }
+    }
+
+    /// The state with the screens in the accent colour `accent`.
+    pub fn with_accent(mut self, accent: Option<AccentColor>) -> Self {
+        self.accent = accent;
+        self
     }
 
     /// The state with the FSC voor Burgers channel `fsc4b` open.
@@ -315,6 +325,8 @@ pub fn router(state: AppState) -> Router {
         .map_or_else(Router::new, |f| crate::fsc4b::routes(f));
     let mut routes = Router::new()
         .route("/health", get(|| async { "ok" }))
+        // Before any login: the login screen wears the accent too.
+        .route("/api/uiterlijk", get(appearance))
         .merge(state.login.routes(state.surface))
         .merge(shared);
     if state.surface.serves_citizens() {
@@ -1189,6 +1201,12 @@ async fn clock_state(state: &AppState) -> ApiResult {
         "modus": state.mode.to_string(),
         "bestuurbaar": state.clock.is_some(),
     })))
+}
+
+/// How the screens look: the accent colour, a theme of the NLDD design
+/// system, or `null` for the design system's own.
+async fn appearance(State(state): State<AppState>) -> Json<Value> {
+    Json(json!({ "accentkleur": state.accent.map(AccentColor::name) }))
 }
 
 async fn clock(State(state): State<AppState>) -> ApiResult {

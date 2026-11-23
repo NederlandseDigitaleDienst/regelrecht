@@ -82,6 +82,14 @@ surfaces:
     # Empty means medewerkers.<host>.
     host: ''
 
+# How the screens look.
+theme:
+  # The accent colour: the name of a theme of the NLDD design system
+  # (bruin, donkerblauw, donkerbruin, donkergeel, donkergroen, geel, groen,
+  # hemelblauw, lichtblauw, mintgroen, mosgroen, oranje, paars, robijnrood,
+  # rood, roze or violet). Empty keeps the design system's own accent.
+  accentColor: ''
+
 gateway:
   # A Gateway API Gateway of this release, in its own namespace, with its own
   # public address: an HTTP listener (for the ACME HTTP-01 challenge and a

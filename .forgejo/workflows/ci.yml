@@ -186,6 +186,8 @@ jobs:
           helm template wetsproces "$C" --set domain=example.org $CNPG \
             --set dns.enabled=true --set gateway.address=192.0.2.1 > /dev/null
           helm template wetsproces "$C" --set domain=example.org $SMALL > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $SMALL \
+            --set theme.accentColor=paars | grep -q WETSPROCES_ACCENT_COLOR
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work
@@ -211,3 +213,5 @@ jobs:
             --set surfaces.burger.host=a.example.org --set surfaces.backoffice.host=a.example.org
           refuse "surfaces" --set domain=example.org $CNPG \
             --set surfaces.burger.host=Not_A_Host
+          refuse "accentColor" --set domain=example.org $CNPG \
+            --set theme.accentColor=purple

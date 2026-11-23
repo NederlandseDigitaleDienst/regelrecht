@@ -49,6 +49,22 @@ async fn health_is_open_and_the_rest_needs_a_login() {
 }
 
 #[tokio::test]
+async fn the_appearance_is_open_and_names_the_accent_colour() {
+    let plain = server().await;
+    assert_eq!(
+        anonymous(&plain).get("/api/uiterlijk").await,
+        (StatusCode::OK, json!({ "accentkleur": null }))
+    );
+    let mut config = config(Mode::Test);
+    config.accent = Some("paars".parse().unwrap());
+    let themed = app::build_with(&config, Login::TestLogin).await.unwrap();
+    assert_eq!(
+        anonymous(&themed).get("/api/uiterlijk").await,
+        (StatusCode::OK, json!({ "accentkleur": "paars" }))
+    );
+}
+
+#[tokio::test]
 async fn case_forms_and_clock_for_citizens_and_employees() {
     let app = server().await;
     for who in [

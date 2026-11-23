@@ -119,6 +119,10 @@ spec:
               value: {{ printf "/case/%s" (include "wetsproces.casePath" .) | quote }}
             - name: WETSPROCES_PORT
               value: "8000"
+            {{- with .Values.theme.accentColor }}
+            - name: WETSPROCES_ACCENT_COLOR
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8000

@@ -56,6 +56,7 @@ pub fn config_on(mode: Mode, surface: Surface) -> Config {
         login: LoginChoice::TestLogin,
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
         fsc4b: Fsc4bChoice::Off,
+        accent: None,
     }
 }
 

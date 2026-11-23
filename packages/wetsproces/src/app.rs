@@ -164,6 +164,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         login,
         &config.subject_claim,
     );
+    state = state.with_accent(config.accent);
     if let Some(fsc4b) = fsc4b {
         state = state.with_fsc4b(Arc::new(fsc4b));
     }
@@ -374,6 +375,7 @@ mod tests {
             login: LoginChoice::TestLogin,
             subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
             fsc4b: Fsc4bChoice::Off,
+            accent: None,
         }
     }
 
