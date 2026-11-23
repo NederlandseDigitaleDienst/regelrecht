@@ -1,0 +1,83 @@
+---
+# A minimal CI for the fieldlab copy on Forgejo: Rust format, lint, corpus
+# validation and tests, and the frontend unit tests and type checks.
+#
+# The GitHub workflows in .github/workflows/ do not run here: Forgejo reads
+# .forgejo/workflows/ when it exists. Everything runs on `default`, a container
+# on Kubernetes as uid 1000 with HOME=/tmp, which cannot install packages. The
+# Rust jobs therefore use the image from ci-image.yml. There is no build cache,
+# so every Rust job compiles from scratch.
+name: CI
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  rust-lint:
+    name: Rust format, lint and validate
+    runs-on: default
+    timeout-minutes: 60
+    container:
+      image: code.digitaledienst.overheid.nl/regelrecht/fieldlab-ci:main
+    steps:
+      - uses: actions/checkout@v4
+      - run: just format
+      - run: just lint
+      - run: just validate
+
+  rust-test:
+    name: Rust tests
+    runs-on: default
+    timeout-minutes: 60
+    container:
+      image: code.digitaledienst.overheid.nl/regelrecht/fieldlab-ci:main
+    steps:
+      - uses: actions/checkout@v4
+      - run: just test-no-docker
+
+  rust-test-db:
+    name: Rust tests (database)
+    runs-on: default
+    timeout-minutes: 60
+    container:
+      image: code.digitaledienst.overheid.nl/regelrecht/fieldlab-ci:main
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          # Services run as uid 1000 on `default`; the default PGDATA belongs
+          # to uid 999.
+          PGDATA: /tmp/pgdata
+    env:
+      TEST_POSTGRES_URL: postgres://postgres:postgres@postgres:5432
+    steps:
+      - uses: actions/checkout@v4
+      - run: just test-db
+
+  frontend:
+    name: Frontend tests
+    runs-on: default
+    timeout-minutes: 30
+    container:
+      image: node:24-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci --ignore-scripts
+      - name: BDD grammar codegen is in sync
+        run: |
+          node bdd/codegen/gen-js.mjs
+          git diff --exit-code packages/frontend-shared/src/gherkin/grammar.generated.js \
+            || { echo "grammar.generated.js is stale: run 'just bdd-codegen' and commit the result"; exit 1; }
+      - run: npm test -w packages/frontend-shared
+      - run: npm run typecheck -w packages/frontend-shared
+      - run: npm test -w frontend
+      - run: npm run typecheck -w frontend
+      - run: npm test -w frontend-lawmaking
+      - run: npm run typecheck -w frontend-lawmaking
+      - run: npm test -w frontend-demo
+      - run: npm run typecheck -w frontend-demo
+      - run: npm test -w frontend-wetsproces
+      - run: npm run typecheck -w frontend-wetsproces
+      - run: npm test -w packages/poc-chronolexografie/frontend
+      - run: npm test -w frontend-poc-wetsgeschiedenis

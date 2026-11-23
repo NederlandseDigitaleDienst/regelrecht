@@ -10,8 +10,13 @@ This repository is the hackathon copy of regelrecht on Forgejo
 (`code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026`), not the GitHub
 repository. The GitHub workflow does not apply here:
 
-- **No CI.** Forgejo Actions are switched off, so nothing under
-  `.github/workflows/` runs. A green local `just check` is the only check.
+- **A minimal CI.** `.forgejo/workflows/ci.yml` runs Rust format, lint,
+  validation and tests, and the frontend tests and type checks, on every push.
+  Nothing under `.github/workflows/` runs: Forgejo reads `.forgejo/workflows/`
+  instead. Runners take `runs-on: default` (a container without root) or
+  `vm` (a VM with Docker); GitHub labels such as `ubuntu-latest` never start.
+  The Rust jobs use an image built from `.forgejo/ci-image/Dockerfile` by
+  `ci-image.yml`; a tool a job needs goes into that Dockerfile.
 - **No GitHub gates.** There is no merge queue, no Claude review gate, no
   `Werkpakket:` check and no PR-title lint. Do not wait for them and do not
   add a `Werkpakket:` line.
