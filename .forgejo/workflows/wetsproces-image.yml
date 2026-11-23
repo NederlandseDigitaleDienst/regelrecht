@@ -2,7 +2,6 @@
 # Builds the wetsproces image from packages/wetsproces/Dockerfile and pushes
 # it to the registry of the organisation, as
 # code.digitaledienst.overheid.nl/regelrecht/wetsproces:main and :<commit>.
-# deploy/fieldlab/wetsproces/ runs that image on the Fundament cluster.
 #
 # This runs on `vm`, because `docker build` needs a Docker daemon, and only
 # from main: the fieldlab rules allow a push to the registry from main or a tag

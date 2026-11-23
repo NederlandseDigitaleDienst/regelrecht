@@ -21,10 +21,8 @@ repository. The GitHub workflow does not apply here:
   `Werkpakket:` check and no PR-title lint. Do not wait for them and do not
   add a `Werkpakket:` line.
 - **No previews, and no deploys to ZAD.** The fieldlab runs on the shared
-  Fundament cluster `cluster-a`. `deploy/fieldlab/` holds what runs there,
-  each app with a README; other teams use the same cluster, so stay in the
-  namespaces of project `rr-voorbeeld` and ask before changing anything
-  outside them.
+  Fundament cluster `cluster-a`; other teams use the same cluster, so ask
+  before changing anything on it outside our own namespaces.
 - **No `gh`.** It talks to GitHub, not Forgejo. Do not use it to open, merge
   or inspect pull requests for this repository.
 
