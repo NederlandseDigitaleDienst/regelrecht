@@ -8,12 +8,17 @@
 # Rust jobs therefore use the image from ci-image.yml. There is no build cache,
 # so every Rust job compiles from scratch.
 #
-# Without --maxWorkers the frontend job was killed with exit code 137 during
-# the editor tests. "Runner resources" prints what a job gets.
+# "Runner resources" prints what a job gets.
 name: CI
 on:
   push:
   workflow_dispatch:
+
+# A job on `default` sees 64 CPUs but may use 6 GiB of memory. cargo starts a
+# rustc per CPU, and with 64 of them rustc was killed (exit code 137) in the
+# database tests. vitest gets --maxWorkers for the same reason.
+env:
+  CARGO_BUILD_JOBS: 16
 
 jobs:
   rust-lint:
