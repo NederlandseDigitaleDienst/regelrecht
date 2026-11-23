@@ -7,9 +7,10 @@ import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/Oorde
 import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 import type { Schermveld } from './formulier';
 
-const props = withDefaults(defineProps<{ veld: Schermveld; modelValue?: unknown; oordeel?: boolean }>(), {
+const props = withDefaults(defineProps<{ veld: Schermveld; modelValue?: unknown; oordeel?: boolean; kaal?: boolean }>(), {
   modelValue: undefined,
   oordeel: false,
+  kaal: false,
 });
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
 
@@ -29,6 +30,7 @@ const alsKeuze = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? 
   />
   <VeldInvoer
     v-else
+    :kaal="kaal"
     :veld="veld.veld"
     :label="veld.label"
     :help="veld.help"

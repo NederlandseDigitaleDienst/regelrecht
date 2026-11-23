@@ -105,7 +105,7 @@ async function indienen() {
   <Teleport to="body">
     <nldd-sheet width="720px" :open="open || undefined" @close="emit('sluit')">
       <nldd-page>
-        <nldd-top-title-bar slot="header" heading-level="2" text="Nieuwe aanvraag" dismiss-text="Sluit"></nldd-top-title-bar>
+        <nldd-top-title-bar slot="header" heading-level="2" text="Nieuwe aanvraag" dismiss-text="Annuleer"></nldd-top-title-bar>
         <nldd-simple-section>
           <nldd-container gap="24">
             <nldd-text v-if="inleiding"><p>{{ inleiding }}</p></nldd-text>

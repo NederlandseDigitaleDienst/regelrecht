@@ -3,6 +3,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { aanvraagformulier } from './formulier';
+import { artikelNaam } from './keten';
 import SpecFormulier from './SpecFormulier.vue';
 import type { Indieningsvorm } from './types';
 
@@ -32,7 +33,7 @@ describe('SpecFormulier', () => {
     const w = teken();
     expect(w.findAll('nldd-checkbox-field').map((e) => e.attributes('label'))).toEqual(['Wil een vergunning']);
     // A yes or no that may stay empty asks ja, nee or nothing.
-    const keuze = w.findAll('nldd-form-field').map((e) => e.attributes('label'));
+    const keuze = w.findAll('nldd-form-field').map((e) => e.attributes('label')).filter(Boolean);
     expect(keuze).toEqual(['Ondertekend', 'Dagtekening']);
     expect(w.find('select').findAll('option').map((o) => o.text())).toEqual(['Niet opgegeven', 'Ja', 'Nee']);
     expect(w.findAll('nldd-date-field')).toHaveLength(1);
@@ -43,7 +44,9 @@ describe('SpecFormulier', () => {
   it('takes the label and help the UI spec gives a field', () => {
     const w = teken({ dagtekening: { label: 'Datum van uw aanvraag', help: 'De dag waarop u ondertekent.' } });
     const veld = w.findAll('nldd-form-field').find((e) => e.attributes('label') === 'Datum van uw aanvraag');
-    expect(veld?.find('nldd-form-field-help-text').text()).toBe('De dag waarop u ondertekent.');
+    expect(veld?.find('nldd-form-field-help-text').text()).toBe(
+      `De dag waarop u ondertekent. Volgens ${artikelNaam('algemene_wet#4:2')}.`,
+    );
   });
 
   it('orders and groups the fields as the UI spec says, each group once', () => {
@@ -56,7 +59,7 @@ describe('SpecFormulier', () => {
       props: { velden: invullen, waarden: {}, volgorde: ['dagtekening', 'wil_een_vergunning', 'ondertekend'] },
     });
     expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toEqual(['Over deze aanvraag', 'Uw aanvraag']);
-    const labels = w.findAll('nldd-form-field, nldd-checkbox-field').map((e) => e.attributes('label'));
+    const labels = w.findAll('nldd-form-field, nldd-checkbox-field').map((e) => e.attributes('label')).filter(Boolean);
     expect(labels).toEqual(['Dagtekening', 'Ondertekend', 'Wil een vergunning']);
   });
 
@@ -71,12 +74,14 @@ describe('SpecFormulier', () => {
     expect(eerste.attributes('label')).toBe('Nummer aanvrager');
     expect(eerste.find('nldd-text-field').attributes('value')).toBe('999990019');
     expect(eerste.find('nldd-text-field').attributes()).toHaveProperty('readonly');
-    expect(eerste.find('nldd-form-field-help-text').text()).toBe('Uw nummer. Uit de inlog van de aanvrager.');
+    expect(eerste.find('nldd-form-field-help-text').text()).toBe(
+      `Uw nummer. Volgens ${artikelNaam('voorbeeldwet#3')}. Uit de inlog van de aanvrager.`,
+    );
     // A field filled already is never sent up as a change.
     expect(w.emitted('zet')).toBeUndefined();
   });
 
-  it('puts the help of a checkbox under it, in a field without a second label', () => {
+  it('puts the help of a checkbox and the article under it, in a field without a second label', () => {
     const w = teken({ wil_een_vergunning: { help: 'Zet dit aan als u er een wilt.' } });
     const vinkje = w.find('nldd-checkbox-field');
     expect(vinkje.attributes('label')).toBe('Wil een vergunning');
@@ -84,9 +89,36 @@ describe('SpecFormulier', () => {
     const veld = vinkje.element.parentElement!;
     expect(veld.tagName.toLowerCase()).toBe('nldd-form-field');
     expect(veld.getAttribute('label')).toBeNull();
-    expect(veld.querySelector('nldd-form-field-help-text')?.textContent).toBe('Zet dit aan als u er een wilt.');
-    // Without help a checkbox stands on its own, as before.
-    expect(teken().find('nldd-checkbox-field').element.parentElement?.tagName.toLowerCase()).not.toBe('nldd-form-field');
+    expect(veld.querySelector('nldd-form-field-help-text')?.textContent).toBe(
+      `Zet dit aan als u er een wilt. Volgens ${artikelNaam('voorbeeldwet#3')}.`,
+    );
+  });
+
+  it('makes one question of a heading whose every field is a bare checkbox, with the article under the group', () => {
+    const beide: Indieningsvorm = {
+      ...vorm,
+      velden: [
+        { naam: 'als_bestuurder', type: 'boolean', mag_leeg: false, basis: 'voorbeeldwet#3' },
+        { naam: 'als_passagier', type: 'boolean', mag_leeg: false, basis: 'voorbeeldwet#3' },
+      ],
+      systeem: {},
+      verborgen: [],
+    };
+    const { invullen } = aanvraagformulier(beide, {
+      als_bestuurder: { group: 'Uw aanvraag' },
+      als_passagier: { group: 'Uw aanvraag' },
+    }, null);
+    const w = mount(SpecFormulier, { props: { velden: invullen, waarden: {} } });
+    const groep = w.find('nldd-checkbox-group');
+    expect(groep.exists()).toBe(true);
+    expect(groep.findAll('nldd-checkbox-field')).toHaveLength(2);
+    // The heading becomes the caption of the field around the group, and the
+    // article stands under the group instead of under each box.
+    const veld = groep.element.parentElement!;
+    expect(veld.tagName.toLowerCase()).toBe('nldd-form-field');
+    expect(veld.getAttribute('label')).toBe('Uw aanvraag');
+    expect(veld.querySelector('nldd-form-field-help-text')?.textContent).toBe(`Volgens ${artikelNaam('voorbeeldwet#3')}.`);
+    expect(w.findAll('nldd-title')).toHaveLength(0);
   });
 
   it('sends a change of a field up by its name', async () => {

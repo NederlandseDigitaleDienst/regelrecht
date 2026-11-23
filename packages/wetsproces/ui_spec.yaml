@@ -41,6 +41,10 @@ elements:
       - name: kaart_als_passagier
         group: Uw aanvraag
         label: Ik vraag de kaart aan als passagier
+      - name: adres_aanvrager
+        group: Gegevens van de aanvrager
+        label: Adres
+        help: Straat, huisnummer, postcode en woonplaats.
       - name: bsn_aanvrager
         group: Gegevens van de aanvrager
         visibility: shown
@@ -51,10 +55,6 @@ elements:
         visibility: shown
         fill: {by: system, login: naam}
         label: Naam
-      - name: adres_aanvrager
-        group: Gegevens van de aanvrager
-        label: Adres
-        help: Straat, huisnummer, postcode en woonplaats.
       # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
       # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
       # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren

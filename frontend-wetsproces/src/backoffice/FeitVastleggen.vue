@@ -124,7 +124,7 @@ async function opslaan() {
   <Teleport to="body">
     <nldd-sheet width="720px" :open="keuze ? true : undefined" @close="emit('sluit')">
       <nldd-page>
-        <nldd-top-title-bar slot="header" heading-level="2" :text="titel" dismiss-text="Sluit"></nldd-top-title-bar>
+        <nldd-top-title-bar slot="header" heading-level="2" :text="titel" dismiss-text="Annuleer"></nldd-top-title-bar>
         <nldd-simple-section v-if="keuze">
           <nldd-container gap="16">
             <slot></slot>
@@ -133,7 +133,6 @@ async function opslaan() {
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
             <nldd-button-group orientation="horizontal">
               <nldd-button appearance="primary" text="Vastleggen" :loading="bezig || undefined" @click="opslaan"></nldd-button>
-              <nldd-button appearance="neutral-transparent" text="Annuleren" @click="emit('sluit')"></nldd-button>
             </nldd-button-group>
           </nldd-container>
         </nldd-simple-section>

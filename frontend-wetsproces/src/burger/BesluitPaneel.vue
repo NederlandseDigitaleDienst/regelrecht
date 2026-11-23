@@ -216,7 +216,7 @@ async function indienen() {
           slot="header"
           heading-level="2"
           :text="keuze ? `${soortNaam(keuze)} tegen het besluit` : ''"
-          dismiss-text="Sluit"
+          dismiss-text="Annuleer"
         ></nldd-top-title-bar>
         <nldd-simple-section v-if="keuze">
           <nldd-container gap="16">
@@ -230,7 +230,6 @@ async function indienen() {
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
             <nldd-button-group orientation="horizontal">
               <nldd-button appearance="primary" :text="`${soortNaam(keuze)} indienen`" :loading="bezig || undefined" @click="indienen"></nldd-button>
-              <nldd-button appearance="neutral-transparent" text="Annuleren" @click="open = false"></nldd-button>
             </nldd-button-group>
           </nldd-container>
         </nldd-simple-section>

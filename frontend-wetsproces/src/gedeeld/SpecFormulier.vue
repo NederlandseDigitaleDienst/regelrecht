@@ -24,6 +24,14 @@ const isVinkje = (v: Formulierveld) =>
 // them as one. A field with something under it draws its own form field, so a
 // group with one of those stays a list of fields.
 const vinkjesGroep = (g: Veldgroep) => !!g.titel && g.velden.length > 1 && g.velden.every(isVinkje);
+/** The article a whole group rests on, where every field of it names the same one. */
+const groepsArtikel = (g: Veldgroep) => {
+  const eerste = g.velden[0]?.veld.basis ?? '';
+  return eerste && g.velden.every((v) => v.veld.basis === eerste) ? eerste : '';
+};
+/** The line under a field: what the UI spec says, the article it rests on, and who filled it. */
+const onder = (v: Formulierveld) =>
+  [v.help, v.veld.basis ? `Volgens ${v.veld.basis}.` : '', v.systeem?.herkomst].filter(Boolean).join(' ');
 </script>
 
 <template>
@@ -35,17 +43,19 @@ const vinkjesGroep = (g: Veldgroep) => !!g.titel && g.velden.length > 1 && g.vel
             v-for="v in g.velden"
             :key="v.veld.naam"
             :veld="v"
+            kaal
             :model-value="waarden[v.veld.naam]"
             @update:model-value="emit('zet', v.veld.naam, $event)"
           />
         </nldd-checkbox-group>
+        <nldd-form-field-help-text v-if="groepsArtikel(g)">Volgens {{ groepsArtikel(g) }}.</nldd-form-field-help-text>
       </nldd-form-field>
       <template v-else>
         <nldd-title v-if="g.titel" heading-level="4" size="display-6" :text="g.titel"></nldd-title>
         <template v-for="v in g.velden" :key="v.veld.naam">
-          <nldd-form-field v-if="v.systeem" :label="v.label" :supporting-label="v.veld.basis">
+          <nldd-form-field v-if="v.systeem" :label="v.label">
             <nldd-text-field :value="v.systeem.waarde == null ? '' : waardeTekst(v.systeem.waarde)" readonly></nldd-text-field>
-            <nldd-form-field-help-text>{{ [v.help, v.systeem.herkomst].filter(Boolean).join(' ') }}</nldd-form-field-help-text>
+            <nldd-form-field-help-text>{{ onder(v) }}</nldd-form-field-help-text>
           </nldd-form-field>
           <SpecVeld
             v-else

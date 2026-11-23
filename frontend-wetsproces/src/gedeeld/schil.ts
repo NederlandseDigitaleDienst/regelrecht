@@ -19,8 +19,10 @@ export interface Tab {
 /** The primary action of a side, as a button in the shell's bar beside the account. */
 export interface Actie {
   tekst: string;
-  /** The route the button opens. */
-  pad: string;
+  /** The hash the button opens, on whatever screen the visitor is on: the
+   *  action opens a sheet over it, so it belongs to the address they are at
+   *  rather than to one of its own. */
+  hash: string;
   icoon?: string;
   /** What the coach mark says to someone who has not used the action yet. */
   uitleg?: { tekst: string; toelichting: string };

@@ -47,15 +47,15 @@ const huidig = (t: Tab) => isHuidig(t, route.name);
 const open = (t: Tab) => {
   if (!huidig(t) || route.path !== t.pad) void router.push(t.pad);
 };
-const ga = (pad: string) => {
-  if (route.path !== pad) void router.push(pad);
+const ga = (hash: string) => {
+  if (route.hash !== hash) void router.push({ path: route.path, query: route.query, hash });
 };
 // Whether the coach mark points at the action: the screen asks for it, the
 // action has words for it, and it is not the screen already open. It carries
 // no dismiss button: it goes when the screen says the action is done, so a
 // way to hide it would hide the only thing on an empty screen.
 const wijzen = computed(
-  () => !!(props.actie?.uitleg && wijsDeWeg.value && route.path !== props.actie.pad),
+  () => !!(props.actie?.uitleg && wijsDeWeg.value && route.hash !== props.actie.hash),
 );
 </script>
 
@@ -98,9 +98,9 @@ const wijzen = computed(
               :supporting-text="actie.uitleg?.toelichting"
               placement="bottom"
             >
-              <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.pad)"></nldd-button>
+              <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.hash)"></nldd-button>
             </nldd-just-in-time-education>
-            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.pad)"></nldd-menu-item>
+            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button size="md" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
@@ -140,8 +140,8 @@ const wijzen = computed(
             </nldd-tab-bar>
           </nldd-toolbar-item>
           <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
-            <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.pad)"></nldd-button>
-            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.pad)"></nldd-menu-item>
+            <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.hash)"></nldd-button>
+            <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button size="lg" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>

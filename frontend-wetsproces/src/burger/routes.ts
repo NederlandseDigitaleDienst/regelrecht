@@ -6,8 +6,9 @@
 // and main pane: the record opens beside the dossier. Every record has one
 // address, `/burger/dossier/<id>`; `/burger/besluit/<id>`, the address of a
 // decision before, still works for links already given out. The application
-// form is a sheet over the dossier, so `/burger/aanvraag` is that same screen
-// with the sheet open.
+// form is a sheet over whatever is open, so it hangs off the address of that
+// screen as `#nieuwe-aanvraag` instead of being a screen of its own: closing
+// it leaves the record you were reading where it was.
 import { RouterView } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 
@@ -20,7 +21,7 @@ export const burgerRoutes: RouteRecordRaw[] = [
       titel: 'Parkeervergunningen',
       actie: {
         tekst: 'Nieuwe aanvraag',
-        pad: '/burger/aanvraag',
+        hash: '#nieuwe-aanvraag',
         icoon: 'add',
         uitleg: {
           tekst: 'Hier vraagt u de kaart aan',
@@ -37,7 +38,6 @@ export const burgerRoutes: RouteRecordRaw[] = [
         component: () => import('./DossierView.vue'),
         props: true,
       },
-      { path: 'aanvraag', name: 'aanvraag', component: () => import('./DossierView.vue') },
     ],
   },
 ];

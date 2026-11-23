@@ -221,7 +221,7 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
                     :key="`${r.gram.id}-${a.artikel}`"
                     size="md"
                     button
-                    @click="router.push({ name: 'aanvraag', query: { artikel: a.artikel, op: r.gram.id } })"
+                    @click="router.push({ path: route.path, query: { artikel: a.artikel, op: r.gram.id }, hash: '#nieuwe-aanvraag' })"
                   >
                     <nldd-icon-cell size="20"><nldd-icon icon="add"></nldd-icon></nldd-icon-cell>
                     <nldd-spacer-cell size="8"></nldd-spacer-cell>
@@ -255,5 +255,5 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
     </div>
   </nldd-navigation-split-view>
 
-  <AanvraagView :open="route.name === 'aanvraag'" @sluit="router.push('/burger')" />
+  <AanvraagView :open="route.hash === '#nieuwe-aanvraag'" @sluit="router.push({ path: route.path })" />
 </template>

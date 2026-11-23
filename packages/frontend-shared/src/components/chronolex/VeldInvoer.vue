@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// One field as the law asks it: its type picks the input, its basis shows
-// under it. An amount (`amount`) is a number in the unit the law counts it in,
+// One field as the law asks it: its type picks the input, and the article it
+// rests on stands in the line under it ("Volgens Awb artikel 4:2."), where a
+// reader meets it as a sentence rather than as a second label. An amount (`amount`) is a number in the unit the law counts it in,
 // such as eurocent. An empty text or date field is `undefined`: the submission
 // then leaves it out, and the cell names it in `missing` (Awb 4:5).
 // `herkomst` is the line under a prefilled field: which cell it comes from, or
@@ -34,13 +35,17 @@ const props = withDefaults(
     alleenLezen?: boolean;
     label?: string;
     help?: string;
+    /** Draw the control bare: a group around it carries the line under it. */
+    kaal?: boolean;
   }>(),
-  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '', help: '' },
+  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '', help: '', kaal: false },
 );
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
 
 const naam = computed(() => props.label || leesbaar(props.veld.naam));
-const onder = computed(() => [props.help, props.herkomst].filter(Boolean).join(' '));
+/** The article the field rests on, as a sentence. */
+const volgens = computed(() => (props.veld.basis ? `Volgens ${props.veld.basis}.` : ''));
+const onder = computed(() => (props.kaal ? '' : [props.help, volgens.value, props.herkomst].filter(Boolean).join(' ')));
 const tekst = computed(() => (props.modelValue === undefined || props.modelValue === null ? '' : String(props.modelValue)));
 
 const zet = (waarde: unknown) => emit('update:modelValue', waarde === '' ? undefined : waarde);
@@ -83,7 +88,7 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
     :disabled="alleenLezen || undefined"
     @change="zet(aan($event))"
   ></nldd-checkbox-field>
-  <nldd-form-field v-else :label="naam" :supporting-label="veld.basis" :optional="veld.mag_leeg">
+  <nldd-form-field v-else :label="naam" :optional="veld.mag_leeg">
     <nldd-date-field
       v-if="veld.type === 'date'"
       :value="tekst"
