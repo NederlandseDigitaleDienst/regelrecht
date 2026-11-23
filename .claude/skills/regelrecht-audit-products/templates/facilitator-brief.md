@@ -1,4 +1,4 @@
-# Workshop-draaiboek brief — {Dossier} {datum}
+# Workshop-draaiboek brief — {Traject} {datum}
 
 *Kort-format spiekbriefje voor tijdens de sessie. 1 A4 print, of als aparte tab naast
 de inhoudelijke docs. Afgeleid van het volledige draaiboek — voeg niets nieuws toe.*

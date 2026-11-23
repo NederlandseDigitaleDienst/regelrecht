@@ -77,7 +77,7 @@ wat je voorleest tijdens een walk-through: *"De YAML zegt: '{quote}'. Klopt dat?
 
 ## Stelsel-lagen (voor scope-analyse)
 
-Dossiers vallen vaak in lagen. Generiek patroon:
+Trajecten vallen vaak in lagen. Generiek patroon:
 - **Laag A (grondslag)**: de formele wet die delegeert (vaak niet zelf
   machine-leesbaar, alleen `legal_basis`-doel).
 - **Laag B (uitwerking)**: uitwerkende regeling(en) waar de kern-berekening leeft:

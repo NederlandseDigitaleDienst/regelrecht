@@ -1,12 +1,12 @@
 ---
-name: regelrecht-dossier
-description: Front-door router voor het werken aan een regelrecht-dossier. Gebruik dit aan het begin van een dossier, of bij twijfel over waar te beginnen — het triageert de situatie en routeert naar de juiste skill (regelrecht-stelselanalyse voor desk-review/corpus-completion, regelrecht-audit-products voor live expert-validatie) en de juiste volgorde. Bevat het routeringsprincipe: feitelijke defecten routeren naar de desk, oordeels-/praktijkvragen naar de workshop. Dossier-agnostisch.
+name: regelrecht-traject
+description: Front-door router voor het werken in een regelrecht-traject. Gebruik dit aan het begin van een traject, of bij twijfel over waar te beginnen — het triageert de situatie en routeert naar de juiste skill (regelrecht-stelselanalyse voor desk-review/corpus-completion, regelrecht-audit-products voor live expert-validatie) en de juiste volgorde. Bevat het routeringsprincipe: feitelijke defecten routeren naar de desk, oordeels-/praktijkvragen naar de workshop. Dossier-agnostisch.
 allowed-tools: Read, Glob, Grep, AskUserQuestion
 ---
 
-# Regelrecht dossier — router & flow
+# Regelrecht traject — router & flow
 
-De ingang voor het werken aan een regelrecht-dossier. Bepaalt **waar je begint** en
+De ingang voor het werken aan een regelrecht-traject. Bepaalt **waar je begint** en
 **hoe de twee werk-skills in één flow samenhangen**. Dit is een dunne dispatcher: het
 eigenlijke werk gebeurt in de twee skills waarnaar het routeert.
 

@@ -1,4 +1,4 @@
-# {Dossier / endpoint} — persona-bibliotheek
+# {Traject / endpoint} — persona-bibliotheek
 
 De benoemde casussen voor {endpoint}. Persona = bron; scenario's zijn afgeleiden. Alle
 niet-genoemde leafs staan op de baseline (zie onder).

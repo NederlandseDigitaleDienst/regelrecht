@@ -1,9 +1,9 @@
-# {Dossier} — scope-analyse en wet-graph
+# {Traject} — scope-analyse en wet-graph
 
 *Te gebruiken om de scope te bekrachtigen aan het begin van de sessie. Open in een
 viewer die `mermaid` en `[ ]`-checkboxes rendert.*
 
-**Casus**: {korte omschrijving van het dossier en de centrale beschikking/output}.
+**Casus**: {korte omschrijving van het traject en de centrale beschikking/output}.
 **Scope-manifest**: `{pad naar scope-manifest}` — {N} wetten.
 
 ---

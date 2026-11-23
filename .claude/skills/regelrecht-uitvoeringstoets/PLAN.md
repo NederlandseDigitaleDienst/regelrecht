@@ -40,7 +40,7 @@ terug naar de desk / volgende corpus-ronde
   `regelrecht-scenario-traces` (gevalideerde persona's/scenario's + keten-checkpoints).
 - **Levert aan**: de workshop-cyclus van `regelrecht-audit-products` (de PoC ís het
   sessie-materiaal voor workshop B) en de bevindingen terug de cyclus in.
-- **Router**: `regelrecht-dossier` moet deze fase-2-plek leren kennen (routeert
+- **Router**: `regelrecht-traject` moet deze fase-2-plek leren kennen (routeert
   service-/dienstverleningsvragen hierheen).
 
 Woont in de engine-repo `.claude/skills` (zelfde plek/PR-lijn als de andere, met de

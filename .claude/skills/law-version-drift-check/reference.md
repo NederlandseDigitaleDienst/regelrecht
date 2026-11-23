@@ -1,7 +1,7 @@
 # Law Version Drift Check — Reference
 
 Operational reference for `law-version-drift-check`. Patterns, algorithms,
-prompt templates, output formats. Dossier-agnostisch.
+prompt templates, output formats. Casus-agnostisch.
 
 ## 1. URL patterns
 
@@ -153,7 +153,7 @@ Recall < 80% → run is invalid; produce no drift-report; report the calibration
 failure.
 
 The ijkpunten file lives in the corpus, not in this skill, so the skill stays
-dossier-agnostisch. Curate ijkpunten that exercise different failure modes:
+casus-agnostisch. Curate ijkpunten that exercise different failure modes:
 at least one DRIFT-structureel, one DRIFT-tekst, one diacritics-only.
 
 ## 7. Output format

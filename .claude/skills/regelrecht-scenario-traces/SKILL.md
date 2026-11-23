@@ -1,12 +1,12 @@
 ---
 name: regelrecht-scenario-traces
-description: Maakt regelrecht-scenario's vindbaar en hun norm-ketens leesbaar/geassert. Aan de invoerkant — vertaal een platte lijst leaf-parameters naar benoemde casus-assen + een herbruikbare persona-bibliotheek, met een reverse-lookup casus-matrix. Aan de uitvoerkant — maak de norm-keten zichtbaar via keten-checkpoints (assert elke knoop op het kritieke pad, niet alleen de endpoint) en golden-trace-snapshots + branch-coverage. Gebruik dit bij het schrijven of opschonen van scenario-/feature-files, het terugvinden of ontwerpen van een specifieke casus in een grote variabelenlijst, het reviewen van engine-traces, of het regressie-bestendig maken van cross-law-ketens zodat een ketenfout niet stil achter een correcte endpoint verdwijnt. Dossier-agnostisch; de regelrecht-methode is de vaste taal. Haakt aan op regelrecht-stelselanalyse (engine-tests / meta-check) en regelrecht-audit-products (testcase-scenario's).
+description: Maakt regelrecht-scenario's vindbaar en hun norm-ketens leesbaar/geassert. Aan de invoerkant — vertaal een platte lijst leaf-parameters naar benoemde casus-assen + een herbruikbare persona-bibliotheek, met een reverse-lookup casus-matrix. Aan de uitvoerkant — maak de norm-keten zichtbaar via keten-checkpoints (assert elke knoop op het kritieke pad, niet alleen de endpoint) en golden-trace-snapshots + branch-coverage. Gebruik dit bij het schrijven of opschonen van scenario-/feature-files, het terugvinden of ontwerpen van een specifieke casus in een grote variabelenlijst, het reviewen van engine-traces, of het regressie-bestendig maken van cross-law-ketens zodat een ketenfout niet stil achter een correcte endpoint verdwijnt. Casus-agnostisch; de regelrecht-methode is de vaste taal. Haakt aan op regelrecht-stelselanalyse (engine-tests / meta-check) en regelrecht-audit-products (testcase-scenario's).
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, AskUserQuestion, Agent
 ---
 
 # Regelrecht scenario's & traces — casus vindbaar, keten leesbaar
 
-Een dossier-agnostische techniek-skill die beide werk-skills delen:
+Een casus-agnostische techniek-skill die beide werk-skills delen:
 `regelrecht-audit-products` schrijft scenario's (de casus-kant),
 `regelrecht-stelselanalyse` reviewt traces (de keten-kant). Deze skill levert de
 *methode* om scenario's zó te modelleren dat (A) de casuïstiek terugvindbaar is en
@@ -88,7 +88,7 @@ cross-law-keten gebruikt alle vier.
    valideert de suite de YAML, niet de wet. Keten-checkpoints + golden-traces zijn het
    concrete wapen hiertegen — zie de hook naar `regelrecht-stelselanalyse`.
 
-6. **Schrijf naar het corpus/dossier, niet in de skill.** Persona's, matrices en
+6. **Schrijf naar het corpus/traject, niet in de skill.** Persona's, matrices en
    trace-snapshots horen bij het corpus: feature-files in de `scenarios/`-map
    naast de wet die ze testen, verder `docs/`.
    Wijzig nooit de skill-bestanden met casus-inhoud. Commit/push alleen op verzoek.
@@ -113,14 +113,14 @@ cross-law-keten gebruikt alle vier.
 ## Routing & handoff
 
 Dit is een techniek-laag die beide werk-skills bedienen. Twijfel je waar te beginnen →
-`regelrecht-dossier`. Bij het ontwerpen van expert-testcases gebruikt
+`regelrecht-traject`. Bij het ontwerpen van expert-testcases gebruikt
 `regelrecht-audit-products/templates/testcase-scenarios` deze persona-methode; bij
 regressie/validatie voert `regelrecht-stelselanalyse` (engine-tests + de
 features-vs-YAML meta-check) de keten-checkpoints + golden-traces uit.
 
 ## Belangrijke regels
 
-- **Dossier-agnostisch blijven.** Geen vaste wet-namen, norm-namen, bedragen of
+- **Casus-agnostisch blijven.** Geen vaste wet-namen, norm-namen, bedragen of
   casus-voorbeelden in de skill-bestanden. In *output* (corpus/features) mag casus-inhoud
   uiteraard wel.
 - **Assert de keten, niet alleen de endpoint.** Een groene endpoint met een ongeteste

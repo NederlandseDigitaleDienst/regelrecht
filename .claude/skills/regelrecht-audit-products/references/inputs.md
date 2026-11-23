@@ -1,7 +1,7 @@
 # Input — wat de skill verwacht en hoe je het detecteert
 
 De skill start typisch vanaf een **casus-map met een scope-manifest + verwijzingen
-naar de machine-readable YAML's** in een corpus. Casussen verschillen per dossier;
+naar de machine-readable YAML's** in een corpus. Casussen verschillen per traject;
 de structuur hieronder is het generieke patroon.
 
 ## Wat je nodig hebt
