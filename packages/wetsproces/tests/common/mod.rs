@@ -299,3 +299,49 @@ pub async fn anna_applies(app: &Router) -> Value {
     assert_eq!(status, StatusCode::OK, "{aanvraag}");
     aanvraag
 }
+
+/// Every record id anywhere in `v`, also inside a longer string: the
+/// chronicles give out ids as UUIDs.
+pub fn record_ids(v: &Value, into: &mut std::collections::BTreeSet<String>) {
+    match v {
+        Value::String(s) => {
+            let chars: Vec<char> = s.chars().collect();
+            for window in chars.windows(36) {
+                let uuid = window.iter().enumerate().all(|(i, c)| {
+                    if [8, 13, 18, 23].contains(&i) {
+                        *c == '-'
+                    } else {
+                        c.is_ascii_hexdigit()
+                    }
+                });
+                if uuid {
+                    into.insert(window.iter().collect());
+                }
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|x| record_ids(x, into)),
+        Value::Object(map) => map.iter().for_each(|(k, x)| {
+            record_ids(&Value::String(k.clone()), into);
+            record_ids(x, into);
+        }),
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
+}
+
+pub fn ids_in(v: &Value) -> std::collections::BTreeSet<String> {
+    let mut ids = std::collections::BTreeSet::new();
+    record_ids(v, &mut ids);
+    ids
+}
+
+/// An objection or an appeal as Anna fills it in, on `grounds`.
+pub fn notice_of(grounds: &str) -> Value {
+    json!({
+        "bezwaar_of_beroepschrift_ondertekend": true,
+        "naam_indiener": "A. de Vries",
+        "adres_indiener": "Voorbeeldlaan 2",
+        "dagtekening_bezwaar_of_beroepschrift": "2026-10-21",
+        "omschrijving_bestreden_besluit": "het besluit op de aanvraag",
+        "gronden_bezwaar_of_beroep": grounds,
+    })
+}

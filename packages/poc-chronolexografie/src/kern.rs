@@ -1155,6 +1155,32 @@ fn termijnveld(vorm: &shape::Shape) -> Option<&str> {
     }
 }
 
+/// Per submission of the case on `on`, by its article, the field that holds
+/// the last day to make it in time ([`termijnveld`]), for those whose law
+/// names one. A decision gives that field as an output, so it says until
+/// when a submission against it can be made. An article not in force on
+/// `on` names none.
+///
+/// # Errors
+///
+/// When the corpus does not load.
+pub fn termijnvelden(corpus: &Corpus, on: NaiveDate) -> Result<BTreeMap<String, String>> {
+    let service = corpus.service()?;
+    let mut velden = BTreeMap::new();
+    for i in &corpus.afleiding.indieningen {
+        let Ok((law, article)) = basis(&i.artikel) else {
+            continue;
+        };
+        let Ok(vorm) = shape::derive(&service, law, article, on) else {
+            continue;
+        };
+        if let Some(veld) = termijnveld(&vorm) {
+            velden.insert(i.artikel.clone(), veld.to_string());
+        }
+    }
+    Ok(velden)
+}
+
 /// Whether the application form of `aanvraag` asks the field `naam`: a
 /// field of the application, and not a decision it refers to.
 fn vraagt(aanvraag: &shape::Shape, naam: &str) -> bool {

@@ -27,6 +27,7 @@
 //!   one in Postgres;
 //! - [`dossier`]: which records are about one person;
 //! - [`external`]: what the admin panel shows of an external party;
+//! - [`timeline`]: what happened about one application, and what comes next;
 //! - [`case`]: the one case, from the manifest;
 //! - [`service`]: the steps, against a store and a clock;
 //! - [`api`]: the HTTP API over the service;
@@ -45,4 +46,5 @@ pub mod login;
 pub mod service;
 pub mod store;
 pub mod surface;
+pub mod timeline;
 pub mod visibility;

@@ -13,9 +13,12 @@
 // What answers the submission comes from the server (`stand` of the
 // chronicle): its decision stands; another decision took it back and holds a
 // new one in its place; or a later record revoked it with nothing in its
-// place. When the server names a record to decide after (`na`), such as the
-// receipt of a judgment that annulled a decision on objection, the decider
-// decides again after it; after a withdrawal nothing waits.
+// place. Whether it waits for a decision, the server's queue says (`open`:
+// the work queue of the executor, or what waits for an external party), and
+// nothing else: the form and the button show only for a submission in it.
+// When the queue names a record to decide after (`na`), such as the receipt
+// of a judgment that annulled a decision on objection, the decider decides
+// again after it; after a withdrawal nothing waits.
 //
 // With `namens` it is the pane beside the admin panel (BeheerView.vue): the
 // submission waits for an external party, such as an appeal for the court,
@@ -25,7 +28,8 @@
 // For the executor it also shows what its policy asked of another party for
 // this application, such as the examination by the GGD, and whether the
 // answer came back (`GET /api/backoffice/verzoeken`): from the executor's own
-// records, never from the party's chronicle.
+// records, never from the party's chronicle. Under it, the timeline of the
+// application (gedeeld/TijdlijnLijst.vue, `GET /api/backoffice/tijdlijn/{id}`).
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
@@ -36,10 +40,11 @@ import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { antwoordOp, artikelNaam, celNaam, herroeping as herroepingVan, herroepingTekst, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
-import type { Casus, Gram, Ik, Rol, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
+import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
+import type { Casus, Gram, Ik, Rol, Tijdlijn, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import { backofficeApi, beheerApi } from './api';
 import BesluitWeergave from './BesluitWeergave.vue';
-import type { EigenVerzoek, Kroniek } from './api';
+import type { EigenVerzoek, Kroniek, Wachtend } from './api';
 import { feitNaam } from './feit';
 import { verzoekenBij } from './verzoek';
 import type { VerzoekBij } from './verzoek';
@@ -53,12 +58,19 @@ const props = defineProps<{
   kronieken: Kroniek[];
   /** Decide on behalf of an external party, on one of its waiting submissions. */
   namens?: boolean;
-  open?: Gram[];
+  /**
+   * What waits for a decision, as the server's queue says: the executor's
+   * work queue, or what waits for the external party. Undefined until it
+   * loaded.
+   */
+  open?: Wachtend[];
 }>();
 const emit = defineEmits<{ besloten: [] }>();
 
 const kroniek = computed(() => props.kronieken.find((k) => k.cel === props.cel));
-const gevonden = computed(() => (props.namens ? props.open : kroniek.value?.grammen)?.find((g) => g.id === props.id) ?? null);
+/** The submission as the queue holds it, if it waits for a decision. */
+const wachtend = computed(() => props.open?.find((w) => w.stuk.id === props.id));
+const gevonden = computed(() => (props.namens ? wachtend.value?.stuk : kroniek.value?.grammen.find((g) => g.id === props.id)) ?? null);
 // A submission the panel decided on leaves what waits for the party; the pane
 // keeps showing it, with the decision.
 const onthouden = ref<Gram | null>(null);
@@ -126,10 +138,10 @@ const herroeping = computed(() => {
 });
 /** The decision another record took in the place of the revoked one, which answers the submission now. */
 const inDePlaats = computed(() => (antwoord.value?.soort === 'in_de_plaats' ? antwoord.value.nieuw : null));
-/** The record to decide after when the last decision was revoked with nothing in its place. */
-const na = computed(() => (antwoord.value?.soort === 'vervallen' ? antwoord.value.na : undefined));
-/** Whether the submission waits for a decision: none yet, or decide again after `na`. */
-const wacht = computed(() => props.namens || antwoord.value?.soort === 'open' || !!na.value);
+/** The record to decide after, when the queue says to decide again. */
+const na = computed(() => wachtend.value?.na);
+/** Whether the submission waits for a decision: when the server's queue holds it, and only then. */
+const wacht = computed(() => !!wachtend.value);
 /** A decision already on the submission that stands, taken before this screen opened. */
 const eerder = computed(() => (antwoord.value?.soort === 'besloten' ? laatste.value : undefined));
 const eerderWaarom = ref<Waarom | null>(null);
@@ -225,6 +237,36 @@ watch(
   { immediate: true },
 );
 onUnmounted(() => clearTimeout(wachttijd));
+
+// The timeline of the application, for the executor's own submissions:
+// again when a chronicle changes.
+const tijdlijn = ref<Tijdlijn | null>(null);
+const tijdlijnFout = ref('');
+let tijdlijnVraag = 0;
+async function laadTijdlijn() {
+  if (props.namens) return;
+  const deze = ++tijdlijnVraag;
+  try {
+    const t = await backofficeApi.tijdlijn(props.id);
+    if (deze !== tijdlijnVraag) return;
+    tijdlijn.value = t;
+    tijdlijnFout.value = '';
+  } catch (e) {
+    if (deze === tijdlijnVraag) tijdlijnFout.value = foutTekst(e);
+  }
+}
+watch(() => props.kronieken.map((k) => k.kop).join(','), laadTijdlijn, { immediate: true });
+/**
+ * Where a record of the timeline opens: a submission of the executor here,
+ * in the work queue; another record of the executor in its chronicle. A
+ * record of another cell has no screen on this side.
+ */
+function naar(g: Gram) {
+  if (g.recording_actor !== props.casus.cel) return undefined;
+  return tijdlijn.value?.stand.rollen[g.id] === 'indiening'
+    ? { name: 'behandelen', params: { cel: g.recording_actor, id: g.id } }
+    : { name: 'kroniek', params: { cel: g.recording_actor }, query: { stuk: g.id } };
+}
 
 async function beslissen() {
   bezig.value = true;
@@ -389,6 +431,17 @@ async function beslissen() {
           </nldd-button-group>
         </nldd-container>
         <nldd-inline-dialog v-else-if="wacht" icon="info" text="Een beslisser van deze cel neemt het besluit"></nldd-inline-dialog>
+
+        <TijdlijnLijst
+          v-if="!namens"
+          :tijdlijn="tijdlijn"
+          :fout="tijdlijnFout"
+          :casus="casus"
+          kant="medewerker"
+          :teksten="vormen?.teksten"
+          :huidig="id"
+          :naar="naar"
+        />
       </nldd-container>
     </nldd-simple-section>
   </nldd-page>

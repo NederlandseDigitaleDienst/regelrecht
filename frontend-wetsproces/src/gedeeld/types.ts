@@ -310,3 +310,35 @@ export interface Voorvertoning {
   /** What the system would then record itself: per act its fact, the article and the record it refers to. */
   automatisch?: { feit: string; artikel: string; verwijst_naar?: string | null }[];
 }
+
+/** Who is to act next (`timeline::Actor` of the server). */
+export type AanZet = 'uitvoerder' | 'systeem' | 'externe_partij' | 'indiener';
+
+/** One thing that can or must happen next about an application (`timeline::Next`). */
+export type VolgendeStap =
+  /** The cell `cel` decides on the submission `op`; with `na` again, after that record. */
+  | { soort: 'besluit'; wie: AanZet; cel: string; op: string; na?: string }
+  /** The cell `cel` answers the request `op` with the fact `feit`. */
+  | { soort: 'antwoord'; wie: AanZet; cel: string; op: string; feit: string }
+  /** The act `feit` after the grant `op`; with `artikel`, the system takes it by that article. */
+  | { soort: 'handeling'; wie: AanZet; cel: string; op: string; feit: string; artikel?: string }
+  /** The cell `cel` sends a copy of its decision `op`. */
+  | { soort: 'toezending'; wie: AanZet; cel: string; op: string }
+  /** A submission against the decision `op` can be made until `tot`, the value of its output `veld`. */
+  | { soort: 'termijn'; wie: AanZet; op: string; veld: string; tot: string };
+
+/**
+ * The timeline of one application (`GET /api/dossier/tijdlijn/{id}`,
+ * `GET /api/backoffice/tijdlijn/{id}`): its records in the order they
+ * happened, what the kern says of them, and what comes next. The server
+ * keeps it to what the reader may see.
+ */
+export interface Tijdlijn {
+  /** The application at the top. */
+  stuk: string;
+  grammen: Gram[];
+  stand: Stand;
+  /** Per record the system made by an article of the policy, that article. */
+  door_het_systeem: Record<string, string>;
+  volgende: VolgendeStap[];
+}

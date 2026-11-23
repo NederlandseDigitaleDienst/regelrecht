@@ -3,7 +3,7 @@
 // client only names the routes.
 import { gedeeldApi } from '../gedeeld/api';
 import { haal, stuur } from '../gedeeld/http';
-import type { Gram, Klok, Stand, Vervolgstand, Voorvertoning, Waarom } from '../gedeeld/types';
+import type { Gram, Klok, Stand, Tijdlijn, Vervolgstand, Voorvertoning, Waarom } from '../gedeeld/types';
 
 /** The chronicle of one cell. */
 export interface Kroniek {
@@ -52,8 +52,8 @@ export interface OpenVerzoek {
 export interface Partij {
   cel: string;
   cel_naam: string;
-  /** The submissions in its chronicle that wait for its decision. */
-  open: Gram[];
+  /** The submissions in its chronicle that wait for its decision, with the record to decide after (`na`) when one was revoked. */
+  open: Wachtend[];
   /** Its decisions of which no other cell received a copy yet. */
   toe_te_zenden: Gram[];
   /** The requests of the executor it has not answered yet. */
@@ -96,6 +96,8 @@ export const backofficeApi = {
   werkvoorraad: () => haal<Werkvoorraad>('/api/backoffice/werkvoorraad'),
   kroniek: (cel: string) => haal<Kroniek>(`/api/backoffice/cellen/${encodeURIComponent(cel)}/kroniek`),
   waarom: (besluit: string) => haal<Waarom>(`/api/backoffice/waarom/${encodeURIComponent(besluit)}`),
+  /** The timeline of the application the record `id` belongs to: the executor's records. */
+  tijdlijn: (id: string) => haal<Tijdlijn>(`/api/backoffice/tijdlijn/${encodeURIComponent(id)}`),
   voorvertoning: (b: Beslissing) => stuur<Voorvertoning>('POST', '/api/backoffice/voorvertoning', b),
   beslissen: (b: Beslissing, sleutel: string) =>
     stuur<{ besluit: Gram; waarom: Waarom }>('POST', '/api/backoffice/besluiten', b, sleutel),

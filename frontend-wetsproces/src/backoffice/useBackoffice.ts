@@ -14,8 +14,9 @@ export function useBackoffice() {
   const fout = ref('');
   const laden = ref(true);
 
-  async function laad() {
-    laden.value = true;
+  /** Load it all; `stil` leaves `laden` alone, so what shows stays while it loads again. */
+  async function laad(stil = false) {
+    if (!stil) laden.value = true;
     try {
       const [c, v, w] = await Promise.all([backofficeApi.casus(), backofficeApi.formulier(), backofficeApi.ik()]);
       casus.value = c;

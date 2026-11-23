@@ -6,8 +6,10 @@
 // holds; a submission, or a decision on one, also leads to its panel in the
 // work queue. A decision of the executor shows the full chain of why it came
 // out so, as the server explains it (`GET /api/backoffice/waarom/{id}`).
+// A record named in the address (`?stuk=<id>`), as the timeline of an
+// application links to it, opens in that sheet.
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import Gegevens from '../gedeeld/Gegevens.vue';
@@ -21,6 +23,7 @@ import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string }>();
 const router = useRouter();
+const route = useRoute();
 const { casus, vormen, kronieken, fout, laden, laad } = useBackoffice();
 onMounted(laad);
 
@@ -40,6 +43,15 @@ const omschrijf = (g: Gram) =>
 
 /** The record open in the sheet. */
 const open = ref<Gram | null>(null);
+// The record the address names, once the chronicle it is in has loaded.
+watch(
+  () => [route.query.stuk, gekozen.value] as const,
+  ([stuk, k]) => {
+    const g = typeof stuk === 'string' ? k?.grammen.find((x) => x.id === stuk) : undefined;
+    if (g) open.value = g;
+  },
+  { immediate: true },
+);
 /** The submission a record is or answers to, in this chronicle: what its panel in the work queue shows. */
 const indieningVan = (g: Gram): Gram | undefined => {
   const k = gekozen.value;
@@ -65,6 +77,11 @@ watch(open, async (g) => {
     if (open.value?.id === g.id) waaromFout.value = foutTekst(e);
   }
 });
+/** Close the sheet, and drop the record from the address so it does not open again. */
+function sluit() {
+  open.value = null;
+  if (route.query.stuk) void router.replace({ query: {} });
+}
 function naarWerkvoorraad(g: Gram) {
   const op = indieningVan(g);
   open.value = null;
@@ -138,7 +155,7 @@ function naarWerkvoorraad(g: Gram) {
   </nldd-navigation-split-view>
 
   <Teleport to="body">
-    <nldd-sheet width="720px" :open="open ? true : undefined" @close="open = null">
+    <nldd-sheet width="720px" :open="open ? true : undefined" @close="sluit">
       <nldd-page>
         <nldd-container slot="header" padding="16">
           <nldd-top-title-bar

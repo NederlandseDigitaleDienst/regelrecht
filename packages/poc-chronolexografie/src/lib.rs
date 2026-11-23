@@ -21,6 +21,7 @@ pub mod inlogstap;
 pub mod kern;
 pub mod spel;
 pub mod stand;
+pub mod tijdlijn;
 pub mod ui_spec;
 pub mod vervolg;
 pub mod verzoek;

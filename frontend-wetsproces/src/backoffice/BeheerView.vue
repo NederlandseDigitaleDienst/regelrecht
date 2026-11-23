@@ -159,7 +159,7 @@ async function toezenden(besluit: Gram) {
               </template>
               <nldd-list v-if="p.open.length" appearance="simple" :accessible-label="`Wat wacht op ${p.cel_naam}`">
                 <nldd-list-item
-                  v-for="g in p.open"
+                  v-for="{ stuk: g } in p.open"
                   :key="g.id"
                   size="md"
                   button
