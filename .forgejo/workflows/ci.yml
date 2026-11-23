@@ -205,6 +205,33 @@ jobs:
           }
           contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
           contains WETSPROCES_ACCENT_COLOR $SMALL --set theme.accentColor=paars
+          # Keycloak's host follows the others: one label under the wildcard
+          # behind the shared Gateway, login.<host> with a Gateway of its own.
+          KC="--set wetsproces.mode=stable --set wetsproces.login=oidc --set keycloak.enabled=true"
+          contains "hostname: wetsproces-login.example.org" $CNPG $KC
+          contains "hostname: wetsproces-login.example.org" $CNPG $KC --set gateway.mode=shared
+          contains "hostname: login.wetsproces.example.org" $CNPG $KC --set gateway.mode=own
+          OIDC="--set wetsproces.login=oidc --set oidc.existingSecret=wetsproces-oidc
+            --set oidc.issuerUrl=https://keycloak.example.org/realms/wetsproces"
+          helm lint "$C" --strict --set domain=example.org $SMALL $OIDC
+          helm template wetsproces "$C" --set domain=example.org $CNPG $OIDC \
+            --set wetsproces.mode=stable > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set keycloak.realmImport.enabled=true \
+            --set keycloak.realmImport.secretName=wetsproces-realm \
+            --set keycloak.testUsers=true \
+            --show-only templates/keycloak-realm.yaml > realm.yaml
+          # The employees' ladder is lezer, beslisser, admin: no behandelaar.
+          grep -q 'name: wetsproces-beslisser' realm.yaml
+          if grep -q behandelaar realm.yaml; then
+            echo "the realm still has a behandelaar"; exit 1
+          fi
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set wetsproces.mode=stable --set wetsproces.login=oidc \
+            --set keycloak.enabled=true --set keycloak.testUsers=true > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set wetsproces.mode=stable --set wetsproces.login=oidc \
+            --set keycloak.enabled=true --set gateway.mode=own > /dev/null
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work
@@ -237,3 +264,19 @@ jobs:
             --set surfaces.burger.host=Not_A_Host
           refuse "accentColor" --set domain=example.org $CNPG \
             --set theme.accentColor=purple
+          OIDC="--set wetsproces.login=oidc --set oidc.existingSecret=wetsproces-oidc
+            --set oidc.issuerUrl=https://keycloak.example.org/realms/wetsproces"
+          STABLE="--set domain=example.org $CNPG --set wetsproces.mode=stable"
+          refuse "logs in through Keycloak only" $STABLE
+          refuse "keeps the chronicles in PostgreSQL" $STABLE $OIDC \
+            --set database.enabled=false --set surfaces.split=false
+          refuse "an instance of its own" $STABLE $OIDC --set surfaces.split=false
+          refuse "requiredRole" $STABLE $OIDC --set oidc.requiredRole=editor-reader
+          refuse "needs oidc.existingSecret" $STABLE $OIDC --set oidc.existingSecret=
+          refuse "needs oidc.issuerUrl" $STABLE $OIDC --set oidc.issuerUrl=
+          refuse "secretName is required" --set domain=example.org $CNPG \
+            --set keycloak.realmImport.enabled=true
+          refuse "keycloak.host must differ" $STABLE --set wetsproces.login=oidc \
+            --set keycloak.enabled=true --set keycloak.host=burger.wetsproces.example.org
+          refuse "for the database of Keycloak" --set domain=example.org \
+            --set database.enabled=false --set surfaces.split=false --set keycloak.enabled=true

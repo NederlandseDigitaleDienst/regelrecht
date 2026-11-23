@@ -1,3 +1,4 @@
+{{- include "wetsproces.checkLogin" . }}
 {{- range $i, $inst := include "wetsproces.instances" . | fromJsonArray }}
 {{- with $ }}
 {{- if $i }}
@@ -150,6 +151,25 @@ spec:
             {{- end }}
             - name: WETSPROCES_LOGIN
               value: {{ .Values.wetsproces.login | quote }}
+            {{- if eq .Values.wetsproces.login "oidc" }}
+            {{- $client := get .Values.oidc.clients (include "wetsproces.clientKey" $inst.surface) }}
+            - name: OIDC_DISCOVERY_URL
+              value: {{ include "wetsproces.oidcIssuer" . | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ $client.clientId | quote }}
+            # The secret comes from a Secret only; the chart never holds it.
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wetsproces.oidcSecret" . }}
+                  key: {{ $client.secretKey }}
+            - name: OIDC_REQUIRED_ROLE
+              value: {{ .Values.oidc.requiredRole | quote }}
+            # Keycloak sends the browser back to <BASE_URL>/auth/callback, so
+            # this must be the host the instance's client allows.
+            - name: BASE_URL
+              value: {{ printf "https://%s" $inst.host | quote }}
+            {{- end }}
             - name: WETSPROCES_MANIFEST
               value: {{ printf "/case/%s" (include "wetsproces.casePath" .) | quote }}
             - name: WETSPROCES_PORT

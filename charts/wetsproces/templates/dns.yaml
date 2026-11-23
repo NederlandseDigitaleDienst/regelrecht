@@ -24,7 +24,7 @@ metadata:
     {{- include "wetsproces.labels" . | nindent 4 }}
 spec:
   endpoints:
-    {{- range include "wetsproces.instances" . | fromJsonArray }}
+    {{- range include "wetsproces.routes" . | fromJsonArray }}
     - dnsName: {{ .host }}
       recordType: A
       recordTTL: {{ $.Values.dns.ttl }}

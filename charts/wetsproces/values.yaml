@@ -41,14 +41,106 @@ gitImage:
   ref: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
   pullPolicy: IfNotPresent
 
-# Test mode with the test login. Stable mode needs Keycloak and is not
-# supported by this chart yet. Where the chronicles live follows from
-# `database`, which side an instance serves from `surfaces`.
+# Test mode with the test login by default. Where the chronicles live follows
+# from `database`, which side an instance serves from `surfaces`.
+#
+# `mode: stable` runs on the real date and logs in through Keycloak only. It
+# needs `database.enabled`, no instance with the surface `all` (so
+# `surfaces.split`, as a rule) and `login: oidc` with the `oidc` block below;
+# the chart refuses anything else.
 wetsproces:
+  # `test` or `stable`.
   mode: test
   # The surface of the single instance; ignored with surfaces.split.
   surface: all
+  # `testlogin` or `oidc`. Test mode takes either; stable mode only `oidc`.
   login: testlogin
+
+# The login through Keycloak, read with `login: oidc`. Each side has a client
+# of its own, whose redirect URI is https://<host of that side>/auth/callback;
+# the chart sets BASE_URL to that host. An instance with the surface `all`
+# uses the citizens' client.
+oidc:
+  # The realm's issuer, https://<keycloak host>/realms/<realm>; with
+  # keycloak.enabled empty means the Keycloak of this release. The server reads
+  # the rest from its discovery document, so the certificate of the Keycloak
+  # host must be one the server trusts: Let's Encrypt staging is not.
+  issuerUrl: ''
+  # The role every account needs to log in at all. Another value than a role
+  # of this server would let in every account of the realm.
+  requiredRole: wetsproces-toegang
+  # The Secret, in the release's namespace, that holds the client secrets
+  # under the keys below. The chart only refers to it: a secret never goes in
+  # these values. With keycloak.enabled empty means the generated Secret.
+  existingSecret: ''
+  clients:
+    burger:
+      clientId: wetsproces
+      secretKey: burger-client-secret
+    backoffice:
+      clientId: wetsproces-backoffice
+      secretKey: backoffice-client-secret
+
+# The Keycloak the login goes through, and the realm it needs as data: the
+# roles, a client per instance with its host, and optionally test accounts.
+keycloak:
+  # A Keycloak of this release, in its namespace: one pod, a CloudNativePG
+  # database of its own, and a host on the Gateway above. It imports the realm
+  # at its first start; with it, `oidc.issuerUrl` and `oidc.existingSecret`
+  # default to this Keycloak and the Secret the chart generates for it.
+  enabled: false
+  # Empty means <first label of host>-login beside host behind the shared
+  # Gateway (one label under the wildcard), and login.<host> with mode own.
+  host: ''
+  image:
+    ref: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+    pullPolicy: IfNotPresent
+  realm: wetsproces
+  # Test accounts of the case: two citizens with a made-up name and a number
+  # of the test range, a decider and an admin, all with the one password
+  # under `testPasswordKey`. For a test setup only.
+  testUsers: false
+  testPasswordKey: test-password
+  # The database of this Keycloak, apart from the chronicles.
+  database:
+    instances: 1
+    storage:
+      size: 1Gi
+      storageClass: ''
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 768Mi
+    limits:
+      memory: 1536Mi
+  # The Job that generates the Secret <release>-keycloak once, in the cluster:
+  # the admin password, the client secrets under the keys of `oidc.clients`
+  # and the test password. Nothing of it is in these values or in an image.
+  secretsJob:
+    image:
+      ref: alpine/k8s:1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+      pullPolicy: IfNotPresent
+  # The same realm as a KeycloakRealmImport, for a Keycloak run by the
+  # Keycloak operator elsewhere, which imports a realm once, when it does not
+  # exist yet, and changes nothing after.
+  realmImport:
+    enabled: false
+    # The Keycloak CR to import into. The operator requires the import in the
+    # namespace of that CR, which is often not the release's namespace;
+    # `namespace` places it there, for a release or a rendered file
+    # (`helm template --show-only templates/keycloak-realm.yaml`).
+    keycloakCRName: keycloak
+    namespace: ''
+    # The Secret, in the namespace of the import, that the operator reads the
+    # placeholders from: the client secrets under the keys of `oidc.clients`,
+    # and with `testUsers` the password of the test accounts.
+    secretName: ''
 
 # PostgreSQL for the chronicles, the test clock and the sessions, as a
 # CloudNativePG Cluster of this release. Off, the chronicles live in memory and

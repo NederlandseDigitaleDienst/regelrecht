@@ -1,10 +1,14 @@
-wetsproces runs the case from {{ .Values.case.repoUrl }} at {{ .Values.case.ref }} ({{ .Values.case.path }}).
+wetsproces runs the case from {{ .Values.case.repoUrl }} at {{ .Values.case.ref }} ({{ .Values.case.path }}),
+in {{ .Values.wetsproces.mode }} mode, {{ ternary "logging in through Keycloak" "with the test login" (eq .Values.wetsproces.login "oidc") }}.
 Chronicles: {{ if .Values.database.enabled }}PostgreSQL, CNPG Cluster {{ include "wetsproces.dbCluster" . }}{{ else }}in memory, gone at every restart{{ end }}.
 {{- if .Values.gateway.enabled }}
 
 Addresses:
 {{- range include "wetsproces.instances" . | fromJsonArray }}
   {{ .surface }}: https://{{ .host }}
+{{- end }}
+{{- if .Values.keycloak.enabled }}
+  keycloak: https://{{ include "wetsproces.keycloakHost" . }} (realm {{ .Values.keycloak.realm }}; admin password in Secret {{ include "wetsproces.keycloakName" . }}, key admin-password)
 {{- end }}
 (Let's Encrypt {{ .Values.tls.acme }})
 The hosts must resolve to the address of Gateway {{ .Release.Name }}:

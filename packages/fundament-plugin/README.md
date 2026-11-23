@@ -154,6 +154,83 @@ such as `cluster-c` for now:
 `gateway.mode: own` is the setup from before: a Gateway with a public address
 of its own and an HTTP listener of its own, with `dns.*` for the records.
 
+## Stable mode and the login through Keycloak
+
+The chart can run a wetsproces in stable mode; the plugin does not offer it
+yet. With `wetsproces.login: oidc` each instance logs in through Keycloak, with
+a client of its own: `wetsproces` for citizens and `wetsproces-backoffice` for
+employees, as [Authentication & Roles](../../docs/src/content/docs/auth-and-roles.md#wetsproces-roles)
+describes. The chart sets `BASE_URL` to the instance's own host, so the
+redirect URI each client must allow is `https://<host>/auth/callback`.
+`wetsproces.mode: stable` needs this login, the database and no instance with
+the surface `all`. The chart refuses a release without them, so a server that
+would stop at start is never rolled out. Test mode stays the default.
+
+`keycloak.enabled` adds a Keycloak to the release, in the same namespace, so
+the login needs nothing outside it:
+
+- a Deployment of one pod with the image `quay.io/keycloak/keycloak` pinned by
+  digest, rolled out with `Recreate` because Keycloak migrates its database at
+  start;
+- a CloudNativePG `Cluster` of its own, `<release>-keycloak-db`;
+- a host of its own, reached like the others: behind the shared Gateway
+  (`listenerSet` or `shared`) `<name>-login.<domain>` beside `<name>.<domain>`,
+  one label under the wildcard, and with `gateway.mode: own` `login.<host>`;
+  `keycloak.host` sets another;
+- the realm in a ConfigMap, which Keycloak imports at its first start
+  (`start --import-realm`). A realm that exists is left alone, so a change to
+  the realm reaches a new database only;
+- a Job, run by Helm before every install and upgrade, that generates the
+  Secret `<release>-keycloak` in the cluster: the admin password
+  (`admin-password`, for the user `admin`), the client secrets and, with
+  `keycloak.testUsers`, the test password. It never changes a key that exists,
+  and the Secret stays behind after an uninstall. No secret is in the values or
+  an image.
+
+The instances then log in at `https://<Keycloak host>/realms/wetsproces` with
+the client secrets from that Secret, without further values. The server reads
+the discovery document of that host when it starts, so it needs a certificate
+it trusts: Let's Encrypt staging is enough to try the routes, and the login
+works on production. Until Keycloak and the databases answer, the server stops
+at start and Kubernetes starts it again.
+
+```yaml
+wetsproces:
+  mode: stable
+  login: oidc
+keycloak:
+  enabled: true
+  testUsers: true   # Anna Voorbeeld, Bram Proef, beslisser, admin
+```
+
+The test password is read from the cluster:
+
+```sh
+kubectl -n <namespace> get secret <release>-keycloak \
+  -o jsonpath='{.data.test-password}' | base64 -d
+```
+
+For a Keycloak elsewhere, `oidc.issuerUrl` and `oidc.existingSecret` name it
+and the Secret with the client secrets, in the release's namespace. The realm
+is then also available as a `KeycloakRealmImport`, for a Keycloak that the
+Keycloak operator runs. That operator only reads an import in the namespace of
+its `Keycloak`; on `cluster-a` that is `keycloak-instances`, which Haven+
+manages from its own repository, so there the import is rendered to a file and
+applied by whoever manages that namespace:
+
+```sh
+helm template wetsproces charts/wetsproces --set domain=cluster-a.fieldlab2026.nl \
+  --api-versions postgresql.cnpg.io/v1/Cluster \
+  --set keycloak.realmImport.enabled=true \
+  --set keycloak.realmImport.namespace=keycloak-instances \
+  --set keycloak.realmImport.secretName=wetsproces-realm \
+  --set keycloak.testUsers=true \
+  --show-only templates/keycloak-realm.yaml
+```
+
+The operator fills the client secrets and the test password in from the Secret
+`secretName`, in the namespace of the import.
+
 ## Console
 
 The plugin adds **Wetsprocessen** to the project sidebar, with pages of its own
@@ -183,8 +260,9 @@ object. The plugin reads each key as the `FUNP_<name>` environment variable.
 | `CHART_REF` | no (advanced) | `main` | branch or tag of this repository that the chart is read from |
 | `ACME` | no (advanced) | `production` | Let's Encrypt environment: `staging` or `production` |
 
-The Keycloak URL of stable mode will join these once the chart supports stable
-mode.
+The chart supports stable mode with a Keycloak of its own (see
+[Stable mode](#stable-mode-and-the-login-through-keycloak)); the wizard does
+not offer it yet.
 
 v0.1 took the case, the namespace and the image in the install form. Those keys
 are gone, and the config schema is closed, so an installation of v0.1 is

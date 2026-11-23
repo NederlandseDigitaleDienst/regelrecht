@@ -1,5 +1,5 @@
 {{- if .Values.gateway.enabled }}
-{{- $instances := include "wetsproces.instances" . | fromJsonArray }}
+{{- $routes := include "wetsproces.routes" . | fromJsonArray }}
 {{- $issuer := printf "%s-letsencrypt-%s" .Release.Name .Values.tls.acme }}
 {{- $shared := eq .Values.gateway.mode "shared" }}
 {{- $listenerSet := eq .Values.gateway.mode "listenerSet" }}
@@ -31,7 +31,7 @@ spec:
     name: {{ .Values.gateway.shared.name }}
     namespace: {{ .Values.gateway.shared.namespace }}
   listeners:
-    {{- range $instances }}
+    {{- range $routes }}
     - name: https{{ .suffix }}
       hostname: {{ .host }}
       port: 443
@@ -44,7 +44,7 @@ spec:
         namespaces:
           from: Same
     {{- end }}
-{{- range $instances }}
+{{- range $routes }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -63,7 +63,7 @@ spec:
   rules:
     - backendRefs:
         - name: {{ .name }}
-          port: 8000
+          port: {{ .port }}
 {{- end }}
 {{- else }}
 apiVersion: cert-manager.io/v1
@@ -130,7 +130,7 @@ spec:
           from: Same
     {{- end }}
     # An HTTPS listener per host, each with a certificate of its own.
-    {{- range $instances }}
+    {{- range $routes }}
     - name: https{{ .suffix }}
       hostname: {{ .host }}
       port: 443
@@ -145,7 +145,7 @@ spec:
         namespaces:
           from: Same
     {{- end }}
-{{- range $instances }}
+{{- range $routes }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -164,7 +164,7 @@ spec:
   rules:
     - backendRefs:
         - name: {{ .name }}
-          port: 8000
+          port: {{ .port }}
 {{- end }}
 {{- if $shared }}
 ---
@@ -185,7 +185,7 @@ spec:
       namespace: {{ .Values.gateway.shared.namespace }}
       sectionName: {{ .Values.gateway.shared.tlsListener }}
   hostnames:
-    {{- range $instances }}
+    {{- range $routes }}
     - {{ .host }}
     {{- end }}
   rules:
@@ -209,7 +209,7 @@ spec:
   parentRefs:
     - {{- toYaml $httpParent | nindent 6 }}
   hostnames:
-    {{- range $instances }}
+    {{- range $routes }}
     - {{ .host }}
     {{- end }}
   rules:
