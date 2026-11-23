@@ -1,0 +1,10 @@
+---
+# Wie deze cel is (RFC-046, RFC-053): de bestuursrechter waarbij een
+# belanghebbende beroep instelt tegen een besluit van het college van
+# Groningen (Awb 8:1). Een simulatie, zoals de Rechtbank Wilgendaal in de
+# casus van de parkeerkaart: in de demo legt de admin het beroep en de
+# uitspraak vast in het beheerpaneel. Zij legt het beroep vast met het
+# afschrift van het bestreden besluit dat zij ontving, en de uitspraak die zij
+# erop doet (Awb 8:70).
+name: Rechtbank Noord-Nederland
+category: de bestuursrechter

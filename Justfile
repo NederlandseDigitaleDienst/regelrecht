@@ -1094,6 +1094,15 @@ poc: poc-build
 wetsproces:
     WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7180}" \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
+
+# The individuele inkomenstoeslag of Groningen as a second case of the
+# wetsprocessysteem, beside the parking card, on http://localhost:7181. The
+# case, its profiles and the demo route are in
+# packages/wetsproces/iit-groningen/README.md.
+wetsproces-iit:
+    WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7181}" \
+    WETSPROCES_MANIFEST=packages/wetsproces/iit-groningen/bron.yaml \
+    cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
 # Start de wetsgeschiedenis los, op http://localhost:8420/wetsgeschiedenis/
 #
 # Bouwt de frontend met hetzelfde voorvoegsel als achter het portaal, zodat

@@ -1,0 +1,25 @@
+---
+law_id: beleidsregels_individuele_inkomenstoeslag_participatiewet_groningen
+related_legislation:
+  - name: Algemene wet bestuursrecht
+    relation: legal_basis
+    bwb_id: BWBR0005537
+    slug: algemene_wet_bestuursrecht
+  - name: Participatiewet
+    relation: legal_basis
+    bwb_id: BWBR0015703
+    slug: participatiewet
+  - name: Wet tegemoetkoming onderwijsbijdrage en schoolkosten
+    relation: source_regulation
+    bwb_id: BWBR0012438
+  - name: Wet studiefinanciering 2000
+    relation: source_regulation
+    bwb_id: BWBR0011453
+  - name: Wet inkomensvoorziening oudere en gedeeltelijk arbeidsongeschikte werkloze werknemers
+    relation: source_regulation
+    bwb_id: BWBR0004044
+  - name: Wet inkomensvoorziening oudere en gedeeltelijk arbeidsongeschikte gewezen zelfstandigen
+    relation: source_regulation
+    bwb_id: BWBR0004163
+  - name: Afstemmingsverordening Participatiewet, IOAW en IOAZ 2015 (Groningen)
+    relation: source_regulation

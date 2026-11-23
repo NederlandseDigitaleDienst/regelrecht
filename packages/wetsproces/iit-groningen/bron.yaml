@@ -1,0 +1,19 @@
+---
+# Het manifest van de casus individuele inkomenstoeslag van de gemeente
+# Groningen, in de vorm van packages/wetsproces/bron.yaml. Links de plek in de
+# bron, rechts de map vanaf `repo_root`.
+#
+# Draaien, naast de parkeerkaart:
+#   WETSPROCES_MANIFEST=packages/wetsproces/iit-groningen/bron.yaml \
+#   WETSPROCES_PORT=7181 just wetsproces
+repo_root: ../../..
+ui_spec: packages/wetsproces/iit-groningen/ui_spec.yaml
+directories:
+  casussen: packages/wetsproces/iit-groningen/casussen
+  regulation/nl/wet/participatiewet: packages/wetsproces/iit-groningen/corpus/regulation/nl/wet/participatiewet
+  regulation/nl/wet/algemene_wet_bestuursrecht: packages/poc-chronolexografie/corpus/regulation/nl/wet/algemene_wet_bestuursrecht
+  regulation/nl/gemeentelijke_verordening/groningen/verordening_individuele_inkomenstoeslag_participatiewet: packages/wetsproces/iit-groningen/corpus/regulation/nl/gemeentelijke_verordening/groningen/verordening_individuele_inkomenstoeslag_participatiewet
+  regulation/nl/beleidsregel/groningen/beleidsregels_individuele_inkomenstoeslag_participatiewet: packages/wetsproces/iit-groningen/corpus/regulation/nl/beleidsregel/groningen/beleidsregels_individuele_inkomenstoeslag_participatiewet
+  regulation/nl/uitvoeringsbeleid/beleid_iit_gemeente_groningen: packages/wetsproces/iit-groningen/corpus/regulation/nl/uitvoeringsbeleid/beleid_iit_gemeente_groningen
+  cells/gemeente_groningen: packages/wetsproces/iit-groningen/corpus/cells/gemeente_groningen
+  cells/rechtbank_noord_nederland: packages/wetsproces/iit-groningen/corpus/cells/rechtbank_noord_nederland

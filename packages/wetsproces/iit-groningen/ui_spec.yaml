@@ -1,0 +1,189 @@
+---
+# De UI-beschrijving van de casus individuele inkomenstoeslag, in de vorm van
+# die van de parkeerkaart (packages/wetsproces/ui_spec.yaml); daar staat wat
+# elke sleutel betekent.
+elements:
+  - id: UI1
+    element: aanvraagformulier
+    fields:
+      - name: adres_aanvrager
+        group: Uw persoonsgegevens
+        label: Adres
+        record: {group: Aanvrager}
+        required: true
+        parts:
+          - name: straat_huisnummer
+            label: Straat en huisnummer
+            autocomplete: street-address
+          - name: postcode
+            label: Postcode
+            autocomplete: postal-code
+            width: 17ch
+          - name: woonplaats
+            label: Woonplaats
+            autocomplete: address-level2
+      - name: bsn_aanvrager
+        group: Uw persoonsgegevens
+        visibility: shown
+        fill: {by: system}
+        label: Burgerservicenummer
+        record: {group: Aanvrager}
+      - name: naam_aanvrager
+        group: Uw persoonsgegevens
+        visibility: shown
+        fill: {by: system, login: naam}
+        label: Naam
+        record: {group: Aanvrager}
+      - name: gevraagde_beschikking
+        group: Over deze aanvraag
+        visibility: hidden
+        fill: {by: system, value: individuele inkomenstoeslag}
+        label: Wat vraagt u aan?
+        record: {label: Gevraagd besluit}
+      - name: dagtekening
+        group: Over deze aanvraag
+        visibility: hidden
+        fill: {by: system, submission: date}
+        label: Dagtekening
+      # Awb 4:2: de ondertekening, volgens artikel 4 van het fictieve beleid.
+      - name: aanvraag_ondertekend
+        group: Over deze aanvraag
+        visibility: hidden
+        fill:
+          by: system
+          from: beleid_iit_gemeente_groningen#4#aanvraag_geldt_als_ondertekend
+          parameters: {inlogmiddel: login_method}
+        label: Ondertekend
+        help: >-
+          Een aanvraag die u indient nadat u met DigiD bent ingelogd, geldt als
+          ondertekend.
+  - id: UI2
+    element: besluit
+    fields:
+      - name: termijn_startdatum
+        label: Begin van de termijn voor bezwaar of beroep
+      - name: termijn_einddatum
+        label: Laatste dag voor bezwaar of beroep
+        help: >-
+          Een later bezwaar of beroep wordt alleen nog behandeld als
+          redelijkerwijs niet kan worden geoordeeld dat de indiener in verzuim
+          is geweest (Awb artikel 6:11).
+      - name: termijn_weken
+        label: Duur van die termijn in weken
+      - name: motivering_vereist
+        label: Het besluit moet gemotiveerd worden
+      # De oordelen die de beleidsregels aan het college laten. Leeg laten
+      # betekent dat het college de bevoegdheid niet gebruikt.
+      - name: oordeel_college_recht_op_iit
+        label: Oordeel van het college over uitzicht en inspanningen (beleidsregels artikel 2)
+        help: >-
+          Alleen nodig als geen van de artikelen 3, 4 en 5 van de beleidsregels van toepassing is. Neem de krachten en
+          bekwaamheden en de inspanningen van de aanvrager mee (artikel 36, tweede lid, van de Participatiewet).
+      - name: afwijzing_op_grond_van_artikel_3_derde_lid
+        label: Toch uitzicht op inkomensverbetering, dus afwijzen (beleidsregels artikel 3, derde lid)
+      - name: toekenning_op_grond_van_artikel_4_derde_lid
+        label: Toch geen uitzicht op inkomensverbetering, dus toekennen (beleidsregels artikel 4, derde lid)
+      - name: afwijzing_op_grond_van_artikel_5_derde_lid
+        label: Onvoldoende inspanningen, dus afwijzen (beleidsregels artikel 5, derde lid)
+  # Wat de behandelaar na een aanvraag vastlegt (artikel 1 van het fictieve
+  # beleid). De dag van de vastlegging is de dag van de klok van de server.
+  # Het burgerservicenummer staat hier niet: een veld heeft in alle elementen
+  # dezelfde groep, en in het aanvraagformulier heet die "Uw persoonsgegevens".
+  - id: UI3
+    element: gegevens voor de individuele inkomenstoeslag
+    fields:
+      - name: datum_vastlegging
+        group: De aanvrager
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Vastgelegd op
+      - name: geboortedatum
+        group: De aanvrager
+        label: Geboortedatum
+        help: Uit de basisregistratie personen.
+      - name: heeft_pensioengerechtigde_leeftijd_bereikt
+        group: De aanvrager
+        label: Heeft de pensioengerechtigde leeftijd bereikt
+      - name: leefvorm
+        group: De aanvrager
+        label: Leefvorm
+        help: Vul in "alleenstaande", "alleenstaande ouder" of "gehuwden", zoals de Participatiewet die begrippen kent.
+      - name: echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+        group: De aanvrager
+        label: Bij gehuwden is een van beiden uitgesloten (artikel 11 of 13)
+      - name: rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+        group: De aanvrager
+        label: Dan geldt voor de ander de hoogte van een alleenstaande ouder
+      - name: in_aanmerking_te_nemen_vermogen
+        group: Vermogen
+        label: In aanmerking te nemen vermogen
+        help: Het vermogen van artikel 34 van de Participatiewet, zonder wat het tweede lid uitzondert.
+      - name: inkomen_artikel_32_per_maand
+        group: Inkomen in de referteperiode (24 maanden)
+        label: Inkomen per maand, zonder bijstand
+        help: Het inkomen van artikel 32 van de Participatiewet, voor elke maand die niet in de tabel staat.
+      - name: bijstand_naar_de_norm
+        group: Inkomen in de referteperiode (24 maanden)
+        label: Ontving algemene bijstand tot de norm
+        help: Het systeem rekent de bijstand dan per maand uit de norm van die maand, aanvullend op het inkomen.
+      - name: algemene_bijstand_per_maand
+        group: Inkomen in de referteperiode (24 maanden)
+        label: Algemene bijstand per maand
+        help: Alleen als de bijstand niet tot de norm aanvulde.
+      - name: afwijkende_maanden
+        group: Inkomen in de referteperiode (24 maanden)
+        label: Maanden die afweken
+        help: Per maand de eerste dag van de maand, het inkomen en de bijstand in die maand.
+      - name: artikel_3a_eerder_toegepast
+        group: Inkomen in de referteperiode (24 maanden)
+        label: Artikel 3a (tijdelijk hoger inkomen) is eerder toegepast
+      - name: volgt_op_peildatum_opleiding_wtos
+        group: Opleiding (beleidsregels artikel 3)
+        label: Volgt op de peildatum een opleiding met WTOS
+      - name: volgt_op_peildatum_studie_wsf_2000
+        group: Opleiding (beleidsregels artikel 3)
+        label: Studeert op de peildatum met studiefinanciering
+      - name: laatste_dag_opleiding_wtos
+        group: Opleiding (beleidsregels artikel 3)
+        label: Laatste dag van een eerdere WTOS-opleiding
+      - name: laatste_dag_studie_wsf_2000
+        group: Opleiding (beleidsregels artikel 3)
+        label: Laatste dag van een eerdere studie met studiefinanciering
+      - name: volledig_arbeidsongeschikt
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Volledig arbeidsongeschikt, met uitkering
+      - name: ontheffing_arbeidsverplichtingen
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Ontheffing van de arbeidsverplichtingen
+      - name: duur_ontheffing_maanden
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Duur van de ontheffing in maanden
+      - name: ontheffing_arbeidsinschakeling
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Ontheffing van de arbeidsinschakeling (artikel 9a)
+      - name: medisch_urenbeperkt
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Medisch urenbeperkt (artikel 6b)
+      - name: vrijlating_inkomsten_medisch_urenbeperkt
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Met vrijlating van inkomsten (medisch urenbeperkt)
+        help: Artikel 4, onder e, telt alleen met deze vrijlating.
+      - name: aangewezen_op_ondersteuning
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Aangewezen op ondersteuning bij arbeidsinschakeling
+      - name: duur_aangewezen_op_ondersteuning_maanden
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Duur daarvan in maanden
+      - name: aangewezen_op_participatieplaats
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Aangewezen op een participatieplaats
+      - name: aangewezen_op_sociale_activering
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Aangewezen op sociale activering
+      - name: aangewezen_op_vrijwilligerswerk
+        group: Geen uitzicht op inkomensverbetering (beleidsregels artikel 4)
+        label: Aangewezen op vrijwilligerswerk
+      - name: datum_maatregel_artikel_18_vierde_lid
+        group: Inspanningen (beleidsregels artikel 5)
+        label: Dag van de laatste maatregel wegens de arbeidsverplichtingen
+        help: Leeg als er geen maatregel was.
