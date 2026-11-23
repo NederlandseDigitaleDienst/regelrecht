@@ -176,15 +176,17 @@ tests run from a checkout of the whole repository.
 
 ## Publish
 
-The image goes to the Forgejo registry under the version in
-`definition.yaml`. Images there are public, so nothing secret goes into one.
+A tag `wetsproces-plugin-vX.Y.Z` on `main` has
+`.forgejo/workflows/fundament-plugin-image.yml` build the image and push it to
+the Forgejo registry as `wetsproces-plugin:vX.Y.Z`. The tag must match
+`metadata.version` in `definition.yaml`, and a version already in the registry
+is never overwritten. Images there are public, so nothing secret goes into one.
 `functl plugin publish` takes the image by digest and injects it into the
 definition:
 
 ```sh
-docker buildx build --platform linux/amd64 --push \
-  -t code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.1.0 packages/fundament-plugin
-docker buildx imagetools inspect code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.1.0
+git tag wetsproces-plugin-v0.1.1 origin/main && git push origin wetsproces-plugin-v0.1.1
+docker buildx imagetools inspect code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.1.1
 FUNCTL_REGISTRY_URL=https://marketplace-registry-api.fundament-poc.nl \
   functl plugin publish packages/fundament-plugin/definition.yaml --create --submit \
   --image=code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin@sha256:<digest>

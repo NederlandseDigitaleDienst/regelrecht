@@ -4,7 +4,7 @@ kind: PluginDefinition
 metadata:
   name: wetsproces
   displayName: Wetsproces
-  version: v0.1.0
+  version: v0.1.1
   description: >-
     Runs the regelrecht wetsprocessysteem for one case from a public git
     repository, in test mode, with Flux, in an existing Fundament namespace.
