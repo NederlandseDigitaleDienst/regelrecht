@@ -1,12 +1,13 @@
 // A submission whose decision a later record revoked: with nothing in its
 // place the decider decides again, after that record; with a new decision in
 // its place that one holds and nothing waits. What answers the submission
-// comes from the server's `stand`.
+// comes from the server's `stand`; whether it waits for a decision, and so
+// shows the button, from the server's queue (`open`) alone.
 import { artikelNaam } from '../gedeeld/keten';
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import type { Casus, Gram, Ik, Stand, Voorvertoning } from '../gedeeld/types';
-import type { Beslissing, Kroniek } from './api';
+import type { Beslissing, Kroniek, Wachtend } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 
 const beslissen = vi.fn(async (b: Beslissing) => ({
@@ -19,6 +20,7 @@ vi.mock('./api', () => ({
     beslissen: (b: Beslissing) => beslissen(b),
     voorvertoning: (b: Beslissing) => voorvertoning(b),
     waarom: async () => ({ ingevuld: [], antwoorden: [], bevindingen: [] }),
+    tijdlijn: async () => ({ stuk: 'c', grammen: [], stand: { rollen: {}, herroepen: {}, antwoorden: {} }, door_het_systeem: {}, volgende: [] }),
   },
   beheerApi: {},
 }));
@@ -52,12 +54,40 @@ const beslisser: Ik = {
   klok_zetten: false,
 };
 
-function toon(stand: Stand, grammen: Gram[]) {
+/** The pane on the submission `c`, with `open` as the server's work queue. */
+function toon(stand: Stand, grammen: Gram[], open: Wachtend[] = []) {
   const kroniek: Kroniek = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', kop: grammen.length, grammen, stand };
   return mount(BehandelenPaneel, {
-    props: { cel: 'gemeente', id: 'c', casus, vormen: null, wie: beslisser, kronieken: [kroniek] },
+    props: { cel: 'gemeente', id: 'c', casus, vormen: null, wie: beslisser, kronieken: [kroniek], open },
   });
 }
+const knop = (w: ReturnType<typeof toon>) => w.findAll('nldd-button').find((b) => b.attributes('text') === 'Besluit nemen');
+
+describe('the decision button', () => {
+  const besloten: Stand = { rollen, herroepen: {}, antwoorden: { c: { soort: 'besloten', besluit: 'd' } } };
+
+  it('does not show on a submission whose decision stands', async () => {
+    const w = toon(besloten, [bezwaar, opBezwaar]);
+    await flushPromises();
+    expect(knop(w)).toBeUndefined();
+    expect(w.findAll('nldd-banner').map((b) => b.attributes('text'))).toContain('Op deze indiening is besloten op 15 november 2026');
+  });
+
+  it('does not show when the queue no longer holds it, also while the chronicle the screen loaded still says it is open', async () => {
+    // Another employee decided after this screen loaded its chronicle.
+    const verouderd: Stand = { rollen, herroepen: {}, antwoorden: { c: { soort: 'open' } } };
+    const w = toon(verouderd, [bezwaar], []);
+    await flushPromises();
+    expect(knop(w)).toBeUndefined();
+  });
+
+  it('shows after an annulment with an order for a new decision, to decide after the receipt', async () => {
+    const vernietigd: Stand = { rollen, herroepen: { d: 'r' }, antwoorden: { c: { soort: 'vervallen', besluit: 'd', door: 'r', na: 'r' } } };
+    const w = toon(vernietigd, [bezwaar, opBezwaar, ontvangst], [{ stuk: bezwaar, na: 'r' }]);
+    await flushPromises();
+    expect(knop(w)).toBeDefined();
+  });
+});
 
 describe('a submission whose decision was revoked', () => {
   it('waits for nothing when a decision revoked it without one in its place, such as a withdrawal', async () => {
@@ -76,6 +106,7 @@ describe('a submission whose decision was revoked', () => {
     const w = toon(
       { rollen, herroepen: { d: 'r' }, antwoorden: { c: { soort: 'vervallen', besluit: 'd', door: 'r', na: 'r' } } },
       [bezwaar, opBezwaar, ontvangst],
+      [{ stuk: bezwaar, na: 'r' }],
     );
     await flushPromises();
     // The earlier decision, marked as annulled, and the form to decide again.
@@ -83,9 +114,8 @@ describe('a submission whose decision was revoked', () => {
     const banners = w.findAll('nldd-banner').map((b) => b.attributes('text'));
     expect(banners).toContain('Het besluit van 15 november 2026 geldt niet meer');
     expect(banners).toContain('Opnieuw beslissen');
-    const knop = w.findAll('nldd-button').find((b) => b.attributes('text') === 'Besluit nemen');
-    expect(knop).toBeDefined();
-    await knop?.trigger('click');
+    expect(knop(w)).toBeDefined();
+    await knop(w)?.trigger('click');
     await flushPromises();
     expect(beslissen).toHaveBeenCalledWith(expect.objectContaining({ op: 'c', na: 'r' }));
     expect(w.findAll('nldd-banner').map((b) => b.attributes('text'))).toContain('Het besluit is genomen');
@@ -154,7 +184,7 @@ describe('the decision as it would be taken', () => {
         waarom: { ingevuld: [], antwoorden: [], bevindingen: [], keten },
       },
     });
-    const w = toon(wacht, [bezwaar]);
+    const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
     await flushPromises();
     expect(voorvertoning).toHaveBeenCalledWith(expect.objectContaining({ op: 'c' }));
     const titels = w.findAll('nldd-title').map((t) => t.attributes('text'));
@@ -173,7 +203,7 @@ describe('the decision as it would be taken', () => {
       voorlopig: { besluit: { ...gram('p', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: { verleend: true } } },
       automatisch: [{ feit: 'beleid#7#kaart_besteld_bij_drukker', artikel: 'beleid#7', verwijst_naar: null }],
     });
-    const w = toon(wacht, [bezwaar]);
+    const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
     await flushPromises();
     expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toContain('Daarna doet het systeem zelf');
     const rij = w.find('nldd-list[accessible-label="Wat het systeem daarna zelf vastlegt"] nldd-text-cell');
@@ -185,12 +215,12 @@ describe('the decision as it would be taken', () => {
       geweigerd: 'missing',
       automatisch: [{ feit: 'beleid#7#kaart_besteld_bij_drukker', artikel: 'beleid#7', verwijst_naar: null }],
     });
-    const geweigerd = toon(wacht, [bezwaar]);
+    const geweigerd = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
     await flushPromises();
     expect(geweigerd.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Daarna doet het systeem zelf');
     // Nothing to tell: no heading.
     voorvertoning.mockClear().mockResolvedValueOnce({ stil: [], voorlopig: { besluit: { ...gram('p', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: {} } } });
-    const leeg = toon(wacht, [bezwaar]);
+    const leeg = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
     await flushPromises();
     expect(leeg.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Daarna doet het systeem zelf');
   });
@@ -203,7 +233,7 @@ describe('the decision as it would be taken', () => {
         "the policy leaves 'langdurige_loopbeperking_volgens_college' to the authority for this case: Required open term " +
         "'langdurige_loopbeperking_volgens_college' on regeling#3 is decided per case by the authority, but no judgement was given",
     });
-    const w = toon(wacht, [bezwaar]);
+    const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
     await flushPromises();
     const dialoog = w.findAll('nldd-inline-dialog').find((d) => d.attributes('text') === 'Er is nog geen besluit te berekenen');
     expect(dialoog?.attributes('supporting-text')?.toLowerCase()).toContain('"langdurige loopbeperking volgens college"');
@@ -213,7 +243,7 @@ describe('the decision as it would be taken', () => {
 
   it('asks again when the chronicle changes, such as when an advice comes in', async () => {
     voorvertoning.mockClear();
-    const w = toon(wacht, [bezwaar]);
+    const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
     await flushPromises();
     expect(voorvertoning).toHaveBeenCalledTimes(1);
     const advies = { ...gram('a', 'EXECUTOGRAM', 'beleid#5', undefined), fact: 'advies_ontvangen' };

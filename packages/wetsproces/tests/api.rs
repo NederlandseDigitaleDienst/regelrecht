@@ -1057,17 +1057,6 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
 }
 
 /// The objection fields and the appeal fields share their names (Awb 6:5).
-fn notice_of(grounds: &str) -> Value {
-    json!({
-        "bezwaar_of_beroepschrift_ondertekend": true,
-        "naam_indiener": "A. de Vries",
-        "adres_indiener": "Voorbeeldlaan 2",
-        "dagtekening_bezwaar_of_beroepschrift": "2026-10-21",
-        "omschrijving_bestreden_besluit": "het besluit op de aanvraag",
-        "gronden_bezwaar_of_beroep": grounds,
-    })
-}
-
 /// Anna applies and is refused, objects, and the objection is decided; the
 /// answer is the decision on her objection, which she can appeal.
 async fn anna_is_refused_on_objection(app: &Router) -> Value {
@@ -1129,7 +1118,7 @@ async fn the_court_decides_on_an_appeal_through_the_admin_panel() {
     let (_, panel) = admin.get("/api/backoffice/beheer/partijen").await;
     let court = &panel["partijen"][1];
     assert_eq!(court["cel"], json!(RECHTBANK));
-    assert_eq!(court["open"][0]["id"], beroep["id"], "{panel}");
+    assert_eq!(court["open"][0]["stuk"]["id"], beroep["id"], "{panel}");
     // The municipality's employees do not reach it.
     let (status, _) = beslisser
         .post(
@@ -1450,40 +1439,6 @@ async fn after_a_court_annuls_the_decision_on_objection_the_municipality_decides
         json!(true),
         "{antwoord}"
     );
-}
-
-/// Every record id anywhere in `v`, also inside a longer string: the
-/// chronicles give out ids as UUIDs.
-fn record_ids(v: &Value, into: &mut std::collections::BTreeSet<String>) {
-    match v {
-        Value::String(s) => {
-            let chars: Vec<char> = s.chars().collect();
-            for window in chars.windows(36) {
-                let uuid = window.iter().enumerate().all(|(i, c)| {
-                    if [8, 13, 18, 23].contains(&i) {
-                        *c == '-'
-                    } else {
-                        c.is_ascii_hexdigit()
-                    }
-                });
-                if uuid {
-                    into.insert(window.iter().collect());
-                }
-            }
-        }
-        Value::Array(items) => items.iter().for_each(|x| record_ids(x, into)),
-        Value::Object(map) => map.iter().for_each(|(k, x)| {
-            record_ids(&Value::String(k.clone()), into);
-            record_ids(x, into);
-        }),
-        Value::Null | Value::Bool(_) | Value::Number(_) => {}
-    }
-}
-
-fn ids_in(v: &Value) -> std::collections::BTreeSet<String> {
-    let mut ids = std::collections::BTreeSet::new();
-    record_ids(v, &mut ids);
-    ids
 }
 
 /// A guard over the whole answers, not a test of one filter: with today's

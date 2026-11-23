@@ -182,10 +182,12 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/ik` | citizen or employee | Who is logged in, what the account may do for the executor (`cellen`), and whether it may use the admin panel (`partijen_invoeren`) |
 | `GET /api/dossier` | citizen | The records about the citizen, from every cell, with their standing (`stand`, [below](#what-answers-a-submission)), under `vervolg` how far the acts after each of their grants are, and under `verzoeken` per request of the policy the ids of its records in the dossier (the request, its receipt, the answer and the receipt of that), so a screen can hang the answer under its request |
 | `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did, without how a cell read its chronicle or any record outside the dossier |
+| `GET /api/dossier/tijdlijn/{id}` | citizen | The [timeline](#the-timeline-of-an-application) of the application a record of the dossier belongs to, kept to the dossier |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head and its standing (`stand`); an external party's answers `403` |
 | `GET /api/backoffice/werkvoorraad` | reader | The executor's submissions that wait for a decision (`open`), each with the record to decide after (`na`) when its last decision was revoked |
 | `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did, with its chain of steps (`keten`); nothing of another cell's own chronicle but what reached the executor |
+| `GET /api/backoffice/tijdlijn/{id}` | reader | The [timeline](#the-timeline-of-an-application) of the application a record of the executor belongs to: the executor's own records, and of another cell no more than the id of what reached the executor |
 | `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to, with why and its chain, read as for `waarom`, and under `automatisch` what the system would then do itself; records nothing |
 | `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
 | `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
@@ -194,7 +196,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
 | `POST /api/backoffice/testomgeving/leegmaken` | admin | In test mode, empty the test setup (see [Modes](#modes)); in stable mode the route does not exist |
-| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`), its decisions not sent yet (`toe_te_zenden`) and the executor's requests it has not answered (`verzoeken`); under `antwoord_op_verzoek` the facts that answer a request |
+| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`, each as `stuk` with `na` as in `werkvoorraad`), its decisions not sent yet (`toe_te_zenden`) and the executor's requests it has not answered (`verzoeken`); under `antwoord_op_verzoek` the facts that answer a request |
 | `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen`; an answer to an open request names its receipt under `verzoek` |
 | `POST /api/backoffice/beheer/voorvertoning` | admin | What an external party's decision would come to; records nothing |
 | `POST /api/backoffice/beheer/besluiten` | admin | An external party's decision on a submission it holds |
@@ -211,6 +213,22 @@ Which record is a submission, a decision or a recorded fact, and what answers a 
 That last case is how deciding again works. When a court annuls a decision on an objection with its legal effects, the receipt of the judgment revokes it, and the objection is back in the work queue with that receipt as `na`. The decider decides on it after the receipt, and the cell records the new decision with `after`. The admin panel's `open` follows the same rule for an external party. A decision is offered under `toe_te_zenden` only when its article is one whose copy the law requires a receipt of, the rule `kern::toezenden` applies.
 
 The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides, and the `label` and `help` a screen shows for a field. The screens are on [Wetsproces Screens](/components/wetsproces-frontend); the server serves the build of its surface from `WETSPROCES_FRONTEND`. A path under `/api/`, `/auth/` or `/fsc4b/` that is no route answers `404`; any other path gets the screens' `index.html`.
+
+## The timeline of an application
+
+Both sides show, per application, what happened about it and what comes next. One derivation serves both: the kern collects the records (`tijdlijn.rs` in the chronolexography PoC) and the server adds the next steps (`src/timeline.rs`). A record belongs to an application when it links to one that does, by the links records carry themselves: `refers_to`, `after`, `received`, or a field that holds the id of a record, such as the application a request to the GGD was made for. The answer to a request and its receipts name nothing; the kern's pairing of requests links them. The duplicate of a lost card refers to the decision that granted the card, so it lands in the timeline of the first application. The order follows each chronicle and the links between records, then the day. A test clock that stands still puts a whole process on one day, so the day alone would not do.
+
+The next steps come from what the server already knows, never from a step of a particular law:
+
+- a submission that waits for a decision (`stand`), with the cell that decides on it;
+- a request of the policy the other party has not answered;
+- the next act after a grant, the system's when the case gives it `door_het_systeem`;
+- a decision of an external party whose copy was not sent yet;
+- a decision that still counts and gives the field a submission form reads as its deadline (`termijn`), until that day, while no such submission was made against it.
+
+Each step names who is to act: the executor, the system, an external party (entered in the admin panel) or whoever may submit. Some things are not there because nothing generic says them. The kern cannot tell which submission a deadline is for, since the objection and the appeal read the same field, so the timeline names the deadline and the label of its field, not the kind of submission. It also gives no deadline for a decision itself, such as the period a court sets for a new one: that is an output of the judgment that no rule marks as a deadline.
+
+A citizen gets the records of their dossier and no step that names another. An employee gets the executor's own records; the court's judgment shows through the receipt of its copy, and an appeal in the court's chronicle does not show at all.
 
 ## What the server fills in an application
 

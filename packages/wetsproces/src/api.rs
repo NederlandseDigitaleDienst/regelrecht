@@ -23,10 +23,12 @@
 //! | `GET /api/ik` | citizen or employee | who is logged in, and what they may do ([`me`]) |
 //! | `GET /api/dossier` | citizen | the records about the citizen, in every cell, with what the kern says of them (`stand`) and how far the acts after each of their grants are |
 //! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
+//! | `GET /api/dossier/tijdlijn/{id}` | citizen; a record of their dossier | the timeline of its application, within the dossier ([`crate::timeline`]) |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
 //! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle, with what the kern says of it (`stand`) |
 //! | `GET /api/backoffice/werkvoorraad` | reader | the executor's submissions that wait for a decision ([`crate::service::WorkQueue`]) |
 //! | `GET /api/backoffice/waarom/{id}` | reader; a decision of the executor | why it came out so |
+//! | `GET /api/backoffice/tijdlijn/{id}` | reader; a record the executor sees | the timeline of its application: the executor's records ([`crate::timeline`]) |
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
 //! | `GET /api/backoffice/verzoeken` | reader | the requests the executor's policy made, and whether an answer came back ([`requests`]) |
 //! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
@@ -266,6 +268,7 @@ pub fn router(state: AppState) -> Router {
     let citizen = Router::new()
         .route("/api/dossier", get(dossier))
         .route("/api/dossier/waarom/{id}", get(dossier_explain))
+        .route("/api/dossier/tijdlijn/{id}", get(dossier_timeline))
         .route("/api/indieningen", post(submit))
         .route_layer(middleware::from_fn_with_state(state.clone(), gate_citizen));
     let mut backoffice = Router::new()
@@ -274,6 +277,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/backoffice/besluiten", post(decide))
         .route("/api/backoffice/voorvertoning", post(preview))
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
+        .route("/api/backoffice/tijdlijn/{id}", get(backoffice_timeline))
         .route("/api/backoffice/verzoeken", get(requests))
         .route("/api/backoffice/vastleggingen", post(record))
         .route("/api/backoffice/vervolg", get(grants))
@@ -709,6 +713,65 @@ pub(crate) async fn explain_for(
         None,
         &visible,
     ))
+}
+
+/// The timeline of the application a record of the citizen's own dossier
+/// belongs to ([`crate::timeline`]): only records of that dossier, and no
+/// next step that names another record.
+async fn dossier_timeline(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Path(id): Path<String>,
+) -> ApiResult {
+    timeline_for(&state, &principal, &id).await.map(Json)
+}
+
+/// [`dossier_timeline`] for the citizen `principal`.
+pub(crate) async fn timeline_for(
+    state: &AppState,
+    principal: &Principal,
+    id: &str,
+) -> CitizenResult {
+    let citizen = principal.citizen(&state.subject_claim)?;
+    let dossier = state.service.dossier(citizen.subject()).await?;
+    if !dossier.holds(id) {
+        return Err(ApiError::not_yours("record in your dossier"));
+    }
+    let timeline = state
+        .service
+        .timeline(id)
+        .await?
+        .ok_or_else(|| ApiError::not_yours("record in your dossier"))?
+        .within(|x| dossier.holds(x), |x| dossier.holds(x));
+    to_value(&timeline)
+}
+
+/// The timeline of the application a record the executor's employees may
+/// see belongs to ([`crate::timeline`]): only records of the executor, and
+/// of another cell no more than the id of what reached the executor, as for
+/// why a decision came out so.
+async fn backoffice_timeline(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult {
+    let executor = state.service.executor();
+    let own = state.service.record_ids(|cell| cell == executor).await?;
+    let visible = state.service.seen_by_executor().await?;
+    if !visible.contains(&id) {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "no record of the executor with this id",
+        ));
+    }
+    let timeline = state
+        .service
+        .timeline(&id)
+        .await?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "no record with this id"))?
+        .within(|x| own.contains(x), |x| visible.contains(x));
+    Ok(Json(to_value(&timeline)?))
+}
+
+/// `value` as JSON.
+fn to_value(value: &impl serde::Serialize) -> Result<Value, ApiError> {
+    serde_json::to_value(value).map_err(|e| ServiceError::Internal(e.to_string()).into())
 }
 
 /// `value`, which explains a decision, as an employee of the executor may

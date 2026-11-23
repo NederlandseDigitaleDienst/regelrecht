@@ -3,10 +3,10 @@
 // proves who sends it (gedeeld/sessie.ts), so the same client runs behind
 // another login. It calls only routes a citizen may use: the shared ones
 // (`/api/casus`, `/api/formulier`, `/api/klok`, `/api/ik`) and the citizen's
-// own (`/api/dossier`, `/api/indieningen`).
+// own (`/api/dossier`, `/api/dossier/...`, `/api/indieningen`).
 import { gedeeldApi } from '../gedeeld/api';
 import { haal, stuur } from '../gedeeld/http';
-import type { Gram, Stand, VerzoekInDossier, Vervolgstand, Waarom } from '../gedeeld/types';
+import type { Gram, Stand, Tijdlijn, VerzoekInDossier, Vervolgstand, Waarom } from '../gedeeld/types';
 
 /** A submission as a citizen sends it: under `artikel` (the case's own application when left out), about the record `op`. */
 export interface Indiening {
@@ -37,6 +37,8 @@ export const burgerApi = {
       verzoeken: d.verzoeken ?? [],
     })),
   waarom: (besluit: string) => haal<Waarom>(`/api/dossier/waarom/${encodeURIComponent(besluit)}`),
+  /** The timeline of the application the record `id` of the dossier belongs to. */
+  tijdlijn: (id: string) => haal<Tijdlijn>(`/api/dossier/tijdlijn/${encodeURIComponent(id)}`),
   indienen: (indiening: Indiening, sleutel: string) =>
     stuur<Gram>('POST', '/api/indieningen', indiening, sleutel),
 };

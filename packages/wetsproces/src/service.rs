@@ -359,6 +359,17 @@ struct Read {
 }
 
 impl Read {
+    /// Per record the server recorded by an article of the executor's own
+    /// policy ([`Channel::Policy`]), that article.
+    fn by_policy(&self) -> BTreeMap<String, String> {
+        self.chronicles
+            .iter()
+            .flat_map(|c| &c.grams)
+            .filter(|g| g.recorded_via == Some(Channel::Policy))
+            .filter_map(|g| Some((g.gram.id.clone(), g.recorded_by.clone()?)))
+            .collect()
+    }
+
     /// The generation the chronicles were read in; one read is all one.
     fn generation(&self) -> u64 {
         self.chronicles.first().map_or(0, |c| c.generation)
@@ -421,8 +432,9 @@ pub struct ExternalParty {
     pub cell: String,
     /// The name a screen shows for it.
     pub name: String,
-    /// The submissions in its chronicle that wait for its decision.
-    pub open: Vec<Gram>,
+    /// The submissions in its chronicle that wait for its decision, each
+    /// with the record to decide after when an earlier decision was revoked.
+    pub open: Vec<Waiting>,
     /// Its decisions of which no other cell received a copy yet.
     pub unsent: Vec<Gram>,
     /// The requests of the executor it received and did not answer yet,
@@ -452,6 +464,15 @@ pub struct Waiting {
     /// an earlier decision on it was revoked.
     #[serde(rename = "na", skip_serializing_if = "Option::is_none")]
     pub after: Option<String>,
+}
+
+impl From<stand::Open<'_, '_>> for Waiting {
+    fn from(o: stand::Open<'_, '_>) -> Self {
+        Self {
+            submission: o.stuk.clone(),
+            after: o.na.map(str::to_string),
+        }
+    }
 }
 
 /// The work queue of the executor ([`Service::work_queue`]).
@@ -741,11 +762,7 @@ impl Service {
                 ExternalParty {
                     cell: (*cell).to_string(),
                     name: self.corpus.cel_naam(cell).to_string(),
-                    open: stand
-                        .open(grams)
-                        .into_iter()
-                        .map(|o| o.stuk.clone())
-                        .collect(),
+                    open: stand.open(grams).into_iter().map(Waiting::from).collect(),
                     unsent: external::unsent(grams, &elsewhere, stand, afleiding)
                         .into_iter()
                         .cloned()
@@ -805,15 +822,57 @@ impl Service {
                 "the store gave no chronicle for the executor".into(),
             ));
         };
-        let open = stand
-            .open(grams)
-            .into_iter()
-            .map(|o| Waiting {
-                submission: o.stuk.clone(),
-                after: o.na.map(str::to_string),
-            })
-            .collect();
+        let open = stand.open(grams).into_iter().map(Waiting::from).collect();
         Ok(WorkQueue { open })
+    }
+
+    /// The timeline of the application the record `id` belongs to, from one
+    /// read of every chronicle ([`crate::timeline::derive`]), not yet kept
+    /// to what a reader may see: the caller does that
+    /// ([`crate::timeline::Timeline::within`]).
+    ///
+    /// `None` when no cell holds `id`.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails or the kern cannot read the chronicles.
+    pub async fn timeline(
+        &self,
+        id: &str,
+    ) -> Result<Option<crate::timeline::Timeline>, ServiceError> {
+        let read = self.read().await?;
+        let by_policy = read.by_policy();
+        let corpus = Arc::clone(&self.corpus);
+        let cells = self.cells.clone();
+        let today = self.today().await?;
+        let id = id.to_string();
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            let chronicles = cellen.kronieken();
+            let stands = stands_of(&corpus, &chronicles)?;
+            let requests = verzoek::verzoeken(&corpus, &cellen)?;
+            let grants = vervolg::standen(&corpus, &cellen, today)?;
+            let deadlines = kern::termijnvelden(&corpus, today)?;
+            let per_cell: Vec<(String, Vec<Gram>, Stand)> = cells
+                .into_iter()
+                .zip(chronicles)
+                .zip(stands)
+                .map(|((c, g), s)| (c, g, s))
+                .collect();
+            let sources = crate::timeline::Sources {
+                cells: &per_cell,
+                executor: &corpus.casus.cel,
+                requests: &requests,
+                grants: &grants,
+                after_grant: corpus.casus.na_toekenning.as_ref(),
+                afleiding: &corpus.afleiding,
+                deadlines: &deadlines,
+                by_policy: &by_policy,
+                today,
+            };
+            Ok(crate::timeline::derive(&sources, &id))
+        })
+        .await
     }
 
     /// Every cell's chronicle, in the order of the case, with what the kern
@@ -965,14 +1024,7 @@ impl Service {
     ///
     /// When the store fails.
     pub async fn by_policy(&self) -> Result<BTreeMap<String, String>, ServiceError> {
-        let read = self.read().await?;
-        Ok(read
-            .chronicles
-            .iter()
-            .flat_map(|c| &c.grams)
-            .filter(|g| g.recorded_via == Some(Channel::Policy))
-            .filter_map(|g| Some((g.gram.id.clone(), g.recorded_by.clone()?)))
-            .collect())
+        Ok(self.read().await?.by_policy())
     }
 
     /// Every grant of the executor today, with how far the acts that follow

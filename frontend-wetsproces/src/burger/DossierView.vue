@@ -11,14 +11,19 @@
 // What each record is, and which decision holds, comes from the server
 // (`stand`): a revoked decision is marked as such, and a decision that took
 // a new one in the place of the decision it revoked carries the outcome of
-// that new one.
-import { computed, onMounted, watch } from 'vue';
+// that new one. Under the chosen record, the timeline of the application it
+// belongs to (gedeeld/TijdlijnLijst.vue, `GET /api/dossier/tijdlijn/{id}`):
+// what happened, in order, and what can or must happen next.
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { antwoordOp, celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, onderVerzoeken, plat, rolVan, toegewezen } from '../gedeeld/keten';
-import type { Gram, Vervolgaanvraag } from '../gedeeld/types';
+import { antwoordOp, besluitStand, celNaam, isBesluit, ketens, omschrijving, onderVerzoeken, plat, rolVan, toegewezen } from '../gedeeld/keten';
 import { burgerStand, doorHetSysteem as doorHetSysteemTekst } from '../gedeeld/vervolg';
+import { foutTekst } from '../gedeeld/http';
+import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
+import type { Casus, Gram, Tijdlijn, Vervolgaanvraag } from '../gedeeld/types';
+import { burgerApi } from './api';
 import BesluitPaneel from './BesluitPaneel.vue';
 import StukPaneel from './StukPaneel.vue';
 import { useBurger } from './useBurger';
@@ -32,6 +37,39 @@ onMounted(laad);
 // dossier after an objection keeps this component: load again on what was
 // submitted, or the new record would not show.
 watch(() => route.query.ingediend, (soort) => soort && laad());
+
+// The timeline of the application the chosen record belongs to, again when
+// another record is chosen or the dossier loads anew. Only the answer to the
+// last request counts.
+const tijdlijn = ref<Tijdlijn | null>(null);
+const tijdlijnFout = ref('');
+let tijdlijnVraag = 0;
+watch(
+  () => [props.id, laden.value] as const,
+  async ([id, bezig], vorige) => {
+    if (id !== vorige?.[0]) tijdlijn.value = null;
+    if (!id || bezig) return;
+    const deze = ++tijdlijnVraag;
+    tijdlijnFout.value = '';
+    try {
+      const t = await burgerApi.tijdlijn(id);
+      if (deze === tijdlijnVraag) tijdlijn.value = t;
+    } catch (e) {
+      if (deze === tijdlijnVraag) tijdlijnFout.value = foutTekst(e);
+    }
+  },
+  { immediate: true },
+);
+/** What the timeline under the chosen record shows; every record of it opens in the dossier. */
+const tijdlijnVan = (c: Casus) => ({
+  tijdlijn: tijdlijn.value,
+  fout: tijdlijnFout.value,
+  casus: c,
+  kant: 'burger' as const,
+  teksten: vormen.value?.teksten,
+  huidig: props.id,
+  naar: (g: Gram) => ({ name: 'stuk', params: { id: g.id } }),
+});
 
 /** What the citizen just submitted, as its kind in words, from the address. */
 const ingediend = computed(() => {
@@ -122,14 +160,7 @@ function regel(g: Gram, boven?: Gram): string {
   return delen.join(' · ');
 }
 function stand(g: Gram): { tekst: string; kleur: string } | null {
-  const s = standVanDossier.value;
-  const h = herroeping(g.id, s, dossier.value);
-  if (h) return { tekst: h.woord, kleur: 'warning' };
-  // A decision that took a new one in the place of the decision it revoked: the new one's outcome.
-  const besluit = nieuwBesluitVan(g.id, s) ?? g;
-  const t = casus.value ? toegewezen(besluit, casus.value) : undefined;
-  if (t === undefined) return null;
-  return t ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' };
+  return casus.value ? besluitStand(g, standVanDossier.value, dossier.value, casus.value) : null;
 }
 </script>
 
@@ -200,8 +231,12 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
     </nldd-split-view-pane>
 
     <nldd-split-view-pane slot="main" :has-content="id || undefined">
-      <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier" />
-      <StukPaneel v-else-if="id && casus && !laden" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier" />
+      <BesluitPaneel v-if="id && casus && gekozenIsBesluit" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier">
+        <template #onder><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
+      </BesluitPaneel>
+      <StukPaneel v-else-if="id && casus && !laden" :id="id" :casus="casus" :vormen="vormen" :dossier="dossier" :stand="standVanDossier">
+        <template #onder><TijdlijnLijst v-bind="tijdlijnVan(casus)" /></template>
+      </StukPaneel>
       <nldd-page v-else-if="id && laden" landmarks="page">
         <nldd-simple-section width="full">
           <nldd-activity-indicator text="Het stuk laden" show-text></nldd-activity-indicator>

@@ -73,6 +73,25 @@ export function nieuwBesluitVan(id: string, stand: Stand): BesluitInDePlaats | u
   return undefined;
 }
 
+/**
+ * How a record stands, as a tag shows it: revoked or annulled, by the word of
+ * [`herroeping`]; else for a decision whether it grants, by its own outcome or
+ * that of the new decision it took in the place of the one it revoked. Null
+ * when there is nothing to say.
+ */
+export function besluitStand(
+  g: Gram,
+  stand: Stand,
+  grammen: Gram[],
+  casus: Casus,
+): { tekst: string; kleur: 'warning' | 'success' | 'critical' } | null {
+  const h = herroeping(g.id, stand, grammen);
+  if (h) return { tekst: h.woord, kleur: 'warning' };
+  const t = toegewezen(nieuwBesluitVan(g.id, stand) ?? g, casus);
+  if (t === undefined) return null;
+  return t ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' };
+}
+
 /** A record with what refers to it, and so on down. */
 export interface Knoop {
   gram: Gram;

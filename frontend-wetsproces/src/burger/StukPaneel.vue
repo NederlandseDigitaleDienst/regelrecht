@@ -177,5 +177,9 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
         />
       </template>
     </nldd-simple-section>
+    <!-- What the dossier puts under the record, such as the timeline of its application. -->
+    <nldd-simple-section v-if="$slots.onder" width="full">
+      <slot name="onder"></slot>
+    </nldd-simple-section>
   </nldd-page>
 </template>

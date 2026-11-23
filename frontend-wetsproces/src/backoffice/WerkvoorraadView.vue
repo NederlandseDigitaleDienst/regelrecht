@@ -14,7 +14,7 @@
 // follows a grant (`na_toekenning` in the case file): each grant whose acts
 // are not all done, how far it is, and for a handler the next act as a
 // button. Those acts are recorded only there, never on their own.
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter, toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
@@ -36,14 +36,26 @@ const { casus, vormen, wie, kronieken, fout, laden, laad: laadBackoffice } = use
 
 /** What waits for a decision of the executor. */
 const werkvoorraad = ref<Werkvoorraad | null>(null);
+/** The submission that was open when the queue last loaded. */
+const geladenVoor = ref<string | undefined>();
 /** The grants of the executor and how far their acts are. */
 const vervolg = ref<Vervolgstand[]>([]);
 const vervolgFout = ref('');
-async function laad() {
-  await laadBackoffice();
+/**
+ * Load the queue, the chronicles and the grants; `stil` keeps what shows
+ * while it loads, as when another submission is opened.
+ */
+async function laad(stil = false) {
+  // What the pane may decide on is the queue as loaded for the submission
+  // now open, never one loaded before it opened.
+  geladenVoor.value = undefined;
+  const voor = props.id;
+  await laadBackoffice(stil);
   try {
     werkvoorraad.value = await backofficeApi.werkvoorraad();
+    geladenVoor.value = voor;
   } catch (e) {
+    werkvoorraad.value = null;
     fout.value = foutTekst(e);
   }
   try {
@@ -53,7 +65,13 @@ async function laad() {
     vervolgFout.value = foutTekst(e);
   }
 }
-onMounted(laad);
+onMounted(() => laad());
+// Opening a submission loads the queue again, so a decision another
+// employee took in the meantime shows, and its button does not.
+watch(
+  () => props.id,
+  (id, voor) => id && id !== voor && laad(true),
+);
 
 /** Per grant whose acts are not all done: how far it is and the next act, as the case names it. */
 const openToekenningen = computed(() => {
@@ -120,7 +138,7 @@ const vastgelegd = ref('');
 async function klaar(naam: string) {
   vastgelegd.value = naam;
   keuze.value = null;
-  await laad();
+  await laad(true);
 }
 </script>
 
@@ -218,7 +236,8 @@ async function klaar(naam: string) {
         :vormen="vormen"
         :wie="wie"
         :kronieken="kronieken"
-        @besloten="laad"
+        :open="werkvoorraad && werkvoorraad.cel === cel && geladenVoor === id ? werkvoorraad.open : undefined"
+        @besloten="laad(true)"
       />
       <nldd-page v-else landmarks="page">
         <nldd-simple-section width="full">

@@ -68,7 +68,7 @@ describe('the admin panel', () => {
   it('offers the facts a party records, a decision on what waits, and a copy to send', async () => {
     const w = await toon([
       { cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] },
-      { cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [gram('b1', 'BEROEP')], toe_te_zenden: [gram('u1', 'UITSPRAAK')], verzoeken: [] },
+      { cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [{ stuk: gram('b1', 'BEROEP') }], toe_te_zenden: [gram('u1', 'UITSPRAAK')], verzoeken: [] },
     ]);
     expect(knoppen(w)).toEqual(['Advies uitgebracht vastleggen', 'Afschrift toezenden']);
     // The appeal opens beside the panel, to decide on the court's behalf.

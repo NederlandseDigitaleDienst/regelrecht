@@ -22,6 +22,7 @@ De bouwstenen:
 - **Schermen uit de ui_spec.** Welke velden er zijn, zegt de wet; `ui_spec.yaml` zegt hun volgorde, groep, naam en hulptekst, en welke het systeem invult.
 - **Beleid stuurt stappen.** Bij een aanvraag vraagt het systeem zelf de GGD om onderzoek, en na een toekenning bestelt het zelf de kaart.
 - **De materiële kant.** Na de toekenning volgen bestellen, ontvangen en uitreiken, en een kwijtgeraakte kaart krijgt een duplicaat.
+- **Een tijdlijn per aanvraag.** De burger ziet haar onder elk stuk in Mijn dossier, de medewerker onderaan het behandelscherm. Ze toont wat er bij de aanvraag gebeurde, op volgorde, en daaronder de volgende stap met wie aan zet is. Elke regel opent het stuk zelf.
 
 Elke beslissing toont vooraf een voorvertoning, met de volledige keten om uit te klappen. Na een vernietiging beslist de medewerker opnieuw.
 
@@ -132,6 +133,12 @@ Over het proces:
 - De postkamer heeft geen eigen rol in Keycloak; elke behandelaar kan een ontvangst vastleggen.
 - Afschriften aan een andere cel gaan met de hand.
 - De grens op het aantal rondes automatische stappen is alleen met unit-tests gedekt.
+
+Over de tijdlijn:
+
+- De volgende stap noemt een termijn met het label van zijn veld ("Laatste dag voor bezwaar of beroep"), niet of het om bezwaar of beroep gaat: beide formulieren lezen hetzelfde veld, dus de kern kan dat niet onderscheiden.
+- De termijn voor een nieuw besluit na een uitspraak staat niet als volgende stap in de tijdlijn. Het is een uitvoer van de uitspraak die geen regel als termijn aanmerkt.
+- De medewerker ziet het beroep niet in de tijdlijn, wel de uitspraak via de ontvangst van het afschrift. De app voor FSC voor Burgers kent de tijdlijn nog niet.
 
 Over de schermen en de techniek:
 
