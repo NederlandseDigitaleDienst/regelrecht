@@ -732,6 +732,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         // The order the UI spec names the fields in: a screen shows them so,
         // and a field it does not name after them, in the order of the law.
         "volgorde": corpus.ui_spec.volgorde,
+        "delen": corpus.ui_spec.delen,
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())

@@ -138,6 +138,58 @@ describe('aanvraagVelden', () => {
   });
 });
 
+describe('een veld dat het scherm in delen vraagt', () => {
+  const delen = {
+    adres_aanvrager: [
+      { naam: 'straat_huisnummer', label: 'Straat en huisnummer', autocomplete: 'street-address' },
+      { naam: 'postcode', label: 'Postcode', autocomplete: 'postal-code', keyboard: 'numeric' },
+      { naam: 'woonplaats', label: 'Woonplaats' },
+    ],
+  };
+  const metAdres: Indieningsvorm = {
+    ...vorm,
+    velden: [{ naam: 'adres_aanvrager', type: 'string', mag_leeg: true, basis: 'algemene_wet#4:2' }],
+    systeem: {},
+    verborgen: [],
+  };
+
+  it('asks one input per part, each by its own label', () => {
+    const f = aanvraagformulier(metAdres, {}, null, [], delen);
+    expect(f.invullen.map((v) => v.veld.naam)).toEqual([
+      'adres_aanvrager.straat_huisnummer',
+      'adres_aanvrager.postcode',
+      'adres_aanvrager.woonplaats',
+    ]);
+    expect(f.invullen.map((v) => v.label)).toEqual(['Straat en huisnummer', 'Postcode', 'Woonplaats']);
+    expect(f.invullen[1]?.deel).toEqual({
+      veld: 'adres_aanvrager',
+      naam: 'postcode',
+      autocomplete: 'postal-code',
+      keyboard: 'numeric',
+    });
+  });
+
+  it('joins the parts into the one value the law asks, in the order of the UI spec', () => {
+    const velden = aanvraagVelden(
+      metAdres,
+      {
+        'adres_aanvrager.postcode': '1234 AB',
+        'adres_aanvrager.straat_huisnummer': 'Wilgenlaan 12',
+        'adres_aanvrager.woonplaats': 'Wilgendaal',
+      },
+      delen,
+    );
+    expect(velden).toEqual({ adres_aanvrager: 'Wilgenlaan 12, 1234 AB, Wilgendaal' });
+  });
+
+  it('leaves a part the applicant skipped out of the value, and the field out when all are empty', () => {
+    expect(
+      aanvraagVelden(metAdres, { 'adres_aanvrager.straat_huisnummer': 'Wilgenlaan 12', 'adres_aanvrager.postcode': '  ' }, delen),
+    ).toEqual({ adres_aanvrager: 'Wilgenlaan 12' });
+    expect(aanvraagVelden(metAdres, { 'adres_aanvrager.woonplaats': '' }, delen)).toEqual({});
+  });
+});
+
 describe('beginwaarden', () => {
   it('starts a yes-or-no the law requires at no, and leaves the rest empty', () => {
     const velden = vorm.velden.map((v) => schermveld(v));

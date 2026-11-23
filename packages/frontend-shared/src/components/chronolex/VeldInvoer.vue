@@ -37,8 +37,12 @@ const props = withDefaults(
     help?: string;
     /** Draw the control bare: a group around it carries the line under it. */
     kaal?: boolean;
+    /** The browser's autofill hint, for an input that answers part of a field. */
+    autocomplete?: string;
+    /** The on-screen keyboard a phone raises for it. */
+    keyboard?: string;
   }>(),
-  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '', help: '', kaal: false },
+  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '', help: '', kaal: false, autocomplete: '', keyboard: '' },
 );
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
 
@@ -105,6 +109,8 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
     <nldd-text-field
       v-else
       :value="tekst"
+      :autocomplete="autocomplete || undefined"
+      :keyboard="keyboard || undefined"
       :readonly="alleenLezen || undefined"
       @input="zet(uit($event))"
     ></nldd-text-field>

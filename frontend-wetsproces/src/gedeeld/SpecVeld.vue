@@ -5,9 +5,9 @@
 // is the shared VeldInvoer of the chronolexografie poc.
 import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/OordeelKeuze.vue';
 import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
-import type { Schermveld } from './formulier';
+import type { Formulierveld } from './formulier';
 
-const props = withDefaults(defineProps<{ veld: Schermveld; modelValue?: unknown; oordeel?: boolean; kaal?: boolean }>(), {
+const props = withDefaults(defineProps<{ veld: Formulierveld; modelValue?: unknown; oordeel?: boolean; kaal?: boolean }>(), {
   modelValue: undefined,
   oordeel: false,
   kaal: false,
@@ -31,6 +31,8 @@ const alsKeuze = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? 
   <VeldInvoer
     v-else
     :kaal="kaal"
+    :autocomplete="veld.deel?.autocomplete"
+    :keyboard="veld.deel?.keyboard"
     :veld="veld.veld"
     :label="veld.label"
     :help="veld.help"

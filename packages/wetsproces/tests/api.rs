@@ -752,7 +752,11 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
     // screen that shows a recorded application names their origin.
     assert_eq!(
         aanvraag["verborgen"],
-        json!(["aanvraag_ondertekend", "dagtekening", "gevraagde_beschikking"])
+        json!([
+            "aanvraag_ondertekend",
+            "dagtekening",
+            "gevraagde_beschikking"
+        ])
     );
     // The citizen fills in what the system does not.
     for veld in [
@@ -771,8 +775,18 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
         .collect();
     assert_eq!(
         volgorde[..3],
-        ["kaart_als_bestuurder", "kaart_als_passagier", "bsn_aanvrager"]
+        [
+            "kaart_als_bestuurder",
+            "kaart_als_passagier",
+            "adres_aanvrager"
+        ]
     );
+    // The law asks one address; the screen asks it in the pieces people know
+    // it in, and the form joins them again when it submits.
+    let delen = &vormen["delen"]["adres_aanvrager"];
+    assert_eq!(delen.as_array().map(|d| d.len()), Some(3), "{delen}");
+    assert_eq!(delen[0]["naam"], json!("straat_huisnummer"), "{delen}");
+    assert_eq!(delen[1]["autocomplete"], json!("postal-code"), "{delen}");
     assert_eq!(
         vormen["teksten"]["adres_aanvrager"]["group"],
         json!("Gegevens van de aanvrager")

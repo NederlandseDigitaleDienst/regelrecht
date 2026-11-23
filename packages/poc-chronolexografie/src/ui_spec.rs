@@ -99,6 +99,20 @@ struct Field {
     label: Option<String>,
     help: Option<String>,
     group: Option<String>,
+    parts: Option<Vec<Part>>,
+}
+
+/// One input of a field the applicant answers in parts: the law asks one
+/// value, the screen asks it in pieces. An unknown key is refused, as in
+/// [`Fill`].
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Part {
+    name: Option<String>,
+    label: Option<String>,
+    help: Option<String>,
+    autocomplete: Option<String>,
+    keyboard: Option<String>,
 }
 
 /// What a field of a view beside a decision shows: the answer of the case's
@@ -128,6 +142,8 @@ pub struct UiSpec {
     /// The fields in the order the UI spec names them, each once: the order
     /// a screen shows them in.
     pub volgorde: Vec<String>,
+    /// Per field that the screen asks in parts, those parts in order.
+    pub delen: BTreeMap<String, Vec<Velddeel>>,
 }
 
 /// How a screen names a field (`label`), what it says under it (`help`) and
@@ -141,6 +157,24 @@ pub struct Veldtekst {
     pub help: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+}
+
+/// One input of a field the screen asks in parts. The law asks one value, so
+/// the form joins what the applicant types here, in this order, with a comma
+/// between: an address is one value of the law and three questions on screen.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Velddeel {
+    pub naam: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    /// The browser's autofill hint, such as `postal-code`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub autocomplete: Option<String>,
+    /// The on-screen keyboard a phone raises, such as `numeric`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keyboard: Option<String>,
 }
 
 /// How the system fills a field of the application (`fill: {by: system}`).
@@ -326,6 +360,12 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         .as_deref()
         .map(volgorde)
         .unwrap_or_default();
+    let delen = register
+        .elements
+        .as_deref()
+        .map(delen)
+        .transpose()?
+        .unwrap_or_default();
     let (elements, weergaven) = match (register.elements, register.elementen) {
         (Some(elements), None) => per_field(elements)?,
         (None, Some(elementen)) => (older_form(elementen)?, Vec::new()),
@@ -347,6 +387,14 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
             "the UI spec both prefills '{veld}' and fills it by the system"
         ));
     }
+    if let Some(veld) = delen.keys().find(|v| systeem.contains_key(*v)) {
+        return Err(format!(
+            "the UI spec asks '{veld}' in parts and fills it by the system"
+        ));
+    }
+    if let Some(veld) = delen.keys().find(|v| verborgen.contains(*v)) {
+        return Err(format!("the UI spec asks '{veld}' in parts and hides it"));
+    }
     Ok(UiSpec {
         prefill,
         systeem,
@@ -354,7 +402,77 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         weergaven,
         teksten,
         volgorde,
+        delen,
     })
+}
+
+/// Per field that an element asks in parts, those parts in order. Two
+/// elements that give one field different parts are refused, as they are for
+/// a `label`.
+fn delen(elements: &[Element]) -> Result<BTreeMap<String, Vec<Velddeel>>, String> {
+    let mut uit: BTreeMap<String, (Vec<Velddeel>, String)> = BTreeMap::new();
+    for (i, element) in elements.iter().enumerate() {
+        let naam = element_name(element.id.as_ref(), i);
+        for field in &element.fields {
+            let Some(parts) = &field.parts else { continue };
+            let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
+                return Err(format!(
+                    "the UI spec: {naam} gives `parts` to a field without a `name`"
+                ));
+            };
+            if parts.is_empty() {
+                return Err(format!(
+                    "the UI spec: {naam} gives '{veld}' an empty `parts`; leave it out, \
+                     or name the inputs the applicant answers it in"
+                ));
+            }
+            if field.fill.is_some() {
+                return Err(format!(
+                    "the UI spec: {naam} gives '{veld}' `parts` and fills it; the applicant \
+                     does not type what the system fills"
+                ));
+            }
+            if field.visibility.as_deref() == Some("hidden") {
+                return Err(format!(
+                    "the UI spec: {naam} gives '{veld}' `parts` and hides it; a field that is \
+                     not on the form has no inputs"
+                ));
+            }
+            let mut gezien: BTreeSet<&str> = BTreeSet::new();
+            let mut deze = Vec::with_capacity(parts.len());
+            for part in parts {
+                let Some(deel) = part.name.as_deref().filter(|d| !d.is_empty()) else {
+                    return Err(format!(
+                        "the UI spec: {naam} gives '{veld}' a part without a `name`"
+                    ));
+                };
+                if !gezien.insert(deel) {
+                    return Err(format!(
+                        "the UI spec: {naam} gives '{veld}' the part '{deel}' twice"
+                    ));
+                }
+                deze.push(Velddeel {
+                    naam: deel.to_owned(),
+                    label: part.label.clone(),
+                    help: part.help.clone(),
+                    autocomplete: part.autocomplete.clone(),
+                    keyboard: part.keyboard.clone(),
+                });
+            }
+            match uit.get(veld) {
+                Some((eerder, door)) if *eerder != deze => {
+                    return Err(format!(
+                        "the UI spec: {door} and {naam} give '{veld}' different `parts`"
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    uit.insert(veld.to_owned(), (deze, naam.clone()));
+                }
+            }
+        }
+    }
+    Ok(uit.into_iter().map(|(v, (d, _))| (v, d)).collect())
 }
 
 /// The names of the fields of `elements`, each once, in the order they are
@@ -1189,6 +1307,72 @@ elements:
         )
         .unwrap();
         assert_eq!(spec.teksten["x"].label.as_deref(), Some("Een"));
+    }
+
+    #[test]
+    fn a_field_the_screen_asks_in_parts_names_its_inputs() {
+        let spec = lees(
+            "
+elements:
+  - id: UI1
+    fields:
+      - name: adres
+        label: Adres
+        parts:
+          - {name: straat_huisnummer, label: Straat en huisnummer, autocomplete: street-address}
+          - {name: postcode, label: Postcode, autocomplete: postal-code, keyboard: numeric}
+",
+        )
+        .unwrap();
+        let delen = &spec.delen["adres"];
+        assert_eq!(delen.len(), 2);
+        assert_eq!(delen[0].naam, "straat_huisnummer");
+        assert_eq!(delen[0].autocomplete.as_deref(), Some("street-address"));
+        assert_eq!(delen[1].keyboard.as_deref(), Some("numeric"));
+        // The field itself stays one field of the law; only the screen splits it.
+        assert_eq!(spec.volgorde, ["adres"]);
+        assert_eq!(spec.teksten["adres"].label.as_deref(), Some("Adres"));
+    }
+
+    #[test]
+    fn parts_on_a_field_the_applicant_does_not_type_are_refused() {
+        let gevuld = lees(
+            "
+elements:
+  - id: UI1
+    fields:
+      - {name: adres, fill: {by: system}, parts: [{name: postcode}]}
+",
+        )
+        .unwrap_err();
+        assert!(
+            gevuld.contains("gives 'adres' `parts` and fills it"),
+            "{gevuld}"
+        );
+        let verborgen = lees(
+            "
+elements:
+  - id: UI1
+    fields:
+      - {name: adres, visibility: hidden, parts: [{name: postcode}]}
+",
+        )
+        .unwrap_err();
+        assert!(
+            verborgen.contains("gives 'adres' `parts` and hides it"),
+            "{verborgen}"
+        );
+        let naamloos =
+            lees("elements: [{id: UI1, fields: [{parts: [{name: postcode}]}]}]").unwrap_err();
+        assert!(
+            naamloos.contains("`parts` to a field without a `name`"),
+            "{naamloos}"
+        );
+        let dubbel = lees(
+            "elements: [{id: UI1, fields: [{name: adres, parts: [{name: postcode}, {name: postcode}]}]}]",
+        )
+        .unwrap_err();
+        assert!(dubbel.contains("the part 'postcode' twice"), "{dubbel}");
     }
 
     #[test]

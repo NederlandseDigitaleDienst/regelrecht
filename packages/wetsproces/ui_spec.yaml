@@ -41,10 +41,23 @@ elements:
       - name: kaart_als_passagier
         group: Uw aanvraag
         label: Ik vraag de kaart aan als passagier
+      # De wet vraagt één adres (Awb 4:2, eerste lid, onder a); het scherm
+      # vraagt het in de stukken waarin mensen het kennen. Het formulier voegt
+      # ze in deze volgorde samen tot de ene waarde die de wet kent.
       - name: adres_aanvrager
         group: Gegevens van de aanvrager
         label: Adres
-        help: Straat, huisnummer, postcode en woonplaats.
+        parts:
+          - name: straat_huisnummer
+            label: Straat en huisnummer
+            autocomplete: street-address
+          - name: postcode
+            label: Postcode
+            autocomplete: postal-code
+            keyboard: numeric
+          - name: woonplaats
+            label: Woonplaats
+            autocomplete: address-level2
       - name: bsn_aanvrager
         group: Gegevens van de aanvrager
         visibility: shown

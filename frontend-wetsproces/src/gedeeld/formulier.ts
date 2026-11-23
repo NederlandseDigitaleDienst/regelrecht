@@ -74,6 +74,24 @@ export function herkomst(hoe: Systeemvulling): string {
 export interface Formulierveld extends Schermveld {
   /** Set when the system fills the field: its value and where it comes from. */
   systeem?: { waarde: unknown; herkomst: string };
+  /** Set on an input of a field the screen asks in parts: the law field it answers, and the part. */
+  deel?: { veld: string; naam: string; autocomplete?: string; keyboard?: string };
+}
+
+/** The key a part of `veld` holds its value under, which is no field of the law. */
+export const deelsleutel = (veld: string, deel: string): string => `${veld}.${deel}`;
+
+/** `veld` as the screen asks it: itself, or one input per part the UI spec names. */
+function metDelen(veld: Formulierveld, delen: Vormen['delen'] = {}): Formulierveld[] {
+  const stukken = delen?.[veld.veld.naam];
+  if (!stukken?.length) return [veld];
+  return stukken.map((d) => ({
+    ...veld,
+    veld: { ...veld.veld, naam: deelsleutel(veld.veld.naam, d.naam) },
+    label: d.label ?? d.naam,
+    help: d.help ?? '',
+    deel: { veld: veld.veld.naam, naam: d.naam, autocomplete: d.autocomplete, keyboard: d.keyboard },
+  }));
 }
 
 /** Fields under one heading, as the UI spec groups them (`group`); a field without one has no heading. */
@@ -85,7 +103,8 @@ export interface Veldgroep<V = Formulierveld> {
 /** The application form of `vorm`: its fields in groups, and those of them the applicant fills. */
 export interface Aanvraagformulier {
   groepen: Veldgroep[];
-  invullen: Schermveld[];
+  /** The fields the applicant fills: a part of a field is one of them. */
+  invullen: Formulierveld[];
 }
 
 /**
@@ -152,6 +171,7 @@ export function aanvraagformulier(
   teksten: Vormen['teksten'] = {},
   identiteit: string | null = null,
   volgorde: string[] = [],
+  delen: Vormen['delen'] = {},
 ): Aanvraagformulier {
   const systeem = vorm.systeem ?? {};
   const verborgen = vorm.verborgen ?? [];
@@ -165,7 +185,8 @@ export function aanvraagformulier(
     if (!hoe) return veld;
     const waarde = 'waarde' in hoe ? hoe.waarde : inloggen.has(v.naam) && !hoe.inlog ? identiteit : undefined;
     return { ...veld, systeem: { waarde, herkomst: herkomst(hoe) } };
-  });
+  })
+    .flatMap((v) => (v.systeem ? [v] : metDelen(v, delen)));
   return { groepen: inGroepen(velden), invullen: velden.filter((v) => !v.systeem) };
 }
 
@@ -192,8 +213,23 @@ export function beginwaarden(velden: Schermveld[]): Record<string, unknown> {
  * without the empty ones and without any field the system fills, which the
  * server fills itself and refuses from the request.
  */
-export function aanvraagVelden(vorm: Indieningsvorm, waarden: Record<string, unknown>): Record<string, unknown> {
+export function aanvraagVelden(
+  vorm: Indieningsvorm,
+  waarden: Record<string, unknown>,
+  delen: Vormen['delen'] = {},
+): Record<string, unknown> {
   const uit: Record<string, unknown> = zonderLeeg(waarden);
+  // A field the screen asks in parts holds its value per part; the law asks
+  // one, so the parts join in the order the UI spec names them.
+  for (const [veld, stukken] of Object.entries(delen ?? {})) {
+    const samen = stukken
+      .map((d) => uit[deelsleutel(veld, d.naam)])
+      .filter((w) => w !== undefined && w !== null && String(w).trim() !== '')
+      .map((w) => String(w).trim())
+      .join(', ');
+    for (const d of stukken) delete uit[deelsleutel(veld, d.naam)];
+    if (samen) uit[veld] = samen;
+  }
   for (const naam of Object.keys(vorm.systeem ?? {})) delete uit[naam];
   return uit;
 }

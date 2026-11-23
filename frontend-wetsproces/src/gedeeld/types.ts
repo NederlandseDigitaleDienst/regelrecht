@@ -156,6 +156,19 @@ export interface Vormen {
   teksten?: Record<string, Veldtekst>;
   /** The fields in the order the UI spec names them. */
   volgorde?: string[];
+  /** Per field the screen asks in parts, those parts in order. */
+  delen?: Record<string, Velddeel[]>;
+}
+
+/** One input of a field the screen asks in parts; the form joins them into the one value the law asks. */
+export interface Velddeel {
+  naam: string;
+  label?: string;
+  help?: string;
+  /** The browser's autofill hint, such as `postal-code`. */
+  autocomplete?: string;
+  /** The on-screen keyboard a phone raises, such as `numeric`. */
+  keyboard?: string;
 }
 
 /** A submission the case knows, with the cell that decides on it. */

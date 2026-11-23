@@ -53,7 +53,13 @@ const inleiding = computed(() => {
 const vorm = computed(() => (artikel.value && vormen.value ? vormen.value.indieningen[artikel.value] : undefined));
 const formulier = computed(() =>
   vorm.value
-    ? aanvraagformulier(vorm.value, vormen.value?.teksten, wie.value?.identiteit ?? null, vormen.value?.volgorde)
+    ? aanvraagformulier(
+        vorm.value,
+        vormen.value?.teksten,
+        wie.value?.identiteit ?? null,
+        vormen.value?.volgorde,
+        vormen.value?.delen,
+      )
     : null,
 );
 
@@ -88,7 +94,7 @@ async function indienen() {
   melding.value = '';
   try {
     await burgerApi.indienen(
-      { artikel: artikel.value, ...(overToekenning.value && op.value ? { op: op.value } : {}), velden: aanvraagVelden(vorm.value, waarden.value) },
+      { artikel: artikel.value, ...(overToekenning.value && op.value ? { op: op.value } : {}), velden: aanvraagVelden(vorm.value, waarden.value, vormen.value?.delen) },
       sleutel,
     );
     sleutel = nieuweSleutel();
