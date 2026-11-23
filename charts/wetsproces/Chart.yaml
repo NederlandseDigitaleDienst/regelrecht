@@ -2,10 +2,11 @@
 apiVersion: v2
 name: wetsproces
 description: >-
-  The regelrecht wetsprocessysteem for one case: the server in test mode with the
-  chronicles in memory, the case cloned from a public git repository at start.
+  The regelrecht wetsprocessysteem for one case: the server in test mode, an
+  instance per side on one PostgreSQL database, the case cloned from a public
+  git repository at start.
 type: application
-version: 0.1.0
+version: 0.2.0
 # The commit of the wetsproces image the chart was tested with.
 appVersion: 068417c4
 home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026

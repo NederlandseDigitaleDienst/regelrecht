@@ -49,8 +49,9 @@ spec:
       type: string
       required: true
       description: >-
-        The app is served on wetsproces.<domain>. Without a DNS record of your
-        own, use <gateway-ip-with-dashes>.sslip.io.
+        Citizens use burger.wetsproces.<domain> and employees
+        medewerkers.wetsproces.<domain>. Without a DNS record of your own, use
+        <gateway-ip-with-dashes>.sslip.io.
     - name: IMAGE
       displayName: Image
       type: string

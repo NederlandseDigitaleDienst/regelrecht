@@ -169,14 +169,45 @@ jobs:
           git fetch -q --depth 1 \
             "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" "${{ forgejo.sha }}"
           git checkout -q FETCH_HEAD
+      # The default needs CloudNativePG on the cluster; `--api-versions` stands
+      # in for it. `helm lint` takes no such flag, so it lints the setup in
+      # memory.
       - name: helm lint and template
         run: |
-          helm lint charts/wetsproces --strict --set domain=example.org
-          helm template wetsproces charts/wetsproces --set domain=example.org > /dev/null
-          helm template wetsproces charts/wetsproces --set domain=example.org \
+          C=charts/wetsproces
+          CNPG="--api-versions postgresql.cnpg.io/v1/Cluster"
+          SMALL="--set database.enabled=false --set surfaces.split=false"
+          helm lint "$C" --strict --set domain=example.org $SMALL
+          helm template wetsproces "$C" --set domain=example.org $CNPG > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
             --set gateway.enabled=false > /dev/null
-      - name: The schema refuses an empty domain
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set dns.enabled=true --set dns.target=192.0.2.1 > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set dns.enabled=true --set gateway.address=192.0.2.1 > /dev/null
+          helm template wetsproces "$C" --set domain=example.org $SMALL > /dev/null
+      # Each refusal must fail for its own reason, so the check matches the
+      # message: a render that breaks for another reason does not pass.
+      - name: The chart refuses what cannot work
         run: |
-          if helm template wetsproces charts/wetsproces > /dev/null 2>&1; then
-            echo "an empty domain was accepted"; exit 1
-          fi
+          C=charts/wetsproces
+          CNPG="--api-versions postgresql.cnpg.io/v1/Cluster"
+          refuse() {
+            want="$1"; shift
+            if out="$(helm template wetsproces "$C" "$@" 2>&1)"; then
+              echo "accepted, expected a refusal with '$want': $*"; exit 1
+            fi
+            if ! printf '%s' "$out" | grep -qF "$want"; then
+              echo "refused for another reason than '$want': $*"; printf '%s\n' "$out"; exit 1
+            fi
+          }
+          refuse "domain" $CNPG
+          refuse "surfaces.split needs database.enabled" --set domain=example.org \
+            --set database.enabled=false --set surfaces.split=true
+          refuse "needs the CloudNativePG operator" --set domain=example.org
+          refuse "dns.enabled needs a fixed address" --set domain=example.org $CNPG \
+            --set dns.enabled=true
+          refuse "must differ" --set domain=example.org $CNPG \
+            --set surfaces.burger.host=a.example.org --set surfaces.backoffice.host=a.example.org
+          refuse "surfaces" --set domain=example.org $CNPG \
+            --set surfaces.burger.host=Not_A_Host

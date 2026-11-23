@@ -34,7 +34,8 @@ type pluginConfig struct {
 	// Namespace is the existing Fundament namespace (tnt-<project>--<name>)
 	// the app goes into. Fundament creates namespaces; the plugin never does.
 	Namespace string `env:"FUNP_NAMESPACE,required"`
-	// Domain is the base domain; the app is served on wetsproces.<domain>.
+	// Domain is the base domain: citizens use burger.wetsproces.<domain> and
+	// employees medewerkers.wetsproces.<domain>.
 	Domain string `env:"FUNP_DOMAIN,required"`
 	// Image is the wetsproces image.
 	Image string `env:"FUNP_IMAGE" envDefault:"code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7"`

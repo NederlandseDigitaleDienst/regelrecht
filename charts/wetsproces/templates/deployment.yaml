@@ -1,22 +1,48 @@
+{{- range $i, $inst := include "wetsproces.instances" . | fromJsonArray }}
+{{- with $ }}
+{{- if $i }}
+---
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ $inst.name }}
   labels:
     {{- include "wetsproces.labels" . | nindent 4 }}
+    {{- if $inst.suffix }}
+    app.kubernetes.io/component: {{ $inst.surface }}
+    {{- end }}
 spec:
+  replicas: 1
+  {{- if .Values.database.enabled }}
+  # The chronicles are in PostgreSQL, so the old pod serves until the new one
+  # is ready. The new one migrates under the advisory lock at startup and
+  # only listens, and so only turns ready, once that is done; a pod killed
+  # while it waits or migrates loses its connection and with it the lock.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  {{- else }}
   # Memory store: a second replica would hold a second, separate set of
   # chronicles. Recreate keeps it at one during a rollout too.
-  replicas: 1
   strategy:
     type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "wetsproces.selectorLabels" . | nindent 6 }}
+      {{- if $inst.suffix }}
+      app.kubernetes.io/component: {{ $inst.surface }}
+      {{- end }}
   template:
     metadata:
       labels:
         {{- include "wetsproces.selectorLabels" . | nindent 8 }}
+        {{- if $inst.suffix }}
+        app.kubernetes.io/component: {{ $inst.surface }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false
       securityContext:
@@ -70,9 +96,23 @@ spec:
             - name: WETSPROCES_MODE
               value: {{ .Values.wetsproces.mode | quote }}
             - name: WETSPROCES_SURFACE
-              value: {{ .Values.wetsproces.surface | quote }}
+              value: {{ $inst.surface | quote }}
+            {{- if .Values.database.enabled }}
             - name: WETSPROCES_STORE
-              value: {{ .Values.wetsproces.store | quote }}
+              value: postgres
+            # The connection string CNPG writes for the app user of the
+            # cluster's own database.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "wetsproces.dbCluster" . }}-app
+                  key: uri
+            - name: WETSPROCES_DB_MAX_CONNECTIONS
+              value: {{ .Values.database.maxConnections | quote }}
+            {{- else }}
+            - name: WETSPROCES_STORE
+              value: memory
+            {{- end }}
             - name: WETSPROCES_LOGIN
               value: {{ .Values.wetsproces.login | quote }}
             - name: WETSPROCES_MANIFEST
@@ -120,3 +160,5 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+{{- end }}
+{{- end }}

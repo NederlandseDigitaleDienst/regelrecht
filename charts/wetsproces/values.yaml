@@ -1,7 +1,10 @@
 ---
-# The base domain. The app is served on wetsproces.<domain>, unless `host` is set.
+# The base domain. With surfaces.split (the default) citizens reach the app on
+# burger.wetsproces.<domain> and employees on medewerkers.wetsproces.<domain>;
+# with one instance it is served on wetsproces.<domain>.
 domain: ''
-# The full hostname; empty means wetsproces.<domain>.
+# The base host instead of wetsproces.<domain>: the host of the single
+# instance, or the base of burger.<host> and medewerkers.<host>.
 host: ''
 
 image:
@@ -30,14 +33,54 @@ gitImage:
   ref: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
   pullPolicy: IfNotPresent
 
-# Step 1 of the plan: test mode, one address for both sides, the test login and
-# the chronicles in memory. Stable mode needs PostgreSQL and Keycloak and is not
-# supported by this chart yet.
+# Test mode with the test login. Stable mode needs Keycloak and is not
+# supported by this chart yet. Where the chronicles live follows from
+# `database`, which side an instance serves from `surfaces`.
 wetsproces:
   mode: test
+  # The surface of the single instance; ignored with surfaces.split.
   surface: all
-  store: memory
   login: testlogin
+
+# PostgreSQL for the chronicles, the test clock and the sessions, as a
+# CloudNativePG Cluster of this release. Off, the chronicles live in memory and
+# are gone at every restart. Needs the CNPG operator on the cluster; the chart
+# refuses to render without it. On by default, as the fieldlab runs on ZAD.
+database:
+  enabled: true
+  # PostgreSQL instances; more than one adds replicas the server does not read.
+  instances: 1
+  storage:
+    size: 1Gi
+    # Empty takes the cluster's default StorageClass.
+    storageClass: ''
+  # The image catalog CNPG picks the PostgreSQL image from. An empty name
+  # leaves the choice to the operator's default image.
+  imageCatalog:
+    kind: ClusterImageCatalog
+    name: postgresql-standard-trixie
+    major: 18
+  # WETSPROCES_DB_MAX_CONNECTIONS per instance; at least 2, because the
+  # migration holds its lock on one connection while it migrates on another.
+  maxConnections: 5
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# Citizens and employees on two instances with an address each, both on the
+# database above, as on ZAD. Off, one instance serves wetsproces.surface on the
+# host; with `database.enabled: false` that is the small setup in memory.
+surfaces:
+  split: true
+  burger:
+    # Empty means burger.<host>.
+    host: ''
+  backoffice:
+    # Empty means medewerkers.<host>.
+    host: ''
 
 gateway:
   # A Gateway API Gateway of this release, in its own namespace, with its own
@@ -55,6 +98,20 @@ gateway:
   # MetalLB pool does not assign addresses on its own, so the Service names it.
   serviceAnnotations:
     metallb.io/address-pool: internet-fire-ephemeral
+
+dns:
+  # A DNSEndpoint with an A record per host, for an external-dns that reads
+  # them (source crd), such as the one on cluster-a for its zone
+  # cluster-a.fieldlab2026.nl.
+  enabled: false
+  # The address the records point at; empty takes gateway.address. One of the
+  # two is required, and it must be an address reserved for the project (ask a
+  # Fundament operator): on cluster-a the Gateway's own address is ephemeral,
+  # and a record left on it would point at whoever gets the address next. An
+  # external-dns with upsert-only, as on cluster-a, never removes a record, so
+  # remove the records by hand after an uninstall.
+  target: ''
+  ttl: 300
 
 tls:
   # The chart creates a namespaced cert-manager Issuer for Let's Encrypt, with

@@ -27,3 +27,35 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | 
 app.kubernetes.io/name: wetsproces
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+
+{{/* The name of the CNPG Cluster; CNPG names its app secret <cluster>-app. */}}
+{{- define "wetsproces.dbCluster" -}}
+{{- printf "%s-db" .Release.Name -}}
+{{- end -}}
+
+{{/*
+The instances of the server, as a JSON list: one with the surface of
+wetsproces.surface on the host of wetsproces.host, or, with surfaces.split,
+one per surface on a host of its own. Each item has `name` (the name of its
+Deployment and Service), `surface`, `host` and `suffix` (empty for the single
+instance, so its names stay what they were).
+*/}}
+{{- define "wetsproces.instances" -}}
+{{- $base := include "wetsproces.host" . -}}
+{{- if .Values.surfaces.split -}}
+{{- if not .Values.database.enabled -}}
+{{- fail "surfaces.split needs database.enabled: the two instances share their chronicles, and the store in memory cannot be shared" -}}
+{{- end -}}
+{{- $burger := .Values.surfaces.burger.host | default (printf "burger.%s" $base) -}}
+{{- $backoffice := .Values.surfaces.backoffice.host | default (printf "medewerkers.%s" $base) -}}
+{{- if eq $burger $backoffice -}}
+{{- fail "surfaces.burger.host and surfaces.backoffice.host must differ: two HTTPS listeners on one host conflict" -}}
+{{- end -}}
+{{- list
+  (dict "name" (printf "%s-burger" .Release.Name) "surface" "burger" "host" $burger "suffix" "-burger")
+  (dict "name" (printf "%s-backoffice" .Release.Name) "surface" "backoffice" "host" $backoffice "suffix" "-backoffice")
+  | toJson -}}
+{{- else -}}
+{{- list (dict "name" .Release.Name "surface" .Values.wetsproces.surface "host" $base "suffix" "") | toJson -}}
+{{- end -}}
+{{- end -}}

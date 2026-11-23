@@ -28,16 +28,36 @@ there.
 
 ## The chart
 
-`charts/wetsproces` runs the server in test mode: one address for citizens and
-employees (`WETSPROCES_SURFACE=all`), the test login, and the chronicles in
-memory. An init container clones the case repository, shallow, into an
+`charts/wetsproces` runs the server in test mode, as the fieldlab deployment
+on ZAD does: an instance per side on one PostgreSQL database, `burger` for
+citizens on `burger.wetsproces.<domain>` and `backoffice` for employees on
+`medewerkers.wetsproces.<domain>`, both with the test login. An init container
+clones the case repository, shallow, into an
 `emptyDir` at `/case`, and `WETSPROCES_MANIFEST` points at
 `/case/<CASE_PATH>`. The manifest's `repo_root` is resolved from there, so
 `../..` in `packages/wetsproces/bron.yaml` is the root of the clone. The screens
 come from the image (`/app/frontend`), not from the case.
 
-Because the chronicles are in memory, a restart of the pod empties the test
-setup, and the chart runs one replica.
+The database is a CloudNativePG `Cluster` of the release, `wetsproces-db`, with
+one instance and no backups. The CloudNativePG operator must run on the
+cluster; on `cluster-a` it does, as a Fundament plugin, and without it the
+chart refuses to render. helm-controller creates the `Cluster`, so the
+release's namespace needs no extra rights. Both instances read the connection
+URL from the secret `wetsproces-db-app` that CloudNativePG writes, and migrate
+the schema `wetsproces` at start under an advisory lock. The chronicles survive
+a restart; an uninstall removes the `Cluster` and its volume with them.
+
+`database.enabled: false` with `surfaces.split: false` is the small setup: one
+instance on `wetsproces.<domain>` for both sides, the chronicles in memory and
+emptied by every restart. The chart refuses two instances on memory, because
+each would keep its own chronicles. `dns.enabled` adds a `DNSEndpoint` for an
+external-dns that reads them, such as the one on `cluster-a` for its zone
+`cluster-a.fieldlab2026.nl`. It needs an address reserved for the project in
+`dns.target` or `gateway.address`, because a record left on an ephemeral
+Gateway address would point at whoever gets that address next; an external-dns
+with upsert-only never removes a record, so remove them by hand after an
+uninstall. The plugin does not pass `dns`, so this is for a release installed
+by hand.
 
 The values are described in `charts/wetsproces/values.yaml`. Without the
 plugin, into a Fundament namespace:
@@ -52,12 +72,12 @@ helm upgrade --install wetsproces charts/wetsproces -n tnt-rr-voorbeeld--wetspro
 Everything stays in the release's namespace. The chart creates:
 
 - a Gateway API `Gateway` (class `istio`) with its own public address, an HTTP
-  listener and an HTTPS listener for `wetsproces.<domain>`;
+  listener and an HTTPS listener per host, each with a certificate of its own;
 - a namespaced cert-manager `Issuer` for Let's Encrypt, with the HTTP-01
   solver on the Gateway's HTTP listener, and the annotation
   `cert-manager.io/issuer` on the Gateway, from which cert-manager makes the
   `Certificate`;
-- an `HTTPRoute` from the HTTPS listener to the service, and one on the HTTP
+- an `HTTPRoute` per instance from its HTTPS listener to its service, and one on the HTTP
   listener that redirects to HTTPS.
 
 `tls.acme` picks the staging or the production environment of Let's Encrypt.
@@ -89,7 +109,7 @@ the `FUNP_<name>` environment variable.
 | `CASE_REF` | no | `main` | branch or tag of that repository |
 | `CASE_PATH` | no | `packages/wetsproces/bron.yaml` | path of the manifest in that repository |
 | `NAMESPACE` | yes | | the full name of an existing Fundament namespace, `tnt-<project>--<name>` |
-| `DOMAIN` | yes | | the app is served on `wetsproces.<domain>`, e.g. `194-135-48-156.sslip.io` |
+| `DOMAIN` | yes | | citizens use `burger.wetsproces.<domain>` and employees `medewerkers.wetsproces.<domain>`, e.g. `194-135-48-156.sslip.io` |
 | `IMAGE` | no (advanced) | `code.digitaledienst.overheid.nl/regelrecht/wetsproces:f619755c457d30babec9d7e200092e30794a79f7` | the wetsproces image |
 | `CHART_REF` | no (advanced) | `main` | branch or tag of this repository that the chart is read from |
 | `GATEWAY_ADDRESS` | no (advanced) | empty | a fixed public IP for the Gateway; must be a static IP of the project |
