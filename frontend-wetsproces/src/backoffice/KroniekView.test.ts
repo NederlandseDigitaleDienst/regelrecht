@@ -35,7 +35,7 @@ vi.mock('./api', () => ({
   backofficeApi: {
     casus: async () => casus,
     formulier: async () => ({ teksten: {} }),
-    ik: async () => ({ cellen: [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }] }),
+    ik: async () => ({ cellen: [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }] }),
     kroniek: async () => ({
       cel: 'gemeente',
       cel_naam: 'gemeente Voorbeeld',

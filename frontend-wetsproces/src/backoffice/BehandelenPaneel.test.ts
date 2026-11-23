@@ -49,7 +49,7 @@ const beslisser: Ik = {
   burger: false,
   identiteit: null,
   niveau: 'beslisser',
-  cellen: [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }],
+  cellen: [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }],
   partijen_invoeren: false,
   klok_zetten: false,
 };

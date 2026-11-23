@@ -6,13 +6,13 @@
 // record revoked its last decision with nothing in its place, such as the
 // receipt of a judgment that annulled a decision on objection: then it is to
 // be decided again, after that record (`na`). Every employee opens a
-// submission to read it, and a decider
-// decides on it there; a handler records facts. What the account may not do does not show. What an external party
+// submission to read it, and a decider decides on it there and records
+// facts. What the account may not do does not show. What an external party
 // does, such as the GGD's advice, comes in through the admin panel. Laid out as the
 // editor's library: the queue in the sidebar, the submission being handled
 // in the main pane beside it (BehandelenPaneel.vue). Under the queue, what
 // follows a grant (`na_toekenning` in the case file): each grant whose acts
-// are not all done, how far it is, and for a handler the next act as a
+// are not all done, how far it is, and for a decider the next act as a
 // button. Those acts are recorded only there, never on their own.
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -105,7 +105,7 @@ const cellen = computed(() =>
       open: kroniek && werkvoorraad.value?.cel === recht.cel ? werkvoorraad.value.open.map((w) => rij(w.stuk, w.na, kroniek)) : [],
       // An act after a grant is recorded beside that grant, not on its own.
       handelingen:
-        recht.behandelen && eigen?.cel === recht.cel
+        recht.beslissen && eigen?.cel === recht.cel
           ? eigen.handelingen.filter((h) => !vervolgFeiten(casus.value).has(h.feit))
           : [],
     };
@@ -202,16 +202,16 @@ async function klaar(naam: string) {
                 <nldd-spacer size="8"></nldd-spacer>
                 <nldd-inline-dialog v-if="vervolgFout" icon="warning" icon-color="critical" text="Dit overzicht laadt niet" :supporting-text="vervolgFout"></nldd-inline-dialog>
                 <nldd-list v-else-if="openToekenningen.length" appearance="simple" accessible-label="Na de toekenning">
-                  <!-- For a handler the row opens the sheet of the next act; a reader only sees how far it is. -->
+                  <!-- For a decider the row opens the sheet of the next act; a reader only sees how far it is. -->
                   <nldd-list-item
                     v-for="t in openToekenningen"
                     :key="t.stand.toekenning"
                     size="md"
-                    :button="(c.recht.behandelen && t.handeling) || undefined"
-                    @click="c.recht.behandelen && t.handeling && (keuze = { cel: c.recht.cel, handeling: t.handeling, verwijst_naar: t.stand.toekenning, titel: t.knop })"
+                    :button="(c.recht.beslissen && t.handeling) || undefined"
+                    @click="c.recht.beslissen && t.handeling && (keuze = { cel: c.recht.cel, handeling: t.handeling, verwijst_naar: t.stand.toekenning, titel: t.knop })"
                   >
-                    <nldd-text-cell :text="t.tekst" :supporting-text="c.recht.behandelen ? `${t.regel} · Volgende stap: ${t.knop}` : t.regel"></nldd-text-cell>
-                    <template v-if="c.recht.behandelen && t.handeling">
+                    <nldd-text-cell :text="t.tekst" :supporting-text="c.recht.beslissen ? `${t.regel} · Volgende stap: ${t.knop}` : t.regel"></nldd-text-cell>
+                    <template v-if="c.recht.beslissen && t.handeling">
                       <nldd-spacer-cell size="8"></nldd-spacer-cell>
                       <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                     </template>

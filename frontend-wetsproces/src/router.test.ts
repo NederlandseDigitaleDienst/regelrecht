@@ -23,7 +23,7 @@ const burger: Ik = { ...geen, burger: true, identiteit: '999990019' };
 const medewerker: Ik = {
   ...geen,
   niveau: 'lezer',
-  cellen: [{ cel: 'c', cel_naam: 'C', lezen: true, behandelen: false, beslissen: false }],
+  cellen: [{ cel: 'c', cel_naam: 'C', lezen: true, beslissen: false }],
 };
 
 describe('omleiding', () => {

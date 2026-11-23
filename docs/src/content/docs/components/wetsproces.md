@@ -166,7 +166,7 @@ The server makes that account itself: the role `wetsproces-burger` and no other,
 
 `GET /auth/logout` beside the test login ends the session and sends the browser to `/`, where the screen to get in waits again.
 
-`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface, the store and its pool size (`db_max_connections`), so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a handler and a decider of the executor and the admin.
+`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface, the store and its pool size (`db_max_connections`), so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a decider of the executor and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 
@@ -191,9 +191,9 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/backoffice/tijdlijn/{id}` | reader | The [timeline](#the-timeline-of-an-application) of the application a record of the executor belongs to: the executor's own records, and of another cell no more than the id of what reached the executor |
 | `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to, with why and its chain, read as for `waarom`, and under `automatisch` what the system would then do itself; records nothing |
 | `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
-| `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
+| `POST /api/backoffice/vastleggingen` | decider | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
 | `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)), and whom it is for: the login field (`aanvrager`) and, where the UI spec fills a field from the name of the login, that name as the application recorded it (`naam`, else null) |
-| `POST /api/backoffice/toezendingen` | handler | A copy of the executor's decision `besluit` to the cell it concerns |
+| `POST /api/backoffice/toezendingen` | decider | A copy of the executor's decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
 | `POST /api/backoffice/testomgeving/leegmaken` | admin | In test mode, empty the test setup (see [Modes](#modes)); in stable mode the route does not exist |
@@ -323,8 +323,8 @@ Which steps of the parking card are a person's and which the system's:
 | Making a decision known to the citizen | no step | the decision is in the dossier as soon as it is recorded |
 | Ordering the card | the system (article 7) | nothing to judge or observe |
 | Receipt of the printed card | a person of the post room | an observation |
-| Handing out the card | a handler | done by hand |
-| Copy of an own decision to another cell (`toezendingen`) | a handler | kept by hand: which decision goes where is not settled in the case |
+| Handing out the card | a decider | done by hand |
+| Copy of an own decision to another cell (`toezendingen`) | a decider | kept by hand: which decision goes where is not settled in the case |
 
 ## A lost card
 
@@ -355,7 +355,7 @@ The case file offers the report beside a card whose acts are all done (`na_toeke
 
 ## The post room
 
-Any employee of the post room records the receipt under the handler's role. The record says the post room established it; `recorded_by` says which account. A role per department in Keycloak, so that only the post room can record a receipt, is an open point.
+To record the receipt, an employee of the post room needs `wetsproces-beslisser`, the role that also takes decisions: no step of the ladder records facts without deciding. The record says the post room established it, and `recorded_by` names the account. A role per department in Keycloak, so that only the post room records a receipt and decides nothing, is an open point.
 
 ## Running it locally
 

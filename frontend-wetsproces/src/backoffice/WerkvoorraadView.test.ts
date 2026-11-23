@@ -1,5 +1,5 @@
 // The work queue shows what the account may do and nothing else: a decider
-// gets the button to decide, a handler the facts to record. The server still
+// gets the button to decide and the facts to record, a reader neither. The server still
 // checks every call; this is what the screen hides.
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
@@ -118,7 +118,7 @@ describe('the work queue', () => {
     kroniek.value = [aanvraag, ontvangst];
     werk.value = [{ stuk: aanvraag, na: 'r' }];
     try {
-      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: false, beslissen: true }]);
+      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
       const rij = w.find('nldd-list[accessible-label^="Werkvoorraad"] nldd-list-item');
       expect(rij.find('nldd-badge').attributes('text')).toBe('Opnieuw beslissen');
       expect(rij.find('nldd-text-cell').attributes('supporting-text')).toContain('Opnieuw beslissen na afschrift van de uitspraak');
@@ -130,36 +130,30 @@ describe('the work queue', () => {
   });
 
   it('lets a decider of the cell open a submission to decide on it', async () => {
-    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }]);
+    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
     expect(teOpenen(w)).toBe(1);
     expect(knoppen(w)).not.toContain('Advies uitgebracht vastleggen');
   });
 
-  it('lets the decider flag alone open a submission, without the facts a handler records', async () => {
-    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: false, beslissen: true }]);
-    expect(teOpenen(w)).toBe(1);
-    expect(knoppen(w)).toEqual([]);
-  });
-
-  it('lets a handler open a submission to read it, and says a decider decides', async () => {
-    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: false }]);
+  it('lets a reader open a submission to read it, and says a decider decides', async () => {
+    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: false }]);
     expect(teOpenen(w)).toBe(1);
     expect(w.text()).toContain('Een beslisser neemt het besluit');
   });
 
-  it('offers a handler the facts the executor records, a reader nothing, and nobody an external party\'s', async () => {
-    const recht = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: false };
-    const handler = knoppen(await toon([{ ...recht, behandelen: true }]));
-    expect(handler).toContain('Betaling gedaan vastleggen');
+  it('offers a decider the facts the executor records, a reader nothing, and nobody an external party\'s', async () => {
+    const recht = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true };
+    const decider = knoppen(await toon([{ ...recht, beslissen: true }]));
+    expect(decider).toContain('Betaling gedaan vastleggen');
     // The advisor's advice goes through the admin panel, not the work queue.
-    expect(handler).not.toContain('Advies uitgebracht vastleggen');
-    expect(knoppen(await toon([{ ...recht, behandelen: false }]))).toEqual([]);
+    expect(decider).not.toContain('Advies uitgebracht vastleggen');
+    expect(knoppen(await toon([{ ...recht, beslissen: false }]))).toEqual([]);
   });
 
-  it('shows each grant that still waits and how far it is, and lets a handler open its next act', async () => {
-    const recht = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: false };
-    const handler = await toon([{ ...recht, behandelen: true }]);
-    const rijen = handler.findAll('nldd-list[accessible-label="Na de toekenning"] nldd-list-item');
+  it('shows each grant that still waits and how far it is, and lets a decider open its next act', async () => {
+    const recht = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true };
+    const decider = await toon([{ ...recht, beslissen: true }]);
+    const rijen = decider.findAll('nldd-list[accessible-label="Na de toekenning"] nldd-list-item');
     expect(rijen).toHaveLength(1);
     // The row opens the sheet of the next act.
     expect(rijen[0]?.attributes('button')).toBeDefined();
@@ -167,12 +161,12 @@ describe('the work queue', () => {
     // By name, as the application recorded it; the number only where there is no name.
     expect(cel?.attributes('text')).toBe('Vergunning voor A. de Vries');
     expect(cel?.attributes('supporting-text')).toBe('Vergunning gedrukt op 14 oktober 2026 · Volgende stap: Vergunning verzenden');
-    const knoppenVanHandler = knoppen(handler);
+    const knoppenVanDecider = knoppen(decider);
     // An act after a grant is never offered on its own.
-    expect(knoppenVanHandler).not.toContain('Vergunning gedrukt vastleggen');
-    expect(knoppenVanHandler).not.toContain('Vergunning verzonden vastleggen');
+    expect(knoppenVanDecider).not.toContain('Vergunning gedrukt vastleggen');
+    expect(knoppenVanDecider).not.toContain('Vergunning verzonden vastleggen');
     // A reader sees how far it is, without the button.
-    const lezer = await toon([{ ...recht, behandelen: false }]);
+    const lezer = await toon([{ ...recht, beslissen: false }]);
     const rij = lezer.find('nldd-list[accessible-label="Na de toekenning"] nldd-list-item');
     expect(rij.find('nldd-text-cell').attributes('supporting-text')).toBe('Vergunning gedrukt op 14 oktober 2026');
     expect(rij.attributes('button')).toBeUndefined();

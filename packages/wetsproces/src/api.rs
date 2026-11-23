@@ -31,9 +31,9 @@
 //! | `GET /api/backoffice/tijdlijn/{id}` | reader; a record the executor sees | the timeline of its application: the executor's records ([`crate::timeline`]) |
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
 //! | `GET /api/backoffice/verzoeken` | reader | the requests the executor's policy made, and whether an answer came back ([`requests`]) |
-//! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
+//! | `POST /api/backoffice/vastleggingen` | decider; for the executor | a fact the executor records ([`Record`]) |
 //! | `GET /api/backoffice/vervolg` | reader | every grant and how far the acts after it are ([`grants`]) |
-//! | `POST /api/backoffice/toezendingen` | handler; a decision of the executor | a copy of a decision ([`SendCopy`]) |
+//! | `POST /api/backoffice/toezendingen` | decider; a decision of the executor | a copy of a decision ([`SendCopy`]) |
 //! | `POST /api/backoffice/besluiten` | decider; a submission of the executor | a decision ([`Decide`]) |
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
 //! | `POST /api/backoffice/testomgeving/leegmaken` | admin; only in test mode, absent otherwise | empty every chronicle, the kept answers and the test clock ([`reset_test_environment`]) |
@@ -678,7 +678,6 @@ async fn me(
                 "cel": service.executor(),
                 "cel_naam": service.executor_name(),
                 "lezen": true,
-                "behandelen": principal.has(Level::Handler),
                 "beslissen": principal.has(Level::Decider),
             })
         })
@@ -1025,7 +1024,7 @@ async fn decide(
     Ok(Json(for_executor(&state, taken).await?))
 }
 
-/// A fact the executor records, by a handler.
+/// A fact the executor records, by a decider.
 async fn record(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
@@ -1039,7 +1038,7 @@ async fn record(
         tracing::warn!(sub = %principal.sub(), cell = %r.cell, "refused a fact for another cell");
         return Err(access::forbidden());
     }
-    principal.require(Level::Handler)?;
+    principal.require(Level::Decider)?;
     if r.request.is_some() {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -1051,7 +1050,7 @@ async fn record(
         .map(Json)
 }
 
-/// A copy of a decision of the executor, by a handler.
+/// A copy of a decision of the executor, by a decider.
 async fn send_copy(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
@@ -1059,7 +1058,7 @@ async fn send_copy(
     Json(s): Json<SendCopy>,
 ) -> ApiResult {
     executor_record(&state, &s.decision, "decision").await?;
-    principal.require(Level::Handler)?;
+    principal.require(Level::Decider)?;
     perform(&state, &headers, Step::SendCopy(s), &principal.actor())
         .await
         .map(Json)

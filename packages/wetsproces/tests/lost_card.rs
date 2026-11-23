@@ -36,8 +36,8 @@ fn report() -> Value {
     })
 }
 
-async fn handler_records(app: &Router, body: Value) -> (StatusCode, Value) {
-    employee(app, "behandelaar-1", "wetsproces-behandelaar")
+async fn decider_records(app: &Router, body: Value) -> (StatusCode, Value) {
+    employee(app, "beslisser-1", "wetsproces-beslisser")
         .await
         .post("/api/backoffice/vastleggingen", body)
         .await
@@ -69,10 +69,10 @@ async fn anna_is_granted(app: &Router) -> Value {
 async fn anna_holds_her_card(app: &Router) -> Value {
     let besluit = anna_is_granted(app).await;
     set_clock(app, "2026-11-02").await;
-    let (status, why) = handler_records(app, act(RECEIPT, &besluit["id"], &json!({}))).await;
+    let (status, why) = decider_records(app, act(RECEIPT, &besluit["id"], &json!({}))).await;
     assert_eq!(status, StatusCode::OK, "{why}");
     set_clock(app, "2026-11-04").await;
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         app,
         act(
             HANDOUT,
@@ -171,9 +171,9 @@ async fn a_lost_card_is_replaced_by_a_duplicate_that_goes_through_the_acts_again
     assert_eq!(vervolg[0]["stappen"][1]["gedaan"], Value::Null);
     assert_eq!(vervolg[0]["volgende"], json!(RECEIPT));
     // Acts about the lost card are refused now; the duplicate's come in turn.
-    let (status, why) = handler_records(&app, act(RECEIPT, &besluit["id"], &json!({}))).await;
+    let (status, why) = decider_records(&app, act(RECEIPT, &besluit["id"], &json!({}))).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{why}");
-    let (status, why) = handler_records(&app, act(RECEIPT, &duplicaat["id"], &json!({}))).await;
+    let (status, why) = decider_records(&app, act(RECEIPT, &duplicaat["id"], &json!({}))).await;
     assert_eq!(status, StatusCode::OK, "{why}");
 
     // Anna sees the report, the decision and the order in her dossier.
@@ -297,9 +297,9 @@ async fn a_report_is_about_the_card_it_names_and_the_duplicate_keeps_its_last_da
     // card again. That card no longer counts, so no second duplicate comes
     // of it.
     set_clock(&app, "2026-11-20").await;
-    let (status, why) = handler_records(&app, act(RECEIPT, &duplicaat["id"], &json!({}))).await;
+    let (status, why) = decider_records(&app, act(RECEIPT, &duplicaat["id"], &json!({}))).await;
     assert_eq!(status, StatusCode::OK, "{why}");
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         &app,
         act(
             HANDOUT,

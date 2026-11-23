@@ -6,9 +6,11 @@
 //!
 //! - [`CITIZEN`]: a citizen, who submits for themself and reads their own
 //!   dossier, identified by a claim of their account ([`Citizen`]);
-//! - a ladder for employees ([`Level`]): reader < handler < decider < admin.
+//! - a ladder for employees ([`Level`]): reader < decider < admin.
 //!   Holding a step holds the steps under it, whether or not Keycloak gives
-//!   the lower roles too.
+//!   the lower roles too. A role that is not on the ladder gives no step,
+//!   so a token that still carries the former `wetsproces-behandelaar`
+//!   counts only for the other roles it holds.
 //!
 //! An employee works for the executor of the case, the one cell the server
 //! runs the process for ([`crate::service::Service::executor`]), so a step
@@ -60,9 +62,8 @@ pub const CITIZEN: &str = "wetsproces-burger";
 pub enum Level {
     /// Reads the executor's chronicle.
     Reader,
-    /// Records facts and sends copies for the executor.
-    Handler,
-    /// Takes decisions for the executor.
+    /// Records facts, sends copies of decisions and takes decisions for the
+    /// executor.
     Decider,
     /// Sets the clock in test mode, and enters in the admin panel what an
     /// external party of the case did.
@@ -71,7 +72,7 @@ pub enum Level {
 
 impl Level {
     /// Every level, lowest first.
-    pub const ALL: [Self; 4] = [Self::Reader, Self::Handler, Self::Decider, Self::Admin];
+    pub const ALL: [Self; 3] = [Self::Reader, Self::Decider, Self::Admin];
 
     /// The name of this level: its role without [`ROLE_PREFIX`].
     pub fn name(self) -> &'static str {
@@ -83,7 +84,6 @@ impl Level {
     pub fn role(self) -> &'static str {
         match self {
             Self::Reader => "wetsproces-lezer",
-            Self::Handler => "wetsproces-behandelaar",
             Self::Decider => "wetsproces-beslisser",
             Self::Admin => "wetsproces-admin",
         }
@@ -352,7 +352,6 @@ mod tests {
         let p = principal(&["wetsproces-beslisser"]);
         assert_eq!(p.level(), Some(Level::Decider));
         assert!(p.has(Level::Reader));
-        assert!(p.has(Level::Handler));
         assert!(p.has(Level::Decider));
         assert!(!p.has(Level::Admin));
         assert!(p.require(Level::Decider).is_ok());
@@ -364,6 +363,11 @@ mod tests {
         let p = principal(&["wetsproces-cel-gemeente_wilgendaal"]);
         assert_eq!(p.level(), None);
         assert!(!p.is_user());
+        // Nor does the former handler's role, beside the roles it came with.
+        assert_eq!(principal(&["wetsproces-behandelaar"]).level(), None);
+        let p = principal(&["wetsproces-behandelaar", "wetsproces-lezer"]);
+        assert_eq!(p.level(), Some(Level::Reader));
+        assert!(!p.has(Level::Decider));
     }
 
     #[test]

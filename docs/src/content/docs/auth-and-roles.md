@@ -349,16 +349,23 @@ in the wetsproces server. The role names live in one place in the code,
 | `wetsproces-toegang` | Logging in at all. The server's `OIDC_REQUIRED_ROLE`; it grants nothing else. |
 | `wetsproces-burger` | A citizen: submit for themself, and read their own dossier. |
 | `wetsproces-lezer` | An employee: read the executor's chronicle. |
-| `wetsproces-behandelaar` | Also record facts and send copies of decisions for the executor. |
-| `wetsproces-beslisser` | Also take decisions for the executor. |
+| `wetsproces-beslisser` | Also record facts, send copies of decisions and take decisions for the executor. |
 | `wetsproces-admin` | Also set the clock in test mode, and enter in the admin panel what an external party did. |
 
 The ladder applies to the executor, the one organization the server runs the
 process for ([the executor and the external parties](/components/wetsproces#the-executor-and-the-external-parties)),
 so an employee needs a step of the ladder and nothing else. The server treats
-the ladder as ordered, so a `wetsproces-beslisser` may read and handle even
-when Keycloak does not hand it the lower roles. Nobody holds a role for the
+the ladder as ordered, so a `wetsproces-beslisser` may read even when
+Keycloak does not hand it `wetsproces-lezer`. Nobody holds a role for the
 GGD or the court: an admin enters their acts on their behalf.
+
+The ladder used to have a step between reader and decider,
+`wetsproces-behandelaar`, for recording facts and sending copies. A decider
+does both now. The server no longer knows that role, so a session or token
+that still carries it gets only what its other roles grant; with no other
+ladder role it gets `403` on the back office. A realm that still has the role
+can remove it, and give `wetsproces-beslisser` to anyone who held it and
+still records facts.
 
 Which instance an account logs in at limits what its roles do there. On the
 instance for citizens a session keeps `wetsproces-burger` and drops every
@@ -388,12 +395,11 @@ it reaches only the citizen's routes under `/fsc4b/burger/`.
 The realm is configured by hand; nothing in the repository changes it.
 
 1. **Create the roles**: `wetsproces-toegang`, `wetsproces-burger` and the
-   four ladder roles.
+   three ladder roles.
 2. **Configure composite roles**:
    - `wetsproces-burger` and `wetsproces-lezer` each contain
      `wetsproces-toegang`;
-   - `wetsproces-behandelaar` contains `wetsproces-lezer`,
-     `wetsproces-beslisser` contains `wetsproces-behandelaar`, and
+   - `wetsproces-beslisser` contains `wetsproces-lezer`, and
      `wetsproces-admin` contains `wetsproces-beslisser`.
 3. **Create two clients**, one per instance: `wetsproces` for citizens on
    `wetsproces.regelrecht.rijks.app`, and `wetsproces-backoffice` for

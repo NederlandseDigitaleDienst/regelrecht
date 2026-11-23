@@ -81,7 +81,7 @@ async fn decide(app: &Router, body: Value) -> Value {
 }
 
 async fn record(app: &Router, feit: &str, about: &Value, fields: Value) {
-    let (status, why) = employee(app, "behandelaar-1", "wetsproces-behandelaar")
+    let (status, why) = employee(app, "beslisser-1", "wetsproces-beslisser")
         .await
         .post(
             "/api/backoffice/vastleggingen",

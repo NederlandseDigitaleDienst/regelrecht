@@ -240,26 +240,30 @@ async fn an_employee_acts_only_for_the_executor_and_at_their_level() {
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    // Nobody records for the GGD through the employees' route, an admin
-    // neither: that goes through the admin panel.
-    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar").await;
-    for who in [&behandelaar, &admin(&app).await] {
+    // Nobody records for the GGD through the employees' route, a decider
+    // and an admin neither: that goes through the admin panel.
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
+    for who in [&beslisser, &admin(&app).await] {
         let (status, _) = who
             .post("/api/backoffice/vastleggingen", advice(ANNA))
             .await;
         assert_eq!(status, StatusCode::FORBIDDEN);
     }
 
-    // A handler of the municipality may read the application but not
-    // decide on it.
-    let (status, _) = behandelaar
-        .post("/api/backoffice/besluiten", decision.clone())
-        .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
+    // A reader of the municipality may read the application but neither
+    // record a fact for it nor decide on it.
+    let mut own = advice(ANNA);
+    own["cel"] = json!(GEMEENTE);
+    for (path, body) in [
+        ("/api/backoffice/vastleggingen", own),
+        ("/api/backoffice/besluiten", decision.clone()),
+    ] {
+        let (status, _) = lezer.post(path, body).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
     assert_eq!(head(&app).await, 2);
 
     // Only an admin sets the clock.
-    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
     let (status, _) = beslisser
         .call(
             Method::PUT,
@@ -506,7 +510,7 @@ async fn only_the_admin_empties_the_test_setup() {
             StatusCode::FORBIDDEN,
         ),
         (
-            employee(&app, "behandelaar-1", "wetsproces-behandelaar").await,
+            employee(&app, "lezer-1", "wetsproces-lezer").await,
             StatusCode::FORBIDDEN,
         ),
         (citizen(&app, "bram", BRAM).await, StatusCode::FORBIDDEN),
@@ -546,19 +550,19 @@ async fn me_says_what_the_account_may_do_and_nothing_of_other_cells() {
     assert_eq!(ik["klok_zetten"], json!(false));
     assert_eq!(ik["partijen_invoeren"], json!(false));
 
-    let (status, ik) = employee(&app, "gemeente-2", "wetsproces-behandelaar")
+    let (status, ik) = employee(&app, "gemeente-2", "wetsproces-beslisser")
         .await
         .get("/api/ik")
         .await;
     assert_eq!(status, StatusCode::OK, "{ik}");
     assert_eq!(ik["burger"], json!(false));
     assert_eq!(ik["identiteit"], Value::Null);
-    assert_eq!(ik["niveau"], json!("behandelaar"));
+    assert_eq!(ik["niveau"], json!("beslisser"));
     // The executor only: nobody works for an external party here.
     assert_eq!(
         ik["cellen"],
         json!([{ "cel": GEMEENTE, "cel_naam": "gemeente Wilgendaal", "lezen": true,
-                 "behandelen": true, "beslissen": false }])
+                 "beslissen": true }])
     );
     assert_eq!(ik["partijen_invoeren"], json!(false));
 
@@ -569,6 +573,10 @@ async fn me_says_what_the_account_may_do_and_nothing_of_other_cells() {
     // A role of the old cell model alone is no role of this server.
     let cell_only = login(&app, "x", &["wetsproces-cel-ggd_wilgendaal"], json!({})).await;
     assert_eq!(cell_only.get("/api/ik").await.0, StatusCode::FORBIDDEN);
+    // Nor is the former handler's role: a token that still carries it
+    // counts only for the other roles it holds.
+    let former = login(&app, "y", &["wetsproces-behandelaar"], json!({})).await;
+    assert_eq!(former.get("/api/ik").await.0, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -580,13 +588,13 @@ async fn the_test_personas_follow_from_the_case() {
     let citizens: Vec<&Value> = personas.iter().filter(|p| p["soort"] == "burger").collect();
     assert_eq!(citizens.len(), 2);
     assert_eq!(citizens[0]["claims"], json!({ "bsn": ANNA }));
-    // A handler and a decider of the executor, and one admin; each holds
-    // a step of the ladder and nothing else.
+    // A decider of the executor and one admin; each holds a step of the
+    // ladder and nothing else.
     let staff: Vec<&Value> = personas
         .iter()
         .filter(|p| p["soort"] == "medewerker")
         .collect();
-    assert_eq!(staff.len(), 2);
+    assert_eq!(staff.len(), 1);
     assert!(staff.iter().all(|p| p["cel"] == GEMEENTE), "{staff:?}");
     let decider = staff.iter().find(|p| p["niveau"] == "beslisser").unwrap();
     assert_eq!(decider["rollen"], json!(["wetsproces-beslisser"]));
@@ -638,12 +646,12 @@ async fn a_preview_shows_the_outcome_and_records_nothing() {
         "{preview}"
     );
     assert_eq!(head(&app).await, 2);
-    // A handler does not decide, so does not preview either; the admin
+    // A reader does not decide, so does not preview either; the admin
     // panel does not reach the municipality's submission.
-    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar").await;
+    let lezer = employee(&app, "gemeente-2", "wetsproces-lezer").await;
     let body = json!({ "op": op, "bevindingen": {} });
     assert_eq!(
-        behandelaar
+        lezer
             .post("/api/backoffice/voorvertoning", body.clone())
             .await
             .0,
@@ -1078,11 +1086,11 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
     let (status, fout) = admin.post(PANEL_WRITES[0], elsewhere).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
     // The executor answers no request.
-    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar").await;
+    let beslisser = employee(&app, "gemeente-2", "wetsproces-beslisser").await;
     let mut own = advice(ANNA);
     own["cel"] = json!(GEMEENTE);
     own["verzoek"] = verzoek["id"].clone();
-    let (status, fout) = behandelaar.post("/api/backoffice/vastleggingen", own).await;
+    let (status, fout) = beslisser.post("/api/backoffice/vastleggingen", own).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
     assert_eq!(head(&app).await, 2);
 

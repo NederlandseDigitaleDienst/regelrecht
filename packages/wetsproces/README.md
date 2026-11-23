@@ -130,7 +130,7 @@ Over de kaart:
 
 Over het proces:
 
-- De postkamer heeft geen eigen rol in Keycloak; elke behandelaar kan een ontvangst vastleggen.
+- De postkamer heeft geen eigen rol in Keycloak. Wie een ontvangst vastlegt, heeft de rol `wetsproces-beslisser` en kan dus ook besluiten nemen.
 - Afschriften aan een andere cel gaan met de hand.
 - De grens op het aantal rondes automatische stappen is alleen met unit-tests gedekt.
 

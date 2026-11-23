@@ -277,7 +277,7 @@ export interface CelRecht {
   cel: string;
   cel_naam: string;
   lezen: boolean;
-  behandelen: boolean;
+  /** Records facts, sends copies of decisions and takes decisions. */
   beslissen: boolean;
 }
 

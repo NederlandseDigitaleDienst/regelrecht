@@ -386,7 +386,7 @@ async fn test_logout(session: Session) -> Result<Redirect, ApiError> {
 /// `GET /auth/testpersonen`: the accounts a test login can take, each as
 /// `POST /auth/testlogin` takes it, with what it is (`soort`: `burger`,
 /// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
-/// a made-up name and a made-up number of the test range; a handler and a decider of the
+/// a made-up name and a made-up number of the test range; a decider of the
 /// executor; an admin, who also enters what the external parties do.
 /// Derived from the case, so another case gets its own, and only those of
 /// the sides the
@@ -419,32 +419,28 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
     Json(Value::Array(personas))
 }
 
-/// The employees of the test login: a handler and a decider of the
-/// executor, each with their step of the ladder and nothing else, and an
-/// admin.
+/// The employees of the test login: a decider of the executor, with that
+/// step of the ladder and nothing else, and an admin.
 fn employee_personas(state: &AppState) -> Vec<Value> {
     let service = state.service();
     let (cell, cell_name) = (service.executor(), service.executor_name());
-    let mut personas: Vec<Value> = [Level::Handler, Level::Decider]
-        .into_iter()
-        .map(|level| {
-            json!({
-                "soort": "medewerker",
-                "sub": format!("{}-{cell}", level.name()),
-                "rollen": [level.role()],
-                "niveau": level.name(),
-                "cel": cell,
-                "cel_naam": cell_name,
-            })
-        })
-        .collect();
-    personas.push(json!({
-        "soort": "beheerder",
-        "sub": "beheerder",
-        "rollen": [Level::Admin.role()],
-        "niveau": Level::Admin.name(),
-    }));
-    personas
+    let decider = Level::Decider;
+    vec![
+        json!({
+            "soort": "medewerker",
+            "sub": format!("{}-{cell}", decider.name()),
+            "rollen": [decider.role()],
+            "niveau": decider.name(),
+            "cel": cell,
+            "cel_naam": cell_name,
+        }),
+        json!({
+            "soort": "beheerder",
+            "sub": "beheerder",
+            "rollen": [Level::Admin.role()],
+            "niveau": Level::Admin.name(),
+        }),
+    ]
 }
 
 /// A session store that marks every session with the surface it was made

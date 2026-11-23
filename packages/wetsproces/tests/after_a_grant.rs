@@ -102,10 +102,10 @@ async fn grants(app: &Router) -> Vec<Value> {
     vervolg["vervolg"].as_array().unwrap().clone()
 }
 
-/// A handler records `body`; the answer is the status and the record or the
+/// A decider records `body`; the answer is the status and the record or the
 /// reason.
-async fn handler_records(app: &Router, body: Value) -> (StatusCode, Value) {
-    employee(app, "behandelaar-1", "wetsproces-behandelaar")
+async fn decider_records(app: &Router, body: Value) -> (StatusCode, Value) {
+    employee(app, "beslisser-1", "wetsproces-beslisser")
         .await
         .post("/api/backoffice/vastleggingen", body)
         .await
@@ -243,14 +243,14 @@ async fn nobody_orders_by_hand_and_a_persons_act_waits_its_turn() {
     let besluit = anna_is_granted(&app).await;
     let id = &besluit["id"];
 
-    // The order is the system's: a handler cannot record it, also not a
+    // The order is the system's: a decider cannot record it, also not a
     // second time.
-    let (status, why) = handler_records(&app, record(ORDER, id, &json!({}))).await;
+    let (status, why) = decider_records(&app, record(ORDER, id, &json!({}))).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{why}");
     assert!(reason(&why).contains("records no fact"), "{why}");
 
     // Nothing before its turn: no handing out before the receipt.
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         &app,
         record(HANDOUT, id, &json!({ "per_post_verzonden": false })),
     )
@@ -259,7 +259,7 @@ async fn nobody_orders_by_hand_and_a_persons_act_waits_its_turn() {
     assert!(reason(&why).contains("comes after"), "{why}");
 
     // An act refers to the grant: not to nothing, and not to the application.
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         &app,
         json!({ "cel": GEMEENTE, "feit": RECEIPT, "velden": {} }),
     )
@@ -270,12 +270,12 @@ async fn nobody_orders_by_hand_and_a_persons_act_waits_its_turn() {
         "{why}"
     );
     let (status, why) =
-        handler_records(&app, record(RECEIPT, &besluit["refers_to"], &json!({}))).await;
+        decider_records(&app, record(RECEIPT, &besluit["refers_to"], &json!({}))).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{why}");
     assert!(reason(&why).contains("is a submission"), "{why}");
 
     // The day and the post room are the system's to fill.
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         &app,
         record(RECEIPT, id, &json!({ "datum_ontvangst": "2026-10-01" })),
     )
@@ -291,7 +291,7 @@ async fn the_post_room_receives_and_the_card_is_handed_out_once_each() {
     let id = &besluit["id"];
 
     set_clock(&app, "2026-11-02").await;
-    let (status, ontvangen) = handler_records(&app, record(RECEIPT, id, &json!({}))).await;
+    let (status, ontvangen) = decider_records(&app, record(RECEIPT, id, &json!({}))).await;
     assert_eq!(status, StatusCode::OK, "{ontvangen}");
     assert_eq!(
         ontvangen["fields"],
@@ -304,12 +304,12 @@ async fn the_post_room_receives_and_the_card_is_handed_out_once_each() {
             .get(ontvangen["id"].as_str().unwrap())
             .is_none()
     );
-    let (status, why) = handler_records(&app, record(RECEIPT, id, &json!({}))).await;
+    let (status, why) = decider_records(&app, record(RECEIPT, id, &json!({}))).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{why}");
     assert!(reason(&why).contains("already recorded"), "{why}");
 
     set_clock(&app, "2026-11-04").await;
-    let (status, uitgereikt) = handler_records(
+    let (status, uitgereikt) = decider_records(
         &app,
         record(HANDOUT, id, &json!({ "per_post_verzonden": true })),
     )
@@ -319,7 +319,7 @@ async fn the_post_room_receives_and_the_card_is_handed_out_once_each() {
         uitgereikt["fields"]["datum_uitreiking"],
         json!("2026-11-04")
     );
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         &app,
         record(HANDOUT, id, &json!({ "per_post_verzonden": false })),
     )
@@ -345,7 +345,7 @@ async fn the_post_room_receives_and_the_card_is_handed_out_once_each() {
 }
 
 #[tokio::test]
-async fn each_employee_sees_the_grants_and_a_handler_records_the_acts() {
+async fn each_employee_sees_the_grants_and_a_decider_records_the_acts() {
     let app = server().await;
     let besluit = anna_is_granted(&app).await;
     let receipt = record(RECEIPT, &besluit["id"], &json!({}));
@@ -365,7 +365,7 @@ async fn each_employee_sees_the_grants_and_a_handler_records_the_acts() {
         .post("/api/backoffice/vastleggingen", receipt.clone())
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    // A decider records the acts as a handler does.
+    // A decider records the acts.
     let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
     let (status, ontvangen) = beslisser
         .post("/api/backoffice/vastleggingen", receipt)
@@ -425,7 +425,7 @@ async fn no_act_follows_a_refusal() {
     assert_eq!(grants(&app).await, Vec::<Value>::new());
     assert!(order_of(&app, &besluit["besluit"]["id"]).await.is_none());
     let (status, why) =
-        handler_records(&app, record(RECEIPT, &besluit["besluit"]["id"], &json!({}))).await;
+        decider_records(&app, record(RECEIPT, &besluit["besluit"]["id"], &json!({}))).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{why}");
     assert!(reason(&why).contains("grants nothing"), "{why}");
 }
@@ -493,13 +493,13 @@ async fn no_act_follows_a_grant_revoked_on_objection() {
     // also when it refers to the decision on the objection.
     assert!(order_of(&app, &beslissing["besluit"]["id"]).await.is_none());
     assert_eq!(grants(&app).await, Vec::<Value>::new());
-    let (status, why) = handler_records(&app, record(RECEIPT, &id, &json!({}))).await;
+    let (status, why) = decider_records(&app, record(RECEIPT, &id, &json!({}))).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{why}");
     assert!(
         why["fout"].as_str().unwrap().contains("grants nothing"),
         "{why}"
     );
-    let (status, why) = handler_records(
+    let (status, why) = decider_records(
         &app,
         record(RECEIPT, &beslissing["besluit"]["id"], &json!({})),
     )
