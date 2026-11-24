@@ -11,18 +11,22 @@ export const LIJSTEN = [
     tekst: 'Te doen',
     icoon: 'to-do',
     uitleg: 'Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.',
+    // The view says this one itself, with what still waits on someone else.
+    leeg: { tekst: 'U bent helemaal klaar', uitleg: '' },
   },
   {
     naam: 'na-toekenning',
     tekst: 'Na toekenning',
     icoon: 'checked-text-document',
     uitleg: 'De toekenningen waarvan nog niet elke stap is gezet.',
+    leeg: { tekst: 'Geen toekenning onderweg', uitleg: 'Een toekenning staat hier tot elke stap erna is gezet.' },
   },
   {
     naam: 'wacht',
     tekst: 'Wacht op anderen',
     icoon: 'time',
     uitleg: 'Wat wacht op het antwoord van een andere partij, of op een stap die het systeem zelf zet.',
+    leeg: { tekst: 'Er wacht niets op een ander', uitleg: 'Alles wat open staat, ligt bij u.' },
   },
 ] as const;
 

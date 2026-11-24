@@ -254,4 +254,22 @@ describe('the work queue', () => {
     expect(zelf.path).toBe('/backoffice/behandelen/gemeente/a');
     expect(zelf.query.lijst).toBe('te-doen');
   });
+
+  it('says the work is done when Te doen is empty, and points at what still waits on someone else', async () => {
+    const bewaard = vervolg.splice(0);
+    verzoeken.value = [verzoek];
+    try {
+      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
+      const dialoog = w.find('nldd-inline-dialog');
+      expect(dialoog.attributes('text')).toBe('U bent helemaal klaar');
+      expect(dialoog.attributes('supporting-text')).toContain('Eén aanvraag wacht op een andere partij');
+      expect(dialoog.attributes('icon')).toBeUndefined();
+      expect(knoppen(w)).toContain('Bekijk Wacht op anderen');
+      // No description above an empty list: the dialog says what matters.
+      expect(w.findAll('nldd-text').map((t) => t.text())).not.toContain('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
+    } finally {
+      vervolg.push(...bewaard);
+      verzoeken.value = [];
+    }
+  });
 });

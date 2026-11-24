@@ -194,6 +194,19 @@ const lijsten = computed(() => LIJSTEN.filter((l) => l.naam === 'te-doen' || l.n
 /** The rows of the open list, what waited longest first. */
 const zichtbaar = computed(() => oudsteEerst(rijen.value.filter((r) => r.lijsten.includes(lijst.value))));
 
+/** What an empty list says: for Te doen, that the work is done and what still waits on someone else. */
+const leeg = computed(() => {
+  if (lijst.value !== 'te-doen') return huidigeLijst.value.leeg;
+  const wacht = aantallen.value.wacht;
+  return {
+    tekst: 'U bent helemaal klaar',
+    uitleg:
+      wacht === 0
+        ? 'Er ligt geen stap bij u. Een nieuwe aanvraag komt hier te staan.'
+        : `Er ligt geen stap bij u. ${wacht === 1 ? 'Eén aanvraag wacht' : `${wacht} aanvragen wachten`} op een andere partij of op het systeem.`,
+  };
+});
+
 /** Open the list `naam`; the open submission stays only when it is in that list, so the main pane shows a row of it. */
 function kies(naam: Lijst) {
   const blijft = rijen.value.some((r) => r.soort === 'indiening' && r.sleutel === props.id && r.lijsten.includes(naam));
@@ -283,6 +296,7 @@ async function klaar(naam: string) {
       <nldd-top-title-bar slot="header" :text="huidigeLijst.tekst" heading-level="3" back-text="Aanvragen" collapse-anchor="lijst-titel"></nldd-top-title-bar>
       <nldd-simple-section width="full">
         <nldd-title id="lijst-titel" size="display-3"><h3>{{ huidigeLijst.tekst }}</h3></nldd-title>
+        <nldd-text v-if="zichtbaar.length" size="sm" color="secondary"><p>{{ huidigeLijst.uitleg }}</p></nldd-text>
         <nldd-spacer size="16"></nldd-spacer>
         <template v-if="vastgelegd">
           <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
@@ -321,18 +335,15 @@ async function klaar(naam: string) {
             </nldd-list-item>
           </template>
         </nldd-list>
-        <nldd-inline-dialog
-          v-else
-          icon="info"
-          :text="lijst === 'te-doen' ? 'Niets te doen' : 'Niets in deze lijst'"
-          :supporting-text="huidigeLijst.uitleg"
-        ></nldd-inline-dialog>
-        <template v-if="zichtbaar.length">
-          <nldd-spacer size="8"></nldd-spacer>
-          <nldd-text size="sm" color="secondary">
-            <p>{{ huidigeLijst.uitleg }}</p>
-          </nldd-text>
-        </template>
+        <nldd-inline-dialog v-else :text="leeg.tekst" :supporting-text="leeg.uitleg">
+          <nldd-button
+            v-if="lijst === 'te-doen' && aantallen.wacht > 0"
+            slot="actions"
+            appearance="secondary"
+            text="Bekijk Wacht op anderen"
+            @click="kies('wacht')"
+          ></nldd-button>
+        </nldd-inline-dialog>
         <template v-if="!recht.beslissen && zichtbaar.some((r) => r.soort === 'indiening')">
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-text size="sm" color="secondary">
