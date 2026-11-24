@@ -90,10 +90,6 @@ watch(
   (id, voor) => id && id !== voor && laad(true),
 );
 
-/** The list the address names, Te doen when it names none. */
-const lijst = computed(() => lijstVan(route.query.lijst));
-const huidigeLijst = computed(() => LIJSTEN.find((l) => l.naam === lijst.value) ?? LIJSTEN[0]);
-
 /** What the account may do at the executor; none when it may not read its chronicle. */
 const recht = computed(() => wie.value?.cellen.find((c) => c.cel === casus.value?.cel));
 
@@ -181,6 +177,15 @@ const rijen = computed((): Rij[] => {
   const open = kroniek && werkvoorraad.value?.cel === kroniek.cel ? werkvoorraad.value.open : [];
   return [...(kroniek ? open.map((w) => indieningsRij(w.stuk, w.na, kroniek)) : []), ...toekenningsRijen()];
 });
+/**
+ * The list the address names. When it names none, the list of the open
+ * submission, so the row of what the main pane shows is in view; else Te doen.
+ */
+const lijst = computed((): Lijst => {
+  if (route.query.lijst) return lijstVan(route.query.lijst);
+  return rijen.value.find((r) => r.soort === 'indiening' && r.sleutel === props.id)?.lijsten[0] ?? 'te-doen';
+});
+const huidigeLijst = computed(() => LIJSTEN.find((l) => l.naam === lijst.value) ?? LIJSTEN[0]);
 const aantallen = computed(
   () => Object.fromEntries(LIJSTEN.map((l) => [l.naam, rijen.value.filter((r) => r.lijsten.includes(l.naam)).length])) as Record<Lijst, number>,
 );
@@ -189,8 +194,10 @@ const lijsten = computed(() => LIJSTEN.filter((l) => l.naam === 'te-doen' || l.n
 /** The rows of the open list, what waited longest first. */
 const zichtbaar = computed(() => oudsteEerst(rijen.value.filter((r) => r.lijsten.includes(lijst.value))));
 
+/** Open the list `naam`; the open submission stays only when it is in that list, so the main pane shows a row of it. */
 function kies(naam: Lijst) {
-  router.push({ query: { ...route.query, lijst: naam } });
+  const blijft = rijen.value.some((r) => r.soort === 'indiening' && r.sleutel === props.id && r.lijsten.includes(naam));
+  router.push(blijft ? { query: { ...route.query, lijst: naam } } : { path: '/backoffice', query: { lijst: naam } });
 }
 
 function openIndiening(id: string) {

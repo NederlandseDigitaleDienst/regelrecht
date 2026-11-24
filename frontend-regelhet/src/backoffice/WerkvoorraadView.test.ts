@@ -96,13 +96,16 @@ const werk: { value: { stuk: Gram; na?: string }[] } = { value: [{ stuk: aanvraa
 /** The requests the executor's policy made. */
 const verzoeken: { value: EigenVerzoek[] } = { value: [] };
 
-async function toon(cellen: Ik['cellen'], lijst?: string) {
+async function toon(cellen: Ik['cellen'], lijst?: string, open?: string) {
   ik.value = { ...ik.value, cellen };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
-  await router.push({ path: '/backoffice', query: lijst ? { lijst } : {} });
-  const w = mount(WerkvoorraadView, { global: { plugins: [router], stubs: { teleport: true } } });
+  await router.push({ path: open ? `/backoffice/behandelen/gemeente/${open}` : '/backoffice', query: lijst ? { lijst } : {} });
+  const w = mount(WerkvoorraadView, {
+    props: open ? { cel: 'gemeente', id: open } : {},
+    global: { plugins: [router], stubs: { teleport: true, BehandelenPaneel: true } },
+  });
   await flushPromises();
-  return w;
+  return Object.assign(w, { router });
 }
 
 type Scherm = Awaited<ReturnType<typeof toon>>;
@@ -223,5 +226,32 @@ describe('the work queue', () => {
     } finally {
       verzoeken.value = [];
     }
+  });
+
+  it('opens the list of the open submission when the address names none', async () => {
+    verzoeken.value = [verzoek];
+    try {
+      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], undefined, 'a');
+      expect(rijenVan(w, 'Wacht op anderen')).toHaveLength(1);
+    } finally {
+      verzoeken.value = [];
+    }
+  });
+
+  it('closes the open submission when another list is chosen, and keeps it in its own', async () => {
+    const recht = [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }];
+    const kies = async (w: Scherm, lijst: string) => {
+      const rij = w.findAll('nldd-list[accessible-label="Lijsten"] nldd-list-item').find((r) => r.find('nldd-text-cell').attributes('text') === lijst);
+      expect(rij).toBeDefined();
+      await rij?.trigger('click');
+      await flushPromises();
+      return w.router.currentRoute.value;
+    };
+    const elders = await kies(await toon(recht, 'te-doen', 'a'), 'Na toekenning');
+    expect(elders.path).toBe('/backoffice');
+    expect(elders.query.lijst).toBe('na-toekenning');
+    const zelf = await kies(await toon(recht, 'na-toekenning', 'a'), 'Te doen');
+    expect(zelf.path).toBe('/backoffice/behandelen/gemeente/a');
+    expect(zelf.query.lijst).toBe('te-doen');
   });
 });
