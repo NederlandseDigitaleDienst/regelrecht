@@ -41,6 +41,13 @@ use crate::ui_spec;
 /// `packages/corpus/src/source_manifest.rs`).
 pub const UI_SPEC: &str = "ui_spec.yaml";
 
+/// Where a source holds its message spec and the text layer of its
+/// authority ([`crate::berichten`]): at its root, where the portal puts the
+/// files its manifest names (`BERICHTEN` and `BERICHTTEKSTEN` in
+/// `packages/corpus/src/source_manifest.rs`).
+pub const BERICHTEN: &str = "berichten.yaml";
+pub const BERICHTTEKSTEN: &str = "berichtteksten.yaml";
+
 /// This crate's corpus, under the repository root: the cases under
 /// `casussen`, the regelwerken under `regulation/nl` and the cells under
 /// `cells`, with their reductions.
@@ -184,6 +191,26 @@ pub fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         }
         None => ui_spec::UiSpec::default(),
     };
+    // A message spec that does not read costs the messages, not the cases:
+    // the source says why, and each record shows without its message.
+    let berichten =
+        match bron.bestanden.get(BERICHTEN).map(|t| {
+            crate::berichten::lees(t, bron.bestanden.get(BERICHTTEKSTEN).map(String::as_str))
+        }) {
+            Some(Ok(b)) => {
+                stand
+                    .meldingen
+                    .extend(b.meldingen.iter().map(|m| format!("{BERICHTEN}: {m}")));
+                b
+            }
+            Some(Err(e)) => {
+                stand
+                    .meldingen
+                    .push(format!("{BERICHTEN}: {e}; no record shows as a message"));
+                crate::berichten::Berichtenspec::default()
+            }
+            None => crate::berichten::Berichtenspec::default(),
+        };
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
     stand
         .meldingen
@@ -195,6 +222,7 @@ pub fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
             Ok(mut c) => {
                 c.ui_spec = spec.clone();
+                c.berichten = berichten.clone();
                 uit.push(c);
             }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),

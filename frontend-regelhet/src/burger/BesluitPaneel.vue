@@ -12,6 +12,8 @@
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
+import Bericht from '../gedeeld/Bericht.vue';
+import { verzendingenVan } from '../gedeeld/bericht';
 import { longDate } from '../gedeeld/datum';
 import { beginwaarden, tegenBesluitVelden } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
@@ -38,6 +40,13 @@ const router = useRouter();
 const waarom = ref<Waarom | null>(null);
 const waaromFout = ref('');
 
+/**
+ * The message about the decision as it went out: the last fact of sending in the dossier (`verzending` in the
+ * message spec), with its content frozen. Where the spec says how a message goes out and none went yet, the
+ * citizen has no message: the decision is not made known to her.
+ */
+const verzonden = computed(() => (besluit.value ? (verzendingenVan(besluit.value.id, props.dossier, props.vormen?.berichten).at(-1) ?? null) : null));
+const nogNietVerzonden = computed(() => !!props.vormen?.berichten?.verzending && !verzonden.value);
 const besluit = computed(() => {
   const g = props.dossier.find((x) => x.id === props.id);
   return g && isBesluit(g, props.stand) ? g : null;
@@ -162,6 +171,27 @@ async function indienen() {
           <Gegevens :waarden="nieuw.outputs" :teksten="vormen?.teksten" label="Uitkomst van het nieuwe besluit" />
           <nldd-spacer size="24"></nldd-spacer>
         </template>
+
+        <!-- The decision as the message that makes it known (Awb 3:41), with its grounds and the remedy. -->
+        <nldd-inline-dialog
+          v-if="nogNietVerzonden"
+          icon="info"
+          text="Het bericht over dit besluit is nog niet verzonden"
+          supporting-text="U krijgt het in uw berichten zodra het is verzonden."
+        ></nldd-inline-dialog>
+        <Bericht
+          v-else
+          :gram="besluit"
+          :verzonden="verzonden"
+          rol="besluit"
+          :vormen="vormen"
+          :grammen="dossier"
+          :waarom="waarom"
+          :afzender="naamVanCel(besluit.recording_actor)"
+          :cel-naam="naamVanCel"
+          weergave="burger"
+        />
+        <nldd-spacer size="24"></nldd-spacer>
 
         <nldd-title size="display-5"><h4>Wat eruit kwam</h4></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>

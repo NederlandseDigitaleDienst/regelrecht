@@ -24,6 +24,8 @@ De bouwstenen:
 - **De materiële kant.** Na de toekenning volgen bestellen, ontvangen en uitreiken, en een kwijtgeraakte kaart krijgt een duplicaat.
 - **Een tijdlijn per aanvraag.** De burger ziet haar onder elke aanvraag in Mijn aanvragen, en onder elk stuk dat erop volgde, de medewerker onderaan het behandelscherm. Ze toont wat er bij de aanvraag gebeurde, op volgorde, en daaronder de volgende stap met wie aan zet is. Een detailsknop aan het eind van een regel opent het stuk zelf; bij de medewerker alleen voor stukken van de eigen cel, in een sheet boven het behandelscherm.
 
+- **Elk bericht op één template.** Een bericht aan de burger, zoals het besluit, de ontvangstbevestiging, het herstelverzoek of de beslissing op bezwaar, volgt uit een vastlegging in de kroniek. `berichten.yaml` zegt welk bericht uit welke vastlegging volgt, met de delen die de wet eist (Awb 1:3, 3:45 tot en met 3:47, 4:5, 7:11, 7:12, 10:10), waar elke sleutel van de tekst vandaan komt en welke invarianten gelden; de tekst zelf staat in de tekstlaag van de gemeente, `berichtteksten.yaml`. De burger ziet het bericht bij het stuk, de medewerker als concept boven de voorvertoning, met de invarianten. Zie [BERICHTEN.md](BERICHTEN.md).
+
 Elke beslissing toont vooraf een voorvertoning, met de volledige keten om uit te klappen. Na een vernietiging beslist de medewerker opnieuw.
 
 ## Loop de hele flow door

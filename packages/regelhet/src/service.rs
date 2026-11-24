@@ -279,12 +279,13 @@ impl Step {
                 })
             }
             Self::Decide(d) => {
+                let findings = with_system_findings(corpus, cellen, d, on)?;
                 let besluit = kern::beslissen(
                     corpus,
                     cellen,
                     &d.submission,
                     d.after.as_deref(),
-                    &d.findings,
+                    &findings,
                     on,
                 )?;
                 to_value(&besluit).map(Applied::only)
@@ -380,6 +381,27 @@ fn identity_text(value: &Value) -> Option<String> {
         Value::Number(n) => Some(n.to_string()),
         _ => None,
     }
+}
+
+/// The findings of `d` with what the UI spec has the system fill among the
+/// findings of the decision, such as the provision it is taken under, on the
+/// day the step runs ([`kern::besluit_systeemvelden`]). A request that names
+/// such a finding itself is refused, as for a submission.
+fn with_system_findings(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    d: &Decide,
+    on: NaiveDate,
+) -> kern::Result<Map<String, Value>> {
+    let filled = kern::besluit_systeemvelden(corpus, cellen, &d.submission, on)?;
+    if let Some(finding) = d.findings.keys().find(|f| filled.contains_key(*f)) {
+        return Err(regelrecht_cel::Error::Refused(format!(
+            "'{finding}' is filled by the system; the request may not give it"
+        )));
+    }
+    let mut findings = d.findings.clone();
+    findings.extend(filled);
+    Ok(findings)
 }
 
 fn to_value(value: &impl Serialize) -> kern::Result<Value> {
@@ -687,7 +709,7 @@ impl Service {
     ///
     /// When the UI spec asks what this server does not do: no single login
     /// field ([`ServiceError::LoginField`]), a prefill the applicant may
-    /// change ([`ServiceError::Prefill`]), or a claim of the login it does not
+    /// change (no longer: see [`Service::prefill_preview`]), or a claim of the login it does not
     /// keep ([`ServiceError::LoginClaim`]); when the store fails, or the
     /// case's beginning does not record.
     pub async fn start(
@@ -697,11 +719,9 @@ impl Service {
     ) -> Result<Self, ServiceError> {
         let cells = corpus.cellen().map(str::to_string).collect();
         let login_field = login_field(&corpus)?;
-        if !corpus.ui_spec.prefill.is_empty() {
-            return Err(ServiceError::Prefill(
-                corpus.ui_spec.prefill.keys().cloned().collect(),
-            ));
-        }
+        // A prefill the applicant may change (`fill: {from}`) is computed when
+        // the form opens ([`Service::prefill_preview`]) and the form starts
+        // with it; what the applicant submits is what the application holds.
         let unknown: Vec<String> = corpus
             .ui_spec
             .systeem
@@ -829,7 +849,8 @@ impl Service {
 
     /// What the system would fill in a submission under `article` of
     /// `submitter` today ([`kern::systeemvelden`]), for a form to show before
-    /// it is submitted. Nothing is recorded; the submission fills it anew.
+    /// it is submitted, on what the form starts with (`fields`, such as the
+    /// prefill). Nothing is recorded; the submission fills it anew.
     ///
     /// # Errors
     ///
@@ -838,6 +859,7 @@ impl Service {
         &self,
         article: String,
         submitter: Indiener,
+        fields: Map<String, Value>,
     ) -> Result<Map<String, Value>, ServiceError> {
         let read = self.read().await?;
         let corpus = Arc::clone(&self.corpus);
@@ -845,12 +867,42 @@ impl Service {
         blocking(move || {
             let cellen = restore(&corpus, read)?;
             Ok(kern::systeemvelden(
+                &corpus, &cellen, &article, None, &submitter, &fields, today,
+            )?)
+        })
+        .await
+    }
+
+    /// What the form of the case's application starts with for `submitter`
+    /// today, per field the UI spec prefills (`fill: {from}`, the applicant
+    /// may change it): the value the source gives, where it comes from, and
+    /// why it gives none, if so ([`kern::voorinvullen`]). The login field is
+    /// what the source reads of the applicant. Nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails, or the case's article establishes no
+    /// submission today.
+    pub async fn prefill_preview(&self, submitter: Indiener) -> Result<Value, ServiceError> {
+        if self.corpus.ui_spec.prefill.is_empty() {
+            return Ok(Value::Object(Map::new()));
+        }
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let today = self.today().await?;
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            let bronnen: Map<String, Value> = corpus
+                .ui_spec
+                .prefill
+                .iter()
+                .map(|(veld, bron)| (veld.clone(), Value::from(bron.as_str())))
+                .collect();
+            Ok(kern::voorinvullen(
                 &corpus,
                 &cellen,
-                &article,
-                None,
-                &submitter,
-                &Map::new(),
+                &bronnen,
+                &submitter.inlog,
                 today,
             )?)
         })
@@ -1393,6 +1445,72 @@ impl Service {
         self.corpus.cel_naam(cell)
     }
 
+    /// What the submission `id` gives under its own article on the records
+    /// as they are now ([`kern::wat_volgt`]), such as the last day of the
+    /// period to decide that a hook on the application sets.
+    ///
+    /// # Errors
+    ///
+    /// When no cell holds `id`, or the engine cannot run its article.
+    pub async fn outcomes(&self, id: &str) -> Result<Value, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let id = id.to_string();
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            Ok(kern::wat_volgt(&corpus, &cellen, &id)?)
+        })
+        .await
+    }
+
+    /// The tables of the UI spec beside the submission `id`
+    /// ([`crate::table`]): per table its rows, each with the records it comes
+    /// from, and per cell that recorded one of those its name. Nothing is
+    /// recorded.
+    ///
+    /// # Errors
+    ///
+    /// [`ServiceError::Refused`] when no cell holds `id`; when the store
+    /// fails, or a table takes its rows from an outcome and the engine cannot
+    /// run the submission's article.
+    pub async fn tables(&self, id: &str) -> Result<Value, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let id = id.to_string();
+        blocking(move || {
+            let chronicles: Vec<Vec<Gram>> = read
+                .chronicles
+                .into_iter()
+                .map(StoredChronicle::into_grams)
+                .collect();
+            let Some(submission) = chronicles.iter().flatten().find(|g| g.id == id).cloned() else {
+                return Err(ServiceError::Refused(format!(
+                    "no cell holds the record '{id}'"
+                )));
+            };
+            let outcomes = if corpus.ui_spec.tabellen.iter().any(|t| t.uitkomst.is_some()) {
+                let cellen = corpus.herstellen(chronicles.clone())?;
+                kern::wat_volgt(&corpus, &cellen, &id)?
+            } else {
+                Value::Null
+            };
+            let tables: Vec<crate::table::Table> = corpus
+                .ui_spec
+                .tabellen
+                .iter()
+                .map(|t| crate::table::table(t, &submission, &outcomes, &chronicles))
+                .collect();
+            let names: Map<String, Value> = tables
+                .iter()
+                .flat_map(|t| &t.rows)
+                .flat_map(|r| &r.sources)
+                .map(|s| (s.cell.clone(), Value::from(corpus.cel_naam(&s.cell))))
+                .collect();
+            Ok(json!({"tabellen": tables, "cel_namen": names}))
+        })
+        .await
+    }
+
     /// Why the decision `id` came out as it did (`kern::waarom`): who filled
     /// each open term, and where each answer of a cell came from. Derived
     /// from the chronicles as they are now; nothing is recorded.
@@ -1430,12 +1548,13 @@ impl Service {
         let today = self.today().await?;
         blocking(move || {
             let cellen = restore(&corpus, read)?;
+            let findings = with_system_findings(&corpus, &cellen, &d, today)?;
             let preview = kern::voorvertoning(
                 &corpus,
                 &cellen,
                 &d.submission,
                 d.after.as_deref(),
-                &d.findings,
+                &findings,
                 today,
             )?;
             let mut preview = to_value(&preview)?;
@@ -1450,7 +1569,7 @@ impl Service {
                         &mut proef,
                         &d.submission,
                         d.after.as_deref(),
-                        &d.findings,
+                        &findings,
                         today,
                     )?;
                     vervolg::zou_automatisch(&corpus, &proef, &voor, today)
@@ -2371,7 +2490,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn a_ui_spec_that_prefills_a_field_stops_the_server() {
+    async fn a_ui_spec_that_prefills_a_field_starts_the_server() {
         let (mut corpus, _) =
             crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
         corpus
@@ -2383,10 +2502,14 @@ pub(crate) mod tests {
             Arc::clone(&store) as _,
             corpus.casus.speeldatum,
         ));
-        let e = Service::start(corpus, store, clock).await.unwrap_err();
+        // The form starts with what the source gives; the server starts.
+        let service = Service::start(corpus, store, clock).await.unwrap();
         assert!(
-            matches!(e, ServiceError::Prefill(ref f) if f == &["adres_aanvrager"]),
-            "{e}"
+            service
+                .corpus
+                .ui_spec
+                .prefill
+                .contains_key("adres_aanvrager")
         );
     }
 

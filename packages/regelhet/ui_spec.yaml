@@ -42,6 +42,10 @@
 # scherm bovenaan toont, naast de stand: wat er is aangevraagd. Daaronder
 # staat het dan niet nog eens. `when_true` en `when_false` noemen een ja of
 # nee in woorden: "Aangevraagd" zegt waar het antwoord over gaat, "ja" niet.
+#
+# Een bericht aan de burger, zoals het besluit of de ontvangstbevestiging,
+# is geen element van deze beschrijving: berichten.yaml ernaast zegt welk
+# bericht uit welke vastlegging volgt (BERICHTEN.md).
 elements:
   - id: UI1
     element: aanvraagformulier

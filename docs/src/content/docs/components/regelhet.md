@@ -195,11 +195,13 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/dossier` | citizen | The records about the citizen, from every cell, with their standing (`stand`, [below](#what-answers-a-submission)), under `vervolg` how far the acts after each of their grants are, and under `verzoeken` per request of the policy the ids of its records in the dossier (the request, its receipt, the answer and the receipt of that), so a screen can hang the answer under its request |
 | `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did, without how a cell read its chronicle or any record outside the dossier |
 | `GET /api/dossier/tijdlijn/{id}` | citizen | The [timeline](#the-timeline-of-an-application) of the application a record of the dossier belongs to, kept to the dossier |
+| `GET /api/dossier/uitkomsten/{id}` | citizen | What a submission of the dossier gives under its own article (`kern::wat_volgt`), values only: what its [acknowledgement](#messages-to-the-citizen) says |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head and its standing (`stand`); an external party's answers `403` |
 | `GET /api/backoffice/werkvoorraad` | reader | The executor's submissions that wait for a decision (`open`), each with the record to decide after (`na`) when its last decision was revoked |
 | `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did, with its chain of steps (`keten`); nothing of another cell's own chronicle but what reached the executor |
 | `GET /api/backoffice/tijdlijn/{id}` | reader | The [timeline](#the-timeline-of-an-application) of the application a record of the executor belongs to: the executor's own records, and of another cell no more than the id of what reached the executor |
+| `GET /api/backoffice/uitkomsten/{id}` | reader | What a submission of the executor gives under its own article, as for the citizen |
 | `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to, with why and its chain, read as for `waarom`, and under `automatisch` what the system would then do itself; under `stil` the findings a policy leaves to the authority for this case, and under `mogelijk` every finding such a policy may leave, reached or not; records nothing |
 | `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
 | `POST /api/backoffice/vastleggingen` | decider | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
@@ -242,6 +244,49 @@ Each step names who is to act: the executor, the system, an external party (ente
 
 A citizen gets the records of their dossier and no step that names another. An employee gets the executor's own records; the court's judgment shows through the receipt of its copy, and an appeal in the court's chronicle does not show at all.
 
+## A UI spec in layers
+
+A manifest names its UI spec under `ui_spec`: one file, as the parking card does (`packages/regelhet/ui_spec.yaml`), or a list of files, the layers of one UI spec. The source holds a list as one file of several YAML documents, in the order of the list (`source_manifest`), and the server reads it as one register (`ui_spec::lees`). A typical list is a generic layer that says what any application and any decision shows under the general administrative law, then the layer of one executor that fills it in, then a layer with the letters:
+
+```yaml
+ui_spec:
+  - ui/generiek.yaml
+  - ui/uitvoering.yaml
+  - ui/brieven.yaml
+```
+
+Each layer has `elements`. An element has:
+
+| key | what the server does with it |
+|---|---|
+| `id`, `element` | names it; a letter and a table are called after it |
+| `builds_on` | the id of an element of another layer this one fills in. The server merges the two before anything else reads them: the fields and the outcomes by name (the keys of a field here go over the generic ones, a field of its own follows them), every other key this element does not give itself from the generic one (the pattern, the parts, the step). The generic element then drops out; one that nobody fills in stays as it is |
+| `role` | who sees it: a role that names whoever applies or objects (`aanvrager`, `belanghebbende`, `burger`, `indiener`) is the citizen's side, and so is the role of an element that fills in an element of such a role (`rol_generiek`), whatever the executor calls it; `beslisser` and `bestuursorgaan` are the decider's; any other role, such as one that examines an application, is for every employee, the reader included (`gedeeld/rollen.ts`) |
+| `basis` | left to the register: the provisions the element rests on |
+| `fields` | the fields it shows, asks or fills, each by `name` (below) |
+| `adds` | parts it adds to the generic element, each with `part`, `place`, `fields` and `facts`. A part that names fields and facts is a table per field: its rows the list of records the submission holds there, each row with the records of those facts it comes from (below) |
+| `facts` | facts whose records the element shows: a table per fact, of the records that belong to the submission |
+| `outcomes` | left to the register: what follows from what the element records |
+| `letter`, `parts` | a letter ([the decision as a letter](#the-decision-as-a-letter)) |
+| `table` | a table given in full: `rows` (`field`, `outcome` or `fact`), `columns` (each a `name` and a `label`), `provenance` (each a `fact` and the keys to `match` on), `label` and `help` |
+
+A field has `name` and:
+
+| key | what the server does with it |
+|---|---|
+| `visibility` | `asked`: an input; `shown`: shown, read-only; `hidden`: not on the form |
+| `fill` | `{by: system, ...}`: the server fills it ([below](#what-the-server-fills-in-an-application)). `{from: <regelwerk>#<article>#<output>}` without `by`: a prefill. The form starts with what that output gives for whoever logged in, shows it read-only with where it comes from, and lets the applicant change it with a button; what the applicant submits is what the application holds (`voorgevuld` in `GET /api/formulier`) |
+| `editable` | listed per element (`elementen` in `GET /api/formulier`): whether the user may change the field there |
+| `required` | `true`: the form does not submit without it |
+| `to_build` | listed per element: the model does not carry the name yet |
+| `label`, `help`, `group`, `record`, `parts` | how a screen names and asks it |
+
+Every other key of an element or a field is left to the register, so a register that grows a key does not stop the server. `GET /api/formulier` gives every element as the layers merge it (`elementen`: id, element, role, its fields with their visibility, whether they may be changed and how they are filled, and the parts it adds), and the tables (`tabellen`). The back office lists beside a submission the elements for the employee's level, with what the submission and its decision hold of their fields.
+
+## A table from the chronicle
+
+`GET /api/backoffice/tabellen/{id}` gives, beside a submission of the executor, every table of the UI spec: per row its values and where it comes from (`herkomst`): the record that holds it, and per fact of the table the last record of it, in any cell's chronicle, that matches the row. A row matches a record on the keys of `match`, or without `match` on every key the row and the record share whose value is no list or record. A row that no record of a fact matches says so (`zonder_herkomst`). Of a record of another cell the table gives the cell, the fact, the record's id and the day, not what else the record holds. A table of a fact holds the records of that fact that belong to the submission: those that match a row of a list of records the submission holds on the keys they share, or else the submission itself; a fact that shares no key with the submission gives every record. `gedeeld/TabelUitKroniek.vue` shows a table with `nldd-table`, a column per key and a tag per record a row comes from; the application form shows a list of records the system filled as such a table, read-only and without sources. The tables come from `packages/regelhet/src/table.rs`.
+
 ## What the server fills in an application
 
 The UI spec decides how the value of each field of the application comes about. A field without `fill` is the citizen's to fill in. For a field with `fill: {by: system}` the server makes the value itself when the application comes in, inside the step that records it, so the value belongs to the same day and the same chronicles as the record (`kern::systeemvelden`):
@@ -259,6 +304,24 @@ The UI spec decides how the value of each field of the application comes about. 
 These fields are input fields of the application: Awb 4:2 asks that an application holds them. The rule generates a value for such a field, and the execution of the law reads it as it would read the same value typed in, so nothing changes in how the law is executed. That is why they are no open terms that policy fills. The choice of the executor sits in an article of its own policy that can be read, explained and changed apart from the law.
 
 This holds for every submission a citizen makes, not only the case's own application: the server fills, per submission, the fields its form asks that the UI spec has the system fill. `GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded for the fields it does not hide. For a hidden field the forms still say how the system fills it, so a screen that shows a recorded application can name the origin. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
+
+## What the system fills in a decision
+
+A decision asks the authority its findings. Some of them do not differ per application: the provision a decision is taken under, on whose behalf a mandated employee signs, the way it is made known. The UI spec may have the system fill such a finding, with a fixed value or the day (`fill: {by: system, value: ...}` or `{by: system, submission: date}`), as it fills a field of an application. The forms give them per decision under `systeem`, with the value the server would record today, and those the UI spec hides under `verborgen`; the back office does not ask them and lists the shown ones under the form. The server fills them in the step of the decision and of its preview (`kern::besluit_systeemvelden`), and refuses a request that names one. A finding that depends on the application stays the decider's. Only the executor's own decisions get them: what an external party decides, it decides itself.
+
+A field of an application that the system fills from a source (`from`) reads the application as the system fills it, the outcomes of the other sources included: a source that needs another's outcome, such as an amount over a designation the system took from a register, runs once that one has run. A field the applicant leaves empty and the law lets be absent reaches the sources as `null`.
+
+## Messages to the citizen
+
+A message to the citizen follows from a record in the chronicle: a decision, a submission or a fact. Which message follows from which record, and how it is made from that record, says the message spec beside the UI spec (`berichten.yaml`, named under `berichten` in the manifest); the text comes from the text layer of the authority (`berichtteksten.yaml`, under `berichtteksten`), a register with a template per message whose paragraphs carry keys (`{aanvraagdag}`) and conditions (`als: toekenning`). The spec holds no sentence: it binds every key to a source (an outcome of the record, a field of it or of the submission it answers, an outcome in the chain of the decision, what a submission gives under its own article), so no text stands loose from the data.
+
+Each kind of message (`berichtsoorten`) binds to a record (`vastlegging`: role, article, fact, legal character, the outcome that carries it), follows a pattern of the generic Awb layer whose parts the law requires (`beschikking`, `beslissing_op_bezwaar`, `buitenbehandelingstelling`, `ontvangstbevestiging`, `herstelverzoek`, `mededeling`), and lays out its parts: per part its place (which also gives its order), the article that requires it (`vereist_door`), its source, its condition (`als`) and the NLDD element that shows it. It has a status (concept, laid down, made known) and a channel (e-mail, Awb 2:8; the portal with a notice, 2:10; paper, 3:41), and invariants: the amount in the decision is the total of its specification (`bedrag_is_totaal`), and exactly one judgment holds and fits the outcome (`oordeel_past`). Always checked besides: every part the law requires is filled or shows as missing with its article, and no key is without a source or a value.
+
+The poc reads both files (`berichten.rs`) and refuses what would drop a part without a word: a place no message has, a required part absent, an unknown element, a key or condition of a template without a source. The forms carry them under `berichten`. One component shows every message, `gedeeld/Bericht.vue` with `gedeeld/bericht.ts`: to the citizen beside the record, to the decider as a concept above the preview with whether each invariant holds. A violation is never silent: the decider sees it listed, the citizen a notice that the message is not in order. The parking card has four kinds on the template: the decision (grant and refusal), the acknowledgement of the application, the invitation to complete it (Awb 4:5, a fact of article 12 of the fictitious policy) and the decision on objection. The template, and how to add a kind of message, is in `packages/regelhet/BERICHTEN.md`.
+
+A message is shown as the letter of an authority: a band with the sender as text (never a logo; the design system has none for a sender other than the central government), the return address over the address block, a column of references on the right (date, our reference, your letter of, subject, channel), the text, the signature, an annex on a sheet of its own and a footer; printed, a letter on paper of 210 by 297 mm with "Blad x van y" on each sheet, and a stamp on a concept. The text layer gives the head and foot (`briefhoofd`). An annex in columns (`bron.bijlage`) takes its rows from the model, a key whose value is a list of rows or rows the spec builds from keys, and every heading and cell from the text layer (`bijlagen`); it does not compute: the amount per row is the model's, a sum per block is the sum of its rows, and the rows must make the total, which with `bedrag_is_totaal` must be the amount decided.
+
+A message that goes out is a record, not a view built again each time. The spec names the fact of sending (`verzending.feit`): the sender records it in its own chronicle with the kind of message, the record it belongs to, the channel, the day and the message frozen as the citizen reads it, with a SHA-256 hash of it. The citizen reads it from that fact under "Mijn berichten" in her dossier, and the employee sees the version that went; a later change of the spec, the text layer or the record does not change it, and a new message replaces the last one by naming it. The day it went is the day the decision was made known. Forwarding a message (`verzending.doorsturen`) is a fact of the same article as its receipt by another cell, such as the court; the core delivers it as any fact between cells. Of two facts with the same parameters, the one the article lists first is sent and the later one is its receipt, so the case's cell records by hand a fact it forwards and never the receipt of one. For the parking card these facts are article 13 of the fictitious policy.
 
 ## After a grant
 

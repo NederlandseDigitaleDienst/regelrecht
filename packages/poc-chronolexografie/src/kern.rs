@@ -51,6 +51,10 @@ pub struct Corpus {
     /// the application fills and shows each field, and the views beside each
     /// decision of the case's cell. Empty without one.
     pub ui_spec: crate::ui_spec::UiSpec,
+    /// What the message spec of the case's source says, with its text layer
+    /// ([`crate::berichten`]): which message to the citizen follows from
+    /// which record. Empty without one.
+    pub berichten: crate::berichten::Berichtenspec,
 }
 
 /// The cell of the case and the other cells of its sphere (RFC-048). It
@@ -254,6 +258,7 @@ impl Corpus {
             andere_dirs,
             files,
             ui_spec: crate::ui_spec::UiSpec::default(),
+            berichten: crate::berichten::Berichtenspec::default(),
         };
         crate::vervolg::controleer(&corpus)?;
         Ok(corpus)
@@ -687,6 +692,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "termijn": termijnveld(&vorm),
             "besluit": i.besluit,
             "cel": i.cel,
+            "uitleg": uitleg(&service, &i.artikel, on),
         });
         // Every submission: the fields the system fills ([`door_het_systeem`])
         // and those the form does not show, as far as its form asks them; a
@@ -754,6 +760,15 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         "volgorde": corpus.ui_spec.volgorde,
         "delen": corpus.ui_spec.delen,
         "verplicht": corpus.ui_spec.verplicht,
+        // Which message to the citizen follows from which record, with the
+        // text layer of the authority ([`crate::berichten`]).
+        "berichten": corpus.berichten,
+        // The tables a screen shows beside a submission, with their columns
+        // and where a row comes from ([`crate::ui_spec::Tabel`]).
+        "tabellen": corpus.ui_spec.tabellen,
+        // Every element of the UI spec, its layers merged: who sees it, its
+        // fields and its parts ([`crate::ui_spec::Overzicht`]).
+        "elementen": corpus.ui_spec.elementen,
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
@@ -940,6 +955,18 @@ fn besluit_vorm(
             }
         }
     }
+    let systeem_van_bevindingen: Map<String, Value> = if cel == cell.eigen.recording_actor() {
+        let namen: Vec<String> = bevindingen
+            .iter()
+            .filter_map(|v| v["naam"].as_str().map(str::to_string))
+            .collect();
+        bevinding_door_het_systeem(&corpus.ui_spec, &namen, on)
+            .into_iter()
+            .map(|(naam, (soort, waarde))| (naam, json!({ "soort": soort, "waarde": waarde })))
+            .collect()
+    } else {
+        Map::new()
+    };
     let mut herkomst: Vec<Value> = besluit
         .inputs
         .iter()
@@ -978,7 +1005,49 @@ fn besluit_vorm(
         "bevindingen": bevindingen,
         "invoer": herkomst,
         "uitvoer": besluit.outputs,
+        "uitleg": uitleg(service, artikel, on),
+        // The findings the UI spec has the system fill, with the kind of
+        // fill and the value it would record on `on`: the form does not ask
+        // them ([`besluit_systeemvelden`]).
+        "systeem": systeem_van_bevindingen,
+        // The findings the UI spec hides: filled by the system, or left
+        // empty, and not shown to the decider.
+        "verborgen": bevindingen
+            .iter()
+            .filter_map(|v| v["naam"].as_str())
+            .filter(|n| corpus.ui_spec.verborgen.contains(*n))
+            .collect::<Vec<_>>(),
     }))
+}
+
+/// Per output of the article `artikel` (`<regelwerk>#<article>`) in force on
+/// `on`, what the law says of it: its description (`beschrijving`), what a
+/// letter says of an outcome in its grounds (Awb 3:46), and its type and
+/// unit, so a letter writes an amount in eurocent as an amount. An article
+/// not in force gives nothing.
+fn uitleg(service: &LawExecutionService, artikel: &str, on: NaiveDate) -> Map<String, Value> {
+    bron_artikel(service, artikel, on)
+        .map(|art| {
+            art.get_outputs()
+                .iter()
+                .map(|o| {
+                    let beschrijving = o
+                        .description
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|d| !d.is_empty());
+                    (
+                        o.name.clone(),
+                        json!({
+                            "beschrijving": beschrijving,
+                            "type": o.output_type,
+                            "eenheid": o.type_spec.as_ref().and_then(|t| t.unit.as_deref()),
+                        }),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// What the poc reads from the UI spec a case of this crate keeps in its own
@@ -1133,27 +1202,61 @@ pub fn systeemvelden(
             uit.insert((*veld).clone(), waarde);
         }
     }
-    // A source reads the application as the system fills it, but for the
-    // outcome of another source.
+    // A source reads the application as the system fills it, the outcomes
+    // of the other sources included: a source that needs the outcome of
+    // another, such as an amount over a designation the system filled from
+    // a register, runs once that one has run. Each round runs the sources
+    // that can run; a round in which none can leaves the first one's reason.
+    // A field the applicant leaves empty and the law lets be absent reaches
+    // the sources as `null`, as the cell records it ([`met_lege_velden`]).
+    // The login field is in `uit` by now when the login filled it, and the
+    // other system fields go over the empty ones.
     let sfeer = cellen.sfeer();
-    let mut basis = velden.clone();
+    let mut basis = met_lege_velden(&service, artikel, None, velden, on)?;
     basis.extend(uit.clone());
-    for (veld, vulling) in &gevuld {
-        let Systeemvulling::Bron { bron, parameters } = vulling else {
-            continue;
-        };
-        let mut invoer = basis.clone();
-        for (parameter, g) in parameters {
-            invoer.insert(parameter.clone(), gegeven(*g));
+    let mut open: Vec<_> = gevuld
+        .iter()
+        .filter_map(|(veld, vulling)| match vulling {
+            Systeemvulling::Bron { bron, parameters } => Some((*veld, bron, parameters)),
+            _ => None,
+        })
+        .collect();
+    while !open.is_empty() {
+        let mut nog = Vec::new();
+        let mut eerste_fout = None;
+        for (veld, bron, parameters) in open.iter().copied() {
+            let mut invoer = basis.clone();
+            for (parameter, g) in parameters {
+                invoer.insert(parameter.clone(), gegeven(*g));
+            }
+            match cellen.eigen.consult(&service, &sfeer, bron, &invoer, on) {
+                Ok(result) => {
+                    let gevonden = uit_bron(&result, bron)?;
+                    // A source that cannot say on this submission, such as
+                    // one that reads a field another kind of submission
+                    // lacks, leaves the field empty, as a prefill does: an
+                    // unknown value is no value to record.
+                    let waarde = match &gevonden["waarde"] {
+                        Value::Object(o) if o.contains_key("__unknown") => Value::Null,
+                        w => w.clone(),
+                    };
+                    uit.insert(veld.clone(), waarde.clone());
+                    basis.insert(veld.clone(), waarde);
+                }
+                Err(e) => {
+                    eerste_fout.get_or_insert_with(|| {
+                        Error::Refused(format!("the system cannot fill '{veld}' from {bron}: {e}"))
+                    });
+                    nog.push((veld, bron, parameters));
+                }
+            }
         }
-        let result = cellen
-            .eigen
-            .consult(&service, &sfeer, bron, &invoer, on)
-            .map_err(|e| {
-                Error::Refused(format!("the system cannot fill '{veld}' from {bron}: {e}"))
-            })?;
-        let gevonden = uit_bron(&result, bron)?;
-        uit.insert((*veld).clone(), gevonden["waarde"].clone());
+        if nog.len() == open.len() {
+            return Err(eerste_fout.unwrap_or_else(|| {
+                Error::Refused("the system cannot fill the application".into())
+            }));
+        }
+        open = nog;
     }
     Ok(uit)
 }
@@ -1536,6 +1639,12 @@ fn benoemde_feiten(
 /// Whether the cell of `authority` records `feit` as the receipt of another
 /// fact of the same article ([`shape::receipt_of`]), as the municipality
 /// records the advice the GGD sent it. Such a fact arrives on its own.
+///
+/// Of two facts that hold the same parameters, the one the article lists
+/// first is sent and the later one is its receipt: the GGD's advice before
+/// the municipality's receipt, the municipality's request before the GGD's.
+/// So the case's cell records by hand a fact it sends to another cell, such
+/// as a message it forwards to the court, and never the receipt of one.
 fn is_ontvangst(
     service: &LawExecutionService,
     feit: &str,
@@ -1553,15 +1662,15 @@ fn is_ontvangst(
     else {
         return Ok(false);
     };
+    let (_, naam) = shape::split_fact(feit)?;
     for ander in article
         .get_requires()
         .iter()
         .filter_map(|r| r.fact.as_deref())
+        .take_while(|f| *f != naam)
     {
         let ander = format!("{basis}#{ander}");
-        if ander != feit
-            && shape::receipt_of(service, &ander, on, authority)?.as_deref() == Some(feit)
-        {
+        if shape::receipt_of(service, &ander, on, authority)?.as_deref() == Some(feit) {
             return Ok(true);
         }
     }
@@ -1615,6 +1724,87 @@ fn feit_door_het_systeem(
             Some((f.name.clone(), gevuld))
         })
         .collect()
+}
+
+/// The names of the findings the decision `besluit` asks of `wie` when the
+/// case's own cell takes it, as its form asks them ([`besluit_vorm`]): the
+/// findings of its own article, and every value the authority supplies that
+/// no policy fills.
+fn bevinding_namen(besluit: &decision::DecisionShape, wie: &Authority) -> Vec<String> {
+    eigen_oordelen(besluit, wie)
+        .map(|t| decision::finding_field(t).name)
+        .chain(
+            besluit
+                .inputs
+                .iter()
+                .filter(|i| {
+                    i.source == Source::Supplied
+                        && i.field.type_ != ParameterType::Decision
+                        && !besluit.filled(&i.field.name)
+                        && besluit.finding(&i.field.name, wie).is_none()
+                })
+                .map(|i| i.field.name.clone()),
+        )
+        .collect()
+}
+
+/// Per finding in `namen` that the UI spec has the system fill with what it
+/// knows itself, a value or the day (`fill: {by: system, value: ...}` or
+/// `submission: date`): the kind of fill and its value on `on`. A finding is
+/// a judgement of the authority, so the system fills only what does not
+/// depend on the case, such as the provision a decision is taken under or on
+/// whose behalf a mandated employee signs.
+fn bevinding_door_het_systeem(
+    spec: &crate::ui_spec::UiSpec,
+    namen: &[String],
+    on: NaiveDate,
+) -> BTreeMap<String, (&'static str, Value)> {
+    use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
+    namen
+        .iter()
+        .filter_map(|naam| {
+            let gevuld = match spec.systeem.get(naam)? {
+                Systeemvulling::Waarde(waarde) => ("waarde", waarde.clone()),
+                Systeemvulling::Indiening(Indieningsgegeven::Datum) => {
+                    ("datum", json!(on.to_string()))
+                }
+                _ => return None,
+            };
+            Some((naam.clone(), gevuld))
+        })
+        .collect()
+}
+
+/// What the system fills among the findings of the decision on the
+/// submission `op`, taken on `on` by the case's own cell, as the UI spec
+/// says ([`bevinding_door_het_systeem`]): per finding, its value. Nothing
+/// for a submission another cell decides on, such as an appeal: what the
+/// case's UI spec fills is the executor's. A caller that takes findings from
+/// an employee refuses one that names such a finding itself.
+///
+/// # Errors
+///
+/// When `op` is no submission of this case, or its decision cannot be
+/// derived on `on`.
+pub fn besluit_systeemvelden(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    op: &str,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    let cel = cellen.houder(op)?;
+    if cel != cellen.eigen.recording_actor() || corpus.ui_spec.systeem.is_empty() {
+        return Ok(Map::new());
+    }
+    let (law, article) = corpus.gevraagd(cellen, op)?;
+    let service = corpus.service()?;
+    let besluit = decision::derive(&service, law, article, on)?;
+    let (beslisser, _) = cellen.voor(cel)?;
+    let namen = bevinding_namen(&besluit, beslisser.authority());
+    Ok(bevinding_door_het_systeem(&corpus.ui_spec, &namen, on)
+        .into_iter()
+        .map(|(naam, (_, waarde))| (naam, waarde))
+        .collect())
 }
 
 /// What the system fills in the fact `feit` recorded on `on`, as the UI

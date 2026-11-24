@@ -110,8 +110,9 @@ The pods of a release do not fetch the case. At install, and after every change
 of `manifest.repoUrl`, `ref` or `path`, the plugin runs a Job
 `<name>-snapshot-<hash>` that fetches that one commit, with the token of
 `credentialsSecretRef` if there is one, and packs only what the manifest needs:
-the manifest itself, its `ui_spec`, and the YAML files under each of its
-`directories`, by their path in the repository. The plugin reads the tar.gz from
+the manifest itself, its `ui_spec` (one file, or a list of the layers of a UI
+spec), its `berichten` and `berichtteksten` when it names them, and the YAML
+files under each of its `directories`, by their path in the repository. The plugin reads the tar.gz from
 the Job's log and stores it in ConfigMaps `<name>-case-<hash>-<n>`, at most
 900 KiB each and 4.4 MiB in all. The chart unpacks those into `/case` with an
 init container (`case.snapshot.configMaps`). So a pod that restarts needs no

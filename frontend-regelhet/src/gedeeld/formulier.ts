@@ -162,8 +162,12 @@ export function herkomst(hoe: Systeemvulling): string {
 
 /** A field of the application form: one the applicant fills, or one the system fills, shown as it is filled. */
 export interface Formulierveld extends Schermveld {
-  /** Set when the system fills the field: its value and where it comes from. */
-  systeem?: { waarde: unknown; herkomst: string };
+  /**
+   * Set when the system fills the field: its value and where it comes from.
+   * With `aanpasbaar` it is a prefill (`fill: {from}`): the applicant may
+   * change it, and the form sends it as theirs.
+   */
+  systeem?: { waarde: unknown; herkomst: string; aanpasbaar?: boolean };
   /** Set on an input of a field the screen asks in parts: the law field it answers, and the part. */
   deel?: { veld: string; naam: string; autocomplete?: string; keyboard?: string; width?: string };
   /** The form does not submit without it (`required` in the UI spec); a part of such a field is too. */
@@ -275,8 +279,10 @@ export function aanvraagformulier(
   volgorde: string[] = [],
   delen: Vormen['delen'] = {},
   verplicht: Vormen['verplicht'] = [],
+  bewerkt: ReadonlySet<string> = new Set(),
 ): Aanvraagformulier {
   const systeem = vorm.systeem ?? {};
+  const voorgevuld = vorm.voorgevuld ?? {};
   const verborgen = vorm.verborgen ?? [];
   const inloggen = doorInloggen(vorm);
   const velden: Formulierveld[] = opVolgorde(
@@ -285,6 +291,13 @@ export function aanvraagformulier(
   ).map((v) => {
     const hoe = systeem[v.naam];
     const veld: Formulierveld = schermveld(v, teksten);
+    const voor = voorgevuld[v.naam];
+    // A prefill with a value shows as known, read-only with its source, until
+    // the applicant chooses to change it (UI pattern edit-in-a-sheet).
+    if (!hoe && voor && voor.waarde != null && !bewerkt.has(v.naam)) {
+      const bron = voor.bron ? ` uit ${artikelNaam(artikelVan(voor.bron))}` : '';
+      return { ...veld, systeem: { waarde: voor.waarde, herkomst: `Vooringevuld${bron}; u kunt het aanpassen.`, aanpasbaar: true } };
+    }
     if (!hoe) return verplicht?.includes(v.naam) ? { ...veld, verplicht: true } : veld;
     const waarde = 'waarde' in hoe ? hoe.waarde : inloggen.has(v.naam) && !hoe.inlog ? identiteit : undefined;
     return { ...veld, systeem: { waarde, herkomst: herkomst(hoe) } };
@@ -292,6 +305,14 @@ export function aanvraagformulier(
     .flatMap((v) => (v.systeem ? [v] : metDelen(v, delen)));
   return { groepen: inGroepen(velden), invullen: velden.filter((v) => !v.systeem) };
 }
+
+/** What the form starts with besides its empty fields: the value of every prefill (`voorgevuld`). */
+export const voorgevuldeWaarden = (vorm: Indieningsvorm | undefined): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(vorm?.voorgevuld ?? {})
+      .filter(([, v]) => v.waarde != null)
+      .map(([naam, v]) => [naam, v.waarde]),
+  );
 
 /** The fields of a submission against the decision `besluit`, as the screen shows them (`tegenBesluit`). */
 export const tegenBesluitVelden = (

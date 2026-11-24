@@ -25,11 +25,15 @@
 //! | `GET /api/dossier` | citizen | the records about the citizen, in every cell, with what the kern says of them (`stand`) and how far the acts after each of their grants are |
 //! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
 //! | `GET /api/dossier/tijdlijn/{id}` | citizen; a record of their dossier | the timeline of its application, within the dossier ([`crate::timeline`]) |
+//! | `GET /api/dossier/uitkomsten/{id}` | citizen; a submission of their dossier | what it gives under its own article, such as the last day to decide: what its acknowledgement says |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
+//! | `POST /api/formulier/systeem` | citizen | what the system would fill in a submission on what the form holds now; records nothing |
 //! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle, with what the kern says of it (`stand`) |
 //! | `GET /api/backoffice/werkvoorraad` | reader | the executor's submissions that wait for a decision ([`crate::service::WorkQueue`]) |
 //! | `GET /api/backoffice/waarom/{id}` | reader; a decision of the executor | why it came out so |
 //! | `GET /api/backoffice/tijdlijn/{id}` | reader; a record the executor sees | the timeline of its application: the executor's records ([`crate::timeline`]) |
+//! | `GET /api/backoffice/uitkomsten/{id}` | reader; a submission of the executor | what it gives under its own article ([`backoffice_outcomes`]) |
+//! | `GET /api/backoffice/tabellen/{id}` | reader; a submission of the executor | the tables of the UI spec beside it, each row with the records it comes from ([`crate::table`]) |
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
 //! | `GET /api/backoffice/verzoeken` | reader | the requests the executor's policy made, and whether an answer came back ([`requests`]) |
 //! | `POST /api/backoffice/vastleggingen` | decider; for the executor | a fact the executor records ([`Record`]) |
@@ -340,8 +344,10 @@ pub fn router(state: AppState) -> Router {
     let citizen = Router::new()
         .route("/api/dossier", get(dossier))
         .route("/api/dossier/waarom/{id}", get(dossier_explain))
+        .route("/api/dossier/uitkomsten/{id}", get(dossier_outcomes))
         .route("/api/dossier/tijdlijn/{id}", get(dossier_timeline))
         .route("/api/indieningen", post(submit))
+        .route("/api/formulier/systeem", post(system_values))
         .route_layer(middleware::from_fn_with_state(state.clone(), gate_citizen));
     let mut backoffice = Router::new()
         .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
@@ -349,6 +355,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/backoffice/besluiten", post(decide))
         .route("/api/backoffice/voorvertoning", post(preview))
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
+        .route("/api/backoffice/uitkomsten/{id}", get(backoffice_outcomes))
+        .route("/api/backoffice/tabellen/{id}", get(backoffice_tables))
         .route("/api/backoffice/tijdlijn/{id}", get(backoffice_timeline))
         .route("/api/backoffice/verzoeken", get(requests))
         .route("/api/backoffice/vastleggingen", post(record))
@@ -517,6 +525,40 @@ pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> Citize
     let visible = visible_records(state, principal).await?;
     only_visible_records(&mut forms, &visible);
     if let Ok(citizen) = principal.citizen(&state.subject_claim) {
+        // What the form of the case's application starts with, per field the
+        // UI spec prefills: the applicant may change it (`voorgevuld`). The
+        // system fills its fields on what the form starts with, so a source
+        // that reads a prefilled field, such as an amount over a designation
+        // from a register, shows what it gives on the prefill.
+        let application_article = state.service.application_article().to_string();
+        let prefill = match state
+            .service
+            .prefill_preview(submitter(state, principal, &citizen))
+            .await
+        {
+            Ok(prefill) => prefill,
+            Err(e) => {
+                tracing::warn!(error = %e, "the prefill of the application failed");
+                Value::Object(Map::new())
+            }
+        };
+        let starts_with: Map<String, Value> = prefill
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter_map(|(field, p)| {
+                let value = p.get("waarde").filter(|v| !v.is_null())?;
+                Some((field.clone(), value.clone()))
+            })
+            .collect();
+        if let Some(application) = forms
+            .get_mut("indieningen")
+            .and_then(|i| i.get_mut(&application_article))
+            .and_then(Value::as_object_mut)
+            .filter(|_| prefill.as_object().is_some_and(|p| !p.is_empty()))
+        {
+            application.insert("voorgevuld".into(), prefill);
+        }
         // Every submission whose form has fields the system fills, such as
         // the case's application and an application for a duplicate.
         let articles: Vec<String> = forms["indieningen"]
@@ -527,9 +569,18 @@ pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> Citize
             .map(|(article, _)| article.clone())
             .collect();
         for article in articles {
+            let fields = if article == application_article {
+                starts_with.clone()
+            } else {
+                Map::new()
+            };
             let preview = state
                 .service
-                .system_preview(article.clone(), submitter(state, principal, &citizen))
+                .system_preview(
+                    article.clone(),
+                    submitter(state, principal, &citizen),
+                    fields,
+                )
                 .await;
             with_system_values(&mut forms, &article, preview);
         }
@@ -831,6 +882,21 @@ pub(crate) async fn explain_for(
     ))
 }
 
+/// What a submission in the citizen's own dossier gives under its own article,
+/// as [`backoffice_outcomes`]: the outputs, values only, naming no record.
+async fn dossier_outcomes(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Path(id): Path<String>,
+) -> ApiResult {
+    let citizen = principal.citizen(&state.subject_claim)?;
+    let dossier = state.service.dossier(citizen.subject()).await?;
+    if !dossier.holds(&id) {
+        return Err(ApiError::not_yours("submission in your dossier"));
+    }
+    Ok(Json(state.service.outcomes(&id).await?))
+}
+
 /// The timeline of the application a record of the citizen's own dossier
 /// belongs to ([`crate::timeline`]): only records of that dossier, and no
 /// next step that names another record.
@@ -907,6 +973,24 @@ async fn backoffice_explain(State(state): State<AppState>, Path(id): Path<String
     executor_record(&state, &id, "decision").await?;
     let waarom = state.service.explain(&id).await?;
     Ok(Json(for_executor(&state, waarom).await?))
+}
+
+/// What the executor's submission `id` gives under its own article, such as
+/// the last day of the period to decide that a hook on the application sets
+/// (`kern::wat_volgt`): what a letter acknowledging it says.
+async fn backoffice_outcomes(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult {
+    executor_record(&state, &id, "submission").await?;
+    Ok(Json(state.service.outcomes(&id).await?))
+}
+
+/// The tables of the UI spec beside a submission of the executor
+/// ([`crate::table`]), for every employee: each row with the records it
+/// comes from, of the executor or of another cell. Of a record of another
+/// cell the table names the cell, the fact and the day, not what else the
+/// record holds.
+async fn backoffice_tables(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult {
+    executor_record(&state, &id, "submission").await?;
+    Ok(Json(state.service.tables(&id).await?))
 }
 
 /// What a decision would come to, for a decider of the executor, as
@@ -1028,6 +1112,31 @@ async fn external_decision(state: &AppState, d: &Decide) -> Result<(), ApiError>
 
 /// A citizen submits for themself: the login field is theirs, and a
 /// reference goes to a record of their own dossier.
+/// What the system would fill in a submission under `artikel` of this
+/// citizen today, on what the form holds now (`velden`): the form asks it
+/// again when the applicant fills a field a source reads, such as the year
+/// an amount or a table depends on. Nothing is recorded.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SystemValues {
+    artikel: String,
+    #[serde(default)]
+    velden: Map<String, Value>,
+}
+
+async fn system_values(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Json(v): Json<SystemValues>,
+) -> ApiResult {
+    let citizen = principal.citizen(&state.subject_claim)?;
+    let values = state
+        .service
+        .system_preview(v.artikel, submitter(&state, &principal, &citizen), v.velden)
+        .await?;
+    Ok(Json(Value::Object(values)))
+}
+
 async fn submit(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,

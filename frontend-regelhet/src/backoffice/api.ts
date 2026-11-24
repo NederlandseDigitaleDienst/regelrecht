@@ -3,7 +3,7 @@
 // client only names the routes.
 import { gedeeldApi } from '../gedeeld/api';
 import { haal, stuur } from '../gedeeld/http';
-import type { EigenVerzoek, Gram, Klok, Kroniek, Tijdlijn, Vervolgstand, Voorvertoning, Wachtend, Waarom, Werkvoorraad } from '../gedeeld/types';
+import type { EigenVerzoek, Gram, Klok, Kroniek, Tabellen, Tijdlijn, Vervolgstand, Voorvertoning, Wachtend, Waarom, Werkvoorraad } from '../gedeeld/types';
 
 // The chronicle and the work queue are read by the organisation's front too
 // (src/organisatie/), so their shapes live in gedeeld/types.ts.
@@ -65,6 +65,8 @@ export const backofficeApi = {
   werkvoorraad: () => haal<Werkvoorraad>('/api/backoffice/werkvoorraad'),
   kroniek: (cel: string) => haal<Kroniek>(`/api/backoffice/cellen/${encodeURIComponent(cel)}/kroniek`),
   waarom: (besluit: string) => haal<Waarom>(`/api/backoffice/waarom/${encodeURIComponent(besluit)}`),
+  /** The tables of the UI spec beside the submission `id`, each row with the records it comes from. */
+  tabellen: (id: string) => haal<Tabellen>(`/api/backoffice/tabellen/${encodeURIComponent(id)}`),
   /** The timeline of the application the record `id` belongs to: the executor's records. */
   tijdlijn: (id: string) => haal<Tijdlijn>(`/api/backoffice/tijdlijn/${encodeURIComponent(id)}`),
   voorvertoning: (b: Beslissing) => stuur<Voorvertoning>('POST', '/api/backoffice/voorvertoning', b),

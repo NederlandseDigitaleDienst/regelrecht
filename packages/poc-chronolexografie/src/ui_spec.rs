@@ -73,6 +73,21 @@
 //! fills or the form hides has nothing for the applicant to give, so
 //! `required` on it is refused. It counts over every element, as `parts` does.
 //!
+//! A message to the citizen is no element of the UI spec: the message spec
+//! beside it says which message follows from which record
+//! ([`crate::berichten`]). An element with `letter`, the form of before, is
+//! refused, so a letter element does not stand unread.
+//!
+//! An element may also show a table: `table: {rows: {field: <name>}}` (an
+//! array of records the submission holds), `{outcome: <name>}` (an array its
+//! article gives on the records as they are now) or `{fact:
+//! <regelwerk>#<article>#<fact>}` (every record of that fact), with `columns`
+//! (the keys of a row, each with a `label`) and `provenance` (the records of
+//! a fact of another cell a row comes from, matched on the keys of `match`),
+//! and the element's `role` ([`Tabel`]). A screen shows it beside the
+//! submission, with per row where it comes from: which cell, which record,
+//! on which day.
+//!
 //! The poc reads only those keys and leaves every other key to the register
 //! and its own checks, so a register that grows a key does not stop a case
 //! from loading. A source is `<regelwerk>#<article>#<output>`; what it gives
@@ -105,6 +120,86 @@ struct Element {
     fields: Vec<Field>,
     /// The key of the older form; present here, it is a mix-up.
     prefill: Option<IgnoredAny>,
+    /// The letter element of before ([`crate::berichten`] took its place);
+    /// present here, it is refused.
+    letter: Option<IgnoredAny>,
+    /// Set on an element that shows a table of records ([`Tabel`]).
+    table: Option<TableOf>,
+    /// Who sees the element, as the register names the role.
+    role: Option<String>,
+    /// The role of the generic element this one fills in, set when the
+    /// layers merge ([`lagen`]): a screen tells the citizen's side by it.
+    generic_role: Option<String>,
+    /// The generic element this one fills in (`builds_on`); merged before
+    /// anything else reads it ([`lagen`]).
+    builds_on: Option<String>,
+    /// The parts an element adds to its generic element, each with the
+    /// fields it shows and the facts whose records it shows beside them.
+    #[serde(default)]
+    adds: Vec<Add>,
+    /// The facts whose records the element shows as a table.
+    #[serde(default)]
+    facts: Vec<String>,
+}
+
+/// A part an element adds (`adds`): its name, its place, the fields of the
+/// element in it and the facts whose records it shows beside them. Other
+/// keys, such as its `basis`, are left to the register.
+#[derive(Debug, Deserialize)]
+struct Add {
+    part: Option<String>,
+    place: Option<String>,
+    #[serde(default)]
+    fields: Vec<String>,
+    #[serde(default)]
+    facts: Vec<String>,
+}
+
+/// Where the rows of a table element come from (`table.rows`): one of
+/// `field` (an array of records held by the submission, as a field or an
+/// output), `outcome` (an array the submission's article gives on the
+/// records as they are now) or `fact` (every record of a fact,
+/// `<regelwerk>#<article>#<fact>`). An unknown key is refused, as in
+/// [`Fill`].
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RowsOf {
+    field: Option<String>,
+    outcome: Option<String>,
+    fact: Option<String>,
+}
+
+/// A table element (`table`): its rows, its columns, and the records of
+/// other cells a row comes from. An unknown key is refused.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TableOf {
+    rows: RowsOf,
+    #[serde(default)]
+    columns: Vec<TableColumn>,
+    #[serde(default)]
+    provenance: Vec<TableProvenance>,
+    label: Option<String>,
+    help: Option<String>,
+}
+
+/// A column of a table element: the key in a row, and its heading.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TableColumn {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+/// Where a row of a table comes from besides the record that holds it: the
+/// records of `fact` whose fields equal the row on the keys of `match`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TableProvenance {
+    pub fact: String,
+    #[serde(rename = "match", default)]
+    pub on: Vec<String>,
 }
 
 /// A field of an element; the poc reads only how the form fills and shows
@@ -125,6 +220,8 @@ struct Field {
     parts: Option<Vec<Part>>,
     #[serde(default)]
     required: bool,
+    editable: Option<bool>,
+    to_build: Option<IgnoredAny>,
 }
 
 /// The texts of a field on a screen that shows a recorded submission. An
@@ -186,6 +283,94 @@ pub struct UiSpec {
     pub delen: BTreeMap<String, Vec<Velddeel>>,
     /// The fields the form does not submit without (`required`).
     pub verplicht: BTreeSet<String>,
+    /// The tables a screen shows beside a submission ([`Tabel`]), in the
+    /// order of the UI spec.
+    pub tabellen: Vec<Tabel>,
+    /// Every element as the UI spec has it after the layers are merged
+    /// ([`Overzicht`]): who sees it, its fields and its parts.
+    pub elementen: Vec<Overzicht>,
+}
+
+/// An element of the UI spec as a screen lists it per role: its id, its name,
+/// the role that sees it, the generic element it fills in, its fields (each
+/// with what the UI spec says of how it is shown and filled) and the parts it
+/// adds.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Overzicht {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub element: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bouwt_op: Option<String>,
+    /// The role of the generic element it fills in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rol_generiek: Option<String>,
+    pub velden: Vec<Overzichtveld>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub delen: Vec<Overzichtdeel>,
+}
+
+/// A field of an [`Overzicht`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Overzichtveld {
+    pub naam: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zichtbaarheid: Option<String>,
+    /// `editable` of the UI spec: whether the user may change it here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wijzigbaar: Option<bool>,
+    /// Whether the system fills it (`by: system`), prefills it (`from`
+    /// alone) or neither.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vulling: Option<String>,
+    /// Set when the model does not carry the name yet (`to_build`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub te_bouwen: bool,
+}
+
+/// A part an element adds, in an [`Overzicht`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Overzichtdeel {
+    pub naam: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plek: Option<String>,
+    pub velden: Vec<String>,
+    pub feiten: Vec<String>,
+}
+
+/// An element that shows a table (`table` in the UI spec): rows of records,
+/// a column per key, and per row where it comes from. The rows come from an
+/// array the submission holds (`veld`), from an array its article gives
+/// (`uitkomst`), or from every record of a fact (`feit`); `herkomst` names
+/// the records of other cells a row comes from, matched on keys of the row.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Tabel {
+    /// The element's id, or its name: how a screen asks for it.
+    pub naam: String,
+    /// The element's name in the register.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub element: Option<String>,
+    /// Who sees it, as the register names the role.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rol: Option<String>,
+    /// The role of the generic element its element fills in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rol_generiek: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub veld: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uitkomst: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feit: Option<String>,
+    pub kolommen: Vec<TableColumn>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub herkomst: Vec<TableProvenance>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
 }
 
 /// How a screen names a field (`label`), what it says under it (`help`) and
@@ -426,7 +611,12 @@ pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
 /// `by` other than `system` is no error: the field is left to the register.
 pub fn lees(tekst: &str) -> Result<UiSpec, String> {
     let register: Register =
-        serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI spec: {e}"))?;
+        serde_yaml_ng::from_value(lagen(tekst)?).map_err(|e| format!("the UI spec: {e}"))?;
+    let elementen = register
+        .elements
+        .as_deref()
+        .map(overzicht)
+        .unwrap_or_default();
     let teksten = register
         .elements
         .as_deref()
@@ -450,6 +640,25 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         .map(verplicht)
         .transpose()?
         .unwrap_or_default();
+    let tabellen = register
+        .elements
+        .as_deref()
+        .map(tabellen)
+        .transpose()?
+        .unwrap_or_default();
+    if let Some((i, e)) = register
+        .elements
+        .iter()
+        .flatten()
+        .enumerate()
+        .find(|(_, e)| e.letter.is_some())
+    {
+        return Err(format!(
+            "the UI spec: {} shows a record as a letter; a message is a kind of message \
+             in the message spec beside the UI spec (`berichten`), not an element",
+            element_name(e.id.as_ref(), i)
+        ));
+    }
     let (elements, weergaven) = match (register.elements, register.elementen) {
         (Some(elements), None) => per_field(elements)?,
         (None, Some(elementen)) => (older_form(elementen)?, Vec::new()),
@@ -500,7 +709,283 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         volgorde,
         delen,
         verplicht,
+        tabellen,
+        elementen,
     })
+}
+
+/// The UI spec in `tekst` as one register: every YAML document in it (a
+/// layered UI spec is the generic layer, then the layer of one executor, as
+/// separate documents), and every element that fills in another
+/// (`builds_on`) merged with it. The merged element takes the generic
+/// element's fields and outcomes by name (its own keys of a field go over the
+/// generic ones, a field of its own follows them) and every other key it does
+/// not give itself, such as the pattern and the parts; the generic element
+/// itself then drops out. A generic element nobody fills in stays as it is.
+/// One document without `builds_on` reads as before.
+fn lagen(tekst: &str) -> Result<Value, String> {
+    use serde::Deserialize as _;
+    let mut documenten = Vec::new();
+    for doc in serde_yaml_ng::Deserializer::from_str(tekst) {
+        let v = Value::deserialize(doc).map_err(|e| format!("the UI spec: {e}"))?;
+        if !v.is_null() {
+            documenten.push(v);
+        }
+    }
+    if documenten.len() == 1 {
+        let enige = documenten.remove(0);
+        let bouwt = enige
+            .get("elements")
+            .and_then(Value::as_sequence)
+            .is_some_and(|es| es.iter().any(|e| e.get("builds_on").is_some()));
+        if !bouwt {
+            return Ok(enige);
+        }
+        documenten.push(enige);
+    }
+    let mut elementen: Vec<Value> = Vec::new();
+    let mut oud = None;
+    for doc in documenten {
+        if let Some(es) = doc.get("elements").and_then(Value::as_sequence) {
+            elementen.extend(es.iter().cloned());
+        }
+        if let Some(o) = doc.get("elementen") {
+            oud = Some(o.clone());
+        }
+    }
+    if let Some(oud) = oud {
+        if !elementen.is_empty() {
+            return Err("the UI spec has both `elements` and `elementen`; keep one form".into());
+        }
+        let mut m = serde_yaml_ng::Mapping::new();
+        m.insert("elementen".into(), oud);
+        return Ok(Value::Mapping(m));
+    }
+    let id = |e: &Value| e.get("id").and_then(Value::as_str).map(str::to_string);
+    let opgebouwd: BTreeSet<String> = elementen
+        .iter()
+        .filter_map(|e| e.get("builds_on").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect();
+    let generiek: BTreeMap<String, Value> = elementen
+        .iter()
+        .filter_map(|e| {
+            id(e)
+                .filter(|i| opgebouwd.contains(i))
+                .map(|i| (i, e.clone()))
+        })
+        .collect();
+    let mut uit = Vec::new();
+    for e in &elementen {
+        let eigen = id(e);
+        let bouwt_op = e.get("builds_on").and_then(Value::as_str);
+        if eigen.as_ref().is_some_and(|i| opgebouwd.contains(i)) && bouwt_op.is_none() {
+            continue;
+        }
+        match bouwt_op.and_then(|g| generiek.get(g)) {
+            Some(g) => uit.push(samengevoegd(g, e)),
+            None => uit.push(e.clone()),
+        }
+    }
+    let mut m = serde_yaml_ng::Mapping::new();
+    m.insert("elements".into(), Value::Sequence(uit));
+    Ok(Value::Mapping(m))
+}
+
+/// The element `eigen` merged with the generic element `g` it builds on
+/// ([`lagen`]).
+fn samengevoegd(g: &Value, eigen: &Value) -> Value {
+    let (Some(g), Some(e)) = (g.as_mapping(), eigen.as_mapping()) else {
+        return eigen.clone();
+    };
+    let mut uit = e.clone();
+    if let Some(rol) = g.get("role") {
+        uit.insert("generic_role".into(), rol.clone());
+    }
+    for (k, v) in g {
+        let sleutel = k.as_str().unwrap_or_default();
+        if ["id", "element", "text"].contains(&sleutel) {
+            continue;
+        }
+        if ["fields", "outcomes"].contains(&sleutel) {
+            uit.insert(k.clone(), per_naam(v, e.get(k)));
+        } else if !uit.contains_key(k) {
+            uit.insert(k.clone(), v.clone());
+        }
+    }
+    Value::Mapping(uit)
+}
+
+/// Two lists of entries with a `name`, the second refining the first by name.
+fn per_naam(eerst: &Value, dan: Option<&Value>) -> Value {
+    let mut uit: Vec<Value> = eerst.as_sequence().cloned().unwrap_or_default();
+    for d in dan.and_then(Value::as_sequence).into_iter().flatten() {
+        let naam = d.get("name");
+        match uit
+            .iter_mut()
+            .find(|u| naam.is_some() && u.get("name") == naam)
+        {
+            Some(u) => {
+                if let (Some(u), Some(d)) = (u.as_mapping_mut(), d.as_mapping()) {
+                    for (k, v) in d {
+                        u.insert(k.clone(), v.clone());
+                    }
+                }
+            }
+            None => uit.push(d.clone()),
+        }
+    }
+    Value::Sequence(uit)
+}
+
+/// Every element as a screen lists it per role ([`Overzicht`]).
+fn overzicht(elements: &[Element]) -> Vec<Overzicht> {
+    elements
+        .iter()
+        .enumerate()
+        .map(|(i, e)| Overzicht {
+            id: element_name(e.id.as_ref(), i),
+            element: e.element.clone(),
+            rol: e.role.clone(),
+            bouwt_op: e.builds_on.clone(),
+            rol_generiek: e.generic_role.clone(),
+            velden: e
+                .fields
+                .iter()
+                .filter_map(|f| {
+                    Some(Overzichtveld {
+                        naam: f.name.clone()?,
+                        zichtbaarheid: f.visibility.clone(),
+                        wijzigbaar: f.editable,
+                        vulling: f.fill.as_ref().map(|v| {
+                            if v.by.is_some() {
+                                "systeem"
+                            } else {
+                                "voorinvulling"
+                            }
+                            .to_string()
+                        }),
+                        te_bouwen: f.to_build.is_some(),
+                    })
+                })
+                .collect(),
+            delen: e
+                .adds
+                .iter()
+                .map(|a| Overzichtdeel {
+                    naam: a.part.clone().unwrap_or_default(),
+                    plek: a.place.clone(),
+                    velden: a.fields.clone(),
+                    feiten: a.facts.clone(),
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// The tables of `elements`: every element with `table`. A table whose rows
+/// name not exactly one source, a fact that is no
+/// `<regelwerk>#<article>#<fact>`, and two tables of one name are refused.
+fn tabellen(elements: &[Element]) -> Result<Vec<Tabel>, String> {
+    let mut uit: Vec<Tabel> = Vec::new();
+    for (i, element) in elements.iter().enumerate() {
+        let Some(table) = &element.table else {
+            uit.extend(afgeleid(element, i));
+            continue;
+        };
+        let naam = element_name(element.id.as_ref(), i);
+        let rows = &table.rows;
+        let bronnen = [&rows.field, &rows.outcome, &rows.fact]
+            .iter()
+            .filter(|b| b.as_deref().is_some_and(|b| !b.is_empty()))
+            .count();
+        if bronnen != 1 {
+            return Err(format!(
+                "the UI spec: the table '{naam}' takes its rows from {bronnen} sources; \
+                 name one of `field`, `outcome` and `fact`"
+            ));
+        }
+        let feiten = rows
+            .fact
+            .iter()
+            .chain(table.provenance.iter().map(|h| &h.fact));
+        for feit in feiten {
+            if feit.split('#').count() != 3 || feit.split('#').any(str::is_empty) {
+                return Err(format!(
+                    "the UI spec: the table '{naam}' names the fact '{feit}', which is no \
+                     <regelwerk>#<article>#<fact>"
+                ));
+            }
+        }
+        if uit.iter().any(|t| t.naam == naam) {
+            return Err(format!(
+                "the UI spec: two tables are called '{naam}'; give each its own id"
+            ));
+        }
+        uit.push(Tabel {
+            naam,
+            element: element.element.clone(),
+            rol: element.role.clone(),
+            rol_generiek: element.generic_role.clone(),
+            veld: rows.field.clone(),
+            uitkomst: rows.outcome.clone(),
+            feit: rows.fact.clone(),
+            kolommen: table.columns.clone(),
+            herkomst: table.provenance.clone(),
+            label: table.label.clone(),
+            help: table.help.clone(),
+        });
+    }
+    Ok(uit)
+}
+
+/// The tables an element without `table` implies ([`Tabel`]): per part it
+/// adds that names both fields and facts, a table per field (its rows the
+/// array the submission holds there) with those facts as the provenance of a
+/// row, matched on the keys a row and a record share; and per fact the
+/// element names itself, a table of the records of that fact that belong to
+/// the submission (see `table.rs` of RegelHet).
+fn afgeleid(element: &Element, i: usize) -> Vec<Tabel> {
+    let id = element_name(element.id.as_ref(), i);
+    let basis = |naam: String, part: Option<&str>| Tabel {
+        naam,
+        element: part.map(str::to_string).or_else(|| element.element.clone()),
+        rol: element.role.clone(),
+        rol_generiek: element.generic_role.clone(),
+        veld: None,
+        uitkomst: None,
+        feit: None,
+        kolommen: Vec::new(),
+        herkomst: Vec::new(),
+        label: None,
+        help: None,
+    };
+    let mut uit = Vec::new();
+    for a in element
+        .adds
+        .iter()
+        .filter(|a| !a.fields.is_empty() && !a.facts.is_empty())
+    {
+        for veld in &a.fields {
+            let mut t = basis(format!("{id}.{veld}"), a.part.as_deref());
+            t.veld = Some(veld.clone());
+            t.herkomst = a
+                .facts
+                .iter()
+                .map(|f| TableProvenance {
+                    fact: f.clone(),
+                    on: Vec::new(),
+                })
+                .collect();
+            uit.push(t);
+        }
+    }
+    for feit in &element.facts {
+        let mut t = basis(format!("{id}.{feit}"), None);
+        t.feit = Some(feit.clone());
+        uit.push(t);
+    }
+    uit
 }
 
 /// The fields an element requires (`required: true`), over every element.
@@ -1022,6 +1507,107 @@ fn merge(elements: Vec<ElementVelden>) -> Result<BTreeMap<String, String>, Strin
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// A generic layer and the layer of one executor that fills it in, as two
+    /// documents: the elements merge, and the tables follow from the parts.
+    const GELAAGD: &str = r#"
+status: concept
+elements:
+  - id: G1
+    element: aanvraag
+    role: aanvrager
+    pattern: {name: form}
+    fields:
+      - {name: naam_aanvrager}
+      - {name: adres_aanvrager}
+  - id: G2
+    element: ontvangst
+    role: aanvrager
+    fields: [{name: datum_ontvangst}]
+---
+elements:
+  - id: E1
+    element: aanvraagformulier
+    builds_on: G1
+    role: deelnemer
+    basis: {policy: [{article: '3'}]}
+    fields:
+      - name: naam_aanvrager
+        visibility: asked
+        editable: true
+        fill: {from: 'register#2#naam'}
+        fill_as: suggestion
+      - {name: plaatsen, visibility: shown, editable: false, fill: {by: system, from: 'regeling#4#plaatsen_per_wijk'}}
+      - {name: nog_te_bouwen, to_build: {kind: outcome, article: 'regeling#4', reason: 'later'}}
+    adds:
+      - {part: plaatsen_per_wijk, place: gegevens, fields: [plaatsen], facts: ['telling#3#telling_ontvangen']}
+    outcomes: [{name: aanvraag_volledig}]
+  - id: E2
+    element: telling_per_wijk
+    role: behandelaar
+    facts: ['telling#3#telling_ontvangen']
+"#;
+
+    #[test]
+    fn a_layered_ui_spec_merges_an_element_with_the_one_it_builds_on() {
+        let spec = lees(GELAAGD).unwrap();
+        let ids: Vec<&str> = spec.elementen.iter().map(|e| e.id.as_str()).collect();
+        // G1 is filled in by E1 and drops out; G2 nobody fills in, so it stays.
+        assert_eq!(ids, ["G2", "E1", "E2"]);
+        let e1 = &spec.elementen[1];
+        assert_eq!(e1.rol.as_deref(), Some("deelnemer"));
+        assert_eq!(e1.bouwt_op.as_deref(), Some("G1"));
+        assert_eq!(e1.rol_generiek.as_deref(), Some("aanvrager"));
+        let velden: Vec<&str> = e1.velden.iter().map(|v| v.naam.as_str()).collect();
+        assert_eq!(
+            velden,
+            [
+                "naam_aanvrager",
+                "adres_aanvrager",
+                "plaatsen",
+                "nog_te_bouwen"
+            ]
+        );
+        assert_eq!(e1.velden[0].vulling.as_deref(), Some("voorinvulling"));
+        assert_eq!(e1.velden[0].wijzigbaar, Some(true));
+        assert!(e1.velden[3].te_bouwen);
+        // The prefill and the system fill read as before.
+        assert_eq!(spec.prefill["naam_aanvrager"], "register#2#naam");
+        assert!(spec.systeem.contains_key("plaatsen"));
+        assert_eq!(e1.delen[0].feiten, ["telling#3#telling_ontvangen"]);
+    }
+
+    #[test]
+    fn a_part_with_fields_and_facts_and_an_element_with_facts_are_tables() {
+        let spec = lees(GELAAGD).unwrap();
+        let namen: Vec<&str> = spec.tabellen.iter().map(|t| t.naam.as_str()).collect();
+        assert_eq!(namen, ["E1.plaatsen", "E2.telling#3#telling_ontvangen"]);
+        let veld = &spec.tabellen[0];
+        assert_eq!(veld.veld.as_deref(), Some("plaatsen"));
+        assert_eq!(veld.rol.as_deref(), Some("deelnemer"));
+        assert_eq!(
+            veld.rol_generiek.as_deref(),
+            Some("aanvrager"),
+            "the role of the generic element tells the side"
+        );
+        assert_eq!(veld.herkomst[0].fact, "telling#3#telling_ontvangen");
+        assert!(
+            veld.herkomst[0].on.is_empty(),
+            "matched on the keys a row and a record share"
+        );
+        let feit = &spec.tabellen[1];
+        assert_eq!(feit.feit.as_deref(), Some("telling#3#telling_ontvangen"));
+        assert_eq!(feit.rol.as_deref(), Some("behandelaar"));
+    }
+
+    #[test]
+    fn one_document_without_builds_on_reads_as_before() {
+        let een = "elements:\n  - id: UI1\n    fields:\n      - {name: a, fill: {from: 'r#1#a'}}\n";
+        let spec = lees(een).unwrap();
+        assert_eq!(spec.prefill["a"], "r#1#a");
+        assert_eq!(spec.elementen.len(), 1);
+        assert!(spec.tabellen.is_empty());
+    }
 
     #[test]
     fn every_element_adds_its_fields_and_other_keys_are_left_alone() {
@@ -1752,5 +2338,13 @@ elements:
         let twee = "elements: [{id: A, element: x, fields: [{name: s, answer: {from: 'b#2#s', decision: d}}]},
                                {id: B, element: x, fields: [{name: t, answer: {from: 'b#2#t', decision: d}}]}]";
         assert!(lees(twee).unwrap_err().contains("two elements"));
+    }
+
+    #[test]
+    fn a_letter_element_is_refused_for_the_message_spec() {
+        let e =
+            lees("elements: [{id: B, letter: {of: decision}, parts: [{id: x, place: dictum}]}]")
+                .unwrap_err();
+        assert!(e.contains("in the message spec"), "{e}");
     }
 }

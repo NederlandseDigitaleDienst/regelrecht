@@ -7,12 +7,21 @@
 // that takes it and the line above it name it again. BehandelenPaneel.vue
 // shows the preview and the decision taken with this one view, so what the
 // decider sees before the button is what the button records.
+//
+// Above it stands the decision as the message that makes it known
+// (gedeeld/Bericht.vue, the employee's view): before the decision as a
+// concept, so the decider reads the message the button sends, with every
+// part the law requires, what is missing and whether its invariants hold.
+import { computed } from 'vue';
+import Bericht from '../gedeeld/Bericht.vue';
+import BerichtVerzenden from './BerichtVerzenden.vue';
+import { verzendingenVan } from '../gedeeld/bericht';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import type { Casus, Gram, Vormen, Waarom } from '../gedeeld/types';
 import VolledigeKeten from '../gedeeld/VolledigeKeten.vue';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   besluit: Pick<Gram, 'outputs' | 'recording_actor'>;
   waarom?: Waarom | null;
   casus: Casus;
@@ -22,13 +31,47 @@ withDefaults(defineProps<{
   voorlopig?: boolean;
   /** Heading level of the decision's title and of what it rests on. */
   niveau?: number;
+  /** The records the pane has, to find the submission the decision answers for the letter. */
+  grammen?: Gram[];
 }>(), { niveau: 4 });
+
+const emit = defineEmits<{ verzonden: [] }>();
+/** The decision as a whole record, when the caller has one: then it shows as a letter. */
+const gram = computed(() => ('id' in props.besluit && 'basis' in props.besluit ? (props.besluit as Gram) : null));
+/** The last fact of sending of this decision: then the letter is the one that went, frozen. */
+const verzonden = computed(() => (gram.value ? (verzendingenVan(gram.value.id, props.grammen ?? [], props.vormen?.berichten).at(-1) ?? null) : null));
 </script>
 
 <template>
   <nldd-container>
     <nldd-title :heading-level="niveau" size="display-5" :text="voorlopig ? 'Voorvertoning van het besluit' : 'Het besluit'"></nldd-title>
     <nldd-spacer size="8"></nldd-spacer>
+    <template v-if="gram">
+      <Bericht
+        :gram="gram"
+        rol="besluit"
+        :vormen="vormen"
+        :grammen="grammen"
+        :waarom="waarom"
+        :afzender="celNaam(gram.recording_actor)"
+        :cel-naam="celNaam"
+        :concept="voorlopig"
+        :verzonden="verzonden"
+        weergave="medewerker"
+      />
+      <template v-if="!voorlopig">
+        <nldd-spacer size="16"></nldd-spacer>
+        <BerichtVerzenden
+          :gram="gram"
+          :grammen="grammen ?? []"
+          :vormen="vormen"
+          :waarom="waarom"
+          :cel-naam="celNaam"
+          @verzonden="emit('verzonden')"
+        />
+      </template>
+      <nldd-spacer size="16"></nldd-spacer>
+    </template>
     <Gegevens
       :waarden="besluit.outputs"
       :teksten="vormen?.teksten"

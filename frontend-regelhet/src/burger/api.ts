@@ -18,6 +18,9 @@ export interface Indiening {
 }
 
 export const burgerApi = {
+  /** What the system would fill in a submission under `artikel` on what the form holds now. */
+  systeemwaarden: (artikel: string, velden: Record<string, unknown>) =>
+    stuur<Record<string, unknown>>('POST', '/api/formulier/systeem', { artikel, velden }),
   ...gedeeldApi,
   /**
    * The records about the citizen, what the kern says of them (`stand`), and
@@ -26,6 +29,8 @@ export const burgerApi = {
    */
   dossier: () => haal<DossierAntwoord>('/api/dossier').then(leesDossier),
   waarom: (besluit: string) => haal<Waarom>(`/api/dossier/waarom/${encodeURIComponent(besluit)}`),
+  /** What the submission `id` of the dossier gives under its own article, such as the last day of the period to decide. */
+  uitkomsten: (id: string) => haal<Record<string, unknown>>(`/api/dossier/uitkomsten/${encodeURIComponent(id)}`),
   /** The timeline of the application the record `id` of the dossier belongs to. */
   tijdlijn: (id: string) => haal<Tijdlijn>(`/api/dossier/tijdlijn/${encodeURIComponent(id)}`),
   indienen: (indiening: Indiening, sleutel: string) =>

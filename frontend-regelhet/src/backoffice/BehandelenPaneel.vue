@@ -47,9 +47,12 @@ import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { antwoordOp, artikelNaam, celNaam, herroeping as herroepingVan, herroepingTekst, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
+import { voorMedewerker } from '../gedeeld/rollen';
+import TabelUitKroniek from '../gedeeld/TabelUitKroniek.vue';
+import ElementenPerRol from './ElementenPerRol.vue';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
 import StukSheet from './StukSheet.vue';
-import type { Casus, Gram, Ik, Rol, Tijdlijn, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
+import type { Casus, Gram, Ik, Rol, Tabellen, Tijdlijn, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import { backofficeApi, beheerApi } from './api';
 import BesluitWeergave from './BesluitWeergave.vue';
 import type { EigenVerzoek, Kroniek, Wachtend } from './api';
@@ -128,8 +131,20 @@ const besluitvorm = computed(() => {
 
 // The findings the preview found a policy leaves to the authority.
 const stil = ref<Veld[]>([]);
+/** The findings the UI spec has the system fill: the form does not ask them, the server fills them on the decision. */
+const doorSysteem = computed(() => besluitvorm.value?.systeem ?? {});
+/** Those of them the UI spec does not hide, with the value the server would record, as a row under the form. */
+const systeemwaarden = computed(() => {
+  const verborgen = new Set(besluitvorm.value?.verborgen ?? []);
+  return Object.fromEntries(
+    Object.entries(doorSysteem.value)
+      .filter(([naam]) => !verborgen.has(naam))
+      .map(([naam, hoe]) => [naam, hoe.waarde]),
+  );
+});
 const velden = computed<Schermveld[]>(() => {
-  const eigen = besluitvorm.value?.bevindingen ?? [];
+  const verborgen = new Set(besluitvorm.value?.verborgen ?? []);
+  const eigen = (besluitvorm.value?.bevindingen ?? []).filter((v) => !(v.naam in doorSysteem.value) && !verborgen.has(v.naam));
   const extra = stil.value.filter((s) => !eigen.some((e) => e.naam === s.naam));
   return [...eigen, ...extra].map((v) => schermveld(v, props.vormen?.teksten));
 });
@@ -308,6 +323,35 @@ watch(
   { immediate: true },
 );
 onUnmounted(() => clearTimeout(wachttijd));
+
+// The tables of the UI spec beside the submission (`table`), such as the
+// numbers it holds next to the records of another cell they come from; for
+// every employee, the reader included. Again when a chronicle changes.
+const tabellen = ref<Tabellen | null>(null);
+const tabellenFout = ref('');
+async function laadTabellen() {
+  if (props.namens || !props.vormen?.tabellen?.length) return;
+  try {
+    tabellen.value = await backofficeApi.tabellen(props.id);
+    tabellenFout.value = '';
+  } catch (e) {
+    tabellenFout.value = foutTekst(e);
+  }
+}
+watch(() => [props.id, props.vormen?.tabellen?.length, props.kronieken.map((k) => k.kop).join(',')], laadTabellen, { immediate: true });
+
+/** The tables for this employee's role: a table without a role is for every employee. */
+const mijnTabellen = computed(() =>
+  (tabellen.value?.tabellen ?? []).filter((t) => !t.tabel.rol || voorMedewerker(t.tabel.rol, props.wie?.niveau, t.tabel.rol_generiek)),
+);
+/** Whether an element of the UI spec is for this employee's role, so its block shows. */
+const mijnElementen = computed(() => (props.vormen?.elementen ?? []).some((e) => voorMedewerker(e.rol, props.wie?.niveau, e.rol_generiek)));
+/** What is known of the submission for the elements of the UI spec: its fields and what its decision gives. */
+const bekend = computed(() => ({
+  ...(indiening.value?.fields ?? {}),
+  ...(voorvertoning.value?.voorlopig?.besluit.outputs ?? {}),
+  ...(besluit.value?.outputs ?? {}),
+}));
 
 // The timeline of the application, for the executor's own submissions:
 // again when a chronicle changes.
@@ -500,6 +544,26 @@ async function beslissen() {
           label="Gegevens van de aanvraag"
         />
 
+        <template v-if="tabellenFout">
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-inline-dialog icon="warning" icon-color="critical" text="De tabellen laden niet" :supporting-text="tabellenFout"></nldd-inline-dialog>
+        </template>
+        <template v-for="t in mijnTabellen" :key="t.tabel.naam">
+          <nldd-spacer size="24"></nldd-spacer>
+          <TabelUitKroniek
+            :tabel="t.tabel"
+            :rijen="t.rijen"
+            :leeg="t.leeg"
+            :cel-naam="(cel: string) => tabellen?.cel_namen[cel] ?? naamVanCel(cel)"
+            :teksten="vormen?.teksten"
+          />
+        </template>
+
+        <template v-if="!namens && mijnElementen">
+          <nldd-spacer size="24"></nldd-spacer>
+          <ElementenPerRol :elementen="vormen?.elementen" :niveau="wie?.niveau" :waarden="bekend" :teksten="vormen?.teksten" />
+        </template>
+
         <template v-if="verzoekenFout">
           <nldd-spacer size="24"></nldd-spacer>
           <nldd-inline-dialog icon="warning" icon-color="critical" text="Wat aan anderen is gevraagd, laadt niet" :supporting-text="verzoekenFout"></nldd-inline-dialog>
@@ -564,7 +628,15 @@ async function beslissen() {
             :text="genomen ? 'Het besluit is genomen' : `Op deze aanvraag is besloten op ${longDate(besluit.recorded_on)}`"
           ></nldd-banner>
           <nldd-spacer size="24"></nldd-spacer>
-          <BesluitWeergave :besluit="besluit" :waarom="waarom" :casus="casus" :vormen="vormen" :cel-naam="naamVanCel" />
+          <BesluitWeergave
+            :besluit="besluit"
+            :waarom="waarom"
+            :casus="casus"
+            :vormen="vormen"
+            :cel-naam="naamVanCel"
+            :grammen="kroniek?.grammen"
+            @verzonden="emit('besloten')"
+          />
         </template>
         <template v-else-if="wacht && !mag">
           <nldd-spacer size="24"></nldd-spacer>
@@ -627,6 +699,12 @@ async function beslissen() {
               oordeel
               @zet="(n, v) => (bevindingen[n] = v)"
             />
+            <template v-if="Object.keys(systeemwaarden).length">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-title heading-level="3" size="display-6" text="Vult het systeem in" supporting-text="Volgens de UI-beschrijving; het systeem legt ze vast bij het besluit."></nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
+              <Gegevens :waarden="systeemwaarden" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Vult het systeem in" />
+            </template>
             <nldd-spacer size="24"></nldd-spacer>
             <nldd-banner v-if="voorvertoningFout" variant="critical" text="De voorvertoning lukt niet" :supporting-text="voorvertoningFout"></nldd-banner>
             <nldd-activity-indicator v-else-if="!voorvertoning" text="Het besluit wordt berekend" show-text></nldd-activity-indicator>
@@ -705,6 +783,7 @@ async function beslissen() {
               :casus="casus"
               :vormen="vormen"
               :cel-naam="naamVanCel"
+              :grammen="kroniek?.grammen"
               :niveau="3"
               voorlopig
             />

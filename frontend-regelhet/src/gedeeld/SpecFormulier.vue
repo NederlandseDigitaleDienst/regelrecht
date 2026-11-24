@@ -11,6 +11,9 @@ import { geordend } from './formulier';
 import type { Formulierveld, Veldgroep } from './formulier';
 import { waardeTekst } from './keten';
 import SpecVeld from './SpecVeld.vue';
+import TabelUitKroniek from './TabelUitKroniek.vue';
+import { alsRijen } from './tabel';
+import type { Tabel } from './types';
 
 const props = withDefaults(
   defineProps<{
@@ -22,12 +25,14 @@ const props = withDefaults(
     artikelen?: boolean;
     /** A caption over each list of what is already known, in the words of whoever the form speaks to. */
     bekendKop?: string;
+    /** The tables of the UI spec: a known value that is a list of rows takes the columns of the one on its field. */
+    tabellen?: Tabel[];
     /** Per field, what its answer still lacks. */
     fouten?: Record<string, string>;
   }>(),
-  { oordeel: false, volgorde: () => [], artikelen: true, bekendKop: '', fouten: () => ({}) },
+  { oordeel: false, volgorde: () => [], artikelen: true, bekendKop: '', tabellen: () => [], fouten: () => ({}) },
 );
-const emit = defineEmits<{ zet: [naam: string, waarde: unknown] }>();
+const emit = defineEmits<{ zet: [naam: string, waarde: unknown]; bewerk: [naam: string] }>();
 /** The questions, in their groups. */
 const groepen = computed(() =>
   geordend(
@@ -53,6 +58,10 @@ const groepsArtikel = (g: Veldgroep) => {
   const eerste = g.velden[0]?.veld.basis ?? '';
   return eerste && g.velden.every((v) => v.veld.basis === eerste) ? eerste : '';
 };
+/** A known value that is a list of rows: it shows as a table under the list, read-only, not as one line. */
+const alsTabel = (v: Formulierveld) => alsRijen(v.systeem?.waarde);
+const tabelVan = (v: Formulierveld): Tabel =>
+  props.tabellen.find((t) => t.veld === v.veld.naam) ?? { naam: v.veld.naam, kolommen: [] };
 /** What a filled field holds, in words. */
 const bekend = (v: Formulierveld) => (v.systeem?.waarde == null ? '' : waardeTekst(v.systeem.waarde));
 /** The line under a field: what the UI spec says, the article it rests on, and who filled it. */
@@ -107,12 +116,19 @@ const onder = (v: Formulierveld) =>
         <nldd-spacer size="8"></nldd-spacer>
       </template>
       <nldd-list appearance="box-base" accessible-label="Wat al bekend is">
-        <nldd-list-item v-for="v in bekendeVelden" :key="v.veld.naam">
+        <nldd-list-item v-for="v in bekendeVelden.filter((b) => !alsTabel(b))" :key="v.veld.naam">
           <nldd-text-cell :text="v.label" :supporting-text="onder(v)"></nldd-text-cell>
           <nldd-spacer-cell size="16"></nldd-spacer-cell>
           <nldd-text-cell :text="bekend(v)" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
+          <nldd-cell v-if="v.systeem?.aanpasbaar" width="fit-content">
+            <nldd-button size="sm" appearance="secondary" text="Aanpassen" :accessible-label="`${v.label} aanpassen`" @click="emit('bewerk', v.veld.naam)"></nldd-button>
+          </nldd-cell>
         </nldd-list-item>
       </nldd-list>
+      <template v-for="v in bekendeVelden.filter((b) => alsTabel(b))" :key="v.veld.naam">
+        <nldd-spacer size="16"></nldd-spacer>
+        <TabelUitKroniek :tabel="{ ...tabelVan(v), label: v.label, help: onder(v) }" :rijen="alsTabel(v) ?? []" />
+      </template>
     </template>
   </nldd-container>
 </template>

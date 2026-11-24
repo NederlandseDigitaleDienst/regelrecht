@@ -44,6 +44,12 @@ export interface Indieningsvorm {
   /** The cell that decides on it. */
   cel: string;
   prefill?: Record<string, string>;
+  /**
+   * Per field the UI spec prefills (`fill: {from}`), what the form starts
+   * with for this applicant: the value, the source, and why it gives none.
+   * The applicant may change it.
+   */
+  voorgevuld?: Record<string, { waarde: unknown; bron?: string; fout?: string }>;
   systeem?: Record<string, Systeemvulling>;
   verborgen?: string[];
   /** Why the server could not say what it will fill, if so. */
@@ -54,6 +60,15 @@ export interface Indieningsvorm {
    * decision takes it from the decision. Absent when the law names none.
    */
   termijn?: string | null;
+  /** Per output of its article, what the law says of it. */
+  uitleg?: Record<string, Uitvoeruitleg>;
+}
+
+/** What the law says of an output: its description, type and unit (`kern::uitleg`). */
+export interface Uitvoeruitleg {
+  beschrijving?: string | null;
+  type?: string | null;
+  eenheid?: string | null;
 }
 
 /** The form of a decision under one article: what the authority finds. */
@@ -64,6 +79,12 @@ export interface Besluitvorm {
   ambtshalve: boolean;
   bevindingen: Veld[];
   uitvoer: string[];
+  /** Per output of the deciding article, what the law says of it. */
+  uitleg?: Record<string, Uitvoeruitleg>;
+  /** The findings the UI spec has the system fill, with the value it would record today. */
+  systeem?: Record<string, { soort: 'datum' | 'waarde'; waarde: unknown }>;
+  /** The findings the UI spec hides (`visibility: hidden`). */
+  verborgen?: string[];
 }
 
 /** A fact a cell records, with its fields. */
@@ -165,6 +186,247 @@ export interface Vormen {
   delen?: Record<string, Velddeel[]>;
   /** The fields the form does not submit without, where the law lets them be empty. */
   verplicht?: string[];
+  /** Which message to the citizen follows from which record, with the text layer (`berichten.rs`). */
+  berichten?: Berichtenspec;
+  /** The tables a screen shows beside a submission, from the UI spec (`table`). */
+  tabellen?: Tabel[];
+  /** Every element of the UI spec, its layers merged: who sees it, its fields and its parts. */
+  elementen?: Uielement[];
+}
+
+/** An element of the UI spec as a screen lists it per role (`ui_spec::Overzicht`). */
+export interface Uielement {
+  id: string;
+  element?: string;
+  rol?: string;
+  bouwt_op?: string;
+  rol_generiek?: string;
+  velden: { naam: string; zichtbaarheid?: string; wijzigbaar?: boolean; vulling?: string; te_bouwen?: boolean }[];
+  delen?: { naam: string; plek?: string; velden: string[]; feiten: string[] }[];
+}
+
+/** A column of a table of the UI spec: the key in a row and its heading. */
+export interface Tabelkolom {
+  name: string;
+  label?: string;
+}
+
+/**
+ * A table element of the UI spec (`ui_spec::Tabel`): its rows come from an
+ * array the submission holds (`veld`), an array its article gives
+ * (`uitkomst`), or every record of a fact (`feit`); `herkomst` names the
+ * facts of other cells a row comes from.
+ */
+export interface Tabel {
+  naam: string;
+  element?: string;
+  rol?: string;
+  rol_generiek?: string;
+  veld?: string;
+  uitkomst?: string;
+  feit?: string;
+  kolommen: Tabelkolom[];
+  herkomst?: { fact: string; match: string[] }[];
+  label?: string;
+  help?: string;
+}
+
+/** One record a row of a table comes from: which cell, what it records, which record, on which day. */
+export interface Tabelbron {
+  cel: string;
+  wat: string;
+  stuk: string;
+  op: string;
+}
+
+/** One row of a table beside a submission, with where it comes from. */
+export interface Tabelrij {
+  waarden: Record<string, unknown>;
+  herkomst: Tabelbron[];
+  /** The facts of `herkomst` that no record matched. */
+  zonder_herkomst?: string[];
+}
+
+/** `GET /api/backoffice/tabellen/{id}`: the tables beside one submission. */
+export interface Tabellen {
+  tabellen: { tabel: Tabel; rijen: Tabelrij[]; leeg?: string }[];
+  /** Per cell a source names, its name. */
+  cel_namen: Record<string, string>;
+}
+
+/** A place in a message, in the order a message has them (`berichten::PLEKKEN`). */
+export type Berichtplek =
+  | 'kop'
+  | 'inleiding'
+  | 'dictum'
+  | 'grondslag'
+  | 'motivering'
+  | 'onderbouwing'
+  | 'specificatie'
+  | 'mededeling'
+  | 'ondertekening'
+  | 'rechtsmiddelen'
+  | 'bijlage';
+
+/**
+ * Where a key takes its value from (`berichten::BRONSOORTEN`), with at most
+ * one test that makes it a condition, and the form its value is written in.
+ */
+export interface Sleutelbron {
+  uitkomst?: string;
+  veld?: string;
+  keten?: string;
+  indiening?: string;
+  record?: 'recorded_on' | 'id' | 'kenmerk';
+  label?: string;
+  afzender?: string;
+  zin?: string;
+  sleutel?: string;
+  is?: unknown;
+  gelijk?: unknown;
+  groter_dan?: number;
+  gevuld?: boolean;
+  niet_gevuld?: boolean;
+  alle?: Sleutelbron[];
+  een_van?: Sleutelbron[];
+  niet?: Sleutelbron;
+  vorm?: 'bedrag' | 'datum' | 'getal' | 'tekst';
+  /** A field read from the record alone, not from the records it answers. */
+  eigen?: boolean;
+}
+
+/** One part of a kind of message: its place, what requires it, where its content comes from. */
+export interface Berichtdeel {
+  id: string;
+  plek: Berichtplek;
+  vereist_door?: string;
+  bron?: {
+    tekst?: (string | number)[];
+    regels?: string[];
+    tabel?: { rijen: string[]; totaal?: string };
+    bijlage?: Bijlagebron;
+    wet?: 'grondslag' | 'keten' | 'rechtsmiddelen' | 'ondertekening';
+  };
+  als?: string;
+  nldd?: string;
+  titel?: string;
+}
+
+/** A column of an annex: its heading and its cell, as label keys of the text layer (`bijlagen`). */
+export interface Bijlagekolom {
+  /** The label of the heading. */
+  kop: string;
+  /** The label whose text, with the fields of the row in braces, is the cell. */
+  tekst: string;
+  /** A label for a second line under the cell, shown when all its fields have a value. */
+  onder?: string;
+  /** Show the second line only when this field of the row is greater than this number. */
+  onder_als?: { veld: string; groter_dan: number };
+}
+
+/**
+ * An annex in columns, such as a calculation per body (`bron.bijlage`): the rows of a key whose value is a list
+ * of rows, grouped by a field, with the amount of each row summed per group and in total. Every text comes from
+ * the text layer (`bijlagen.<labels>`); the spec names only fields and label keys.
+ */
+export interface Bijlagebron {
+  labels: string;
+  /** A key whose value is a list of rows, or rows the spec builds from keys: per row field a key, under `als`. */
+  rijen: string | { als?: string; velden: Record<string, string> }[];
+  groep?: string;
+  /** The field of a row that is its amount; without it the annex has no sums. */
+  bedrag?: string;
+  /** The fields of a row that are amounts in eurocent. */
+  bedragen?: string[];
+  kolommen: Bijlagekolom[];
+  /** A key whose value the total must be, such as the outcome that is the sum by the model. */
+  totaal?: string;
+}
+
+/** What must hold between the parts of a message. */
+export interface Berichtinvariant {
+  soort: 'bedrag_is_totaal' | 'oordeel_past';
+  bedrag?: string;
+  specificatie?: string;
+  oordelen?: Record<string, Sleutelbron>;
+}
+
+/** A kind of message: the record it follows from, its pattern, keys, parts and invariants. */
+export interface Berichtsoort {
+  id: string;
+  naam?: string;
+  patroon: string;
+  vastlegging: {
+    rol: Rol;
+    artikel: string;
+    feit?: string;
+    rechtskarakter?: string;
+    uitkomst?: string;
+    stap?: string;
+    /** When two kinds follow from records of one article: the condition on the record for this one. */
+    als?: Sleutelbron;
+  };
+  sjabloon?: string;
+  sleutels?: Record<string, Sleutelbron>;
+  delen: Berichtdeel[];
+  invarianten?: Berichtinvariant[];
+  status?: { bekendgemaakt: Sleutelbron };
+  kanaal?: { vast?: Kanaalcode; sleutel?: string; waarden?: Record<string, Kanaalcode> };
+}
+
+export type Kanaalcode = 'email' | 'portaal' | 'papier';
+
+/** One paragraph of a template of the text layer. */
+export interface Alinea {
+  kop?: string;
+  tekst?: string;
+  als?: string;
+  punten?: string[];
+}
+
+/** A template of the text layer: the texts of one message. */
+export interface Sjabloon {
+  id: string;
+  titel?: string;
+  betreft?: string;
+  betreft_bij?: Record<string, string>;
+  aanhef?: string;
+  alineas?: Alinea[];
+  slot?: string;
+  ondertekenaar?: string;
+}
+
+/** The text layer of the authority: who signs, and the templates. */
+export interface Tekstlaag {
+  afzender?: { organisatie?: string; namens?: string; in_mandaat?: boolean; rollen?: Record<string, string> };
+  sjablonen?: Sjabloon[];
+  zinnen?: Record<string, string>;
+  /** Per annex the texts of its headings and cells (`Bijlagebron.labels`), with the fields of a row in braces. */
+  bijlagen?: Record<string, Record<string, string>>;
+  /**
+   * The head and foot of a letter of the sender: the text in the band on top (`lint`, the name of the sender
+   * when absent; never a logo), the return address over the address block, and the lines of the footer.
+   */
+  briefhoofd?: { lint?: string; retouradres?: string; voettekst?: string[] };
+}
+
+/**
+ * How a message goes out (`verzending`): the fact by which the sender records the message sent, with its content
+ * frozen (`feit`), the fact by which it forwards a sent message to another cell (`doorsturen`), and per further
+ * parameter of the fact where its value comes from (`velden`), such as whom it is about.
+ */
+export interface Verzending {
+  feit: string;
+  doorsturen?: string;
+  velden?: Record<string, Sleutelbron>;
+}
+
+/** The message spec as the forms carry it. */
+export interface Berichtenspec {
+  verzending?: Verzending;
+  berichtsoorten: Berichtsoort[];
+  tekstlaag?: Tekstlaag;
+  meldingen?: string[];
 }
 
 /** One input of a field the screen asks in parts; the form joins them into the one value the law asks. */

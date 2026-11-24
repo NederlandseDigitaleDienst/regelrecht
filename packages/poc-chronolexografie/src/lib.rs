@@ -15,6 +15,7 @@
 //! ([`bundel`]). Er is geen server met gedeelde toestand: elk tabblad speelt
 //! zijn eigen casus.
 
+pub mod berichten;
 pub mod brongegevens;
 pub mod bundel;
 pub mod casus;

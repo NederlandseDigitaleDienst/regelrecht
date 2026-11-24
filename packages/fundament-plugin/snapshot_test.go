@@ -280,6 +280,41 @@ func TestParseSnapshotLogRefusesAnIncompleteCopy(t *testing.T) {
 // installed; CI has no yq, so there it is skipped and the live test covers it.
 func TestSnapshotScriptPacksWhatTheManifestNames(t *testing.T) {
 	t.Parallel()
+	listed := packSnapshot(t, map[string]string{
+		"case/bron.yaml":        "repo_root: ..\nui_spec: ui.yaml\ndirectories:\n  casussen: c\n",
+		"ui.yaml":               "{}\n",
+		"c/a.yaml":              "a: 1\n",
+		"c/beëindiging.yaml":    "b: 1\n",
+		"c/notes.md":            "not read by the server\n",
+		"elsewhere/secret.yaml": "not named\n",
+	})
+	assert.Equal(t, []string{"c/a.yaml", "c/beëindiging.yaml", "case/bron.yaml", "ui.yaml"}, listed)
+}
+
+// A UI spec in layers (a list under ui_spec) and the message spec and text
+// layer beside it travel with the snapshot, as the server reads them
+// (packages/corpus/src/source_manifest.rs).
+func TestSnapshotScriptPacksTheLayersAndTheMessageSpec(t *testing.T) {
+	t.Parallel()
+	manifest := "repo_root: ..\nui_spec: [ui/generiek.yaml, ui/eigen.yaml]\n" +
+		"berichten: ui/berichten.yaml\nberichtteksten: ui/teksten.yaml\ndirectories:\n  casussen: c\n"
+	listed := packSnapshot(t, map[string]string{
+		"case/bron.yaml":    manifest,
+		"ui/generiek.yaml":  "{}\n",
+		"ui/eigen.yaml":     "{}\n",
+		"ui/berichten.yaml": "{}\n",
+		"ui/teksten.yaml":   "{}\n",
+		"ui/other.yaml":     "not named\n",
+		"c/a.yaml":          "a: 1\n",
+	})
+	assert.Equal(t, []string{"c/a.yaml", "case/bron.yaml", "ui/berichten.yaml", "ui/eigen.yaml", "ui/generiek.yaml", "ui/teksten.yaml"}, listed)
+}
+
+// packSnapshot commits files to a repository on disk, runs snapshot.sh on
+// its case/bron.yaml and lists what the tar.gz holds, in order. Skipped
+// without yq or git.
+func packSnapshot(t *testing.T, files map[string]string) []string {
+	t.Helper()
 	yq, err := exec.LookPath("yq")
 	if err != nil {
 		t.Skip("yq is not installed")
@@ -289,14 +324,6 @@ func TestSnapshotScriptPacksWhatTheManifestNames(t *testing.T) {
 	}
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "repo")
-	files := map[string]string{
-		"case/bron.yaml":        "repo_root: ..\nui_spec: ui.yaml\ndirectories:\n  casussen: c\n",
-		"ui.yaml":               "{}\n",
-		"c/a.yaml":              "a: 1\n",
-		"c/beëindiging.yaml":    "b: 1\n",
-		"c/notes.md":            "not read by the server\n",
-		"elsewhere/secret.yaml": "not named\n",
-	}
 	for name, text := range files {
 		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(repo, name)), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(repo, name), []byte(text), 0o600))
@@ -324,7 +351,7 @@ func TestSnapshotScriptPacksWhatTheManifestNames(t *testing.T) {
 		require.NoError(t, err)
 		listed = append(listed, h.Name)
 	}
-	assert.Equal(t, []string{"c/a.yaml", "c/beëindiging.yaml", "case/bron.yaml", "ui.yaml"}, listed)
+	return listed
 }
 
 func TestAPinnedVersionKeepsItsToken(t *testing.T) {

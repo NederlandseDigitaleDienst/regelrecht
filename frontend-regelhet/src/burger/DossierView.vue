@@ -19,6 +19,7 @@ import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { aanvraagStand, aanvragen as aanvragenVan } from '../gedeeld/dossier';
 import type { Dossier } from '../gedeeld/dossier';
+import { isVerzending, verzondenBericht } from '../gedeeld/bericht';
 import { celNaam, isBesluit } from '../gedeeld/keten';
 import { foutTekst } from '../gedeeld/http';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
@@ -107,6 +108,19 @@ const aanvragen = computed(() => {
     regel: [`${longDate(a.gram.recorded_on)} · ${celNaam(a.gram.recording_actor, c)}`, a.vervolg].filter(Boolean).join(' · '),
   }));
 });
+/**
+ * The messages the citizen received: every fact of sending in her dossier (`verzending` in the message spec), newest
+ * first, each with what it is about. The message opens from its own fact, frozen as it went (StukPaneel.vue).
+ */
+const berichten = computed(() =>
+  dossier.value
+    .filter((g) => isVerzending(g, vormen.value?.berichten) && `${g.basis}#${g.fact}` === vormen.value?.berichten?.verzending?.feit)
+    .map((g) => {
+      const m = verzondenBericht(g);
+      return { gram: g, tekst: m?.onderwerp ?? 'Bericht', regel: `${longDate(String(g.fields?.verzonden_op ?? g.recorded_on))} · ${m?.lint ?? m?.afzender ?? ''}` };
+    })
+    .reverse(),
+);
 /** What the application of the address offers after its grant, for its own page. */
 const huidige = computed(() => aanvragen.value.find((a) => a.gram.id === props.id));
 /** How the record of the address stands, an objection as well as an application. */
@@ -192,6 +206,26 @@ const gekozenIsBesluit = computed(() => {
               <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
             </nldd-list-item>
           </nldd-list>
+          <template v-if="berichten.length">
+            <nldd-spacer size="32"></nldd-spacer>
+            <nldd-title size="display-4"><h4>Mijn berichten</h4></nldd-title>
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-list appearance="simple" accessible-label="Mijn berichten">
+              <nldd-list-item
+                v-for="b in berichten"
+                :key="b.gram.id"
+                size="md"
+                button
+                @click="router.push({ name: 'stuk', params: { id: b.gram.id } })"
+              >
+                <nldd-icon-cell size="20"><nldd-icon icon="envelope"></nldd-icon></nldd-icon-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell :text="b.tekst" :supporting-text="b.regel"></nldd-text-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </template>
         </template>
       </nldd-simple-section>
       <nldd-page-footer slot="footer"></nldd-page-footer>

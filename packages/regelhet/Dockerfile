@@ -118,6 +118,8 @@ COPY packages/regelhet/bron.yaml /app/packages/regelhet/bron.yaml
 COPY packages/regelhet/casussen/ /app/packages/regelhet/casussen/
 # The UI spec says which field of the application the login fills.
 COPY packages/regelhet/ui_spec.yaml /app/packages/regelhet/ui_spec.yaml
+COPY packages/regelhet/berichten.yaml /app/packages/regelhet/berichten.yaml
+COPY packages/regelhet/berichtteksten.yaml /app/packages/regelhet/berichtteksten.yaml
 COPY packages/poc-chronolexografie/corpus/ /app/packages/poc-chronolexografie/corpus/
 
 WORKDIR /app

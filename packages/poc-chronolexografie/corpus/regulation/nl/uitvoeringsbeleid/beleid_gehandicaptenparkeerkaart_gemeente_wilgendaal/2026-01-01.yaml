@@ -26,6 +26,12 @@ valid_from: '2026-01-01'
 # het uit als een aanvraag binnenkomt, en legt het verzoek vast bij de
 # gemeente en bij de GGD. Artikel 10 koppelt de twee open begrippen van
 # artikel 9 aan de antwoorden van de cel van de gemeente.
+# Het laatste artikel zegt dat het college om aanvulling vraagt als een
+# aanvraag een gegeven mist (Awb 4:5), en legt dat verzoek vast: de vastlegging
+# waaruit het herstelverzoek aan de aanvrager volgt.
+# Het artikel daarna zegt hoe het college een bericht verzendt en doorstuurt:
+# het verzonden bericht is een vastlegging met een bevroren inhoud (Awb 3:41,
+# 2:10), en de rechtbank legt de ontvangst van een doorgestuurd bericht vast.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -1182,3 +1188,175 @@ articles:
               operation: EQUALS
               subject: $antwoord_uitgereikte_kaart
               value: true
+  - number: '12'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Mist een aanvraag om een gehandicaptenparkeerkaart een gegeven dat
+      nodig is om haar te beoordelen, dan stelt het college de aanvrager in
+      de gelegenheid de aanvraag aan te vullen (artikel 4:5, eerste lid, van
+      de Algemene wet bestuursrecht).
+
+      2 Het college legt het verzoek tot aanvulling vast, met wat ontbreekt en
+      de dag waarop de aanvulling uiterlijk binnen moet zijn.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-01-01#Artikel4:5
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet als een aanvraag
+      # niet volledig is. Het feit is de vastlegging waaruit het bericht aan
+      # de aanvrager volgt, het herstelverzoek (de berichtenspec van
+      # RegelHet). Wat ontbreekt en de dag zijn de gegevens die dat bericht
+      # draagt; de termijn stelt het college zelf (artikel 4:5, eerste lid:
+      # "binnen een door het bestuursorgaan gestelde termijn").
+      requires:
+        - fact: verzoek_tot_aanvulling_verzonden
+          description: >-
+            Dat het college de aanvrager in de gelegenheid stelde de aanvraag
+            aan te vullen: aan wie, bij welke aanvraag, wat ontbreekt en tot
+            welke dag (lid 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - aanvraag
+            - ontbrekende_gegevens
+            - aanvullen_uiterlijk
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager aan wie het verzoek gaat.
+          - name: aanvraag
+            type: string
+            description: De aanvraag die moet worden aangevuld.
+          - name: ontbrekende_gegevens
+            type: string
+            description: Wat de aanvraag mist, in een zin.
+          - name: aanvullen_uiterlijk
+            type: date
+            description: De dag waarop de aanvulling uiterlijk binnen moet zijn.
+        output:
+          - name: aanvulling_gevraagd
+            type: boolean
+            description: Of het college de aanvrager om aanvulling vroeg.
+        actions:
+          - output: aanvulling_gevraagd
+            value: true
+  - number: '13'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Het college maakt een besluit bekend door het bericht dat het bevat
+      aan de aanvrager te verzenden of uit te reiken (artikel 3:41, eerste
+      lid, van de Algemene wet bestuursrecht). Gaat het bericht langs het
+      portaal, dan krijgt de aanvrager er een kennisgeving van (artikel 2:10
+      van die wet).
+
+      2 Het college legt het verzonden bericht vast: welk bericht, bij welke
+      vastlegging, langs welke weg, op welke dag, en de inhoud zoals zij werd
+      verzonden. Een later bericht vervangt een eerder bericht en noemt het;
+      het eerdere blijft vastgelegd.
+
+      3 Stuurt het college een bericht door aan de bestuursrechter, dan legt
+      de rechtbank de ontvangst vast.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-01-01#Artikel3:41
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet om een bericht de deur
+      # uit te laten gaan. Het feit is de vastlegging van het bericht zelf, met
+      # een bevroren inhoud (de berichtenspec van RegelHet, BERICHTEN.md): de
+      # tekst, de bijlage en een hash van de weergave. Een latere herbouw van
+      # het bericht verandert het verzonden bericht niet. Het doorsturen is
+      # een paar feiten met dezelfde parameters, een bij het college en de
+      # ontvangst bij de rechtbank, dat de kern in beide kronieken vastlegt.
+      requires:
+        - fact: bericht_verzonden
+          description: >-
+            Dat het college een bericht aan de aanvrager verzond of uitreikte,
+            met wat het bevat zoals het werd verzonden (lid 1 en 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - berichtsoort
+            - vastlegging
+            - kanaal
+            - verzonden_op
+            - inhoud
+            - hash
+            - vervangt
+        - fact: bericht_doorgestuurd
+          description: >-
+            Dat het college een verzonden bericht doorstuurde aan de
+            bestuursrechter (lid 3).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - bericht
+            - berichtsoort
+            - inhoud
+            - hash
+        - fact: doorgestuurd_bericht_ontvangen
+          description: >-
+            Dat de bestuursrechter het doorgestuurde bericht ontving, met wat
+            het bevat (lid 3).
+          competent_authority:
+            - name: de bestuursrechter
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - bericht
+            - berichtsoort
+            - inhoud
+            - hash
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            required: false
+            nullable: true
+            description: Burgerservicenummer van de aanvrager aan wie het bericht gaat.
+          - name: berichtsoort
+            type: string
+            description: De soort bericht, zoals de berichtenspec haar noemt.
+          - name: vastlegging
+            type: string
+            required: false
+            nullable: true
+            description: De vastlegging waaruit het bericht volgt, zoals het besluit.
+          - name: kanaal
+            type: string
+            required: false
+            nullable: true
+            description: De weg van het bericht (email, portaal of papier).
+          - name: verzonden_op
+            type: date
+            required: false
+            nullable: true
+            description: De dag waarop het bericht werd verzonden of uitgereikt, de dag van bekendmaking.
+          - name: inhoud
+            type: string
+            description: Het bericht zoals het werd verzonden, bevroren.
+          - name: hash
+            type: string
+            description: De hash van de weergave van het bericht.
+          - name: vervangt
+            type: string
+            required: false
+            nullable: true
+            description: Het eerder verzonden bericht dat dit bericht vervangt.
+          - name: bericht
+            type: string
+            required: false
+            nullable: true
+            description: Het verzonden bericht dat wordt doorgestuurd.
+        output:
+          - name: bekendgemaakt_op
+            type: date
+            nullable: true
+            description: De dag van bekendmaking van het besluit door dit bericht (lid 1).
+        actions:
+          - output: bekendgemaakt_op
+            value: $verzonden_op

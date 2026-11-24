@@ -9,8 +9,13 @@
 # De regelwerken en cellen komen uit het corpus van de chronolexografie-poc;
 # alleen het casusbestand en de UI-beschrijving zijn van dit component zelf.
 # De UI-beschrijving zegt welk veld van de aanvraag het inloggen vult.
+# De berichtenspec en de tekstlaag zijn ook van dit component.
 repo_root: ../..
 ui_spec: packages/regelhet/ui_spec.yaml
+# Welk bericht aan de burger uit welke vastlegging volgt, en de teksten van
+# de gemeente daarvoor (BERICHTEN.md).
+berichten: packages/regelhet/berichten.yaml
+berichtteksten: packages/regelhet/berichtteksten.yaml
 directories:
   casussen: packages/regelhet/casussen
   regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw: packages/poc-chronolexografie/corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw

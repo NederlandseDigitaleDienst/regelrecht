@@ -104,6 +104,7 @@ base="$(dirname "$CASE_PATH")"
 root="$(under "$base" "$("$YQ" '.repo_root // ""' "$WORK/manifest.yaml")")"
 
 : > "$WORK/files"
+: > "$WORK/layers"
 printf '%s\n' "$CASE_PATH" >> "$WORK/files"
 
 "$YQ" '.directories | to_entries | .[] | [.key, .value] | @tsv' "$WORK/manifest.yaml" > "$WORK/directories"
@@ -118,14 +119,36 @@ while IFS="$(printf '\t')" read -r target source; do
   cat "$WORK/found" >> "$WORK/files"
 done < "$WORK/directories"
 
-ui="$("$YQ" '.ui_spec // ""' "$WORK/manifest.yaml")"
-if [ -n "$ui" ]; then
-  below "$ui"
-  spec="$(under "$root" "$ui")"
-  git cat-file -e "FETCH_HEAD:$spec" 2>/dev/null ||
-    fail "the manifest $CASE_PATH names '$ui' for its UI spec, which is not in commit $commit"
-  printf '%s\n' "$spec" >> "$WORK/files"
+# single adds the one file $2 the manifest names for its $1 (a UI spec, the
+# message spec), which must be in the commit.
+single() {
+  below "$2"
+  file="$(under "$root" "$2")"
+  git cat-file -e "FETCH_HEAD:$file" 2>/dev/null ||
+    fail "the manifest $CASE_PATH names '$2' for its $1, which is not in commit $commit"
+  printf '%s\n' "$file" >> "$WORK/files"
+}
+
+# The UI spec is one file, or a list of them: the layers of a UI spec, such as
+# a generic layer and the layer of one executor that builds on it.
+case "$("$YQ" '.ui_spec | tag' "$WORK/manifest.yaml")" in
+  '!!null') ;;
+  '!!str') "$YQ" '.ui_spec' "$WORK/manifest.yaml" > "$WORK/layers" ;;
+  '!!seq') "$YQ" '.ui_spec[]' "$WORK/manifest.yaml" > "$WORK/layers" ;;
+  *) fail "the manifest $CASE_PATH: ui_spec is no file and no list of files" ;;
+esac
+if [ -s "$WORK/layers" ]; then
+  while IFS= read -r layer; do
+    [ -z "$layer" ] || single "UI spec" "$layer"
+  done < "$WORK/layers"
 fi
+
+# The message spec and the text layer of the authority beside it, each one
+# file (packages/corpus/src/source_manifest.rs).
+messages="$("$YQ" '.berichten // ""' "$WORK/manifest.yaml")"
+[ -z "$messages" ] || single "message spec" "$messages"
+texts="$("$YQ" '.berichtteksten // ""' "$WORK/manifest.yaml")"
+[ -z "$texts" ] || single "text layer" "$texts"
 
 sort -u -o "$WORK/files" "$WORK/files"
 git checkout -q FETCH_HEAD --pathspec-from-file="$WORK/files" 2>"$WORK/git.err" ||

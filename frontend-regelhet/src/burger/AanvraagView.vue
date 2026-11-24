@@ -14,7 +14,7 @@ import { hoofdletter, kleineLetter, leesbaar } from '@regelrecht/frontend-shared
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
-import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomsten, schermveld } from '../gedeeld/formulier';
+import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomsten, schermveld, voorgevuldeWaarden } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { artikelNaam } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
@@ -37,6 +37,8 @@ const op = computed(() => (typeof route.query.op === 'string' ? route.query.op :
 const artikel = computed(() => overToekenning.value?.artikel ?? casus.value?.artikel);
 const { casus, vormen, wie, fout, laden, laad } = useBurger();
 const waarden = ref<Record<string, unknown>>({});
+/** The prefilled fields the applicant chose to change: those are inputs, holding the prefill to start with. */
+const bewerkt = ref<Set<string>>(new Set());
 // The sheet has two pages: the form, and behind it where each value comes
 // from. The article a question rests on is not what you need while answering
 // it, and it is worth little under three inputs of one address; it stands on
@@ -88,7 +90,35 @@ const aanhef = computed(() => {
   // With the space before the next sentence: a template trims its own.
   return `U vraagt een ${c.titel.toLowerCase()} aan bij ${c.cel_naam}. `;
 });
-const vorm = computed(() => (artikel.value && vormen.value ? vormen.value.indieningen[artikel.value] : undefined));
+/** What the system fills, asked again on what the form holds now (`POST /api/formulier/systeem`), per field. */
+const systeemNu = ref<Record<string, unknown>>({});
+const vorm = computed(() => {
+  const v = artikel.value && vormen.value ? vormen.value.indieningen[artikel.value] : undefined;
+  if (!v || !Object.keys(systeemNu.value).length) return v;
+  const systeem = Object.fromEntries(
+    Object.entries(v.systeem ?? {}).map(([naam, hoe]) => [naam, naam in systeemNu.value ? { ...hoe, waarde: systeemNu.value[naam] } : hoe]),
+  );
+  return { ...v, systeem };
+});
+// A source of what the system fills may read what the applicant fills in, such
+// as the year an amount depends on: ask again once the form settles.
+let systeemVraag: ReturnType<typeof setTimeout> | undefined;
+watch(
+  () => JSON.stringify(waarden.value),
+  () => {
+    clearTimeout(systeemVraag);
+    const a = artikel.value;
+    const v = artikel.value && vormen.value ? vormen.value.indieningen[artikel.value] : undefined;
+    if (!a || !v?.systeem || !Object.values(v.systeem).some((h) => h.bron)) return;
+    systeemVraag = setTimeout(async () => {
+      try {
+        systeemNu.value = await burgerApi.systeemwaarden(a, aanvraagVelden(v, waarden.value, vormen.value?.delen));
+      } catch {
+        // The form keeps what the server gave when it opened; the submission fills anew.
+      }
+    }, 300);
+  },
+);
 const formulier = computed(() =>
   vorm.value
     ? aanvraagformulier(
@@ -98,6 +128,7 @@ const formulier = computed(() =>
         vormen.value?.volgorde,
         vormen.value?.delen,
         vormen.value?.verplicht,
+        bewerkt.value,
       )
     : null,
 );
@@ -111,7 +142,8 @@ async function begin() {
   melding.value = '';
   sleutel = nieuweSleutel();
   await laad();
-  waarden.value = formulier.value ? beginwaarden(formulier.value.invullen) : {};
+  bewerkt.value = new Set();
+  waarden.value = formulier.value ? { ...beginwaarden(formulier.value.invullen), ...voorgevuldeWaarden(vorm.value) } : {};
 }
 
 // The sheet stays in the DOM so it animates; it loads the form when it opens,
@@ -252,6 +284,8 @@ async function indienen() {
                     :waarden="waarden"
                     :artikelen="false"
                     bekend-kop="We gebruiken de volgende gegevens voor uw aanvraag. Deze zijn al bij ons bekend."
+                    :tabellen="vormen?.tabellen"
+                    @bewerk="(n) => (bewerkt = new Set([...bewerkt, n]))"
                     @zet="(n, v) => (waarden[n] = v)" />
                   <template v-if="melding">
                     <nldd-spacer size="16"></nldd-spacer>
