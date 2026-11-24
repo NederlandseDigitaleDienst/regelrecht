@@ -5,7 +5,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import type { EigenVerzoek } from './api';
+import type { EigenVerzoek, Kroniek } from './api';
 import type { Casus, Gram, Ik, Vervolgstand, Vormen } from '../gedeeld/types';
 import WerkvoorraadView from './WerkvoorraadView.vue';
 
@@ -18,6 +18,7 @@ const casus: Casus = {
   andere_cellen: [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld' }],
   indieningen: [{ artikel: 'wet#1', besluit: 'wet#1', cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', soort: 'AANVRAAG' }],
   titel: 'Vergunning',
+  uitkomst: 'vergund',
   // What follows a grant: two acts, each with the button that records it.
   na_toekenning: {
     stand: 'Uw vergunning is verleend.',
@@ -85,11 +86,17 @@ vi.mock('./api', () => ({
     ik: async () => ik.value,
     vervolg: async () => vervolg,
     verzoeken: async () => ({ verzoeken: verzoeken.value }),
-    kroniek: async (cel: string) => ({ cel, cel_naam: cel, kop: 1, grammen: cel === 'gemeente' ? kroniek.value : [], stand: { rollen: { a: 'indiening', r: 'vastlegging' }, herroepen: {}, antwoorden: {} } }),
+    kroniek: async (cel: string) => ({ cel, cel_naam: cel, kop: 1, grammen: cel === 'gemeente' ? kroniek.value : [], stand }),
     werkvoorraad: async () => ({ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', open: werk.value }),
   },
 }));
 
+/** What the kern says of the executor's chronicle: two decided applications, each with its decision, beside `a`. */
+const stand: Kroniek['stand'] = {
+  rollen: { a: 'indiening', r: 'vastlegging', t: 'indiening', bt: 'besluit', w: 'indiening', bw: 'besluit' },
+  herroepen: {},
+  antwoorden: { t: { soort: 'besloten', besluit: 'bt' }, w: { soort: 'besloten', besluit: 'bw' } },
+};
 /** The executor's chronicle and what the server says waits in it. */
 const kroniek: { value: Gram[] } = { value: [aanvraag] };
 const werk: { value: { stuk: Gram; na?: string }[] } = { value: [{ stuk: aanvraag }] };
@@ -98,7 +105,11 @@ const verzoeken: { value: EigenVerzoek[] } = { value: [] };
 
 async function toon(cellen: Ik['cellen'], lijst?: string, open?: string) {
   ik.value = { ...ik.value, cellen };
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
+  const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/backoffice/behandelen/:cel/:id', name: 'behandelen', component: { render: () => null } },
+      { path: '/:p(.*)*', component: { render: () => null } },
+    ],
+  });
   await router.push({ path: open ? `/backoffice/behandelen/gemeente/${open}` : '/backoffice', query: lijst ? { lijst } : {} });
   const w = mount(WerkvoorraadView, {
     props: open ? { cel: 'gemeente', id: open } : {},
@@ -127,6 +138,30 @@ const verzoek: EigenVerzoek = {
 };
 
 describe('the work queue', () => {
+  it('keeps every submission in Alle aanvragen, the newest first, each tagged with how it stands', async () => {
+    const besloten = (id: string, op: string, vergund: boolean): Gram[] => [
+      { ...aanvraag, id, recorded_on: op },
+      { id: `b${id}`, kind: 'BESLUIT', basis: 'wet#1', refers_to: id, outputs: { vergund }, recorded_on: op, recording_actor: 'gemeente' },
+    ];
+    kroniek.value = [...besloten('t', '2026-10-01', true), ...besloten('w', '2026-10-05', false), aanvraag];
+    try {
+      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], 'alle');
+      expect(lijsten(w)).toContain('Alle aanvragen 3');
+      // Te doen holds only what waits: decided submissions are found here.
+      expect(lijsten(w)).toContain('Te doen 2');
+      const rijen = rijenVan(w, 'Alle aanvragen');
+      expect(rijen.map((r) => r.find('nldd-badge').attributes('text'))).toEqual(['In behandeling', 'Afgewezen', 'Toegewezen']);
+      expect(rijen[1]?.find('nldd-text-cell').attributes('supporting-text')).toContain('Besloten 5 oktober 2026');
+      // Each opens beside the list, as a row of Te doen does.
+      await rijen[2]?.trigger('click');
+      await flushPromises();
+      expect(w.router.currentRoute.value.path).toBe('/backoffice/behandelen/gemeente/t');
+      expect(w.router.currentRoute.value.query.lijst).toBe('alle');
+    } finally {
+      kroniek.value = [aanvraag];
+    }
+  });
+
   it('names a submission by its kind and the applicant, as its form has the login fill the name', async () => {
     vormen.indieningen['wet#1'] = { soort: 'AANVRAAG', basis: 'wet#1', besluit: 'wet#1', cel: 'gemeente', velden: [], systeem: { naam_aanvrager: { soort: 'inloggen', inlog: 'naam' } } };
     werk.value = [{ stuk: { ...aanvraag, fields: { naam_aanvrager: 'P. Voorbeeld' } } }];
@@ -221,14 +256,14 @@ describe('the work queue', () => {
     expect(rijen).toHaveLength(2);
     expect(rijen[0]?.attributes('supporting-text')).toContain('Ontvangen 13 oktober 2026');
     expect(rijen[1]?.attributes('text')).toBe('Vergunning voor A. de Vries');
-    expect(lijsten(w)).toEqual(['Te doen 2', 'Na toekenning 1']);
+    expect(lijsten(w)).toEqual(['Te doen 2', 'Na toekenning 1', 'Alle aanvragen 1']);
   });
 
   it('moves a submission that waits on the answer to a request out of Te doen', async () => {
     verzoeken.value = [verzoek];
     try {
       const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
-      expect(lijsten(w)).toEqual(['Te doen 1', 'Na toekenning 1', 'Wacht op anderen 1']);
+      expect(lijsten(w)).toEqual(['Te doen 1', 'Na toekenning 1', 'Wacht op anderen 1', 'Alle aanvragen 1']);
       const wacht = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], 'wacht');
       const rij = rijenVan(wacht, 'Wacht op anderen');
       expect(rij).toHaveLength(1);
@@ -238,6 +273,7 @@ describe('the work queue', () => {
       expect(lijsten(await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]))).toEqual([
         'Te doen 2',
         'Na toekenning 1',
+        'Alle aanvragen 1',
       ]);
     } finally {
       verzoeken.value = [];

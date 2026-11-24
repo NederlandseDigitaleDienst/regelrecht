@@ -9,7 +9,8 @@
 // be decided again, after that record (`na`).
 //
 // Laid out as the editor's library: the lists in the primary sidebar (Te doen
-// first, see lijsten.ts), the rows of the chosen list beside them, and the
+// first, Alle aanvragen last, see lijsten.ts), the rows of the chosen list
+// beside them, and the
 // submission being handled in the main pane (BehandelenPaneel.vue). The list
 // is in the address (`?lijst=`), so it stays when a submission opens. Every
 // employee opens a submission to read it; a decider decides on it there, and
@@ -22,14 +23,14 @@ import { useRoute, useRouter } from 'vue-router';
 import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
-import { artikelNaam, omschrijving, rolVan } from '../gedeeld/keten';
+import { artikelNaam, besluitStand, isIndiening, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import { indieningTitel } from '../gedeeld/formulier';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import type { EigenVerzoek, Kroniek, Werkvoorraad } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 import { feitNaam } from './feit';
-import { LIJSTEN, lijstVan, lijstenVanIndiening, lijstenVanToekenning, oudsteEerst } from './lijsten';
+import { LIJSTEN, lijstVan, lijstenVanIndiening, lijstenVanToekenning, nieuwsteEerst, oudsteEerst } from './lijsten';
 import type { Lijst } from './lijsten';
 import { verzoekenBij } from './verzoek';
 import { medewerkerStand, vervolgFeiten } from '../gedeeld/vervolg';
@@ -102,13 +103,20 @@ const handelingen = computed(() => {
     : [];
 });
 
-/** A row of a list: a submission to decide on, or a grant whose next act waits. */
+/** How a submission stands, as its tag in Alle aanvragen shows it. */
+type Stand = { tekst: string; kleur: 'neutral' | 'warning' | 'success' | 'critical' };
+
+/**
+ * A row of a list: a submission, decided or not, or a grant whose next act
+ * waits. `sinds` is the day it waits since, `ontvangen` the day it came in.
+ */
 type Rij =
-  | { soort: 'indiening'; sleutel: string; sinds: string; lijsten: Lijst[]; tekst: string; regel: string; opnieuw: boolean }
+  | { soort: 'indiening'; sleutel: string; sinds: string; ontvangen: string; lijsten: Lijst[]; tekst: string; regel: string; opnieuw: boolean; stand: Stand }
   | {
       soort: 'toekenning';
       sleutel: string;
       sinds: string;
+      ontvangen: string;
       lijsten: Lijst[];
       tekst: string;
       regel: string;
@@ -117,29 +125,55 @@ type Rij =
     };
 
 /**
- * A submission that waits for a decision, in words: when it came in, when
- * its decision was revoked the record to decide after, and whom it waits on
- * when a request about it is still open.
+ * The decision that answers a submission no longer waiting, with how it
+ * stands: by the new decision taken in the place of a revoked one, else by
+ * the decision itself, granted or refused, revoked or annulled.
  */
-function indieningsRij(stuk: Gram, na: string | undefined, kroniek: Kroniek): Rij {
+function beslist(stuk: Gram, kroniek: Kroniek): { op?: string; stand: Stand } {
   const c = casus.value;
+  const a = kroniek.stand.antwoorden[stuk.id];
+  const gram = (id: string) => kroniek.grammen.find((g) => g.id === id);
+  if (!c || !a || a.soort === 'open') return { stand: { tekst: 'Besloten', kleur: 'neutral' } };
+  if (a.soort === 'in_de_plaats') {
+    const t = toegewezen(a.nieuw, c);
+    return {
+      op: a.nieuw.recorded_on,
+      stand: t === undefined ? { tekst: 'Besloten', kleur: 'neutral' } : t ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' },
+    };
+  }
+  const g = gram(a.besluit);
+  return { op: g?.recorded_on, stand: (g && besluitStand(g, kroniek.stand, kroniek.grammen, c)) ?? { tekst: 'Besloten', kleur: 'neutral' } };
+}
+
+/**
+ * A submission in words: when it came in, and while it waits for a decision
+ * (`open`), when its decision was revoked the record to decide after and whom
+ * it waits on when a request about it is still open; once decided, when.
+ */
+function indieningsRij(stuk: Gram, open: { na?: string } | undefined, kroniek: Kroniek): Rij {
+  const c = casus.value;
+  const na = open?.na;
   const naGram = na ? kroniek.grammen.find((g) => g.id === na) : undefined;
-  const wachtOp = [...new Set(verzoekenBij(stuk, verzoeken.value).filter((v) => v.open).map((v) => v.aan_naam))];
+  const wachtOp = open ? [...new Set(verzoekenBij(stuk, verzoeken.value).filter((v) => v.open).map((v) => v.aan_naam))] : [];
+  const besluit = open ? undefined : beslist(stuk, kroniek);
   const regel = [
     `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`,
     naGram && c
       ? `Opnieuw beslissen na ${omschrijving(naGram, c, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
       : '',
     wachtOp.length ? `Wacht op ${wachtOp.join(' en ')}` : '',
+    besluit?.op ? `Besloten ${longDate(besluit.op)}` : '',
   ];
   return {
     soort: 'indiening',
     sleutel: stuk.id,
     sinds: naGram?.recorded_on ?? stuk.recorded_on,
-    lijsten: lijstenVanIndiening(wachtOp.length > 0),
+    ontvangen: stuk.recorded_on,
+    lijsten: lijstenVanIndiening(!!open, wachtOp.length > 0),
     tekst: c ? indieningTitel(stuk, c, vormen.value?.indieningen[stuk.basis]) : stuk.kind,
     regel: regel.filter(Boolean).join(' · '),
     opnieuw: !!na,
+    stand: besluit?.stand ?? (na ? { tekst: 'Opnieuw beslissen', kleur: 'warning' } : { tekst: 'In behandeling', kleur: 'neutral' }),
   };
 }
 
@@ -162,6 +196,7 @@ function toekenningsRijen(): Rij[] {
         soort: 'toekenning',
         sleutel: s.toekenning,
         sinds: gedaan.at(-1) ?? s.toegekend_op ?? '',
+        ontvangen: s.toegekend_op ?? '',
         lijsten: lijstenVanToekenning(doorSysteem),
         tekst: [casus.value?.titel, wie ? `voor ${wie}` : ''].filter(Boolean).join(' '),
         regel: recht.value?.beslissen ? `${regel} · Volgende stap: ${knop}` : regel,
@@ -172,11 +207,17 @@ function toekenningsRijen(): Rij[] {
   });
 }
 
-/** Every row, whatever list it is in. */
+/**
+ * Every row, whatever list it is in: each submission in the executor's
+ * chronicle, waiting as the server's queue says or decided, and the grants.
+ */
 const rijen = computed((): Rij[] => {
   const kroniek = kronieken.value.find((k) => k.cel === casus.value?.cel);
-  const open = kroniek && werkvoorraad.value?.cel === kroniek.cel ? werkvoorraad.value.open : [];
-  return [...(kroniek ? open.map((w) => indieningsRij(w.stuk, w.na, kroniek)) : []), ...toekenningsRijen()];
+  if (!kroniek) return toekenningsRijen();
+  const open = new Map((werkvoorraad.value?.cel === kroniek.cel ? werkvoorraad.value.open : []).map((w) => [w.stuk.id, w]));
+  // A waiting submission comes from the queue; one the chronicle lacks still shows.
+  const stukken = [...kroniek.grammen.filter((g) => isIndiening(g, kroniek.stand) && !open.has(g.id)), ...[...open.values()].map((w) => w.stuk)];
+  return [...stukken.map((stuk) => indieningsRij(stuk, open.get(stuk.id), kroniek)), ...toekenningsRijen()];
 });
 /**
  * The list the address names. When it names none, the list of the open
@@ -192,8 +233,11 @@ const aantallen = computed(
 );
 /** The lists the sidebar offers: Te doen always, another when it holds something or is open. */
 const lijsten = computed(() => LIJSTEN.filter((l) => l.naam === 'te-doen' || l.naam === lijst.value || aantallen.value[l.naam] > 0));
-/** The rows of the open list, what waited longest first. */
-const zichtbaar = computed(() => oudsteEerst(rijen.value.filter((r) => r.lijsten.includes(lijst.value))));
+/** The rows of the open list: what waited longest first, in Alle aanvragen what came in last. */
+const zichtbaar = computed(() => {
+  const inLijst = rijen.value.filter((r) => r.lijsten.includes(lijst.value));
+  return lijst.value === 'alle' ? nieuwsteEerst(inLijst) : oudsteEerst(inLijst);
+});
 
 /** What an empty list says: for Te doen, that the work is done and what still waits on someone else. */
 const leeg = computed(() => {
@@ -331,8 +375,9 @@ async function klaar(naam: string) {
           <template v-for="r in zichtbaar" :key="r.sleutel">
             <nldd-list-item v-if="r.soort === 'indiening'" size="md" button :current="r.sleutel === id || undefined" @click="openIndiening(r.sleutel)">
               <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
-              <nldd-cell v-if="r.opnieuw">
-                <nldd-badge text="Opnieuw beslissen" color="warning" size="sm"></nldd-badge>
+              <!-- Alle aanvragen tags how each stands; the other lists only what is to decide again. -->
+              <nldd-cell v-if="lijst === 'alle' || r.opnieuw">
+                <nldd-badge :text="r.stand.tekst" :color="r.stand.kleur" size="sm"></nldd-badge>
               </nldd-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>

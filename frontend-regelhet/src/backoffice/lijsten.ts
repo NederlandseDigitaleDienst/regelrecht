@@ -3,6 +3,8 @@
 // anderen what waits on someone else, such as an external party's answer to a
 // request or an act the system takes itself. Na toekenning shows the grants
 // whose acts are not all done, how far each is, whoever takes the next act.
+// Alle aanvragen holds every submission that came in, decided or not, the
+// newest first: the place to find one again.
 
 /** The lists, in the order the sidebar shows them. */
 export const LIJSTEN = [
@@ -19,14 +21,30 @@ export const LIJSTEN = [
     tekst: 'Na toekenning',
     icoon: 'checked-text-document',
     uitleg: 'De toekenningen waarvan nog niet elke stap is gezet.',
-    leeg: { tekst: 'Geen toekenning onderweg', uitleg: 'Een toekenning staat hier tot elke stap erna is gezet.' },
+    leeg: {
+      tekst: 'Geen toekenning onderweg',
+      uitleg: 'Een toekenning staat hier tot elke stap erna is gezet.',
+    },
   },
   {
     naam: 'wacht',
     tekst: 'Wacht op anderen',
     icoon: 'time',
     uitleg: 'Wat wacht op het antwoord van een andere partij, of op een stap die het systeem zelf zet.',
-    leeg: { tekst: 'Er wacht niets op een ander', uitleg: 'Alles wat open staat, ligt bij u.' },
+    leeg: {
+      tekst: 'Er wacht niets op een ander',
+      uitleg: 'Alles wat open staat, ligt bij u.',
+    },
+  },
+  {
+    naam: 'alle',
+    tekst: 'Alle aanvragen',
+    icoon: 'inbox',
+    uitleg: 'Elke indiening die is binnengekomen, besloten of niet, de nieuwste bovenaan.',
+    leeg: {
+      tekst: 'Nog niets binnengekomen',
+      uitleg: 'Een indiening die binnenkomt, staat hier.',
+    },
   },
 ] as const;
 
@@ -37,9 +55,13 @@ export function lijstVan(waarde: unknown): Lijst {
   return LIJSTEN.find((l) => l.naam === waarde)?.naam ?? 'te-doen';
 }
 
-/** The list a submission without a decision is in: to do, unless it waits on the answer to a request. */
-export function lijstenVanIndiening(wachtOpAntwoord: boolean): Lijst[] {
-  return wachtOpAntwoord ? ['wacht'] : ['te-doen'];
+/**
+ * The lists a submission is in: every one is in Alle aanvragen, and one
+ * without a decision is also to do, unless it waits on the answer to a request.
+ */
+export function lijstenVanIndiening(open: boolean, wachtOpAntwoord: boolean): Lijst[] {
+  if (!open) return ['alle'];
+  return wachtOpAntwoord ? ['wacht', 'alle'] : ['te-doen', 'alle'];
 }
 
 /**
@@ -53,4 +75,9 @@ export function lijstenVanToekenning(doorHetSysteem: boolean): Lijst[] {
 /** The rows that waited longest first, by the day they wait since; equal days by key, so the order holds between loads. */
 export function oudsteEerst<T extends { sinds: string; sleutel: string }>(rijen: T[]): T[] {
   return [...rijen].sort((a, b) => a.sinds.localeCompare(b.sinds) || a.sleutel.localeCompare(b.sleutel));
+}
+
+/** The rows that came in last first, by the day they came in; equal days by key, so the order holds between loads. */
+export function nieuwsteEerst<T extends { ontvangen: string; sleutel: string }>(rijen: T[]): T[] {
+  return [...rijen].sort((a, b) => b.ontvangen.localeCompare(a.ontvangen) || a.sleutel.localeCompare(b.sleutel));
 }
