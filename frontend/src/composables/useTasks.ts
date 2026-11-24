@@ -271,6 +271,49 @@ async function stopRun(trajectRef: string, jobId: string): Promise<StopState> {
   return state;
 }
 
+/** What sending the requests of a chain selection came to, per law. */
+export interface PlanOutcome {
+  started: string[];
+  /** Laws with an enrichment already running in this traject (409). */
+  conflicts: { lawId: string; running: RunningScope | null }[];
+  /** Laws refused because too many enrichments run at once (429). */
+  tooMany: string[];
+  /** Laws whose request the server refused, with its reason. */
+  failed: { lawId: string; message: string }[];
+}
+
+/**
+ * Send the requests of a chain selection, one per law, one after the other:
+ * the server keeps one enrichment per law and traject, and a burst would hit
+ * the per-account cap halfway. A refusal for one law does not stop the
+ * others; the outcome says which went where. Refreshes the shared list once.
+ */
+async function requestEnrichPlan(
+  trajectRef: string,
+  requests: readonly { lawId: string; options: EnrichOptions }[],
+): Promise<PlanOutcome> {
+  const outcome: PlanOutcome = { started: [], conflicts: [], tooMany: [], failed: [] };
+  for (const { lawId, options } of requests) {
+    try {
+      const result = await requestEnrich(trajectRef, lawId, options);
+      if (result.alreadyRunning) outcome.conflicts.push({ lawId, running: result.running ?? null });
+      else if (result.tooMany) outcome.tooMany.push(lawId);
+      else outcome.started.push(lawId);
+    } catch (e) {
+      // The editor-api says in plain text what is wrong with a request (an
+      // article that does not exist, nothing to enrich); a 5xx says nothing.
+      const status = (e as { status?: number }).status;
+      const body = (e as { body?: string }).body;
+      outcome.failed.push({
+        lawId,
+        message: status && status < 500 && body ? body : 'Verrijking aanvragen mislukt.',
+      });
+    }
+  }
+  await refresh();
+  return outcome;
+}
+
 /** The scope of a running enrichment, as the 409 and `/api/tasks` report it. */
 export interface RunningScope {
   mode: string | null;
@@ -356,6 +399,7 @@ export function useTasks() {
     fetchJobTasks,
     applyEnrichment,
     requestEnrich,
+    requestEnrichPlan,
     stopRun,
   };
 }
@@ -396,6 +440,7 @@ export function useTaskActions() {
     fetchJobTasks,
     applyEnrichment,
     requestEnrich,
+    requestEnrichPlan,
     stopRun,
     refresh,
     running,

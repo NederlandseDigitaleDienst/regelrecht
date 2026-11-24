@@ -55,7 +55,8 @@ pub struct EnrichRequest {
     /// `"article"` or `"law"` (default).
     #[serde(default)]
     pub mode: Option<String>,
-    /// Article mode: exactly one top-level article. Law mode: the selection.
+    /// Article mode: the article the engineer started from, then any others
+    /// of this law ticked along with it. Law mode: the selection.
     #[serde(default)]
     pub articles: Option<Vec<String>>,
     /// Law mode: leave out articles that already have `machine_readable`.
@@ -235,13 +236,16 @@ pub fn plan_request(
 
     match mode {
         "article" => {
-            let article = match requested.as_deref() {
-                Some([one]) => one.clone(),
-                _ => return Err(bad("De artikelmodus verrijkt precies één artikel.")),
+            // One or more targets, in the order asked: the first is the
+            // article the engineer started from. The instruction and the
+            // neighbour rule apply to every target.
+            let targets = match requested {
+                Some(list) if !list.is_empty() => list,
+                _ => return Err(bad("De artikelmodus verrijkt minstens één artikel.")),
             };
             Ok(RequestPlan {
                 mode: Some("article".into()),
-                articles: Some(vec![article]),
+                articles: Some(targets),
                 instruction: instruction.map(str::to_string),
                 feedback_rounds,
                 model,
@@ -601,7 +605,7 @@ articles:
     }
 
     #[test]
-    fn the_article_mode_takes_one_existing_article_and_its_instruction() {
+    fn the_article_mode_takes_existing_articles_and_its_instruction() {
         let plan = plan_request(
             &req(serde_json::json!({"mode": "article", "articles": ["2"], "instruction": " let op lid 2 "})),
             LAW,
@@ -612,10 +616,24 @@ articles:
         assert_eq!(plan.instruction.as_deref(), Some("let op lid 2"));
         assert!(plan.context, "context defaults on in the article mode");
 
+        // Several targets: the start article first, as asked, without
+        // duplicates.
+        let several = plan_request(
+            &req(serde_json::json!({"mode": "article", "articles": ["3", "2", "3"], "instruction": "x"})),
+            LAW,
+            "claude",
+        )
+        .unwrap();
+        assert_eq!(
+            several.articles,
+            Some(vec!["3".to_string(), "2".to_string()])
+        );
+        assert_eq!(several.instruction.as_deref(), Some("x"));
+
         for bad_req in [
             serde_json::json!({"mode": "article"}),
-            serde_json::json!({"mode": "article", "articles": ["2", "3"]}),
-            serde_json::json!({"mode": "article", "articles": ["9"]}),
+            serde_json::json!({"mode": "article", "articles": []}),
+            serde_json::json!({"mode": "article", "articles": ["2", "9"]}),
             serde_json::json!({"mode": "elders"}),
         ] {
             let err = plan_request(&req(bad_req.clone()), LAW, "claude").unwrap_err();

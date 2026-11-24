@@ -40,7 +40,7 @@ import MachineReadable from './components/MachineReadable.vue';
 import MachineEmptyState from './components/MachineEmptyState.vue';
 import EnrichSheet from './components/EnrichSheet.vue';
 import { articleOf, describeScope } from './lib/enrichScope';
-import type { EnrichOptions, EnrichSignal } from './composables/useTasks';
+import type { EnrichOptions, EnrichSignal, PlanOutcome } from './composables/useTasks';
 import ScenarioScreen from './components/ScenarioScreen.vue';
 import ScenarioStatusPane from './components/ScenarioStatusPane.vue';
 import { useLawScenarios } from './scenario/useLawScenarios';
@@ -1861,6 +1861,8 @@ function signalSource(signal: EnrichSignal): string {
 // verrijking met een keuze van artikelen, model en rondes. Beide lopen via
 // EnrichSheet, zodat je vóór het versturen ziet wat er gaat gebeuren.
 const scopedEnrich = computed(() => featureFlags.isEnabled('enrich.scoped'));
+// The chain in the article mode's steps (flag `enrich.hotspots`).
+const hotspotsEnabled = computed(() => scopedEnrich.value && featureFlags.isEnabled('enrich.hotspots'));
 const enrichingScope = computed(() => (runningScope.value ? describeScope(runningScope.value) : ''));
 const enrichSheetMode = ref<'article' | 'law' | null>(null);
 const enrichSheetBusy = ref(false);
@@ -1912,6 +1914,23 @@ async function submitEnrichSheet(options: EnrichOptions) {
   } finally {
     enrichSheetBusy.value = false;
   }
+}
+
+// The stepped flow sends its requests itself, one per law; this says what
+// came of them. A refusal stays visible in the sheet too.
+function onEnrichPlanSubmitted(outcome: PlanOutcome) {
+  const refused = outcome.conflicts.length + outcome.tooMany.length + outcome.failed.length;
+  if (!outcome.started.length) {
+    enrichFeedback.value = { variant: 'critical', text: 'Geen verrijking gestart; de sheet zegt per wet waarom.' };
+    return;
+  }
+  const started = outcome.started.length === 1 ? '1 verrijking' : `${outcome.started.length} verrijkingen`;
+  enrichFeedback.value = {
+    variant: refused ? 'warning' : 'success',
+    text: refused
+      ? `${started} gestart; ${refused} niet. De sheet zegt per wet waarom.`
+      : `${started} gestart - je krijgt een taak per gewijzigd artikel zodra de voorstellen klaarstaan.`,
+  };
 }
 
 // Single save handler shared by the Tekst and Machine panes. The PUT writes
@@ -3006,7 +3025,9 @@ async function handleActionSave() {
       :traject-ref="activeTrajectRef"
       :article="enrichSheetArticle"
       :busy="enrichSheetBusy"
+      :stepped="hotspotsEnabled"
       @submit="submitEnrichSheet"
+      @submitted="onEnrichPlanSubmitted"
       @close="enrichSheetMode = null"
     />
     <ActionSheet regelrijm :action="activeAction" :article="editedArticle" :editable="canEdit" :is-new="activeActionIsNew" :law="law" :law-id="lawId" :focus-path="activeActionPath" @close="handleActionClose" @save="handleActionSave" @navigate="handleSheetNavigate" @open-output="handleSheetOpenOutput" />

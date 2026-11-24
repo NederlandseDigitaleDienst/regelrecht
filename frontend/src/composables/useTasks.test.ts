@@ -143,4 +143,22 @@ describe('useTasks', () => {
     );
     expect(apiFetch).toHaveBeenCalledWith('/api/tasks', expect.anything());
   });
+
+  it('sends a chain selection law by law and reports each outcome', async () => {
+    apiFetch.mockImplementation(async (url: string) => {
+      if (url === '/api/tasks') return { status: 200, json: async () => ({ tasks: [], running: [] }) };
+      if (url.includes('/awir/')) return { status: 409, json: async () => ({ mode: 'law', articles: ['8'] }) };
+      if (url.includes('/kapot/')) throw Object.assign(new Error('x'), { status: 400, body: 'Deze versie heeft geen artikel 9.' });
+      return { status: 202, json: async () => ({}) };
+    });
+    const { useTaskActions } = await import('./useTasks');
+    const outcome = await useTaskActions().requestEnrichPlan('t-abcd1234', [
+      { lawId: 'zorgtoeslag', options: { mode: 'article', articles: ['2'] } },
+      { lawId: 'awir', options: { mode: 'law', articles: ['8'] } },
+      { lawId: 'kapot', options: { mode: 'law', articles: ['9'] } },
+    ]);
+    expect(outcome.started).toEqual(['zorgtoeslag']);
+    expect(outcome.conflicts).toEqual([{ lawId: 'awir', running: { mode: 'law', articles: ['8'] } }]);
+    expect(outcome.failed).toEqual([{ lawId: 'kapot', message: 'Deze versie heeft geen artikel 9.' }]);
+  });
 });

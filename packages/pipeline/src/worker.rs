@@ -2525,9 +2525,10 @@ pub(crate) fn scoped_task_config(
     if list.is_empty() {
         return Err("gerichte verrijking zonder artikelen".to_string());
     }
-    // The article mode is one article, whatever the batch size. The law mode
-    // walks its selection in batches of the worker's window size, so a long
-    // selection does not become one session that cannot finish in time.
+    // The article mode is one run over its targets, whatever the batch size.
+    // The law mode walks its selection in batches of the worker's window
+    // size, so a long selection does not become one session that cannot
+    // finish in time.
     let batch = if payload.is_article_mode() || config.max_articles_per_run == 0 {
         list.len()
     } else {
@@ -4361,6 +4362,14 @@ articles:
         let (config, remaining) =
             scoped_task_config(&base, &scoped("article", &["69"])).expect("valid");
         assert_eq!(config.target_articles, vec!["69"]);
+        assert_eq!(remaining, Some(vec![]));
+
+        // Several targets in the article mode are still one run, whatever
+        // the batch size: the instruction and the neighbour rule cover them
+        // together.
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("article", &["69", "18d", "24"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["69", "18d", "24"]);
         assert_eq!(remaining, Some(vec![]));
     }
 

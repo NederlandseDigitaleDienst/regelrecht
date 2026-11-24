@@ -11,7 +11,7 @@ import ArticleText from './components/ArticleText.vue';
 import MachineReadable from './components/MachineReadable.vue';
 import EnrichSheet from './components/EnrichSheet.vue';
 import { articleOf } from './lib/enrichScope';
-import type { EnrichOptions } from './composables/useTasks';
+import type { EnrichOptions, PlanOutcome } from './composables/useTasks';
 import YamlView from './components/YamlView.vue';
 import ActionSheet from './components/ActionSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
@@ -1069,6 +1069,15 @@ function openEnrichSheet(mode: 'article' | 'law', anchorEl: EventTarget | null =
   if (mode === 'article' && !article) return;
   enrichSheetArticle.value = article;
   enrichSheetMode.value = mode;
+}
+// The chain in the article mode's steps, and the hotspots in the sidebar
+// (flag `enrich.hotspots`, only together with the scope modes).
+const hotspotsEnabled = computed(() => scopedEnrich.value && featureFlags.isEnabled('enrich.hotspots'));
+// The stepped flow sends its own requests; a law it could not start for is
+// named in the sheet, and the pane says that not everything started.
+function onEnrichPlanSubmitted(outcome: PlanOutcome) {
+  const refused = outcome.conflicts.length + outcome.tooMany.length + outcome.failed.length;
+  enrichError.value = refused ? 'Niet elke verrijking is gestart; de sheet zegt per wet waarom.' : '';
 }
 async function submitEnrichSheet(options: EnrichOptions) {
   enrichSheetBusy.value = true;
@@ -3261,7 +3270,9 @@ watch(activeTrajectRef, () => {
       :traject-ref="activeTrajectRef"
       :article="enrichSheetArticle"
       :busy="enrichSheetBusy"
+      :stepped="hotspotsEnabled"
       @submit="submitEnrichSheet"
+      @submitted="onEnrichPlanSubmitted"
       @close="enrichSheetMode = null"
     />
     <SearchPopover
