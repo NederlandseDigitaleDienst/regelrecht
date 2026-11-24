@@ -200,6 +200,9 @@ describe('the work queue', () => {
 
   it('puts what waits on a step here in Te doen, what waited longest first', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
+    // What the list holds is behind the button beside its title.
+    const uitleg = w.find('#lijst-titel nldd-icon-button[slot="end"] nldd-popover[slot="popup"]');
+    expect(uitleg.text()).toBe('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
     expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).toContain('Kies een indiening');
     // The grant waits since its last act, 14 October; the submission came in on the 13th.
     const rijen = rijenVan(w).map((r) => r.find('nldd-text-cell'));
