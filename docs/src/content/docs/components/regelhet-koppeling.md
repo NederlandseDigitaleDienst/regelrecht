@@ -20,6 +20,12 @@ The steps of the process do not change. The municipality's policy still records 
 | Admin panel for the linked party | Gone; the panel names the party as linked | Used by the party's own staff, from `regelhet-beslisser` upward |
 | `recorded_via` of the party's acts | `koppeling` | The employee's own login |
 
+## The party's own screen
+
+A party's staff get a screen of their own (`frontend-regelhet/src/backoffice/PartijView.vue`), not the executor's admin panel. It lists the requests that wait for an answer, each with for whom it is and who asked, and under them the requests the party answered, with the day of the answer. An answer nobody asked for stays possible, below those. The bar names the party, and the test login offers the party's own accounts. `GET /api/backoffice/beheer/partijen` gives the answered requests under `beantwoord` on the party's own server only; the executor's admin panel never gets them.
+
+The Fundament plugin gives a party's release the accent colour `rood`, or `robijnrood` beside an executor that is red itself, so the two are told apart at a glance.
+
 ## What is sent, and when
 
 The chronicle is the outbox. A record of the server's own cell is due when a linked cell records a receipt of it, which the law says (`kern::ontvangers`), and it stays due until that cell's server confirmed it. Confirmations are kept in the table `link_deliveries`. A record that itself arrived over a link is never sent, since the receipt a cell makes of a message is the other half of that same message.

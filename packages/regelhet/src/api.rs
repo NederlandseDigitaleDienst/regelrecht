@@ -1220,6 +1220,10 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
                     "verzoek": r.received,
                     "antwoordfeit": r.answer,
                 })).collect::<Vec<_>>(),
+                "beantwoord": p.answered.iter().map(|r| json!({
+                    "verzoek": r.received,
+                    "antwoord": r.answer,
+                })).collect::<Vec<_>>(),
             })
         })
         .collect();

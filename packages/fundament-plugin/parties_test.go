@@ -115,6 +115,7 @@ func TestAPartyTheCaseAsksGetsALinkedReleaseOfItsOwn(t *testing.T) {
 	assert.Equal(t, "a-ggd-voorbeeld.cluster.example.org", values["host"])
 	assert.Equal(t, map[string]any{"split": false}, values["surfaces"])
 	assert.Equal(t, map[string]any{"surface": "backoffice"}, values["regelhet"])
+	assert.Equal(t, map[string]any{"accentColor": "rood"}, values["theme"], "a party is told apart from the executor by its colour")
 	assert.Equal(t, map[string]any{
 		"partij": "ggd_voorbeeld",
 		"peers":  []any{map[string]any{"cel": "gemeente_voorbeeld", "url": "https://a-medewerkers.cluster.example.org"}},
@@ -304,4 +305,11 @@ func TestPartyNamesFollowTheHostname(t *testing.T) {
 	assert.Empty(t, parties)
 	require.Len(t, skipped, 1)
 	assert.Contains(t, skipped[0], "no valid")
+}
+
+func TestAPartyNeverWearsTheExecutorsColour(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "rood", partyAccent(""))
+	assert.Equal(t, "rood", partyAccent("paars"))
+	assert.Equal(t, "robijnrood", partyAccent("rood"))
 }

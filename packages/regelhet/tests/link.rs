@@ -151,6 +151,19 @@ async fn the_request_reaches_the_ggds_server_and_its_advice_comes_back() {
             .then_some(())
     })
     .await;
+    // Its own server keeps what it answered, with the answer beside it.
+    let answered = ggd_panel(&ggd).await["partijen"][0]["beantwoord"].clone();
+    assert_eq!(answered.as_array().map(Vec::len), Some(1), "{answered}");
+    assert_eq!(answered[0]["verzoek"]["id"], verzoek["id"]);
+    assert_eq!(answered[0]["antwoord"]["id"], advies["id"]);
+    // The municipality's admin panel never lists a party's answered requests.
+    let (_, at_gemeente) = admin(&gemeente)
+        .await
+        .get("/api/backoffice/beheer/partijen")
+        .await;
+    for party in at_gemeente["partijen"].as_array().unwrap() {
+        assert_eq!(party["beantwoord"], json!([]), "{party}");
+    }
 }
 
 #[tokio::test]
@@ -190,6 +203,23 @@ async fn each_server_serves_its_own_side_only() {
         .post("/api/backoffice/beheer/vastleggingen", for_the_court)
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+    // The test login offers the GGD's own staff, not the municipality's.
+    let (_, personas) = anonymous(&ggd).get("/auth/testpersonen").await;
+    let personas = personas.as_array().unwrap().clone();
+    assert_eq!(personas.len(), 2, "{personas:?}");
+    for persona in &personas {
+        assert_eq!(persona["partij"], json!(true));
+        assert_eq!(persona["cel"], json!(GGD));
+        assert_eq!(persona["cel_naam"], json!("GGD Wilgendaal"));
+    }
+    let (_, at_gemeente) = anonymous(&gemeente).get("/auth/testpersonen").await;
+    assert!(
+        at_gemeente
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|p| p["partij"] != json!(true))
+    );
     // A reader of the GGD enters nothing.
     let (status, _) = employee(&ggd, "lezer-1", "regelhet-lezer")
         .await

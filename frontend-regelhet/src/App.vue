@@ -47,8 +47,11 @@ const uitvoerder = ref<string | null>(null);
 watch(
   ik,
   async (i) => {
-    uitvoerder.value =
-      i && !i.burger
+    // On the server of an external party, that party: its staff work for
+    // it, not for the executor of the case.
+    uitvoerder.value = i?.partij
+      ? hoofdletter(i.partij.cel_naam)
+      : i && !i.burger
         ? await gedeeldApi
             .casus()
             .then((c) => hoofdletter(c.cel_naam))

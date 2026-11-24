@@ -679,6 +679,9 @@ The plugin does not read the case. The server does, and names those parties on
    HelmRelease `<name>-<party>` per party and applies the executor's release
    again with those parties as its peers.
 
+A party's release wears the accent colour `rood` (or `robijnrood` when the
+executor's own is `rood`), so its screens are told apart from the executor's.
+
 A party's address is `<hostname>-<party>.<domain>`, where the party is its cell
 with dashes: `ggd_wilgendaal` under the hostname `parkeerkaart` gives
 `parkeerkaart-ggd-wilgendaal.<domain>`. The condition `PartiesLinked` says how

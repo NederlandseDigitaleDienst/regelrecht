@@ -219,9 +219,28 @@ func partyValues(w *v1alpha1.RegelHet, cfg pluginConfig, p v1alpha1.PartyStatus)
 			"url": "https://" + hostsOf(w, cfg.Domain).backoffice,
 		}},
 	}
+	// Another organization than the executor's, so another colour: someone
+	// with both open tells them apart at a glance.
+	values["theme"] = map[string]any{"accentColor": partyAccent(w.Spec.Theme.AccentColor)}
 	// The party has no citizens' side, so no app reaches it.
 	delete(values, "fsc4b")
 	return values
+}
+
+// The accent colours of a party's release (themes of the NLDD design
+// system): red, or ruby red beside an executor that is red itself.
+const (
+	partyAccentColor    = "rood"
+	partyAccentFallback = "robijnrood"
+)
+
+// partyAccent is the accent colour of a party beside an executor whose
+// accent is executor: never the same one.
+func partyAccent(executor string) string {
+	if executor == partyAccentColor {
+		return partyAccentFallback
+	}
+	return partyAccentColor
 }
 
 // newPartyRelease builds the HelmRelease of the party p of w, from the chart

@@ -569,6 +569,20 @@ pub struct ExternalParty {
     /// The requests of the executor it received and did not answer yet,
     /// each by its receipt in the party's chronicle.
     pub requests: Vec<OpenRequest>,
+    /// The requests it answered, each with its answer, latest first: only on
+    /// the party's own server ([`Service::party`]), where its staff look
+    /// back at their own work. The executor's admin panel never gets them,
+    /// since it shows of a party only what an input needs.
+    pub answered: Vec<AnsweredRequest>,
+}
+
+/// A request an external party answered, as its own server shows it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnsweredRequest {
+    /// Its receipt in the party's chronicle.
+    pub received: Gram,
+    /// The party's answer, in its own chronicle.
+    pub answer: Gram,
 }
 
 /// A request of the executor that an external party received and did not
@@ -1194,6 +1208,17 @@ impl Service {
                             Some(OpenRequest {
                                 received: r.ontvangen.clone()?,
                                 answer: r.antwoordfeit.clone()?,
+                            })
+                        })
+                        .collect(),
+                    answered: requests
+                        .iter()
+                        .rev()
+                        .filter(|r| r.aan == *cell && self.party() == Some(*cell))
+                        .filter_map(|r| {
+                            Some(AnsweredRequest {
+                                received: r.ontvangen.clone()?,
+                                answer: r.antwoord.clone()?,
                             })
                         })
                         .collect(),

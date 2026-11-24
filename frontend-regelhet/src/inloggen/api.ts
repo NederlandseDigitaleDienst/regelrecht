@@ -18,8 +18,10 @@ export interface Persona {
   /** A citizen's or a business's made-up name. */
   naam?: string;
   niveau?: string;
-  cel?: string;
-  cel_naam?: string;
+  cel?: string | null;
+  cel_naam?: string | null;
+  /** Whether the account is of an external party's own server: its staff, not the executor's. */
+  partij?: boolean;
 }
 
 /**

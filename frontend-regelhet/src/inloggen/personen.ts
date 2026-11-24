@@ -11,7 +11,8 @@ export function personaNaam(p: Persona): string {
     const wie = label === 'BSN' ? 'Burger' : 'Bedrijf';
     return p.naam ? `${p.naam}, ${label} ${p.identiteit ?? ''}` : `${wie} met ${label} ${p.identiteit ?? ''}`.trim();
   }
-  if (p.soort === 'beheerder') return 'Beheerder';
+  if (p.soort === 'beheerder') return p.partij && p.cel_naam ? `Beheerder bij ${p.cel_naam}` : 'Beheerder';
+  if (p.partij) return `Medewerker bij ${p.cel_naam ?? p.cel ?? ''}`.trim();
   return `${hoofdletter(p.niveau ?? 'medewerker')} bij ${p.cel_naam ?? p.cel ?? ''}`.trim();
 }
 
@@ -21,6 +22,8 @@ export function personaUitleg(p: Persona): string {
     if (p.label && p.label !== 'BSN') return `Dient aanvragen en bezwaren in namens het bedrijf en ziet het eigen dossier. Het ${p.label} is fictief.`;
     return 'Dient aanvragen en bezwaren in en ziet het eigen dossier. Het BSN is fictief.';
   }
+  if (p.partij && p.soort === 'beheerder') return 'Beantwoordt verzoeken, zet de testklok en maakt de testomgeving leeg.';
+  if (p.partij) return 'Ziet de verzoeken aan deze organisatie en legt de antwoorden vast.';
   if (p.soort === 'beheerder') return 'Ziet de kronieken van alle cellen, beslist voor elke cel en zet de testklok.';
   if (p.niveau === 'beslisser') return 'Legt feiten vast voor deze cel, verstuurt afschriften van haar besluiten en neemt besluiten.';
   return 'Ziet de kroniek en de aanvragen van deze cel, maar legt niets vast en beslist niet.';

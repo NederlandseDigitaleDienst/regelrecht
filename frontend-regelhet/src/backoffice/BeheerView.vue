@@ -80,10 +80,8 @@ function voorWie(vast: Record<string, unknown>): string {
 }
 const gekozen = computed(() => partijen.value.find((p) => p.cel === props.cel));
 
-// On the server of an external party its own staff work here, not an admin
-// on its behalf: the same screen, in their words.
-const eigen = computed(() => wie.value?.partij ?? null);
-const titel = computed(() => (eigen.value ? `Verzoeken aan ${eigen.value.cel_naam}` : 'Beheerpaneel'));
+// The parties with a server of their own (PartijView.vue there): nothing is
+// entered for them here.
 const gekoppeld = computed(() => (panel.value?.gekoppeld ?? []).map((g) => g.cel_naam).join(', '));
 
 const keuze = ref<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown> } | null>(null);
@@ -120,15 +118,14 @@ async function toezenden(besluit: Gram) {
 
 <template>
   <nldd-navigation-split-view @back="router.push('/backoffice/beheer')">
-    <nldd-page slot="primary-sidebar" sticky-header :accessible-label="titel">
-        <nldd-top-title-bar slot="header" :text="titel" heading-level="3" collapse-anchor="beheer-titel"></nldd-top-title-bar>
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Beheerpaneel">
+        <nldd-top-title-bar slot="header" text="Beheerpaneel" heading-level="3" collapse-anchor="beheer-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
-          <nldd-title id="beheer-titel" size="display-3"><h3>{{ titel }}</h3></nldd-title>
+          <nldd-title id="beheer-titel" size="display-3"><h3>Beheerpaneel</h3></nldd-title>
           <nldd-text color="secondary">
-            <p v-if="eigen">Wat een gemeente van {{ eigen.cel_naam }} vraagt, komt hier binnen over de koppeling. Wat u vastlegt, gaat langs dezelfde weg terug.</p>
-            <p v-else>Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.</p>
+            <p>Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.</p>
           </nldd-text>
-          <template v-if="!eigen && gekoppeld">
+          <template v-if="gekoppeld">
             <nldd-spacer size="16"></nldd-spacer>
             <nldd-banner variant="neutral" :text="`${hoofdletter(gekoppeld)} werkt in een eigen systeem. Verzoeken en antwoorden gaan over de koppeling; u voert hier niets voor haar in.`"></nldd-banner>
           </template>
@@ -147,7 +144,7 @@ async function toezenden(besluit: Gram) {
             <nldd-inline-dialog v-if="partijen.length === 0 && !gekoppeld" icon="info" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
             <template v-for="(p, i) in partijen" :key="p.cel">
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
-              <nldd-title v-if="!eigen" size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
+              <nldd-title size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
               <template v-if="p.verzoeken.length">
                 <nldd-text color="secondary"><p>Open verzoeken. Kies er een om het antwoord vast te leggen.</p></nldd-text>
                 <nldd-list appearance="simple" :accessible-label="`Open verzoeken aan ${p.cel_naam}`">
@@ -267,7 +264,7 @@ async function toezenden(besluit: Gram) {
     @vastgelegd="vastgelegd"
   >
     <nldd-banner
-      v-if="keuze && !eigen"
+      v-if="keuze"
       variant="neutral"
       :text="`U legt dit vast namens ${partijen.find((p) => p.cel === keuze?.cel)?.cel_naam ?? keuze.cel}`"
     ></nldd-banner>

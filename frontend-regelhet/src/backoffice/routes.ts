@@ -17,7 +17,7 @@ export const backofficeRoutes: RouteRecordRaw[] = [
         { naam: 'kroniek', tekst: 'Kroniek', pad: '/backoffice/kroniek', icoon: 'history', recht: 'uitvoerder' },
         // On the server of an external party, the same screen under the name
         // its own staff know it by.
-        { naam: 'beheer', tekst: 'Verzoeken', pad: '/backoffice/beheer', icoon: 'inbox', ook: ['beheer-behandelen'], recht: 'partij' },
+        { naam: 'partij', tekst: 'Verzoeken', pad: '/backoffice/verzoeken', icoon: 'inbox', recht: 'partij' },
         {
           naam: 'beheer',
           tekst: 'Beheerpaneel',
@@ -41,6 +41,7 @@ export const backofficeRoutes: RouteRecordRaw[] = [
       { path: 'simulatie', name: 'simulatie', component: () => import('./SimulatieView.vue') },
       // The address of this screen before it was called a simulation.
       { path: 'klok', redirect: { name: 'simulatie' } },
+      { path: 'verzoeken', name: 'partij', component: () => import('./PartijView.vue') },
       { path: 'beheer', name: 'beheer', component: () => import('./BeheerView.vue'), meta: { beheer: true } },
       {
         path: 'beheer/behandelen/:cel/:id',

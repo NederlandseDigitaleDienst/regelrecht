@@ -789,9 +789,15 @@ fn applicant_personas(state: &AppState) -> Vec<Value> {
 
 /// The employees of the test login: a decider of the executor, with that
 /// step of the ladder and nothing else, and an admin.
+///
+/// On the server of an external party they are that party's own: its staff
+/// log in there, not the executor's, and `partij` says so, so the login
+/// screen words them as the party's.
 fn employee_personas(state: &AppState) -> Vec<Value> {
     let service = state.service();
-    let (cell, cell_name) = (service.executor(), service.executor_name());
+    let party = service.party();
+    let cell = service.own_cell();
+    let cell_name = service.cell_name(cell);
     let decider = Level::Decider;
     vec![
         json!({
@@ -801,12 +807,16 @@ fn employee_personas(state: &AppState) -> Vec<Value> {
             "niveau": decider.name(),
             "cel": cell,
             "cel_naam": cell_name,
+            "partij": party.is_some(),
         }),
         json!({
             "soort": "beheerder",
             "sub": "beheerder",
             "rollen": [Level::Admin.role()],
             "niveau": Level::Admin.name(),
+            "cel": party,
+            "cel_naam": party.map(|p| service.cell_name(p)),
+            "partij": party.is_some(),
         }),
     ]
 }

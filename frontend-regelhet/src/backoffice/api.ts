@@ -36,6 +36,8 @@ export interface Partij {
   toe_te_zenden: Gram[];
   /** The requests of the executor it has not answered yet. */
   verzoeken: OpenVerzoek[];
+  /** The requests it answered, each with its answer, latest first; only on the party's own server. */
+  beantwoord?: { verzoek: Gram; antwoord: Gram }[];
 }
 
 /** `GET /api/backoffice/beheer/partijen`: the executor, and per external party what waits for it. */

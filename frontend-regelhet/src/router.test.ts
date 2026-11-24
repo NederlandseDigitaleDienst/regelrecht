@@ -48,14 +48,20 @@ describe('omleiding', () => {
     expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), { ...medewerker, klok_zetten: true })).toBeUndefined();
   });
 
-  it('opens the server of an external party on what waits for that party', () => {
+  it('opens the server of an external party on its own screen, and nowhere else', () => {
     const arts: Ik = { ...geen, niveau: 'beslisser', partijen_invoeren: true, partij: { cel: 'g', cel_naam: 'G' } };
     expect(omleiding(naar('/'), arts)).toBe('/backoffice');
-    expect(omleiding(naar('/backoffice', 'backoffice', 'werkvoorraad'), arts)).toBe('/backoffice/beheer');
-    expect(omleiding(naar('/backoffice/kroniek', 'backoffice', 'kroniek'), arts)).toBe('/backoffice/beheer');
-    expect(omleiding({ ...naar('/backoffice/beheer', 'backoffice', 'beheer'), matched: [{ meta: { kant: 'backoffice', beheer: true } }] } as never, arts)).toBeUndefined();
+    for (const [pad, naam] of [['/backoffice', 'werkvoorraad'], ['/backoffice/kroniek', 'kroniek'], ['/backoffice/beheer', 'beheer']] as const) {
+      expect(omleiding(naar(pad, 'backoffice', naam), arts)).toBe('/backoffice/verzoeken');
+    }
+    expect(omleiding(naar('/backoffice/verzoeken', 'backoffice', 'partij'), arts)).toBeUndefined();
+    // The clock is for its admin only; without it the party's screen again.
+    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), arts)).toBe('/backoffice');
+    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), { ...arts, klok_zetten: true })).toBeUndefined();
     // A reader of the party enters nothing, so has no screen there.
     expect(omleiding(naar('/backoffice', 'backoffice', 'werkvoorraad'), { ...arts, niveau: 'lezer', partijen_invoeren: false })).toBe('/inloggen');
+    // The executor's employees never get the party's screen.
+    expect(omleiding(naar('/backoffice/verzoeken', 'backoffice', 'partij'), medewerker)).toBe('/backoffice');
   });
 
   it('keeps someone without the right out also at the old address of the clock', async () => {

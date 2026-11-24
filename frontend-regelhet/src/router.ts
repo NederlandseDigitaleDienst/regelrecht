@@ -25,9 +25,9 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): RouteLoc
   if (kant === 'backoffice' && !isMedewerker(wie)) return startpagina(wie);
   // The server of an external party has no work queue or chronicle of the
   // executor: its staff start at what waits for their own party.
-  if (wie?.partij && wie.partijen_invoeren && (to.name === 'werkvoorraad' || to.name === 'behandelen' || to.name === 'kroniek')) {
-    return '/backoffice/beheer';
-  }
+  const eigenPartij = !!wie?.partij && wie.partijen_invoeren;
+  if (eigenPartij && kant === 'backoffice' && to.name !== 'partij' && to.name !== 'simulatie') return '/backoffice/verzoeken';
+  if (to.name === 'partij' && !eigenPartij) return '/backoffice';
   if (to.name === 'simulatie' && !wie?.klok_zetten) return '/backoffice';
   if (to.matched.some((r) => r.meta.beheer) && !wie?.partijen_invoeren) return '/backoffice';
   return undefined;
