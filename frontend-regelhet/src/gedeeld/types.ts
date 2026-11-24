@@ -363,3 +363,29 @@ export interface Tijdlijn {
   door_het_systeem: Record<string, string>;
   volgende: VolgendeStap[];
 }
+
+/** The chronicle of one cell. */
+export interface Kroniek {
+  cel: string;
+  cel_naam: string;
+  kop: number;
+  grammen: Gram[];
+  /** What the kern says of its records: what each is, which are revoked, what answers each submission. */
+  stand: Stand;
+  /** Per record the system made by an article of the policy, that article. */
+  door_het_systeem?: Record<string, string>;
+}
+
+/** A submission that waits for a decision of the executor. */
+export interface Wachtend {
+  stuk: Gram;
+  /** The record to decide after, when its last decision was revoked: decide again. */
+  na?: string;
+}
+
+/** `GET /api/backoffice/werkvoorraad`: what waits for a decision of the executor. */
+export interface Werkvoorraad {
+  cel: string;
+  cel_naam: string;
+  open: Wachtend[];
+}

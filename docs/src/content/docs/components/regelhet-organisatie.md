@@ -1,9 +1,9 @@
 ---
 title: "RegelHet: the organisation"
-description: "How the RegelHet server, in the role organisatie, puts one login and one page of tiles in front of several processes of one organisation, and hands each person over to a process with a signed statement."
+description: "How the RegelHet server, in the role organisatie, puts one login, a page of tiles and one work queue in front of several processes of one organisation, and hands each person over to a process with a signed statement."
 ---
 
-A municipality runs more than one legal process: the disabled parking card, a parking permit for businesses, later more. Each runs as a [RegelHet](/components/regelhet) of its own, with its own addresses, login and database. The organisation is a front before them: one address for citizens and one for employees, one login, and a page with a tile per process. A tile opens the process without a second login. The processes keep their own containers, databases and screens, and each still works on its own.
+A municipality runs more than one legal process: the disabled parking card, a parking permit for businesses, later more. Each runs as a [RegelHet](/components/regelhet) of its own, with its own addresses, login and database. The organisation is a front before them: one address for citizens and one for employees, one login, a page with a tile per process, and for employees one work queue over all processes. A tile or a row of the queue opens the process without a second login. The processes keep their own containers, databases and screens, and each still works on its own.
 
 The front is the same server from the same image, started with `REGELHET_ROL=organisatie`. It runs no process and keeps no chronicle. The code is in `packages/regelhet/src/organisatie/`, the screens in `frontend-regelhet/src/organisatie/`.
 
@@ -32,6 +32,12 @@ The front signs a statement in two places:
 
 What a person records in a session the front handed over is kept with the channel `organisatie` in `recorded_via`, and with `<organisation id>:<sub>` as the account in `recorded_by` (migration `0011`). An application states how the front logged the person in, as it would after the process's own login.
 
+## One work queue
+
+An employee lands on the work queue of the organisation (`/backoffice` on the front); the tiles are its second tab, `Regelingen`. The screen asks every process at once, through the front, for its case, its forms and its queue (`casus`, `formulier` and `backoffice/werkvoorraad`), and for the executor's chronicle only when a decision was revoked and the row has to say after what. Each row is made by the same code as a process's own work queue (`frontend-regelhet/src/gedeeld/werkvoorraad.ts`) and carries the name of its process. The rows of all processes form one list, the longest waiting first. A segmented control above it narrows the list to one process.
+
+A row opens the submission in the handling screen of its process, `/backoffice/behandelen/<cel>/<id>`, through the hand-off. A process that does not answer, or answers with an error, gets a notice above the list with the reason, and the rows of the other processes stay. The asking itself is one function, `perProces` in `frontend-regelhet/src/organisatie/perProces.ts`, which gives per process its answer or why there was none.
+
 ## The front's routes
 
 | Method and path | Who | What |
@@ -44,7 +50,7 @@ What a person records in a session the front handed over is kept with the channe
 | `GET /api/processen/{id}/openen?naar=<path>` | citizen or employee | `303` to the process, as above |
 | `GET /organisatie/v1/sleutel` | anyone | the public key of the statements, a JWK |
 
-`{id}` is the process id from the file of processes, URL-encoded. A path with a backslash, `?`, `#`, `%` or a control character passes nowhere, so the process receives the path that was checked. The front passes on, for the back office, `casus`, `ik`, `backoffice/werkvoorraad`, `backoffice/vervolg` and `backoffice/cellen/{cel}/kroniek`; for citizens, `casus`, `ik`, `dossier` and `formulier`. Any other path answers `404`, as an unknown process does. A session at the front of someone who is both a citizen and an employee, which only happens on `all`, reaches the processes as a citizen. A process that does not answer within five seconds gives `502` for that process alone, and the tile page shows it as not reachable while the other tiles keep working.
+`{id}` is the process id from the file of processes, URL-encoded. A path with a backslash, `?`, `#`, `%` or a control character passes nowhere, so the process receives the path that was checked. The front passes on, for the back office, `casus`, `ik`, `formulier`, `backoffice/werkvoorraad`, `backoffice/vervolg` and `backoffice/cellen/{cel}/kroniek`; for citizens, `casus`, `ik`, `dossier` and `formulier`. Any other path answers `404`, as an unknown process does. A session at the front of someone who is both a citizen and an employee, which only happens on `all`, reaches the processes as a citizen. A process that does not answer within five seconds gives `502` for that process alone, and the tile page shows it as not reachable while the other tiles keep working.
 
 The test login of the front offers the test accounts of its processes, asked from each process's `/auth/testpersonen` and merged: each account once, the citizens deduplicated by their number.
 
@@ -97,8 +103,8 @@ One of the two key variables is required. A process fetches the key at its first
 
 ## Running it locally
 
-`just regelhet-organisatie` starts two processes in test mode, the parking card on port 7184 and the IIT of Groningen on port 7185, and a front on `all` on port 7186 before them. The processes fetch the front's key from it. Open `http://localhost:7186`, log in as the decider, and a tile opens the work queue of that process without a second login. The tiles lead to `127.0.0.1`, because a browser keeps cookies per host and not per port: on one host the process's session would replace the front's.
+`just regelhet-organisatie` starts two processes in test mode, the parking card on port 7184 and the IIT of Groningen on port 7185, and a front on `all` on port 7186 before them. The processes fetch the front's key from it. Open `http://localhost:7186`, log in as the decider, and the work queue shows what waits in both processes; a row opens it in its process without a second login. The tiles lead to `127.0.0.1`, because a browser keeps cookies per host and not per port: on one host the process's session would replace the front's.
 
 ## What is not built
 
-Stable mode for the front, with a Keycloak of its own, the key pinned in each process, and its sessions in PostgreSQL, follows later. A restart of the front ends its sessions, and a new process in the file restarts it. The front reaches the processes over the cluster network without mutual TLS; in test mode someone inside the cluster could offer another key at a process's key URL, which adds nothing to what the open test login already allows. The hand-off is a link a browser follows, so someone could fetch a hand-off for their own account and get another person's browser to follow it within its minute; that browser is then logged in at the process as the first person. Binding the hand-off to the browser that asked for it is not built. One work queue over all processes and a citizen's list of their applications over all processes are not built; the passed-on routes above are what they will read.
+Stable mode for the front, with a Keycloak of its own, the key pinned in each process, and its sessions in PostgreSQL, follows later. A restart of the front ends its sessions, and a new process in the file restarts it. The front reaches the processes over the cluster network without mutual TLS; in test mode someone inside the cluster could offer another key at a process's key URL, which adds nothing to what the open test login already allows. The hand-off is a link a browser follows, so someone could fetch a hand-off for their own account and get another person's browser to follow it within its minute; that browser is then logged in at the process as the first person. Binding the hand-off to the browser that asked for it is not built. A citizen's list of their applications over all processes is not built; the passed-on routes above are what it will read.

@@ -22,9 +22,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
-import { longDate } from '../gedeeld/datum';
-import { artikelNaam, isIndiening, omschrijving, rolVan } from '../gedeeld/keten';
-import { indieningTitel } from '../gedeeld/formulier';
+import { isIndiening } from '../gedeeld/keten';
+import { indieningInWoorden } from '../gedeeld/werkvoorraad';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import type { EigenVerzoek, Kroniek, Werkvoorraad } from './api';
@@ -135,28 +134,25 @@ function beslotenOp(stuk: Gram, kroniek: Kroniek): string | undefined {
  * it waits on when a request about it is still open; once decided, when.
  */
 function indieningsRij(stuk: Gram, open: { na?: string } | undefined, kroniek: Kroniek): Rij {
-  const c = casus.value;
-  const na = open?.na;
-  const naGram = na ? kroniek.grammen.find((g) => g.id === na) : undefined;
   const wachtOp = open ? [...new Set(verzoekenBij(stuk, verzoeken.value).filter((v) => v.open).map((v) => v.aan_naam))] : [];
-  const besloten = open ? undefined : beslotenOp(stuk, kroniek);
-  const regel = [
-    `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`,
-    naGram && c
-      ? `Opnieuw beslissen na ${omschrijving(naGram, c, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
-      : '',
-    wachtOp.length ? `Wacht op ${wachtOp.join(' en ')}` : '',
-    besloten ? `Besloten ${longDate(besloten)}` : '',
-  ];
+  const woorden = indieningInWoorden({
+    stuk,
+    casus: casus.value,
+    vorm: vormen.value?.indieningen[stuk.basis],
+    kroniek,
+    na: open?.na,
+    wachtOp,
+    besloten: open ? undefined : beslotenOp(stuk, kroniek),
+  });
   return {
     soort: 'indiening',
     sleutel: stuk.id,
-    sinds: naGram?.recorded_on ?? stuk.recorded_on,
+    sinds: woorden.sinds,
     ontvangen: stuk.recorded_on,
     lijsten: lijstenVanIndiening(!!open, wachtOp.length > 0),
-    tekst: c ? indieningTitel(stuk, c, vormen.value?.indieningen[stuk.basis]) : stuk.kind,
-    regel: regel.filter(Boolean).join(' · '),
-    opnieuw: !!na,
+    tekst: woorden.tekst,
+    regel: woorden.regel,
+    opnieuw: woorden.opnieuw,
   };
 }
 

@@ -3,33 +3,11 @@
 // client only names the routes.
 import { gedeeldApi } from '../gedeeld/api';
 import { haal, stuur } from '../gedeeld/http';
-import type { Gram, Klok, Stand, Tijdlijn, Vervolgstand, Voorvertoning, Waarom } from '../gedeeld/types';
+import type { Gram, Klok, Kroniek, Tijdlijn, Vervolgstand, Voorvertoning, Wachtend, Waarom, Werkvoorraad } from '../gedeeld/types';
 
-/** The chronicle of one cell. */
-export interface Kroniek {
-  cel: string;
-  cel_naam: string;
-  kop: number;
-  grammen: Gram[];
-  /** What the kern says of its records: what each is, which are revoked, what answers each submission. */
-  stand: Stand;
-  /** Per record the system made by an article of the policy, that article. */
-  door_het_systeem?: Record<string, string>;
-}
-
-/** A submission that waits for a decision of the executor. */
-export interface Wachtend {
-  stuk: Gram;
-  /** The record to decide after, when its last decision was revoked: decide again. */
-  na?: string;
-}
-
-/** `GET /api/backoffice/werkvoorraad`: what waits for a decision of the executor. */
-export interface Werkvoorraad {
-  cel: string;
-  cel_naam: string;
-  open: Wachtend[];
-}
+// The chronicle and the work queue are read by the organisation's front too
+// (src/organisatie/), so their shapes live in gedeeld/types.ts.
+export type { Kroniek, Wachtend, Werkvoorraad };
 
 /** A decision on the submission `op`, with what the authority finds. */
 export interface Beslissing {
