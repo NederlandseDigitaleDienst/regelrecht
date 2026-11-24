@@ -212,6 +212,11 @@ const ROUTES: &[Route] = &[
     ),
     route(
         Method::GET,
+        "/api/trajects/{traject_ref}/corpus/laws/{law_id}/consumers",
+        RoleAndAccount(READER),
+    ),
+    route(
+        Method::GET,
         "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
         RoleAndAccount(READER),
     ),
