@@ -4,8 +4,8 @@
 // comes from the server's `stand`; whether it waits for a decision, and so
 // shows the button, from the server's queue (`open`) alone.
 import { artikelNaam } from '../gedeeld/keten';
-import { flushPromises, mount } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Casus, Gram, Ik, Stand, Voorvertoning } from '../gedeeld/types';
 import type { Beslissing, Kroniek, Wachtend } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
@@ -54,6 +54,19 @@ const beslisser: Ik = {
   klok_zetten: false,
 };
 
+// A pane left mounted keeps its timer, which would call the shared mocks in the next test.
+enableAutoUnmount(afterEach);
+
+/**
+ * Let the pane settle. It asks for its preview on a timer, and
+ * `flushPromises` alone resolves through `setImmediate`, which Node may run
+ * before that timer: first let a timer pass, then the answer.
+ */
+async function rond() {
+  await new Promise((r) => setTimeout(r, 0));
+  await flushPromises();
+}
+
 /** The pane on the submission `c`, with `open` as the server's work queue. */
 function toon(stand: Stand, grammen: Gram[], open: Wachtend[] = []) {
   const kroniek: Kroniek = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', kop: grammen.length, grammen, stand };
@@ -68,7 +81,7 @@ describe('the decision button', () => {
 
   it('does not show on a submission whose decision stands', async () => {
     const w = toon(besloten, [bezwaar, opBezwaar]);
-    await flushPromises();
+    await rond();
     expect(knop(w)).toBeUndefined();
     expect(w.findAll('nldd-banner').map((b) => b.attributes('text'))).toContain('Op deze indiening is besloten op 15 november 2026');
   });
@@ -77,14 +90,14 @@ describe('the decision button', () => {
     // Another employee decided after this screen loaded its chronicle.
     const verouderd: Stand = { rollen, herroepen: {}, antwoorden: { c: { soort: 'open' } } };
     const w = toon(verouderd, [bezwaar], []);
-    await flushPromises();
+    await rond();
     expect(knop(w)).toBeUndefined();
   });
 
   it('shows after an annulment with an order for a new decision, to decide after the receipt', async () => {
     const vernietigd: Stand = { rollen, herroepen: { d: 'r' }, antwoorden: { c: { soort: 'vervallen', besluit: 'd', door: 'r', na: 'r' } } };
     const w = toon(vernietigd, [bezwaar, opBezwaar, ontvangst], [{ stuk: bezwaar, na: 'r' }]);
-    await flushPromises();
+    await rond();
     expect(knop(w)).toBeDefined();
   });
 });
@@ -96,7 +109,7 @@ describe('a submission whose decision was revoked', () => {
       { rollen: { ...rollen, i: 'besluit' }, herroepen: { d: 'i' }, antwoorden: { c: { soort: 'vervallen', besluit: 'd', door: 'i' } } },
       [bezwaar, opBezwaar, intrekking],
     );
-    await flushPromises();
+    await rond();
     expect(w.find('nldd-badge').attributes('text')).toBe('Herroepen');
     expect(w.findAll('nldd-button').find((b) => b.attributes('text') === 'Besluit nemen')).toBeUndefined();
     expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).not.toContain('Een beslisser van deze cel neemt het besluit');
@@ -108,7 +121,7 @@ describe('a submission whose decision was revoked', () => {
       [bezwaar, opBezwaar, ontvangst],
       [{ stuk: bezwaar, na: 'r' }],
     );
-    await flushPromises();
+    await rond();
     // The earlier decision, marked as annulled, and the form to decide again.
     expect(w.find('nldd-badge').attributes('text')).toBe('Vernietigd');
     const banners = w.findAll('nldd-banner').map((b) => b.attributes('text'));
@@ -116,7 +129,7 @@ describe('a submission whose decision was revoked', () => {
     expect(banners).toContain('Opnieuw beslissen');
     expect(knop(w)).toBeDefined();
     await knop(w)?.trigger('click');
-    await flushPromises();
+    await rond();
     expect(beslissen).toHaveBeenCalledWith(expect.objectContaining({ op: 'c', na: 'r' }));
     expect(w.findAll('nldd-banner').map((b) => b.attributes('text'))).toContain('Het besluit is genomen');
   });
@@ -155,7 +168,7 @@ describe('a submission whose decision was revoked', () => {
         ],
       },
     });
-    await flushPromises();
+    await rond();
     const titels = w.findAll('nldd-title').map((t) => t.attributes('text'));
     expect(titels).toContain('Het eerdere besluit');
     expect(titels).toContain('Het geldende besluit');
@@ -185,7 +198,7 @@ describe('the decision as it would be taken', () => {
       },
     });
     const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
-    await flushPromises();
+    await rond();
     expect(voorvertoning).toHaveBeenCalledWith(expect.objectContaining({ op: 'c' }));
     const titels = w.findAll('nldd-title').map((t) => t.attributes('text'));
     expect(titels).toContain('Voorvertoning van het besluit');
@@ -204,7 +217,7 @@ describe('the decision as it would be taken', () => {
       automatisch: [{ feit: 'beleid#7#kaart_besteld_bij_drukker', artikel: 'beleid#7', verwijst_naar: null }],
     });
     const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
-    await flushPromises();
+    await rond();
     expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toContain('Daarna doet het systeem zelf');
     const rij = w.find('nldd-list[accessible-label="Wat het systeem daarna zelf vastlegt"] nldd-text-cell');
     expect(rij.attributes('text')).toBe('Kaart besteld bij drukker');
@@ -216,12 +229,12 @@ describe('the decision as it would be taken', () => {
       automatisch: [{ feit: 'beleid#7#kaart_besteld_bij_drukker', artikel: 'beleid#7', verwijst_naar: null }],
     });
     const geweigerd = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
-    await flushPromises();
+    await rond();
     expect(geweigerd.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Daarna doet het systeem zelf');
     // Nothing to tell: no heading.
     voorvertoning.mockClear().mockResolvedValueOnce({ stil: [], voorlopig: { besluit: { ...gram('p', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: {} } } });
     const leeg = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
-    await flushPromises();
+    await rond();
     expect(leeg.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Daarna doet het systeem zelf');
   });
 
@@ -234,7 +247,7 @@ describe('the decision as it would be taken', () => {
         "'langdurige_loopbeperking_volgens_college' on regeling#3 is decided per case by the authority, but no judgement was given",
     });
     const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
-    await flushPromises();
+    await rond();
     const dialoog = w.findAll('nldd-inline-dialog').find((d) => d.attributes('text') === 'Er is nog geen besluit te berekenen');
     expect(dialoog?.attributes('supporting-text')?.toLowerCase()).toContain('"langdurige loopbeperking volgens college"');
     expect(dialoog?.attributes('supporting-text')).toContain('Geef die bevinding.');
@@ -244,13 +257,13 @@ describe('the decision as it would be taken', () => {
   it('asks again when the chronicle changes, such as when an advice comes in', async () => {
     voorvertoning.mockClear();
     const w = toon(wacht, [bezwaar], [{ stuk: bezwaar }]);
-    await flushPromises();
+    await rond();
     expect(voorvertoning).toHaveBeenCalledTimes(1);
     const advies = { ...gram('a', 'EXECUTOGRAM', 'beleid#5', undefined), fact: 'advies_ontvangen' };
     const kroniek: Kroniek = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', kop: 2, grammen: [bezwaar, advies], stand: wacht };
     await w.setProps({ kronieken: [kroniek] });
     await new Promise((r) => setTimeout(r, 350));
-    await flushPromises();
+    await rond();
     expect(voorvertoning).toHaveBeenCalledTimes(2);
   });
 });
