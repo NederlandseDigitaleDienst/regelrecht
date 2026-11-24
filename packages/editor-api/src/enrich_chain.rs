@@ -465,6 +465,29 @@ impl<'a> Stelsel<'a> {
     /// # Errors
     ///
     /// [`ChainError`] when the law or the article is not in the traject.
+    /// `$id`s of laws that articles on `chain` bind to and that `laws` does
+    /// not hold yet: what a lazy walk reads next.
+    #[must_use]
+    pub fn unread_bound_laws(&self, chain: &Chain) -> Vec<String> {
+        let mut out = BTreeSet::new();
+        for node in &chain.nodes {
+            let Some(facts) = self.laws.get(node.law_id.as_str()) else {
+                continue;
+            };
+            let Some(article) = facts.article(&node.article) else {
+                continue;
+            };
+            for binding in &article.binds {
+                if let Some(target) = &binding.regulation
+                    && !self.laws.contains_key(target.as_str())
+                {
+                    out.insert(target.clone());
+                }
+            }
+        }
+        out.into_iter().collect()
+    }
+
     pub fn chain(
         &self,
         law_id: &str,
@@ -913,6 +936,64 @@ articles:
         assert!(awir.partial);
         assert!(awir.hotspots.iter().all(|h| h.law_id == "awir"));
         assert_eq!(stelsel.hotspots(1, None, 0).hotspots.len(), 1);
+    }
+
+    #[test]
+    fn a_lazy_walk_asks_for_the_laws_its_articles_bind_to() {
+        let start = r"
+$id: regeling
+bwb_id: BWBR0000010
+articles:
+  - number: '1'
+    text: Het bedrag.
+    machine_readable:
+      execution:
+        input:
+          - name: inkomen
+            source:
+              regulation: wet_inkomen
+              output: toetsingsinkomen
+  - number: '2'
+    text: Losstaand.
+    machine_readable:
+      execution:
+        input:
+          - name: x
+            source:
+              regulation: wet_elders
+              output: y
+";
+        let only_start = laws(&[start]);
+        let stelsel = Stelsel::new(&only_start);
+        let chain = stelsel.chain("regeling", "1", 3, 0).unwrap();
+        // Article 2 is not on the chain of article 1, so its law is not asked for.
+        assert_eq!(stelsel.unread_bound_laws(&chain), ["wet_inkomen"]);
+
+        let with_target = laws(&[
+            start,
+            r"
+$id: wet_inkomen
+bwb_id: BWBR0000011
+articles:
+  - number: '3'
+    text: Het toetsingsinkomen.
+    machine_readable:
+      execution:
+        output:
+          - name: toetsingsinkomen
+",
+        ]);
+        let stelsel = Stelsel::new(&with_target);
+        let chain = stelsel.chain("regeling", "1", 3, 0).unwrap();
+        assert!(stelsel.unread_bound_laws(&chain).is_empty());
+        assert!(
+            chain
+                .nodes
+                .iter()
+                .any(|n| n.law_id == "wet_inkomen" && n.article == "3"),
+            "{:?}",
+            chain.nodes
+        );
     }
 
     #[test]

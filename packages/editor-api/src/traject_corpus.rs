@@ -1099,6 +1099,70 @@ impl TrajectCorpus {
         self.facts_index_get_or_build().await
     }
 
+    /// The facts index as far as it is built, without starting a build.
+    pub async fn facts_cached(&self) -> Option<Arc<FactsSnapshot>> {
+        self.facts_index.read().await.clone()
+    }
+
+    /// The facts of the named laws only, read on demand: overlay, loaded
+    /// body, memo, then a fetch until `deadline`. A walk from one article
+    /// reads the laws on its path this way instead of scanning a corpus of
+    /// thousands of laws first. Laws the snapshot does not have are left
+    /// out; the second value counts the laws that could not be read (fetch
+    /// failed or the deadline passed).
+    pub async fn facts_for_laws(
+        &self,
+        law_ids: &[String],
+        deadline: std::time::Instant,
+    ) -> (BTreeMap<String, Arc<LawFacts>>, usize) {
+        let mut out = BTreeMap::new();
+        let mut unread = 0usize;
+        for law_id in law_ids {
+            let Some(law) = self.corpus.source_map.get_law(law_id) else {
+                continue;
+            };
+            let overlay_body = self.overlay.read().await.get(law_id).cloned();
+            let facts = if let Some(body) = overlay_body {
+                facts_of(&body)
+            } else if law.is_loaded() {
+                facts_of(&law.yaml_content)
+            } else {
+                let key = law
+                    .content_sha
+                    .clone()
+                    .map(|sha| (law.source_id.clone(), sha));
+                let hit = match &key {
+                    Some(k) => self.facts_memo.read().await.get(k).cloned(),
+                    None => None,
+                };
+                if let Some(hit) = hit {
+                    hit
+                } else if std::time::Instant::now() >= deadline {
+                    unread += 1;
+                    continue;
+                } else {
+                    match self.law_yaml(law_id).await {
+                        Ok(Some(yaml)) => {
+                            let facts = facts_of(&yaml);
+                            if let Some(k) = key {
+                                self.facts_memo.write().await.insert(k, Arc::clone(&facts));
+                            }
+                            facts
+                        }
+                        Ok(None) => continue,
+                        Err(e) => {
+                            tracing::debug!(law_id = %law_id, error = %e, "chain: body fetch failed");
+                            unread += 1;
+                            continue;
+                        }
+                    }
+                }
+            };
+            out.insert(law_id.clone(), facts);
+        }
+        (out, unread)
+    }
+
     /// Build the facts in the background, so the first person who opens a
     /// chain does not wait for the scan. Single-flighted with every other
     /// build; a partial result is continued by the next lookup.

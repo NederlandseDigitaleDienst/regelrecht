@@ -1242,20 +1242,19 @@ pub async fn get_traject_article_chain(
     let ReadScope::Traject(ts) = &scope else {
         return Err((StatusCode::NOT_FOUND, "no traject corpus".to_string()));
     };
-    let snapshot = ts.traject.facts().await;
-    // What the index holds for this law, for a refusal that says why.
-    let indexed_articles = snapshot.laws().get(&law_id).map(|f| f.articles.len());
-    let indexed_laws = snapshot.laws().len();
-    let unread_laws = snapshot.unread();
-    let (wanted_law, wanted_article) = (law_id.clone(), article.clone());
     let depth = query
         .depth
         .unwrap_or(crate::enrich_chain::DEFAULT_DEPTH)
         .min(crate::enrich_chain::MAX_DEPTH);
+    let (laws, unread_laws) = read_chain_laws(&ts.traject, &law_id, &article, depth).await;
+    // What was read for this law, for a refusal that says why.
+    let indexed_articles = laws.get(&law_id).map(|f| f.articles.len());
+    let indexed_laws = laws.len();
+    let (wanted_law, wanted_article) = (law_id.clone(), article.clone());
     // A walk over a large stelsel is CPU work; keep it off the async workers.
     let chain = tokio::task::spawn_blocking(move || {
-        let stelsel = crate::enrich_chain::Stelsel::new(snapshot.laws());
-        stelsel.chain(&law_id, &article, depth, snapshot.unread())
+        let stelsel = crate::enrich_chain::Stelsel::new(&laws);
+        stelsel.chain(&law_id, &article, depth, unread_laws)
     })
     .await
     .map_err(|e| {
@@ -1301,6 +1300,55 @@ pub async fn get_traject_article_chain(
             Err((StatusCode::NOT_FOUND, reason))
         }
     }
+}
+
+/// How long one chain request may spend reading law bodies.
+const CHAIN_READ_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// The laws a chain from `(law_id, article)` needs, read lazily: what the
+/// facts index already holds, then the start law, then round by round the
+/// laws that articles on the chain bind to, until nothing new is needed or
+/// the budget runs out. A traject that federates the central corpus has
+/// thousands of laws; the walk reads the few on its path rather than wait for
+/// all of them. Returns the facts and how many needed laws stayed unread.
+async fn read_chain_laws(
+    traject: &crate::traject_corpus::TrajectCorpus,
+    law_id: &str,
+    article: &str,
+    depth: usize,
+) -> (
+    std::collections::BTreeMap<
+        String,
+        std::sync::Arc<regelrecht_pipeline::enrich_v2::facts::LawFacts>,
+    >,
+    usize,
+) {
+    let deadline = std::time::Instant::now() + CHAIN_READ_BUDGET;
+    let mut laws = traject
+        .facts_cached()
+        .await
+        .map(|s| s.laws().clone())
+        .unwrap_or_default();
+    let mut wanted = vec![law_id.to_string()];
+    let mut unread = 0usize;
+    // Each round adds the laws one binding further out; depth + 1 rounds
+    // cover every law jump the walk may take.
+    for _round in 0..=depth {
+        wanted.retain(|id| !laws.contains_key(id));
+        if wanted.is_empty() {
+            break;
+        }
+        let (read, failed) = traject.facts_for_laws(&wanted, deadline).await;
+        unread = failed;
+        laws.extend(read);
+        let stelsel = crate::enrich_chain::Stelsel::new(&laws);
+        let Ok(chain) = stelsel.chain(law_id, article, depth, 0) else {
+            break;
+        };
+        wanted = stelsel.unread_bound_laws(&chain);
+    }
+    wanted.retain(|id| !laws.contains_key(id));
+    (laws, unread.max(wanted.len()))
 }
 
 /// Query of the hotspots route.
