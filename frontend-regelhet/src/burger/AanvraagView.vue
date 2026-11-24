@@ -9,9 +9,11 @@
 // read-only, with the value the server will record and its origin; the
 // server fills it itself, so the form does not send it. What the UI spec
 // hides stays off the form. Once submitted, the sheet says so and offers to
-// open the application in the dossier or to start another.
+// open the application in the dossier or to start another. Where the
+// transport offers a prediction (`VOORSPELLING`), its panel stands above the
+// button and works on what the form holds, on this device.
 import { hoofdletter, kleineLetter, leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
-import { computed, ref, watch } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
 import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomsten, schermveld, voorgevuldeWaarden } from '../gedeeld/formulier';
@@ -22,6 +24,7 @@ import type { Gram } from '../gedeeld/types';
 import { burgerApi } from './api';
 import { AANVRAAG, AANVRAAG_WETTEN } from './routes';
 import { useBurger } from './useBurger';
+import { VOORSPELLING } from './voorspelling';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ sluit: []; ingediend: [] }>();
@@ -36,6 +39,7 @@ const overToekenning = computed(() => {
 const op = computed(() => (typeof route.query.op === 'string' ? route.query.op : undefined));
 const artikel = computed(() => overToekenning.value?.artikel ?? casus.value?.artikel);
 const { casus, vormen, wie, fout, laden, laad } = useBurger();
+const voorspelling = inject(VOORSPELLING, null);
 const waarden = ref<Record<string, unknown>>({});
 /** The prefilled fields the applicant chose to change: those are inputs, holding the prefill to start with. */
 const bewerkt = ref<Set<string>>(new Set());
@@ -287,6 +291,10 @@ async function indienen() {
                     :tabellen="vormen?.tabellen"
                     @bewerk="(n) => (bewerkt = new Set([...bewerkt, n]))"
                     @zet="(n, v) => (waarden[n] = v)" />
+                  <template v-if="open && voorspelling && vorm && artikel && !overToekenning">
+                    <nldd-spacer size="24"></nldd-spacer>
+                    <component :is="voorspelling" :artikel="artikel" :vorm="vorm" :velden="aanvraagVelden(vorm, waarden, vormen?.delen)" :naam="wie?.naam ?? null" />
+                  </template>
                   <template v-if="melding">
                     <nldd-spacer size="16"></nldd-spacer>
                     <nldd-inline-dialog icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>

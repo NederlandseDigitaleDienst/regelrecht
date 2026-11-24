@@ -1103,6 +1103,25 @@ regelhet-iit:
     REGELHET_MODE=test REGELHET_PORT="${REGELHET_PORT:-7181}" \
     REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+# The kern of the citizen's app in the browser as WebAssembly
+# (frontend-regelhet, `--mode burgerapp`): the cell, the engine and the game
+# of packages/poc-chronolexografie, into frontend-regelhet/burgerapp/wasm/pkg.
+# The build of the app stops with a clear message without it.
+burgerapp-wasm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bindgen=$({{just_executable()}} wasm-bindgen-cli)
+    cargo build --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --features wasm --target wasm32-unknown-unknown --release --target-dir packages/target
+    "$bindgen" --target web --out-dir frontend-regelhet/burgerapp/wasm/pkg packages/target/wasm32-unknown-unknown/release/regelrecht_poc_chronolexografie.wasm
+
+# The citizen's own app in the browser, on the Vite dev server at
+# http://localhost:7150/burger.html. It talks to the RegelHets in
+# frontend-regelhet/burgerapp/regelhets.json: by default `just regelhet` on
+# port 7180, which needs FSC voor Burgers in test mode and this origin in
+# REGELHET_FSC4B_ORIGINS. See docs, components/burgerapp.
+burgerapp: burgerapp-wasm
+    npm run dev -w frontend-regelhet -- --mode burgerapp
+
 # An organisation in front of two processes, in test mode: the parking card
 # on http://localhost:7184, the IIT of Groningen on :7185, and the front of the
 # organisation (REGELHET_ROL=organisatie) on both sides at

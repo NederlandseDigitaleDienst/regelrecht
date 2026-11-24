@@ -335,6 +335,21 @@ impl Spel {
         })?)
     }
 
+    /// What the case's cell hands out on `datum` about the applicant whose
+    /// login field `inlogveld` holds `waarde`
+    /// ([`crate::brongegevens::brongegevens`]): what an executor signs and
+    /// gives an applicant, computed here on this game's chronicles, so the
+    /// applicant's app compares the same function on both sides. Nothing is
+    /// recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::brongegevens::brongegevens`], and when no case is chosen.
+    pub fn brongegevens(&mut self, inlogveld: &str, waarde: &str, datum: NaiveDate) -> Antwoord {
+        ok(self
+            .met(|c, cell| crate::brongegevens::brongegevens(c, cell, inlogveld, waarde, datum))?)
+    }
+
     /// Log in through the case's login step ([`inlogstap::inloggen`]): the
     /// assertion, or why the service refused. Who is logged in stays with
     /// the caller.

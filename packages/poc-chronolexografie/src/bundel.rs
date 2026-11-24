@@ -110,11 +110,23 @@ pub struct BronStand {
 /// regelrecht bundle fails as before; a broken source does not: what went
 /// wrong is in its [`BronStand`], and the other cases play on. A case from
 /// a source with the id of a case before it is set aside, with a message.
+///
+/// An empty bundle holds no cases of its own: a page that plays only the
+/// cases of its sources, such as the citizen's app with the source of a
+/// RegelHet (`frontend-regelhet`), gives `{}`.
+///
+/// # Errors
+///
+/// When a bundle that is not empty makes no cases ([`casussen`]).
 pub fn met_bronnen(
     files: BTreeMap<String, String>,
     bronnen: Vec<Bron>,
 ) -> Result<(Vec<Corpus>, Vec<BronStand>)> {
-    let mut alle = casussen(files.clone())?;
+    let mut alle = if files.is_empty() {
+        Vec::new()
+    } else {
+        casussen(files)?
+    };
     let mut standen = Vec::new();
     for bron in bronnen {
         let mut stand = BronStand {
@@ -495,6 +507,16 @@ mod tests {
             )
             .unwrap();
         besluit["besluit"]["outputs"].clone()
+    }
+
+    #[test]
+    fn an_empty_bundle_plays_only_the_cases_of_its_sources() {
+        let (alle, standen) = met_bronnen(BTreeMap::new(), vec![voorbeeld()]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let ids: Vec<&str> = alle.iter().map(|c| c.casus.id.as_str()).collect();
+        assert_eq!(ids, ["voorbeeld_subsidie"]);
+        let (alle, standen) = met_bronnen(BTreeMap::new(), Vec::new()).unwrap();
+        assert!(alle.is_empty() && standen.is_empty());
     }
 
     #[test]

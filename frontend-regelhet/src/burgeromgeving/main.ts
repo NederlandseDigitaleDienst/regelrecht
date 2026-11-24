@@ -4,9 +4,10 @@
 import '@nldd/design-system';
 import '@nldd/design-system/styles';
 import '@nldd/design-system/themes';
-import { createApp } from 'vue';
+import { createApp, defineAsyncComponent } from 'vue';
 import { useColorScheme } from '@regelrecht/frontend-shared';
 import { vervoer } from '#vervoer';
+import { VOORSPELLING } from '../burger/voorspelling';
 import { gebruikSessie } from '../gedeeld/sessie';
 import { laadUiterlijk } from '../gedeeld/uiterlijk';
 import BurgerShell from './BurgerShell.vue';
@@ -18,4 +19,6 @@ gebruikSessie(vervoer.sessie((reden) => void router.push({ name: 'toegang', quer
 
 useColorScheme();
 void laadUiterlijk();
-createApp(BurgerShell).provide(VERVOER, vervoer).use(router).mount('#app');
+const app = createApp(BurgerShell).provide(VERVOER, vervoer);
+if (vervoer.voorspelling) app.provide(VOORSPELLING, defineAsyncComponent(vervoer.voorspelling));
+app.use(router).mount('#app');

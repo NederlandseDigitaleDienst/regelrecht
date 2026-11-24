@@ -9,7 +9,10 @@
 // - vervoer/tauri.ts: the app (`--mode app`), every call a command of the
 //   Rust core over FSC voor Burgers, getting in by activation;
 // - vervoer/cookie.ts: the citizen's web environment (`--mode burger`), plain
-//   HTTP with the session cookie, getting in through the login.
+//   HTTP with the session cookie, getting in through the login;
+// - vervoer/fsc4b.ts: the citizen's own app in the browser (`--mode
+//   burgerapp`), every call over FSC voor Burgers to a RegelHet of its list,
+//   getting in by choosing one and activating the app there.
 import type { Component } from 'vue';
 import type { RouterHistory } from 'vue-router';
 import type { Sessie } from '../gedeeld/sessie';
@@ -33,4 +36,9 @@ export interface Vervoer {
   onderschrift(): string;
   /** How the router keeps its place. */
   history(): RouterHistory;
+  /**
+   * A panel on the application form that predicts the decision before the
+   * citizen applies (`VOORSPELLING` in burger/voorspelling.ts), or none.
+   */
+  voorspelling?: () => Promise<Component>;
 }

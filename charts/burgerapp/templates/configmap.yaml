@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "burgerapp.labels" . | nindent 4 }}
+data:
+  regelhets.json: |
+    {{- include "burgerapp.regelhets" . | nindent 4 }}

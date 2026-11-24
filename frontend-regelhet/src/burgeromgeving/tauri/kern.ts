@@ -11,8 +11,15 @@ import type { Ik } from '../../gedeeld/types';
 /** How the webview calls a command of the core: Tauri's `invoke`, or a stub in a test. */
 export type Invoke = <T>(commando: string, args?: Record<string, unknown>) => Promise<T>;
 
-/** Where the core keeps the app key (`KeyStorage` in keystore.rs). */
-export type Opslag = { kind: 'memory' } | { kind: 'file'; path: string } | { kind: 'hardware'; platform: string };
+/**
+ * Where the core keeps the app key (`KeyStorage` in keystore.rs), or, for the
+ * app in the browser (../fsc4b/), the browser's storage.
+ */
+export type Opslag =
+  | { kind: 'memory' }
+  | { kind: 'file'; path: string }
+  | { kind: 'hardware'; platform: string }
+  | { kind: 'browser' };
 
 /** What the core says of itself (`Status` in core.rs). */
 export interface AppStatus {

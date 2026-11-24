@@ -25,6 +25,7 @@ path = [
   "**.rs",
   "**.sh",
   "**.sql",
+  "**.template",
   "**.toml",
   "**.tpl",
   "**.ts",

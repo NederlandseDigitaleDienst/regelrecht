@@ -239,6 +239,18 @@ impl Poc {
         )
     }
 
+    /// What the case's cell hands out on `datum` about the applicant whose
+    /// login field `inlogveld` holds `waarde`: `{ antwoorden, regelwerken,
+    /// bij_aanvraag }`, as an executor signs it. Nothing is recorded.
+    pub fn brongegevens(
+        &mut self,
+        inlogveld: &str,
+        waarde: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.brongegevens(inlogveld, waarde, dag(datum)?))
+    }
+
     /// Log in through the case's login step as `gebruikersnaam`; `dienst`:
     /// another service than the case's, or none. Nothing about the session
     /// stays here.

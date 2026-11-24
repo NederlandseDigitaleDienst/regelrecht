@@ -1,0 +1,42 @@
+---
+# The base domain: the app is served on burgerapp.<domain>.
+domain: ''
+# The host instead of burgerapp.<domain>.
+host: ''
+
+image:
+  # Built from main by .forgejo/workflows/burgerapp-image.yml, as :main and
+  # :<commit>. Pin a commit tag for a deployment that should not move.
+  ref: code.digitaledienst.overheid.nl/regelrecht/burgerapp:main
+  pullPolicy: Always
+
+# The RegelHets the app lists, served as regelhets.json. Each needs an id
+# (a-z, 0-9, -), a name, its public https address, and the OIN of its
+# organization in the Stelseldocument (the demo OIN when left out). The
+# browser may call these addresses and no others (the CSP's connect-src),
+# and each RegelHet must allow this app's origin
+# (REGELHET_FSC4B_ORIGINS on the RegelHet).
+regelhets: []
+#  - id: parkeerkaart-wilgendaal
+#    naam: Gehandicaptenparkeerkaart, gemeente Wilgendaal
+#    adres: https://burger.regelhet.example.org
+
+gateway:
+  # An HTTPS listener on a Gateway the cluster already has, added from this
+  # namespace with a ListenerSet, as charts/regelhet does in its default
+  # mode; cert-manager makes the certificate with the cluster's
+  # ClusterIssuer letsencrypt-<tls.acme>.
+  shared:
+    name: public-gateway
+    namespace: istio-gateway
+
+tls:
+  # Let's Encrypt staging or production.
+  acme: staging
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi

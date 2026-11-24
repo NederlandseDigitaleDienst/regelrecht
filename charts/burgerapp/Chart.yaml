@@ -1,0 +1,13 @@
+---
+apiVersion: v2
+name: burgerapp
+description: >-
+  The citizen's own app in the browser: a static site, from
+  frontend-regelhet/burgerapp/Dockerfile, that talks to the RegelHets of its
+  list over FSC voor Burgers and computes with the kern as WebAssembly. No
+  backend and no database: the app's keys stay in the citizen's browser.
+type: application
+version: 0.1.0
+home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
+sources:
+  - https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026

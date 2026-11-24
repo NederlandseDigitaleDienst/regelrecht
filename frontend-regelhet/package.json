@@ -9,6 +9,7 @@
     "build": "npm run build:all && npm run build:burger && npm run build:backoffice && npm run build:organisatie",
     "build:all": "vite build --mode all",
     "build:app": "vite build --mode app",
+    "build:burgerapp": "vite build --mode burgerapp",
     "build:burger": "vite build --mode burger",
     "build:backoffice": "vite build --mode backoffice",
     "build:organisatie": "vite build --mode organisatie",
@@ -21,6 +22,7 @@
     "@nldd/design-system": "^0.29.0",
     "@regelrecht/frontend-shared": "*",
     "@tauri-apps/api": "^2.12.4",
+    "jose": "^6.2.16",
     "vue": "^3.5.43",
     "vue-router": "^5.4.0"
   },

@@ -113,6 +113,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: 'RegelHet: FSC voor Burgers', link: '/components/regelhet-fsc4b' },
         { text: 'RegelHet: dienstprofiel FSC voor Burgers', link: '/components/regelhet-fsc4b-dienstprofiel' },
         { text: 'RegelHet: the app', link: '/components/regelhet-app' },
+        { text: "RegelHet: the citizen's app in the browser", link: '/components/regelhet-burgerapp' },
         { text: 'RegelHet: a link between servers', link: '/components/regelhet-koppeling' },
         { text: 'RegelHet: the organisation', link: '/components/regelhet-organisatie' },
       ],

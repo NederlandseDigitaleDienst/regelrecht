@@ -22,5 +22,7 @@ export function opslagTekst(s: AppStatus): string {
       return 'De sleutel van deze app staat in een bestand op dit apparaat, in software. Geen beveiligde hardware beschermt hem.';
     case 'hardware':
       return `De sleutel van deze app staat in de beveiligde hardware van dit apparaat (${s.key_storage.platform}) en verlaat die niet.`;
+    case 'browser':
+      return 'De sleutel van deze app staat in de opslag van deze browser. De browser geeft hem niet vrij, maar het is software: geen beveiligde hardware beschermt hem. Wie deze browser gebruikt, kan de app laten ondertekenen.';
   }
 }

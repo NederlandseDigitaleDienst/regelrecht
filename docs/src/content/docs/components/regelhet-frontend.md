@@ -100,6 +100,7 @@ Each side has an entry of its own, and one source gives four builds. The mode pi
 | `npm run build:burger` | `burger.html`, `src/burgeromgeving/` | the citizens' screens, with the session cookie | `dist/burger/` |
 | `npm run build:backoffice` | `backoffice.html`, `src/backofficeomgeving/` | the back office and the login | `dist/backoffice/` |
 | `npm run build:app` | `burger.html` | the citizens' screens for [the app](/components/regelhet-app) | `dist-app/` |
+| `npm run build:burgerapp` | `burger.html` | the citizens' screens for [the app in the browser](/components/regelhet-burgerapp), with the kern as WebAssembly | `dist-burgerapp/` |
 
 `npm run build` makes the three web builds. The combined build and the back office share the shell (`App.vue`) and the router (`src/router.ts`), which each entry gives the routes of its own sides; neither imports a side itself.
 

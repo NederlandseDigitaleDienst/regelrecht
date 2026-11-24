@@ -122,6 +122,7 @@ describe('the citizen entry with the transport of the app', () => {
       expect(m, m).not.toMatch(/^(App\.vue|router\.ts|main\.ts|start\.ts)$/);
       expect(m, m).not.toBe(join('gedeeld', 'ik.ts'));
       expect(m, m).not.toBe(join('burgeromgeving', 'vervoer', 'cookie.ts'));
+      expect(m, m).not.toMatch(/^burgeromgeving\/(fsc4b\/|vervoer\/fsc4b)/);
     }
   });
 
@@ -139,6 +140,27 @@ describe('the citizen entry with the cookie transport', () => {
     for (const m of web) {
       expect(m, m).not.toMatch(/^backoffice\//);
       expect(m, m).not.toMatch(/^burgeromgeving\/(tauri\/|vervoer\/tauri)/);
+    }
+  });
+});
+
+describe('the citizen entry as the app in the browser', () => {
+  const app = bundel('fsc4b');
+
+  it('reaches the citizen screens, the core of the app and the prediction', () => {
+    expect(app).toContain(join('burger', 'routes.ts'));
+    expect(app).toContain(join('burger', 'AanvraagView.vue'));
+    expect(app).toContain(join('burgeromgeving', 'fsc4b', 'kern.ts'));
+    expect(app).toContain(join('burgeromgeving', 'fsc4b', 'KeuzeView.vue'));
+    expect(app).toContain(join('burgeromgeving', 'fsc4b', 'VoorspellingPaneel.vue'));
+  });
+
+  it('reaches nothing of the back office, the login, the web shell or the other transports', () => {
+    for (const m of app) {
+      expect(m, m).not.toMatch(/^(backoffice|inloggen)\//);
+      expect(m, m).not.toMatch(/^(App\.vue|router\.ts|main\.ts|start\.ts)$/);
+      expect(m, m).not.toMatch(/^burgeromgeving\/vervoer\/(cookie|tauri)\.ts$/);
+      expect(m, m).not.toMatch(/testondersteuning/);
     }
   });
 });

@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "burgerapp.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "burgerapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "burgerapp.selectorLabels" . | nindent 8 }}
+      annotations:
+        # A new list restarts the pod, so nginx serves it and its CSP at once.
+        checksum/regelhets: {{ include "burgerapp.regelhets" . | sha256sum }}
+    spec:
+      # The app needs nothing of the Kubernetes API.
+      automountServiceAccountToken: false
+      securityContext:
+        # The user nginx of the unprivileged nginx image.
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        # The entrypoint writes the nginx configuration into the emptyDir at
+        # /etc/nginx/conf.d; without write access nginx starts without it.
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: burgerapp
+          image: {{ .Values.image.ref }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: BURGERAPP_CONNECT_SRC
+              value: {{ include "burgerapp.origins" . | quote }}
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: regelhets
+              mountPath: /usr/share/nginx/html/regelhets.json
+              subPath: regelhets.json
+              readOnly: true
+            # Where the entrypoint writes the configuration from its
+            # template, and where nginx keeps its pid and temporary files.
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: regelhets
+          configMap:
+            name: {{ .Release.Name }}
+        - name: conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

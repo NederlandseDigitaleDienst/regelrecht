@@ -1702,3 +1702,129 @@ fn parkeerkaart_a_grant_brings_the_order_of_the_card_once() {
     advies(&mut spel, "999990020", "2026-10-21", true);
     assert_eq!(orders(&mut spel).len(), 1);
 }
+
+/// The parking card of `bsn`: applied for as a driver on `aangevraagd`, the
+/// GGD finds a long-term walking limitation, and the college grants it four
+/// days later.
+fn kaart_toegekend(spel: &mut Spel, bsn: &str, aangevraagd: &str) {
+    let aanvraag = map(&json!({
+        "bsn_aanvrager": bsn,
+        "kaart_als_bestuurder": true,
+        "kaart_als_passagier": false,
+        "aanvraag_ondertekend": true,
+        "naam_aanvrager": "Test Burger",
+        "adres_aanvrager": "Voorbeeldlaan 1, 1234 AB Wilgendaal",
+        "dagtekening": aangevraagd,
+        "gevraagde_beschikking": "gehandicaptenparkeerkaart",
+    }));
+    let ingediend = spel.aanvragen(&aanvraag, dag(aangevraagd)).unwrap();
+    let op = ingediend["id"].as_str().unwrap().to_string();
+    advies(spel, bsn, aangevraagd, true);
+    let beslist = dag(aangevraagd) + chrono::Days::new(4);
+    let genomen = spel.besluiten(&op, &Map::new(), beslist).unwrap();
+    assert_eq!(
+        genomen["besluit"]["outputs"]["gehandicaptenparkeerkaart_verstrekt"],
+        json!(true)
+    );
+}
+
+/// The records of `kronieken` about `bsn`: those whose fields name it, and
+/// those that refer to one of those, as a dossier holds them. What the
+/// executor gives an applicant; it never names another person's record.
+fn dossier_van(kronieken: &Value, bsn: &str) -> Value {
+    let mut ids: Vec<String> = Vec::new();
+    let alle: Vec<&Value> = kronieken
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|k| k.as_array().unwrap())
+        .collect();
+    for gram in &alle {
+        let over = gram["fields"]["bsn_aanvrager"] == json!(bsn)
+            || [&gram["refers_to"], &gram["received"]["id"]]
+                .iter()
+                .any(|r| r.as_str().is_some_and(|id| ids.iter().any(|i| i == id)));
+        if over {
+            ids.push(gram["id"].as_str().unwrap().to_string());
+        }
+    }
+    let per_cel: Vec<Value> = kronieken
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| {
+            let eigen: Vec<Value> = k
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|g| ids.iter().any(|i| Some(i.as_str()) == g["id"].as_str()))
+                .cloned()
+                .collect();
+            Value::Array(eigen)
+        })
+        .collect();
+    Value::Array(per_cel)
+}
+
+/// A game on the source the RegelHet server runs (packages/regelhet/bron.yaml),
+/// with its one case chosen: the case that names what its cell hands out
+/// (`uitgeven`).
+fn regelhet_spel() -> Spel {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let bestanden =
+        regelrecht_corpus::source_manifest::lokaal(&dir.join("../regelhet/bron.yaml")).unwrap();
+    let bron = regelrecht_poc_chronolexografie::bundel::Bron {
+        naam: "regelhet".into(),
+        bestanden,
+        ..Default::default()
+    };
+    let (casussen, standen) =
+        regelrecht_poc_chronolexografie::bundel::met_bronnen(Default::default(), vec![bron])
+            .unwrap();
+    assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+    let mut spel = Spel::met_bronnen(casussen, standen);
+    spel.kiezen("gehandicaptenparkeerkaart").unwrap();
+    spel
+}
+
+/// The citizen's app restores the records of the dossier as chronicles of
+/// its own and computes what the executor's cell handed out
+/// (`Spel::brongegevens`, as `Poc.brongegevens` in the browser). It must
+/// come to the same answers, also when the executor's chronicles hold
+/// someone else as well; otherwise the app could not trust a prediction.
+#[test]
+fn a_dossier_replayed_on_the_device_gives_the_answers_the_executor_handed_out() {
+    const BSN: &str = "999990032";
+    const PEILDATUM: &str = "2026-10-13";
+    let mut uitvoerder = regelhet_spel();
+    kaart_toegekend(&mut uitvoerder, BSN, "2026-03-02");
+    kaart_toegekend(&mut uitvoerder, "999990020", "2026-04-01");
+    let uitgegeven = uitvoerder
+        .brongegevens("bsn_aanvrager", BSN, dag(PEILDATUM))
+        .unwrap();
+    assert_eq!(
+        uitgegeven["antwoorden"]["aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt"]["waarde"],
+        json!(true),
+        "{uitgegeven}"
+    );
+
+    let bewaard = uitvoerder.bewaren().unwrap();
+    let dossier = dossier_van(&bewaard["kronieken"], BSN);
+    let mut app = regelhet_spel();
+    app.herstellen(json!({ "casus": "gehandicaptenparkeerkaart", "kronieken": dossier }))
+        .unwrap();
+    let lokaal = app
+        .brongegevens("bsn_aanvrager", BSN, dag(PEILDATUM))
+        .unwrap();
+    assert_eq!(lokaal["antwoorden"], uitgegeven["antwoorden"]);
+    assert_eq!(lokaal["regelwerken"], uitgegeven["regelwerken"]);
+
+    // Someone the executor never granted a card: the cell is silent.
+    let niemand = app
+        .brongegevens("bsn_aanvrager", "999990044", dag(PEILDATUM))
+        .unwrap();
+    assert_eq!(
+        niemand["antwoorden"]["aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt"]["waarde"],
+        Value::Null
+    );
+}
