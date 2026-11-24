@@ -14,7 +14,7 @@ image:
   # release that leaves image.ref out of its values follows main that way. The
   # screens come from the image and the case from case.ref; with case.ref main
   # the two stay close.
-  ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:73dc62d563b461707ce960da8d4bb052120e4b4a
+  ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:fee090647729c414d3b28f5184c33408e4a5feee
   pullPolicy: IfNotPresent
 
 # The case: a public git repository with a source manifest (bron.yaml). An init
@@ -26,7 +26,7 @@ case:
   # it to the commit of each new image while repoUrl is this repository, so
   # the case and the code that reads it always come from the same commit: a
   # case from a later commit may need a parser the image does not have yet.
-  ref: 73dc62d563b461707ce960da8d4bb052120e4b4a
+  ref: fee090647729c414d3b28f5184c33408e4a5feee
   # Path of the manifest inside the repository. The manifest's `repo_root` is
   # resolved from there, so ../.. points at /case for the default path.
   path: packages/wetsproces/bron.yaml
