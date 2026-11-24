@@ -623,8 +623,9 @@ mod tests {
         let pool = PgPool::connect(database.url()).await.unwrap();
         let tables: Vec<String> = sqlx::query_scalar(
             "SELECT table_name::text FROM information_schema.tables \
-             WHERE table_schema = 'regelhet' AND table_name = 'sessions'",
+             WHERE table_schema = $1 AND table_name = 'sessions'",
         )
+        .bind(SCHEMA)
         .fetch_all(&pool)
         .await
         .unwrap();

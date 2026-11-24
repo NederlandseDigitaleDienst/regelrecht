@@ -16,10 +16,17 @@ import (
 
 // The labels the chart puts on every pod of a release (charts/regelhet,
 // regelhet.selectorLabels): the app, and the release, which carries the
-// name of the RegelHet.
+// name of the RegelHet. appName stays wetsproces after the rename to
+// RegelHet, as in the chart: a Deployment's selector cannot change, so the
+// pods of a release made before the rename keep it, and new ones get the
+// same.
 const (
-	appLabel      = "app.kubernetes.io/name"
-	appName       = "regelhet"
+	appLabel = "app.kubernetes.io/name"
+	appName  = "wetsproces"
+	// secretAppName is what the chart's Job puts on the Secrets it makes
+	// since the rename. It labels with --overwrite at every install and
+	// upgrade, so a Secret from before carries appName until then.
+	secretAppName = "regelhet"
 	instanceLabel = "app.kubernetes.io/instance"
 	// componentLabel marks the part of a release, such as the Keycloak
 	// Secret the chart's Job labels "keycloak".

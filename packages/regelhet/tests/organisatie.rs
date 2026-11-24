@@ -313,7 +313,7 @@ async fn what_a_citizen_handed_over_submits_is_kept_as_through_the_organisation(
     assert_eq!(status, StatusCode::OK, "{aanvraag}");
     let pool = sqlx::PgPool::connect(database.url()).await.unwrap();
     let kept: Vec<(Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT recorded_via, recorded_by FROM regelhet.grams WHERE recorded_via <> 'beleid'",
+        "SELECT recorded_via, recorded_by FROM wetsproces.grams WHERE recorded_via <> 'beleid'",
     )
     .fetch_all(&pool)
     .await

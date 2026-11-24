@@ -246,7 +246,7 @@ async fn the_reference_client_runs_the_whole_protocol_on_postgres_and_the_channe
     let id = the_whole_protocol(&server).await;
     let pool = sqlx::PgPool::connect(database.url()).await.unwrap();
     let (by, via): (String, String) =
-        sqlx::query_as("SELECT recorded_by, recorded_via FROM regelhet.grams WHERE gram_id = $1")
+        sqlx::query_as("SELECT recorded_by, recorded_via FROM wetsproces.grams WHERE gram_id = $1")
             .bind(&id)
             .fetch_one(&pool)
             .await
@@ -254,7 +254,7 @@ async fn the_reference_client_runs_the_whole_protocol_on_postgres_and_the_channe
     assert!(by.starts_with("fsc4b:"), "{by}");
     assert_eq!(via, "fsc4b");
     // The session is kept under the hash of its token, never the token.
-    let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM regelhet.fsc4b_sessions")
+    let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM wetsproces.fsc4b_sessions")
         .fetch_one(&pool)
         .await
         .unwrap();

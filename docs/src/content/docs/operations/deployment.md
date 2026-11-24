@@ -78,7 +78,7 @@ An error with a status or an exception in it is the diagnostic case. Then:
 
 1. Check the container logs: `zad logs <deployment>` (for example `zad logs pr429`)
 2. Look for `ERROR` lines. Common causes are migration conflicts, missing environment variables and panics at startup
-3. If the database is in a bad state (for example a migration checksum mismatch after renumbering), delete the preview deployment (`zad deployment delete <deployment>`) and re-trigger CI to get a fresh database. That empties every schema in it, the `regelhet` schema included (see [The database](#the-database))
+3. If the database is in a bad state (for example a migration checksum mismatch after renumbering), delete the preview deployment (`zad deployment delete <deployment>`) and re-trigger CI to get a fresh database. That empties every schema in it, the `wetsproces` schema included (see [The database](#the-database))
 4. Do not retry blindly; find the cause first
 
 One failure is harmless: `Could not extract URL from result` with `"status": "superseded"` in the JSON below it. ZAD let the task give way to a newer task covering the same deployment (a new push, or the cleanup of a closed PR). The newer task did the work, and re-running only this job is enough.

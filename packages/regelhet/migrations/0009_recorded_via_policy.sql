@@ -3,6 +3,6 @@
 -- to the GGD for an examination and the GGD's receipt of it. No account asked
 -- for it; `recorded_by` names the article (`<regelwerk>#<article>`). Widening
 -- the check changes no stored row, so the append-only triggers of 0001 stand.
-ALTER TABLE regelhet.grams DROP CONSTRAINT grams_recorded_via_check;
-ALTER TABLE regelhet.grams ADD CONSTRAINT grams_recorded_via_check
+ALTER TABLE wetsproces.grams DROP CONSTRAINT grams_recorded_via_check;
+ALTER TABLE wetsproces.grams ADD CONSTRAINT grams_recorded_via_check
     CHECK (recorded_via IN ('keycloak', 'testlogin', 'fsc4b', 'beheerpaneel', 'beleid'));

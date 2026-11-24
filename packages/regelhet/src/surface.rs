@@ -18,7 +18,7 @@
 //! - the name of the session cookie, and the mark a session carries of the
 //!   surface it was made on ([`crate::login::SurfaceSessions`]), so that a
 //!   session of one side is no session on the other although both live in
-//!   the table `regelhet.sessions`;
+//!   the table `wetsproces.sessions`;
 //! - which accounts the test login offers: those of the sides it serves;
 //! - which build of the screens the instance serves ([`Surface::name`], a
 //!   directory under `REGELHET_FRONTEND`).

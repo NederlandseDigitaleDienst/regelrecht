@@ -75,7 +75,7 @@ What day it is comes from a clock (`Clock` in `src/clock.rs`). Every step runs o
 
 ## Storage
 
-Two stores implement `ChronicleStore`. The store in memory starts empty and is gone when the server stops. The PostgreSQL store (`src/store/postgres.rs`) keeps the chronicles in a schema of its own, `regelhet`, in the database it is given. Its migrations are in `packages/regelhet/migrations/`, and sqlx's migration table sits in the same schema. They are independent of the pipeline's migrations and touch no table in `public`.
+Two stores implement `ChronicleStore`. The store in memory starts empty and is gone when the server stops. The PostgreSQL store (`src/store/postgres.rs`) keeps the chronicles in a schema of its own, `wetsproces`, in the database it is given. The schema kept that name through the rename to RegelHet: the chronicles of every running process are in it, and sqlx refuses to start when a migration it applied earlier has changed, so the migrations kept their text as well. Its migrations are in `packages/regelhet/migrations/`, and sqlx's migration table sits in the same schema. They are independent of the pipeline's migrations and touch no table in `public`.
 
 | Table | Holds |
 |---|---|
@@ -428,4 +428,4 @@ Rolling it out takes two components in the `regelrecht` deployment, from the sam
    - its result in the check that refuses a half deploy;
    - `add RegelHet regelrecht-regelhet` and `add regelhet-backoffice regelrecht-regelhet` in both component lists.
 
-Both components migrate the schema `regelhet` and make the sessions table at startup, under one advisory lock, so they take turns. Previews clone their components from `regelrecht`, so a preview can only include the server once the components exist there. A preview gets its own hosts, so their redirect URIs must be allowed on the two Keycloak clients as well, and its `BASE_URL`s differ from production's.
+Both components migrate the schema `wetsproces` and make the sessions table at startup, under one advisory lock, so they take turns. Previews clone their components from `regelrecht`, so a preview can only include the server once the components exist there. A preview gets its own hosts, so their redirect URIs must be allowed on the two Keycloak clients as well, and its `BASE_URL`s differ from production's.

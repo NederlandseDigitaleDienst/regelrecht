@@ -47,7 +47,10 @@ use crate::store::{
 };
 
 /// The schema the store keeps its tables in.
-pub const SCHEMA: &str = "regelhet";
+// The schema keeps its name from before the rename to RegelHet: the
+// chronicles of every running process are in it, and the migrations that
+// made it are applied under their checksums, so neither can move.
+pub const SCHEMA: &str = "wetsproces";
 
 /// The advisory lock that keeps two instances from migrating at once.
 /// Another key than the pipeline's, so neither holds the other up for the
@@ -190,7 +193,7 @@ impl PostgresStore {
     ///
     /// [`StoreError::Backend`] when the store fails.
     pub async fn mark_stable(&self) -> Result<(), StoreError> {
-        sqlx::query("INSERT INTO regelhet.stable DEFAULT VALUES ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO wetsproces.stable DEFAULT VALUES ON CONFLICT DO NOTHING")
             .execute(&self.pool)
             .await
             .map_err(backend("marking the database as stable"))?;
@@ -249,7 +252,7 @@ impl ChronicleStore for PostgresStore {
             .map_err(backend("starting a read"))?;
         let generation = read_generation(&mut tx).await?;
         let rows = sqlx::query(
-            "SELECT cell, seq, format_version, gram, recorded_by, recorded_via FROM regelhet.grams \
+            "SELECT cell, seq, format_version, gram, recorded_by, recorded_via FROM wetsproces.grams \
              WHERE cell = ANY($1) ORDER BY cell, seq",
         )
         .bind(cells)
@@ -290,7 +293,7 @@ impl ChronicleStore for PostgresStore {
     }
 
     async fn receipt(&self, key: &IdempotencyKey) -> Result<Option<Receipt>, StoreError> {
-        let row = sqlx::query("SELECT request, response FROM regelhet.receipts WHERE key = $1")
+        let row = sqlx::query("SELECT request, response FROM wetsproces.receipts WHERE key = $1")
             .bind(key.as_str())
             .fetch_optional(&self.pool)
             .await
@@ -334,7 +337,7 @@ impl ChronicleStore for PostgresStore {
 
     async fn test_day(&self) -> Result<Option<NaiveDate>, StoreError> {
         // As text, so the store needs no date type of sqlx's.
-        let day: Option<String> = sqlx::query_scalar("SELECT day::text FROM regelhet.test_clock")
+        let day: Option<String> = sqlx::query_scalar("SELECT day::text FROM wetsproces.test_clock")
             .fetch_optional(&self.pool)
             .await
             .map_err(backend("reading the test clock"))?;
@@ -348,7 +351,7 @@ impl ChronicleStore for PostgresStore {
 
     async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
         sqlx::query(
-            "INSERT INTO regelhet.test_clock (day) VALUES ($1::date) \
+            "INSERT INTO wetsproces.test_clock (day) VALUES ($1::date) \
              ON CONFLICT (singleton) DO UPDATE SET day = EXCLUDED.day, set_at = now()",
         )
         .bind(day.to_string())
@@ -371,8 +374,8 @@ impl ChronicleStore for PostgresStore {
         // the other in a circle. A commit under way finishes before the
         // reset; one after it names the old generation and is refused.
         sqlx::query(
-            "LOCK TABLE regelhet.receipts, regelhet.heads, regelhet.generation, \
-             regelhet.grams, regelhet.test_clock, regelhet.link_deliveries \
+            "LOCK TABLE wetsproces.receipts, wetsproces.heads, wetsproces.generation, \
+             wetsproces.grams, wetsproces.test_clock, wetsproces.link_deliveries \
              IN ACCESS EXCLUSIVE MODE",
         )
         .execute(&mut *tx)
@@ -380,20 +383,20 @@ impl ChronicleStore for PostgresStore {
         .map_err(backend("locking the chronicles for a reset"))?;
         // The one transaction in which the triggers of the chronicles let a
         // TRUNCATE through (migration 0007).
-        sqlx::query("SELECT set_config('regelhet.leegmaken', 'testomgeving', true)")
+        sqlx::query("SELECT set_config('wetsproces.leegmaken', 'testomgeving', true)")
             .execute(&mut *tx)
             .await
             .map_err(backend("opening the chronicles for a reset"))?;
         sqlx::query(
-            "TRUNCATE regelhet.grams, regelhet.heads, regelhet.receipts, \
-             regelhet.test_clock, regelhet.link_deliveries",
+            "TRUNCATE wetsproces.grams, wetsproces.heads, wetsproces.receipts, \
+             wetsproces.test_clock, wetsproces.link_deliveries",
         )
         .execute(&mut *tx)
         .await
         .map_err(backend("emptying the chronicles"))?;
         // A step read before this point names the old generation, and is
         // refused when it commits after it, wherever the heads then stand.
-        sqlx::query("UPDATE regelhet.generation SET generation = generation + 1")
+        sqlx::query("UPDATE wetsproces.generation SET generation = generation + 1")
             .execute(&mut *tx)
             .await
             .map_err(backend("starting a new generation"))?;
@@ -407,7 +410,7 @@ impl ChronicleStore for PostgresStore {
 
     async fn delivered(&self, to: &str) -> Result<BTreeSet<String>, StoreError> {
         let ids: Vec<String> =
-            sqlx::query_scalar("SELECT gram_id FROM regelhet.link_deliveries WHERE to_cell = $1")
+            sqlx::query_scalar("SELECT gram_id FROM wetsproces.link_deliveries WHERE to_cell = $1")
                 .bind(to)
                 .fetch_all(&self.pool)
                 .await
@@ -417,7 +420,7 @@ impl ChronicleStore for PostgresStore {
 
     async fn mark_delivered(&self, gram: &str, to: &str) -> Result<(), StoreError> {
         sqlx::query(
-            "INSERT INTO regelhet.link_deliveries (gram_id, to_cell) VALUES ($1, $2) \
+            "INSERT INTO wetsproces.link_deliveries (gram_id, to_cell) VALUES ($1, $2) \
              ON CONFLICT DO NOTHING",
         )
         .bind(gram)
@@ -474,7 +477,7 @@ async fn claim_key(
     keyed: &Keyed,
 ) -> Result<Option<Receipt>, StoreError> {
     let claimed = sqlx::query(
-        "INSERT INTO regelhet.receipts (key, request, response) VALUES ($1, $2, $3) \
+        "INSERT INTO wetsproces.receipts (key, request, response) VALUES ($1, $2, $3) \
          ON CONFLICT (key) DO NOTHING",
     )
     .bind(keyed.key.as_str())
@@ -487,7 +490,7 @@ async fn claim_key(
     if claimed == 1 {
         return Ok(None);
     }
-    let row = sqlx::query("SELECT request, response FROM regelhet.receipts WHERE key = $1")
+    let row = sqlx::query("SELECT request, response FROM wetsproces.receipts WHERE key = $1")
         .bind(keyed.key.as_str())
         .fetch_one(&mut **tx)
         .await
@@ -497,7 +500,7 @@ async fn claim_key(
 
 /// The generation of the store, held shared until `tx` ends.
 async fn read_generation(tx: &mut Transaction<'_, Postgres>) -> Result<u64, StoreError> {
-    let generation: i64 = sqlx::query_scalar("SELECT generation FROM regelhet.generation")
+    let generation: i64 = sqlx::query_scalar("SELECT generation FROM wetsproces.generation")
         .fetch_one(&mut **tx)
         .await
         .map_err(backend("reading the generation"))?;
@@ -519,7 +522,7 @@ async fn lock_heads(
     // Both statements go through the cells in the same order (byte order,
     // as `sort_unstable` above), so commits never wait in a circle.
     sqlx::query(
-        "INSERT INTO regelhet.heads (cell, head) \
+        "INSERT INTO wetsproces.heads (cell, head) \
          SELECT cell, 0 FROM unnest($1::text[]) AS cell ORDER BY cell COLLATE \"C\" \
          ON CONFLICT (cell) DO NOTHING",
     )
@@ -528,7 +531,7 @@ async fn lock_heads(
     .await
     .map_err(backend("adding heads"))?;
     let rows = sqlx::query(
-        "SELECT cell, head FROM regelhet.heads WHERE cell = ANY($1) \
+        "SELECT cell, head FROM wetsproces.heads WHERE cell = ANY($1) \
          ORDER BY cell COLLATE \"C\" FOR UPDATE",
     )
     .bind(&cells)
@@ -571,7 +574,7 @@ async fn write_appends(
             *head += 1;
             let actor = actor_of(gram);
             sqlx::query(
-                "INSERT INTO regelhet.grams \
+                "INSERT INTO wetsproces.grams \
                  (cell, seq, gram_id, format_version, gram, recorded_by, recorded_via) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
             )
@@ -605,7 +608,7 @@ async fn write_appends(
     moved.dedup();
     for cell in moved {
         let head = heads.get(&cell).copied().unwrap_or(0);
-        sqlx::query("UPDATE regelhet.heads SET head = $2 WHERE cell = $1")
+        sqlx::query("UPDATE wetsproces.heads SET head = $2 WHERE cell = $1")
             .bind(&cell)
             .bind(to_db(head)?)
             .execute(&mut **tx)
@@ -670,7 +673,7 @@ mod tests {
             }
         };
         assert_eq!(
-            tables("regelhet").await,
+            tables(SCHEMA).await,
             [
                 "_sqlx_migrations",
                 "fsc4b_challenges",
@@ -692,7 +695,7 @@ mod tests {
         let f = Fixture::new().await;
         let c = unkeyed(vec![append("a", 0, &["1"])]);
         assert_eq!(f.store.append(c).await.unwrap(), Appended::Committed);
-        assert_eq!(f.count("SELECT count(*) FROM regelhet.receipts").await, 0);
+        assert_eq!(f.count("SELECT count(*) FROM wetsproces.receipts").await, 0);
     }
 
     #[tokio::test]
@@ -703,9 +706,9 @@ mod tests {
             .await
             .unwrap();
         for sql in [
-            "UPDATE regelhet.grams SET gram = '{}'::jsonb",
-            "DELETE FROM regelhet.grams",
-            "TRUNCATE regelhet.grams CASCADE",
+            "UPDATE wetsproces.grams SET gram = '{}'::jsonb",
+            "DELETE FROM wetsproces.grams",
+            "TRUNCATE wetsproces.grams CASCADE",
         ] {
             let e = sqlx::query(sql)
                 .execute(f.store.pool())
@@ -806,12 +809,12 @@ mod tests {
             .append(commit("k1", vec![append("a", 0, &["1"])]))
             .await
             .unwrap();
-        let e = sqlx::query("TRUNCATE regelhet.grams, regelhet.heads")
+        let e = sqlx::query("TRUNCATE wetsproces.grams, wetsproces.heads")
             .execute(f.store.pool())
             .await
             .unwrap_err();
         assert!(e.to_string().contains("append-only"), "{e}");
-        assert_eq!(f.count("SELECT count(*) FROM regelhet.grams").await, 1);
+        assert_eq!(f.count("SELECT count(*) FROM wetsproces.grams").await, 1);
     }
 
     #[tokio::test]
@@ -918,7 +921,7 @@ mod tests {
             .await
             .unwrap();
         sqlx::query(
-            "INSERT INTO regelhet.grams (cell, seq, gram_id, format_version, gram) \
+            "INSERT INTO wetsproces.grams (cell, seq, gram_id, format_version, gram) \
              VALUES ('a', 2, '2', 99, '{\"anders\": true}'::jsonb)",
         )
         .execute(f.store.pool())

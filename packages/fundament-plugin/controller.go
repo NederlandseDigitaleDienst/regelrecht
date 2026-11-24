@@ -420,7 +420,7 @@ func deleteChartSecret(ctx context.Context, secrets client.Reader, c client.Clie
 		return client.IgnoreNotFound(err)
 	}
 	l := secret.Labels
-	if l[appLabel] != appName || l[instanceLabel] != key.Name || l[componentLabel] != component {
+	if (l[appLabel] != secretAppName && l[appLabel] != appName) || l[instanceLabel] != key.Name || l[componentLabel] != component {
 		return nil
 	}
 	err := c.Delete(ctx, &secret, client.Preconditions{UID: &secret.UID})

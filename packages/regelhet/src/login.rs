@@ -13,7 +13,7 @@
 //! only in that case: stable mode never registers it.
 //!
 //! Sessions live where the chronicles live: in memory with the store in
-//! memory, and in the table `regelhet.sessions` with the store in
+//! memory, and in the table `wetsproces.sessions` with the store in
 //! Postgres, under a cookie per surface
 //! ([`crate::surface::Surface::session_cookie`]). The instance for citizens
 //! and the one for the back office share that table, so each session
@@ -814,7 +814,7 @@ fn employee_personas(state: &AppState) -> Vec<Value> {
 /// A session store that marks every session with the surface it was made
 /// on, and gives no session back that carries another mark or none.
 /// The instance for citizens and the one for the back office share the
-/// table `regelhet.sessions`; with this a cookie taken from one side is
+/// table `wetsproces.sessions`; with this a cookie taken from one side is
 /// no session on the other, whatever roles it holds.
 ///
 /// It also stores in a session only the roles its surface admits

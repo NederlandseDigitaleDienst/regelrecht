@@ -608,6 +608,19 @@ To remove everything after an uninstall, delete the objects first
 (`kubectl delete regelhets,organisaties --all -n <namespace>`), then the
 CRDs.
 
+Two names stay `wetsproces` after the rename to RegelHet, so that a release
+made before it upgrades in place, with its database and its volume, to the
+chart under `charts/regelhet`. The chart itself is still called `wetsproces`
+in its `Chart.yaml`: when the name of a release's chart changes, Flux's
+helm-controller uninstalls the release and installs it anew, and the uninstall
+deletes the CloudNativePG database and its volume. And the pods of every
+release carry `app.kubernetes.io/name: wetsproces`, the Keycloak pods
+`wetsproces-keycloak`: those are the selectors of their Deployments, which
+Kubernetes does not let change. The plugin finds the pods by
+the same label. The Secrets the chart's Job makes are labelled `regelhet`; the
+Job relabels an older Secret at its next run, and until then the plugin
+recognizes either name.
+
 ## Permissions
 
 Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept

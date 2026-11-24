@@ -420,7 +420,7 @@ async fn a_session_of_one_side_is_no_session_on_the_other() {
             .unwrap()
             .starts_with("regelhet_burger_session=")
     );
-    // Both sessions are in `regelhet.sessions`; each is valid on its own
+    // Both sessions are in `wetsproces.sessions`; each is valid on its own
     // instance only, also under the other's cookie name.
     let stolen = As {
         app: &citizens,
@@ -496,7 +496,7 @@ async fn a_submission_on_the_citizens_instance_is_decided_on_the_back_office() {
     const POLICY: &str = "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9";
     let pool = sqlx::PgPool::connect(database.url()).await.unwrap();
     let rows: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT cell, recorded_by, recorded_via FROM regelhet.grams ORDER BY recorded_at, cell, seq",
+        "SELECT cell, recorded_by, recorded_via FROM wetsproces.grams ORDER BY recorded_at, cell, seq",
     )
     .fetch_all(&pool)
     .await

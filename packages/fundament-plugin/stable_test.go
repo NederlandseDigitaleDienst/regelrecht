@@ -178,3 +178,29 @@ func TestDeletingARegelHetDeletesItsKeycloakSecret(t *testing.T) {
 	require.NoError(t, r.Client.Get(ctx, client.ObjectKeyFromObject(handMade), &s), "a Secret without the chart's labels stays")
 	require.NoError(t, r.Client.Get(ctx, client.ObjectKeyFromObject(staysSecret), &s), "the Secret of a RegelHet that exists stays")
 }
+
+// The chart's Job labels its Secrets regelhet since the rename, and a Secret
+// made before carries wetsproces until the Job runs again: the plugin
+// deletes either.
+func TestTheKeycloakSecretGoesUnderEitherNameOfTheApp(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	secret := func(name, release, app string) *corev1.Secret {
+		return &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name: name, Namespace: testNamespace, UID: types.UID("uid-" + name),
+			Labels: map[string]string{appLabel: app, instanceLabel: release, componentLabel: "keycloak"},
+		}}
+	}
+	renamed := secret("nieuw-keycloak", "nieuw", secretAppName)
+	older := secret("oud-keycloak", "oud", appName)
+	other := secret("ander-keycloak", "ander", "iets-anders")
+	r := newReconciler(t, renamed, older, other)
+	for _, name := range []string{"nieuw", "oud", "ander"} {
+		_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKey{Namespace: testNamespace, Name: name}})
+		require.NoError(t, err, name)
+	}
+	var s corev1.Secret
+	assert.True(t, apierrors.IsNotFound(r.Client.Get(ctx, client.ObjectKeyFromObject(renamed), &s)), "labelled regelhet")
+	assert.True(t, apierrors.IsNotFound(r.Client.Get(ctx, client.ObjectKeyFromObject(older), &s)), "labelled wetsproces")
+	require.NoError(t, r.Client.Get(ctx, client.ObjectKeyFromObject(other), &s), "another app's Secret stays")
+}

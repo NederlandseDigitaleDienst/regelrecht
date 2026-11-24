@@ -226,7 +226,7 @@ impl Fsc4bStore for PostgresFsc4bStore {
         challenge: StoredChallenge,
         now: i64,
     ) -> Result<(), Fsc4bStoreError> {
-        sqlx::query("DELETE FROM regelhet.fsc4b_challenges WHERE expires_at <= $1")
+        sqlx::query("DELETE FROM wetsproces.fsc4b_challenges WHERE expires_at <= $1")
             .bind(now)
             .execute(&self.pool)
             .await
@@ -236,9 +236,9 @@ impl Fsc4bStore for PostgresFsc4bStore {
         // the bound by as many as run at once. It bounds a flood, not an
         // exact number.
         let inserted = sqlx::query(
-            "INSERT INTO regelhet.fsc4b_challenges (nonce, ephemeral_key, expires_at) \
+            "INSERT INTO wetsproces.fsc4b_challenges (nonce, ephemeral_key, expires_at) \
              SELECT $1, $2, $3 \
-             WHERE (SELECT count(*) FROM regelhet.fsc4b_challenges) < $4",
+             WHERE (SELECT count(*) FROM wetsproces.fsc4b_challenges) < $4",
         )
         .bind(nonce)
         .bind(&challenge.ephemeral_key)
@@ -262,7 +262,7 @@ impl Fsc4bStore for PostgresFsc4bStore {
         // One statement: of two instances taking the same nonce, one gets
         // the row and the other nothing.
         let row = sqlx::query(
-            "DELETE FROM regelhet.fsc4b_challenges WHERE nonce = $1 \
+            "DELETE FROM wetsproces.fsc4b_challenges WHERE nonce = $1 \
              RETURNING ephemeral_key, expires_at",
         )
         .bind(nonce)
@@ -289,13 +289,13 @@ impl Fsc4bStore for PostgresFsc4bStore {
         session: StoredSession,
         now: i64,
     ) -> Result<(), Fsc4bStoreError> {
-        sqlx::query("DELETE FROM regelhet.fsc4b_sessions WHERE expires_at <= $1")
+        sqlx::query("DELETE FROM wetsproces.fsc4b_sessions WHERE expires_at <= $1")
             .bind(now)
             .execute(&self.pool)
             .await
             .map_err(failed("removing ended sessions"))?;
         sqlx::query(
-            "INSERT INTO regelhet.fsc4b_sessions \
+            "INSERT INTO wetsproces.fsc4b_sessions \
              (token_hash, aes_key, bsn, scope, app_key_thumbprint, expires_at) \
              VALUES ($1, $2, $3, $4, $5, $6)",
         )
@@ -318,7 +318,7 @@ impl Fsc4bStore for PostgresFsc4bStore {
     ) -> Result<Option<StoredSession>, Fsc4bStoreError> {
         let row = sqlx::query(
             "SELECT aes_key, bsn, scope, app_key_thumbprint, expires_at \
-             FROM regelhet.fsc4b_sessions WHERE token_hash = $1 AND expires_at > $2",
+             FROM wetsproces.fsc4b_sessions WHERE token_hash = $1 AND expires_at > $2",
         )
         .bind(&token.0[..])
         .bind(now)

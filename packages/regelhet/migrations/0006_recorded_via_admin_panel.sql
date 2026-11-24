@@ -3,6 +3,6 @@
 -- court's judgment, until a real link with that party replaces it. The record
 -- names the party; `recorded_by` names the admin's account. Widening the
 -- check changes no stored row, so the append-only triggers of 0001 stand.
-ALTER TABLE regelhet.grams DROP CONSTRAINT grams_recorded_via_check;
-ALTER TABLE regelhet.grams ADD CONSTRAINT grams_recorded_via_check
+ALTER TABLE wetsproces.grams DROP CONSTRAINT grams_recorded_via_check;
+ALTER TABLE wetsproces.grams ADD CONSTRAINT grams_recorded_via_check
     CHECK (recorded_via IN ('keycloak', 'testlogin', 'fsc4b', 'beheerpaneel'));

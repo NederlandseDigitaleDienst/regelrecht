@@ -4,7 +4,7 @@
 -- back office tell the same date. One row at most; no row means the clock
 -- was never set, and an instance starts on the case's `speeldatum`. Stable
 -- mode runs on the real date and never reads it.
-CREATE TABLE regelhet.test_clock (
+CREATE TABLE wetsproces.test_clock (
     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
     day DATE NOT NULL,
     set_at TIMESTAMPTZ NOT NULL DEFAULT now()

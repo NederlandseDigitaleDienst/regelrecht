@@ -332,6 +332,19 @@ jobs:
             lacks "$unwanted" $SMALL
             lacks "$unwanted" $CNPG --set fsc4b.enabled=true
           done
+          # A Deployment's selector cannot change, so it keeps the name from
+          # before the rename to RegelHet: a release made then must still
+          # upgrade in place (charts/regelhet/templates/_helpers.tpl).
+          sel=$(helm template a "$C" --set domain=example.org $CNPG \
+            --set regelhet.mode=stable --set regelhet.login=oidc \
+            --set keycloak.enabled=true | grep -A2 "matchLabels:" \
+            | grep -o "app.kubernetes.io/name: [a-z-]*" | sort -u | tr '\n' ' ')
+          [ "$sel" = "app.kubernetes.io/name: wetsproces app.kubernetes.io/name: wetsproces-keycloak " ] \
+            || { echo "a selector changed name: $sel"; exit 1; }
+          # Flux reinstalls a release whose chart changes name, which deletes
+          # its database; the chart keeps the name it had (Chart.yaml).
+          grep -qx "name: wetsproces" "$C/Chart.yaml" \
+            || { echo "the chart changed name; that reinstalls every release"; exit 1; }
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work

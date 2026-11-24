@@ -36,8 +36,14 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end -}}
 
+{{/*
+The selector of the server's pods. Its name stays wetsproces after the rename
+to RegelHet: a Deployment's selector cannot change, so a release made before
+the rename would otherwise fail every upgrade. The Fundament plugin finds the
+pods by the same label (packages/fundament-plugin/pods.go, appName).
+*/}}
 {{- define "regelhet.selectorLabels" -}}
-app.kubernetes.io/name: regelhet
+app.kubernetes.io/name: wetsproces
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
@@ -261,10 +267,11 @@ spec:
 {{/*
 The selector of the Keycloak pods. It has a name of its own: the single
 instance of the server selects on regelhet.selectorLabels alone, which
-would take these pods in too.
+would take these pods in too. Like that selector it keeps its name from
+before the rename, wetsproces-keycloak, because a selector cannot change.
 */}}
 {{- define "regelhet.keycloakSelectorLabels" -}}
-app.kubernetes.io/name: regelhet-keycloak
+app.kubernetes.io/name: wetsproces-keycloak
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
