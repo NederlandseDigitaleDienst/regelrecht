@@ -178,6 +178,9 @@ func TestChartValuesExistInChart(t *testing.T) {
 	check("", chartValues(w, validConfig()), chart)
 	w.Spec.Auth = v1alpha1.Auth{Mode: v1alpha1.AuthStable, TestAccounts: true}
 	check("", chartValues(w, validConfig()), chart)
+	w.Spec.Auth = v1alpha1.Auth{}
+	w.Spec.Fsc4b.Enabled = true
+	check("", chartValues(w, validConfig()), chart)
 }
 
 func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {

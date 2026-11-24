@@ -77,6 +77,16 @@ spec:
                       only; without them, accounts are made in Keycloak itself.
                     type: boolean
                 type: object
+              fsc4b:
+                description: Fsc4b is FSC voor Burgers. Empty is off.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled offers the citizens' routes to an app that proves who the
+                      citizen is with a credential, on the demo Stelsel with a test
+                      Activatiedienst that checks no identity. Test mode only.
+                    type: boolean
+                type: object
               hostname:
                 description: |-
                   Hostname is the address: a name under the plugin's base domain
@@ -162,6 +172,11 @@ spec:
             - hostname
             - manifest
             type: object
+            x-kubernetes-validations:
+            - message: 'fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst
+                checks no identity: test mode only'
+              rule: '!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled
+                && has(self.auth) && has(self.auth.mode) && self.auth.mode == ''stable'')'
           status:
             description: WetsprocesStatus is what the plugin last saw.
             properties:
@@ -228,6 +243,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              fsc4bDiscoveryUrl:
+                description: |-
+                  Fsc4bDiscoveryURL is the discovery configuration of FSC voor Burgers,
+                  where an app finds the services; empty when it is off.
+                type: string
               keycloakSecret:
                 description: |-
                   KeycloakSecret names the Secret in the namespace of this Wetsproces

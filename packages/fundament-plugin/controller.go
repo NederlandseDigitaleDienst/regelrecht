@@ -118,6 +118,7 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 	w.Status.URL = "https://" + h.burger + "/"
 	w.Status.BackofficeURL = "https://" + h.backoffice + "/"
 	w.Status.LoginURL, w.Status.KeycloakSecret = "", ""
+	w.Status.Fsc4bDiscoveryURL = ""
 	if h.login != "" {
 		w.Status.LoginURL = "https://" + h.login + "/"
 		w.Status.KeycloakSecret = keycloakSecret(w)
@@ -125,6 +126,10 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 	if err := validateSpec(w, r.Config.Domain); err != nil {
 		refuse(w, reasonInvalidSpec, err.Error())
 		return ctrl.Result{}, nil
+	}
+	// Only for a spec the plugin accepts: a refused one serves no discovery.
+	if w.Spec.Fsc4b.Enabled {
+		w.Status.Fsc4bDiscoveryURL = "https://" + h.burger + fsc4bDiscoveryPath
 	}
 	if isStable(w) && r.Config.ACME != acmeProduction {
 		// The server reads Keycloak's discovery document at start, over

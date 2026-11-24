@@ -3,8 +3,8 @@ apiVersion: fundament.io/v1
 kind: PluginDefinition
 metadata:
   name: wetsproces
-  displayName: RegelRecht Wetsproces
-  version: v0.3.0
+  displayName: RegelHet
+  version: v0.4.0
   description: >-
     Offers the regelrecht wetsprocessysteem to the projects of a cluster.
     Installed once per cluster; project members then create a wetsproces per

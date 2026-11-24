@@ -93,7 +93,18 @@ type Auth struct {
 	TestAccounts bool `json:"testAccounts,omitempty"`
 }
 
+// Fsc4b is FSC voor Burgers: the citizens' routes for an app besides the
+// browser.
+type Fsc4b struct {
+	// Enabled offers the citizens' routes to an app that proves who the
+	// citizen is with a credential, on the demo Stelsel with a test
+	// Activatiedienst that checks no identity. Test mode only.
+	// +optional
+	Enabled bool `json:"enabled,omitempty"`
+}
+
 // WetsprocesSpec is one wetsprocessysteem.
+// +kubebuilder:validation:XValidation:rule="!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only"
 type WetsprocesSpec struct {
 	// Manifest is the case to run.
 	Manifest Manifest `json:"manifest"`
@@ -112,6 +123,10 @@ type WetsprocesSpec struct {
 	// Auth is how people log in. Empty is the test login.
 	// +optional
 	Auth Auth `json:"auth,omitempty"`
+
+	// Fsc4b is FSC voor Burgers. Empty is off.
+	// +optional
+	Fsc4b Fsc4b `json:"fsc4b,omitempty"`
 
 	// Hostname is the address: a name under the plugin's base domain
 	// (`zorgtoeslag` gives zorgtoeslag.<domain> for citizens and
@@ -140,6 +155,11 @@ type WetsprocesStatus struct {
 	// LoginURL is the Keycloak of stable mode; empty in test mode.
 	// +optional
 	LoginURL string `json:"loginUrl,omitempty"`
+
+	// Fsc4bDiscoveryURL is the discovery configuration of FSC voor Burgers,
+	// where an app finds the services; empty when it is off.
+	// +optional
+	Fsc4bDiscoveryURL string `json:"fsc4bDiscoveryUrl,omitempty"`
 
 	// KeycloakSecret names the Secret in the namespace of this Wetsproces
 	// that the chart generates for stable mode: the Keycloak admin password

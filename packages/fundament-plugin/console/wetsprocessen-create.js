@@ -23,6 +23,7 @@ import {
   usernameError,
   nameFromHostname,
   keycloakSecretName,
+  fsc4bDiscoveryUrl,
 } from './wetsprocessen-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
@@ -38,6 +39,7 @@ const state = {
   privateRepo: false,
   stable: false,
   testAccounts: true,
+  fsc4b: false,
   username: '',
   token: '',
   pinned: false,
@@ -118,6 +120,10 @@ const steps = [
         </nldd-rich-text>
         <nldd-spacer size="12"></nldd-spacer>
         <nldd-checkbox-field name="testAccounts" label="Met de testaccounts van de casus, die allemaal één gegenereerd wachtwoord delen"${state.testAccounts ? ' checked' : ''}></nldd-checkbox-field>
+      </div>
+      <div id="fsc4b"${state.stable ? ' hidden' : ''}>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-checkbox-field name="fsc4b" label="Ook FSC voor Burgers: een app mag namens een testburger aanvragen indienen en het dossier lezen, met een test-Activatiedienst die niemand controleert"${state.fsc4b ? ' checked' : ''}></nldd-checkbox-field>
       </div>`,
     wire: (f) => {
       f.querySelector('nldd-radio-button-group[name="access"]').addEventListener('change', () => {
@@ -125,6 +131,7 @@ const steps = [
       });
       f.querySelector('nldd-radio-button-group[name="login"]').addEventListener('change', () => {
         f.querySelector('#stable').hidden = chosenRadio(f, 'login') !== 'stable';
+        f.querySelector('#fsc4b').hidden = chosenRadio(f, 'login') === 'stable';
       });
     },
     checks: (f) => {
@@ -141,6 +148,7 @@ const steps = [
         token: v('token'),
         stable: chosenRadio(f, 'login') === 'stable',
         testAccounts: Boolean(f.querySelector('nldd-checkbox-field[name="testAccounts"]')?.checked),
+        fsc4b: chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked),
       }),
   },
   {
@@ -220,6 +228,7 @@ const steps = [
                 ? `stabiel, via Keycloak${state.testAccounts ? ', met testaccounts' : ''}`
                 : 'testomgeving',
             ],
+            ['FSC voor Burgers', state.fsc4b ? `aan, met het demo-stelsel: ${fsc4bDiscoveryUrl(state.hostname)}` : 'uit'],
             ['Burgers', a.burger],
             ['Medewerkers', a.medewerkers],
             ...(state.stable

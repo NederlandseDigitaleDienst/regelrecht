@@ -1,4 +1,4 @@
-# RegelRecht Wetsproces, a Fundament plugin
+# RegelHet, a Fundament plugin
 
 A [Fundament](https://github.com/fundament-oss/fundament) plugin that offers
 the wetsprocessysteem (`packages/wetsproces`) to the projects of a cluster. It
@@ -55,6 +55,7 @@ status:
 | `hostname` | a name under the base domain, or a domain of your own with a dot in it |
 | `auth.mode` | `test` (the default: the test login and a clock the admin sets) or `stable` (a Keycloak of its own, and the real date) |
 | `auth.testAccounts` | in stable mode, give that Keycloak the test accounts of the case, with one generated password |
+| `fsc4b.enabled` | also offer the citizens' routes to an app through FSC voor Burgers, on the demo Stelsel with a test Activatiedienst that checks no identity. Test mode only: with `auth.mode: stable` the API server and the plugin refuse it. `status.fsc4bDiscoveryUrl` then names `https://<citizens' host>/fsc4b/discovery`. A `version` from before chart 0.5.0 ignores it |
 
 The name of the object is at most 40 characters, because it names the Helm
 release and every object of the chart.
@@ -323,10 +324,10 @@ The operator fills the client secrets and the test password in from the Secret
 ## Console
 
 The plugin adds **Wetsprocessen** to the project sidebar, under the heading
-**RegelRecht Wetsproces** (the `displayName` of the definition), with pages of its own
+**RegelHet** (the `displayName` of the definition), with pages of its own
 under `console/`: a list, a detail page with the addresses and the status, and
 a wizard that asks, one step at a time, for the case, the access and the login
-(test or stable), the version,
+(test or stable, and in test mode whether FSC voor Burgers is on), the version,
 the accent color and the address, and shows what it will make before it makes
 it. For a private repository the wizard makes the Secret with the token as well,
 owned by the Wetsproces so the two go together.

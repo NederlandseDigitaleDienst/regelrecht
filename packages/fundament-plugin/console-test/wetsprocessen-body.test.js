@@ -9,6 +9,7 @@ import {
   addresses,
   buildSecret,
   buildWetsproces,
+  fsc4bDiscoveryUrl,
   keycloakSecretName,
   commitError,
   hostnameError,
@@ -110,4 +111,15 @@ test('stable mode asks for the Keycloak of the chart; test mode says nothing', (
   assert.deepEqual(w.spec.auth, { mode: 'stable', testAccounts: true });
   assert.deepEqual(buildWetsproces({ ...base, stable: true }).spec.auth, { mode: 'stable', testAccounts: false });
   assert.equal(keycloakSecretName('zorgtoeslag'), 'zorgtoeslag-keycloak');
+});
+
+test('FSC voor Burgers is in the spec only when chosen, and never in stable mode', () => {
+  assert.equal(buildWetsproces(base).spec.fsc4b, undefined);
+  assert.deepEqual(buildWetsproces({ ...base, fsc4b: true }).spec.fsc4b, { enabled: true });
+  assert.equal(buildWetsproces({ ...base, fsc4b: true, stable: true }).spec.fsc4b, undefined);
+});
+
+test('the discovery URL of FSC voor Burgers is on the citizens\' host', () => {
+  assert.equal(fsc4bDiscoveryUrl('a', 'cluster.example.org'), 'https://a.cluster.example.org/fsc4b/discovery');
+  assert.equal(fsc4bDiscoveryUrl('zorg.example.nl'), 'https://zorg.example.nl/fsc4b/discovery');
 });

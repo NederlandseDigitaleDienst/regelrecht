@@ -182,6 +182,18 @@ surfaces:
     # Empty means medewerkers.<host>.
     host: ''
 
+# FSC voor Burgers: the citizens' instance also offers its routes to an app
+# that proves who the citizen is with a credential, after the standard's
+# werkversie (docs: components/wetsproces-fsc4b). Test mode only: the server
+# opens the channel on its demo Stelsel, whose Stelselbeheerder, test
+# Activatiedienst and organization key it generates in memory at every start,
+# so no key or document comes from these values or a Secret. The test
+# Activatiedienst hands a credential for any BSN of the test range (99999xxxx)
+# to whoever asks; apps read the trust from /fsc4b/demo/ again after a restart.
+# The discovery configuration is at https://<citizens' host>/fsc4b/discovery.
+fsc4b:
+  enabled: false
+
 # How the screens look.
 theme:
   # The accent colour: the name of a theme of the NLDD design system

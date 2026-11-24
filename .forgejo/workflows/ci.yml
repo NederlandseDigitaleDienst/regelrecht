@@ -205,6 +205,15 @@ jobs:
           }
           contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
           contains WETSPROCES_ACCENT_COLOR $SMALL --set theme.accentColor=paars
+          # FSC voor Burgers on the demo Stelsel: on the citizens' instance,
+          # with that instance's host as the address apps use; off by default.
+          contains "value: \"https://a.example.org\"" $CNPG --set fsc4b.enabled=true \
+            --set surfaces.burger.host=a.example.org --set surfaces.backoffice.host=a-medewerkers.example.org
+          n=$(helm template wetsproces "$C" --set domain=example.org $CNPG --set fsc4b.enabled=true \
+            | grep -c "name: WETSPROCES_FSC4B_DEMO")
+          [ "$n" = 1 ] || { echo "expected FSC voor Burgers on one instance, got $n"; exit 1; }
+          out="$(helm template wetsproces "$C" --set domain=example.org $CNPG)"
+          case "$out" in *WETSPROCES_FSC4B*) echo "FSC voor Burgers is on by default"; exit 1 ;; esac
           # Keycloak's host follows the others: one label under the wildcard
           # behind the shared Gateway, login.<host> with a Gateway of its own.
           KC="--set wetsproces.mode=stable --set wetsproces.login=oidc --set keycloak.enabled=true"
@@ -290,3 +299,8 @@ jobs:
             --set keycloak.enabled=true --set keycloak.host=burger.wetsproces.example.org
           refuse "for the database of Keycloak" --set domain=example.org \
             --set database.enabled=false --set surfaces.split=false --set keycloak.enabled=true
+          refuse "fsc4b.enabled opens FSC voor Burgers on the demo Stelsel" $STABLE \
+            --set wetsproces.login=oidc --set keycloak.enabled=true --set fsc4b.enabled=true
+          refuse "fsc4b.enabled is for citizens" --set domain=example.org \
+            --set database.enabled=false --set surfaces.split=false \
+            --set wetsproces.surface=backoffice --set fsc4b.enabled=true

@@ -80,6 +80,14 @@ checks the same; these guards only say it earlier.
 {{- fail "wetsproces.mode stable logs in through Keycloak only: set wetsproces.login oidc" -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.fsc4b.enabled -}}
+{{- if ne $w.mode "test" -}}
+{{- fail "fsc4b.enabled opens FSC voor Burgers on the demo Stelsel, with a test Activatiedienst that checks no identity: test mode only" -}}
+{{- end -}}
+{{- if not (include "wetsproces.citizenHost" .) -}}
+{{- fail "fsc4b.enabled is for citizens: with one instance, set a wetsproces.surface other than backoffice" -}}
+{{- end -}}
+{{- end -}}
 {{- if eq $w.login "oidc" -}}
 {{- if not (include "wetsproces.oidcIssuer" .) -}}
 {{- fail "wetsproces.login oidc needs oidc.issuerUrl, https://<keycloak>/realms/<realm>, or keycloak.enabled" -}}
@@ -215,4 +223,16 @@ would take these pods in too.
 {{- define "wetsproces.keycloakSelectorLabels" -}}
 app.kubernetes.io/name: wetsproces-keycloak
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{/*
+The host of the instance that serves citizens, where FSC voor Burgers runs;
+empty when the only instance is the back office.
+*/}}
+{{- define "wetsproces.citizenHost" -}}
+{{- range include "wetsproces.instances" . | fromJsonArray -}}
+{{- if ne .surface "backoffice" -}}
+{{- .host -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}

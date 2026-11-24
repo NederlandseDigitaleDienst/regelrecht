@@ -111,6 +111,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: 'Harvester', link: '/components/harvester' },
         { text: 'Wetsproces', link: '/components/wetsproces' },
         { text: 'Wetsproces: FSC voor Burgers', link: '/components/wetsproces-fsc4b' },
+        { text: 'Wetsproces: dienstprofiel FSC voor Burgers', link: '/components/wetsproces-fsc4b-dienstprofiel' },
         { text: 'Wetsproces: the app', link: '/components/wetsproces-app' },
       ],
     },

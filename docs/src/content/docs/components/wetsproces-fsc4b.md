@@ -70,6 +70,10 @@ cargo run --manifest-path packages/Cargo.toml -p regelrecht-wetsproces \
 
 The example asks a credential, runs `CreateSession`, submits an application and prints the dossier.
 
+On a cluster the Helm chart `charts/wetsproces` turns the demo Stelsel on with `fsc4b.enabled: true`. It sets `WETSPROCES_FSC4B_DEMO` and `WETSPROCES_FSC4B_PUBLIC_URL` on the citizens' instance only, and refuses the value in stable mode or when the one instance is the back office. The keys stay in memory, so the chart mounts no Secret, and after a restart an app reads the Stelseldocument again. The Fundament plugin sets the value from `spec.fsc4b.enabled` of a Wetsproces and names the discovery configuration in `status.fsc4bDiscoveryUrl`. Run the example against that host, such as `https://<name>.cluster-a.fieldlab2026.nl`.
+
+Which requests the service takes, and what goes in and comes out, is in the [service profile](/components/wetsproces-fsc4b-dienstprofiel) (Dutch).
+
 ## Where the werkversie contradicts itself
 
 Each choice sits in one place in `src/fsc4b/`.

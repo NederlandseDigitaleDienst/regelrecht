@@ -101,6 +101,10 @@ func isStable(w *v1alpha1.Wetsproces) bool {
 	return w.Spec.Auth.Mode == v1alpha1.AuthStable
 }
 
+// fsc4bDiscoveryPath is where the server serves the discovery configuration
+// of FSC voor Burgers (packages/wetsproces/src/fsc4b).
+const fsc4bDiscoveryPath = "/fsc4b/discovery"
+
 // keycloakSecret is the Secret the chart generates for the Keycloak of w's
 // release (charts/wetsproces, templates/keycloak.yaml).
 func keycloakSecret(w *v1alpha1.Wetsproces) string { return w.Name + "-keycloak" }
@@ -119,6 +123,9 @@ func validateSpec(w *v1alpha1.Wetsproces, domain string) error {
 	path := pathOrDefault(m.Path)
 	if strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
 		return fmt.Errorf("manifest.path must be a relative path inside the repository, got %q", path)
+	}
+	if w.Spec.Fsc4b.Enabled && isStable(w) {
+		return fmt.Errorf("fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only")
 	}
 	h := hostsOf(w, domain)
 	for _, name := range h.all() {
@@ -218,6 +225,11 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 	}
 	if w.Spec.Version != "" {
 		values["image"] = map[string]any{"ref": cfg.DefaultImage + ":" + w.Spec.Version}
+	}
+	if w.Spec.Fsc4b.Enabled {
+		// The chart sets the demo Stelsel on the citizens' instance; its
+		// keys are made in memory at start, so there is no Secret to name.
+		values["fsc4b"] = map[string]any{"enabled": true}
 	}
 	if isStable(w) {
 		// The chart's stable mode: PostgreSQL and an instance per side are

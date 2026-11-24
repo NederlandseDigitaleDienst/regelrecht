@@ -10,6 +10,9 @@ Addresses:
 {{- if .Values.keycloak.enabled }}
   keycloak: https://{{ include "wetsproces.keycloakHost" . }} (realm {{ .Values.keycloak.realm }}; admin password in Secret {{ include "wetsproces.keycloakName" . }}, key admin-password)
 {{- end }}
+{{- if .Values.fsc4b.enabled }}
+  FSC voor Burgers (demo Stelsel): https://{{ include "wetsproces.citizenHost" . }}/fsc4b/discovery
+{{- end }}
 (Let's Encrypt {{ .Values.tls.acme }})
 The hosts must resolve to the address of Gateway {{ .Release.Name }}:
   kubectl -n {{ .Release.Namespace }} get gateway {{ .Release.Name }}

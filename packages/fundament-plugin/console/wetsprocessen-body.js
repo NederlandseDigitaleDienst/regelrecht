@@ -146,6 +146,7 @@ export function buildWetsproces({
   accentColor,
   stable = false,
   testAccounts = false,
+  fsc4b = false,
 }) {
   const name = nameFromHostname(hostname);
   const manifest = { repoUrl, ref: ref || DEFAULT_REF, path: path || DEFAULT_PATH };
@@ -155,6 +156,9 @@ export function buildWetsproces({
   if (accentColor) spec.theme = { accentColor };
   // Test mode is the CRD's default, so a test wetsproces says nothing.
   if (stable) spec.auth = { mode: 'stable', testAccounts };
+  // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the
+  // CRD's default, so an object without it says nothing.
+  if (fsc4b && !stable) spec.fsc4b = { enabled: true };
   return {
     apiVersion: `${WETSPROCES_RESOURCE.group}/${WETSPROCES_RESOURCE.version}`,
     kind: 'Wetsproces',
@@ -197,4 +201,10 @@ export function phaseBadge(item) {
     default:
       return { color: 'warning', text: 'Bezig' };
   }
+}
+
+// Where an app finds the services of FSC voor Burgers: the discovery
+// configuration on the citizens' host (resources.go, fsc4bDiscoveryPath).
+export function fsc4bDiscoveryUrl(hostname, domain) {
+  return `https://${addresses(hostname, domain).burger}/fsc4b/discovery`;
 }

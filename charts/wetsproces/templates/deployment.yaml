@@ -180,6 +180,16 @@ spec:
               value: {{ printf "/case/%s" (include "wetsproces.casePath" .) | quote }}
             - name: WETSPROCES_PORT
               value: "8000"
+            {{- if and .Values.fsc4b.enabled (ne $inst.surface "backoffice") }}
+            # FSC voor Burgers on the demo Stelsel, for citizens only: the
+            # server generates its keys at start, so no Secret is mounted.
+            - name: WETSPROCES_FSC4B_DEMO
+              value: "true"
+            # Where apps reach this instance; the discovery configuration
+            # names its services under it.
+            - name: WETSPROCES_FSC4B_PUBLIC_URL
+              value: {{ printf "https://%s" $inst.host | quote }}
+            {{- end }}
             {{- with .Values.theme.accentColor }}
             - name: WETSPROCES_ACCENT_COLOR
               value: {{ . | quote }}

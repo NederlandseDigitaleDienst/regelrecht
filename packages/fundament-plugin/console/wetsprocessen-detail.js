@@ -56,6 +56,7 @@ function show(item) {
       ${linkRow('Burgers', item.status?.url)}
       ${linkRow('Medewerkers', item.status?.backofficeUrl)}
       ${linkRow('Inloggen (Keycloak)', item.status?.loginUrl)}
+      ${linkRow('FSC voor Burgers (discovery)', item.status?.fsc4bDiscoveryUrl)}
     </nldd-list>
     ${item.status?.keycloakSecret ? keycloakHtml(item) : ''}
     <nldd-spacer size="16"></nldd-spacer>
@@ -74,6 +75,7 @@ function show(item) {
             ? `stabiel, via Keycloak${spec.auth.testAccounts ? ', met testaccounts' : ''}`
             : 'testomgeving',
         ],
+        ['FSC voor Burgers', spec.fsc4b?.enabled ? 'aan, met het demo-stelsel' : 'uit'],
         ['Hostnaam', spec.hostname ?? ''],
       ],
       'Instellingen',

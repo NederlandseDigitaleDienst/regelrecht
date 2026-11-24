@@ -262,6 +262,14 @@
         }
       }
     },
+    "fsc4b": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
     "theme": {
       "type": "object",
       "properties": {
