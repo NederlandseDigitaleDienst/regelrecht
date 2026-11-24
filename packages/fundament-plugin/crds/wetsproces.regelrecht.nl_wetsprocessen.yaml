@@ -18,6 +18,9 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
+    - jsonPath: .spec.auth.mode
+      name: Auth
+      type: string
     - jsonPath: .status.url
       name: URL
       type: string
@@ -55,6 +58,25 @@ spec:
           spec:
             description: WetsprocesSpec is one wetsprocessysteem.
             properties:
+              auth:
+                description: Auth is how people log in. Empty is the test login.
+                properties:
+                  mode:
+                    default: test
+                    description: |-
+                      Mode is test (the test login) or stable (a Keycloak of its own on
+                      <hostname>-login, beside the other addresses).
+                    enum:
+                    - test
+                    - stable
+                    type: string
+                  testAccounts:
+                    description: |-
+                      TestAccounts gives the Keycloak of stable mode the test accounts of the
+                      case, all with one password the chart generates. For a test setup
+                      only; without them, accounts are made in Keycloak itself.
+                    type: boolean
+                type: object
               hostname:
                 description: |-
                   Hostname is the address: a name under the plugin's base domain
@@ -132,7 +154,8 @@ spec:
               version:
                 description: |-
                   Version is the regelrecht commit whose wetsproces image runs, the full
-                  40-character hash. Empty follows the latest build of main.
+                  40-character hash, and whose chart installs it. Empty follows main: the
+                  chart on main and the latest build it names.
                 pattern: ^([0-9a-f]{40})?$
                 type: string
             required:
@@ -205,6 +228,17 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              keycloakSecret:
+                description: |-
+                  KeycloakSecret names the Secret in the namespace of this Wetsproces
+                  that the chart generates for stable mode: the Keycloak admin password
+                  (user admin) under admin-password, and the password of the test
+                  accounts under test-password. Only the name, never a value.
+                type: string
+              loginUrl:
+                description: LoginURL is the Keycloak of stable mode; empty in test
+                  mode.
+                type: string
               message:
                 description: Message says why the phase is what it is.
                 type: string

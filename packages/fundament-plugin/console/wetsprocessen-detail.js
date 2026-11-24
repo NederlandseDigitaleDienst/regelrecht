@@ -16,6 +16,27 @@ function linkRow(label, url) {
     </nldd-list-item>`;
 }
 
+// Where the passwords of stable mode are: the name of the Secret and its
+// keys, and how to read one, never a value. The page cannot read the Secret
+// and does not try.
+function keycloakHtml(item) {
+  const secret = item.status.keycloakSecret;
+  const accounts = item.spec?.auth?.testAccounts
+    ? `<li>de testaccounts van de casus: sleutel <code>test-password</code>, één wachtwoord voor allemaal</li>`
+    : '';
+  return `
+    <nldd-spacer size="12"></nldd-spacer>
+    <nldd-rich-text>
+      <p>De wachtwoorden staan in het Secret <code>${escapeHtml(secret)}</code> in deze namespace. Het cluster heeft ze zelf gemaakt; ze staan nergens anders.</p>
+      <ul>
+        <li>de beheerder van Keycloak, gebruiker <code>admin</code>: sleutel <code>admin-password</code></li>
+        ${accounts}
+      </ul>
+      <p>Lezen kan wie in deze namespace Secrets mag lezen, bijvoorbeeld met
+      <code>kubectl get secret ${escapeHtml(secret)} -o jsonpath='{.data.admin-password}' | base64 -d</code>.</p>
+    </nldd-rich-text>`;
+}
+
 function show(item) {
   const badge = phaseBadge(item);
   const spec = item.spec ?? {};
@@ -34,7 +55,9 @@ function show(item) {
     <nldd-list appearance="simple" accessible-label="Adressen">
       ${linkRow('Burgers', item.status?.url)}
       ${linkRow('Medewerkers', item.status?.backofficeUrl)}
+      ${linkRow('Inloggen (Keycloak)', item.status?.loginUrl)}
     </nldd-list>
+    ${item.status?.keycloakSecret ? keycloakHtml(item) : ''}
     <nldd-spacer size="16"></nldd-spacer>
     <nldd-title size="5" heading-level="2" text="Instellingen"></nldd-title>
     ${renderKeyValueList(
@@ -45,6 +68,12 @@ function show(item) {
         ['Toegang', manifest.credentialsSecretRef ? `privé, met Secret ${manifest.credentialsSecretRef.name}` : 'openbaar'],
         ['Versie', spec.version || 'laatste build van main'],
         ['Accentkleur', spec.theme?.accentColor || 'standaard'],
+        [
+          'Inloggen',
+          spec.auth?.mode === 'stable'
+            ? `stabiel, via Keycloak${spec.auth.testAccounts ? ', met testaccounts' : ''}`
+            : 'testomgeving',
+        ],
         ['Hostnaam', spec.hostname ?? ''],
       ],
       'Instellingen',

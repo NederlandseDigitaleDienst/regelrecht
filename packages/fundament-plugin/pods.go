@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,6 +23,9 @@ const (
 	appLabel      = "app.kubernetes.io/name"
 	appName       = "wetsproces"
 	instanceLabel = "app.kubernetes.io/instance"
+	// componentLabel marks the part of a release, such as the Keycloak
+	// Secret the chart's Job labels "keycloak".
+	componentLabel = "app.kubernetes.io/component"
 )
 
 // podProblem is why the pods of a release do not start, as the kubelet
@@ -49,14 +53,27 @@ var waitingProblems = map[string]bool{
 	"CreateContainerError":       true,
 }
 
+// A wetsproces server stops at start while the databases, or in stable mode
+// its Keycloak, do not answer yet, and Kubernetes starts it again: in the
+// live test of stable mode it restarted four times in its first minute. So a
+// crash of the server is reported once it has restarted this often, or once
+// its pod is older than appStartupGrace; a missing manifest gets there in
+// about two and a half minutes, before Helm's install timeout. An init
+// container, an image that does not pull and a missing Secret wait for
+// nothing that is still starting, so those are reported at once.
+const (
+	appRestartsBeforeFailed = 5
+	appStartupGrace         = 3 * time.Minute
+)
+
 // ansi matches the colour codes of the server's log lines, which reach the
 // termination message as they were written.
 var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // releasePodProblem looks at the pods of w's release and returns the first
 // problem it finds, by pod name, or nil when every container is running or
-// still on its way.
-func releasePodProblem(ctx context.Context, c client.Reader, w *v1alpha1.Wetsproces) (*podProblem, error) {
+// still on its way. now is the time the start-up grace is measured against.
+func releasePodProblem(ctx context.Context, c client.Reader, w *v1alpha1.Wetsproces, now time.Time) (*podProblem, error) {
 	var pods corev1.PodList
 	if err := c.List(ctx, &pods, client.InNamespace(w.Namespace),
 		client.MatchingLabels{appLabel: appName, instanceLabel: w.Name}); err != nil {
@@ -68,14 +85,31 @@ func releasePodProblem(ctx context.Context, c client.Reader, w *v1alpha1.Wetspro
 		if !pod.DeletionTimestamp.IsZero() {
 			continue
 		}
-		statuses := append(append([]corev1.ContainerStatus{}, pod.Status.InitContainerStatuses...), pod.Status.ContainerStatuses...)
-		for _, s := range statuses {
+		for _, s := range pod.Status.InitContainerStatuses {
 			if p := containerProblem(s); p != nil {
 				return p, nil
 			}
 		}
+		started := now.Sub(pod.CreationTimestamp.Time) >= appStartupGrace
+		for _, s := range pod.Status.ContainerStatuses {
+			p := containerProblem(s)
+			if p == nil {
+				continue
+			}
+			if isCrash(p) && s.RestartCount < appRestartsBeforeFailed && !started {
+				// Possibly a server waiting for what starts beside it.
+				continue
+			}
+			return p, nil
+		}
 	}
 	return nil, nil
+}
+
+// isCrash reports whether p is a container that stopped, as opposed to one
+// that could not be made or pulled.
+func isCrash(p *podProblem) bool {
+	return p.Reason == "CrashLoopBackOff" || p.Reason == "Error"
 }
 
 // containerProblem is the problem of one container, or nil.

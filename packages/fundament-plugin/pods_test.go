@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,9 +20,12 @@ import (
 const manifestMissing = "\x1b[2m2026-11-23T16:01:02Z\x1b[0m \x1b[31mERROR\x1b[0m wetsproces stopped\n" +
 	"wetsproces: the case: the manifest does not read: /case/bron.yaml: No such file or directory\n"
 
+// crashing is a container in a crash loop that has outlasted the start-up
+// grace: appRestartsBeforeFailed restarts.
 func crashing(name, message string) corev1.ContainerStatus {
 	return corev1.ContainerStatus{
-		Name: name,
+		Name:         name,
+		RestartCount: appRestartsBeforeFailed,
 		State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{
 			Reason: "CrashLoopBackOff", Message: "back-off 40s restarting failed container",
 		}},
@@ -77,7 +81,8 @@ func releasePod(name, release string, statuses ...corev1.ContainerStatus) *corev
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name, Namespace: testNamespace,
-			Labels: map[string]string{appLabel: appName, instanceLabel: release},
+			Labels:            map[string]string{appLabel: appName, instanceLabel: release},
+			CreationTimestamp: metav1.NewTime(testNow.Add(-10 * time.Second)),
 		},
 		Status: corev1.PodStatus{ContainerStatuses: statuses},
 	}
@@ -125,4 +130,59 @@ func TestTheReleaseWaitsThreeMinutes(t *testing.T) {
 	hr := newHelmRelease(newWetsproces("a", "a"), validConfig())
 	timeout, _, _ := unstructured.NestedString(hr.Object, "spec", "timeout")
 	assert.Equal(t, "3m", timeout)
+}
+
+// A server that restarts while what it needs is still starting, as in
+// stable mode while Keycloak comes up, is not reported; the same crash is,
+// from its fifth restart, or once the pod is three minutes old.
+func TestACrashWaitsForTheStartUpGrace(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	w := newWetsproces("a", "a")
+	young := crashing("wetsproces", "wetsproces: the login: OIDC discovery failed: connection refused")
+	young.RestartCount = appRestartsBeforeFailed - 1
+	pod := releasePod("a-burger-1", "a", young)
+	r := newReconciler(t, w, pod)
+
+	p, err := releasePodProblem(ctx, r.Client, w, testNow)
+	require.NoError(t, err)
+	assert.Nil(t, p, "four restarts in its first seconds is a server waiting for Keycloak")
+
+	p, err = releasePodProblem(ctx, r.Client, w, testNow.Add(appStartupGrace))
+	require.NoError(t, err)
+	require.NotNil(t, p, "after the grace the same crash is reported")
+	assert.Contains(t, p.Message, "OIDC discovery failed")
+
+	young.RestartCount = appRestartsBeforeFailed
+	pod.Status.ContainerStatuses = []corev1.ContainerStatus{young}
+	require.NoError(t, r.Client.Status().Update(ctx, pod))
+	p, err = releasePodProblem(ctx, r.Client, w, testNow)
+	require.NoError(t, err)
+	assert.NotNil(t, p, "the fifth restart is reported however young the pod")
+}
+
+// What waits for nothing that is starting is reported at once: an init
+// container that fails, and an image that does not pull.
+func TestNoGraceForAFailedInitContainerOrImage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	w := newWetsproces("a", "a")
+	clone := releasePod("a-burger-1", "a")
+	clone.Status.InitContainerStatuses = []corev1.ContainerStatus{{Name: "clone-case", State: corev1.ContainerState{
+		Terminated: &corev1.ContainerStateTerminated{ExitCode: 128, Reason: "Error", Message: "fatal: Authentication failed\n"},
+	}}}
+	pull := releasePod("b-burger-1", "b", corev1.ContainerStatus{Name: "wetsproces", State: corev1.ContainerState{
+		Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff", Message: "Back-off pulling image"},
+	}})
+	r := newReconciler(t, w, clone, pull)
+
+	p, err := releasePodProblem(ctx, r.Client, w, testNow)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, "container clone-case: fatal: Authentication failed", p.Message)
+
+	p, err = releasePodProblem(ctx, r.Client, newWetsproces("b", "b"), testNow)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, "ImagePullBackOff", p.Reason)
 }

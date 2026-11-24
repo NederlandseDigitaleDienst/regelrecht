@@ -22,6 +22,7 @@ import {
   tokenError,
   usernameError,
   nameFromHostname,
+  keycloakSecretName,
 } from './wetsprocessen-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
@@ -35,6 +36,8 @@ const state = {
   ref: DEFAULT_REF,
   path: DEFAULT_PATH,
   privateRepo: false,
+  stable: false,
+  testAccounts: true,
   username: '',
   token: '',
   pinned: false,
@@ -96,17 +99,32 @@ const steps = [
   },
   {
     title: 'Toegang',
-    intro: 'Is de repository openbaar, of is er een token nodig om hem te lezen?',
+    intro: 'Wie mag de casus lezen, en hoe loggen mensen in?',
     fields: () => `
-      ${radios('access', 'Toegang', [['public', 'Openbaar'], ['private', 'Privé, met een token']], state.privateRepo ? 'private' : 'public')}
+      <nldd-title size="5" heading-level="3" text="De repository"></nldd-title>
+      ${radios('access', 'Toegang tot de repository', [['public', 'Openbaar'], ['private', 'Privé, met een token']], state.privateRepo ? 'private' : 'public')}
       <div id="credentials"${state.privateRepo ? '' : ' hidden'}>
         <nldd-spacer size="16"></nldd-spacer>
         ${field('Gebruikersnaam', textField('username', state.username, 'autocomplete="off"'), { errorId: 'e-user' })}
         ${field('Token', `<nldd-password-field name="token" value="${escapeHtml(state.token)}" autocomplete="off"></nldd-password-field>`, { errorId: 'e-token', hint: 'Een token dat de repository alleen mag lezen. Het komt in een Secret in de namespace van het wetsproces.' })}
+      </div>
+      <nldd-spacer size="24"></nldd-spacer>
+      <nldd-title size="5" heading-level="3" text="Inloggen"></nldd-title>
+      ${radios('login', 'Inloggen', [['test', 'Testomgeving: iedereen kiest zelf een testpersoon, en een beheerder zet de datum'], ['stable', 'Stabiel: inloggen via een eigen Keycloak, met de echte datum']], state.stable ? 'stable' : 'test')}
+      <div id="stable"${state.stable ? '' : ' hidden'}>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-rich-text>
+          <p>Het wetsproces krijgt een eigen Keycloak op een derde adres, &lt;naam&gt;-login. Het wachtwoord van de beheerder van die Keycloak maakt het cluster zelf aan, in een Secret in de namespace; de detailpagina noemt de naam van dat Secret.</p>
+        </nldd-rich-text>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-checkbox-field name="testAccounts" label="Met de testaccounts van de casus, die allemaal één gegenereerd wachtwoord delen"${state.testAccounts ? ' checked' : ''}></nldd-checkbox-field>
       </div>`,
     wire: (f) => {
-      f.querySelector('nldd-radio-button-group').addEventListener('change', () => {
+      f.querySelector('nldd-radio-button-group[name="access"]').addEventListener('change', () => {
         f.querySelector('#credentials').hidden = chosenRadio(f, 'access') !== 'private';
+      });
+      f.querySelector('nldd-radio-button-group[name="login"]').addEventListener('change', () => {
+        f.querySelector('#stable').hidden = chosenRadio(f, 'login') !== 'stable';
       });
     },
     checks: (f) => {
@@ -117,7 +135,13 @@ const steps = [
       ];
     },
     keep: (v, f) =>
-      Object.assign(state, { privateRepo: chosenRadio(f, 'access') === 'private', username: v('username'), token: v('token') }),
+      Object.assign(state, {
+        privateRepo: chosenRadio(f, 'access') === 'private',
+        username: v('username'),
+        token: v('token'),
+        stable: chosenRadio(f, 'login') === 'stable',
+        testAccounts: Boolean(f.querySelector('nldd-checkbox-field[name="testAccounts"]')?.checked),
+      }),
   },
   {
     title: 'Versie',
@@ -190,14 +214,26 @@ const steps = [
             ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}` : 'openbaar'],
             ['Versie', state.version || 'laatste versie (main)'],
             ['Accentkleur', state.accentColor || 'standaard'],
+            [
+              'Inloggen',
+              state.stable
+                ? `stabiel, via Keycloak${state.testAccounts ? ', met testaccounts' : ''}`
+                : 'testomgeving',
+            ],
             ['Burgers', a.burger],
             ['Medewerkers', a.medewerkers],
+            ...(state.stable
+              ? [
+                  ['Inloggen via', a.login],
+                  ['Secret met de wachtwoorden', keycloakSecretName(nameFromHostname(state.hostname))],
+                ]
+              : []),
           ],
           'Samenvatting',
         )}
         <nldd-spacer size="16"></nldd-spacer>
         <nldd-banner variant="warning" text="Verwijderen haalt ook de data weg"
-                     supporting-text="Het wetsproces krijgt een eigen database. Wie het later verwijdert, verwijdert die database en het volume eronder mee, met alle kronieken. Er is geen back-up."></nldd-banner>`;
+                     supporting-text="Het wetsproces krijgt een eigen database${state.stable ? ', en zijn Keycloak een tweede' : ''}. Wie het later verwijdert, verwijdert die database${state.stable ? 's' : ''} en de volumes eronder mee, met alle kronieken${state.stable ? ' en accounts' : ''}. Er is geen back-up."></nldd-banner>`;
     },
     checks: () => [],
     keep: () => {},

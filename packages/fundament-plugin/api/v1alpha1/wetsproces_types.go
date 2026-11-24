@@ -67,13 +67,40 @@ type Theme struct {
 	AccentColor string `json:"accentColor,omitempty"`
 }
 
+// Auth modes, in spec.auth.mode.
+const (
+	// AuthTest: the test login, where anyone picks a test person, and a clock
+	// the admin sets.
+	AuthTest = "test"
+	// AuthStable: login through a Keycloak of this wetsprocessysteem only, and
+	// the real date.
+	AuthStable = "stable"
+)
+
+// Auth is how people log in.
+type Auth struct {
+	// Mode is test (the test login) or stable (a Keycloak of its own on
+	// <hostname>-login, beside the other addresses).
+	// +kubebuilder:validation:Enum=test;stable
+	// +kubebuilder:default=test
+	// +optional
+	Mode string `json:"mode,omitempty"`
+
+	// TestAccounts gives the Keycloak of stable mode the test accounts of the
+	// case, all with one password the chart generates. For a test setup
+	// only; without them, accounts are made in Keycloak itself.
+	// +optional
+	TestAccounts bool `json:"testAccounts,omitempty"`
+}
+
 // WetsprocesSpec is one wetsprocessysteem.
 type WetsprocesSpec struct {
 	// Manifest is the case to run.
 	Manifest Manifest `json:"manifest"`
 
 	// Version is the regelrecht commit whose wetsproces image runs, the full
-	// 40-character hash. Empty follows the latest build of main.
+	// 40-character hash, and whose chart installs it. Empty follows main: the
+	// chart on main and the latest build it names.
 	// +kubebuilder:validation:Pattern=`^([0-9a-f]{40})?$`
 	// +optional
 	Version string `json:"version,omitempty"`
@@ -81,6 +108,10 @@ type WetsprocesSpec struct {
 	// Theme is how the screens look.
 	// +optional
 	Theme Theme `json:"theme,omitempty"`
+
+	// Auth is how people log in. Empty is the test login.
+	// +optional
+	Auth Auth `json:"auth,omitempty"`
 
 	// Hostname is the address: a name under the plugin's base domain
 	// (`zorgtoeslag` gives zorgtoeslag.<domain> for citizens and
@@ -106,6 +137,17 @@ type WetsprocesStatus struct {
 	// +optional
 	BackofficeURL string `json:"backofficeUrl,omitempty"`
 
+	// LoginURL is the Keycloak of stable mode; empty in test mode.
+	// +optional
+	LoginURL string `json:"loginUrl,omitempty"`
+
+	// KeycloakSecret names the Secret in the namespace of this Wetsproces
+	// that the chart generates for stable mode: the Keycloak admin password
+	// (user admin) under admin-password, and the password of the test
+	// accounts under test-password. Only the name, never a value.
+	// +optional
+	KeycloakSecret string `json:"keycloakSecret,omitempty"`
+
 	// Message says why the phase is what it is.
 	// +optional
 	Message string `json:"message,omitempty"`
@@ -128,6 +170,7 @@ type WetsprocesStatus struct {
 // +kubebuilder:resource:path=wetsprocessen,singular=wetsproces,scope=Namespaced
 // +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 40",message="the name is at most 40 characters: it names the Helm release and the objects of the chart"
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Auth",type=string,JSONPath=`.spec.auth.mode`
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
 // +kubebuilder:printcolumn:name="Medewerkers",type=string,JSONPath=`.status.backofficeUrl`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`

@@ -112,8 +112,22 @@ export function nameFromHostname(hostname) {
 // `domain` standing for the base domain of the installation, which a page
 // cannot read.
 export function addresses(hostname, domain = '‹basisdomein›') {
-  if (hostname.includes('.')) return { burger: hostname, medewerkers: `medewerkers.${hostname}` };
-  return { burger: `${hostname}.${domain}`, medewerkers: `${hostname}-medewerkers.${domain}` };
+  if (hostname.includes('.')) {
+    const [first, ...rest] = hostname.split('.');
+    return { burger: hostname, medewerkers: `medewerkers.${hostname}`, login: `${first}-login.${rest.join('.')}` };
+  }
+  return {
+    burger: `${hostname}.${domain}`,
+    medewerkers: `${hostname}-medewerkers.${domain}`,
+    login: `${hostname}-login.${domain}`,
+  };
+}
+
+// The Secret the chart generates for the Keycloak of stable mode
+// (charts/wetsproces, templates/keycloak.yaml): the admin password and the
+// password of the test accounts. The pages name it, and never read it.
+export function keycloakSecretName(name) {
+  return `${name}-keycloak`;
 }
 
 export function secretName(name) {
@@ -121,13 +135,26 @@ export function secretName(name) {
 }
 
 // The Wetsproces object for the choices of the wizard.
-export function buildWetsproces({ namespace, hostname, repoUrl, ref, path, privateRepo, version, accentColor }) {
+export function buildWetsproces({
+  namespace,
+  hostname,
+  repoUrl,
+  ref,
+  path,
+  privateRepo,
+  version,
+  accentColor,
+  stable = false,
+  testAccounts = false,
+}) {
   const name = nameFromHostname(hostname);
   const manifest = { repoUrl, ref: ref || DEFAULT_REF, path: path || DEFAULT_PATH };
   if (privateRepo) manifest.credentialsSecretRef = { name: secretName(name) };
   const spec = { manifest, hostname };
   if (version) spec.version = version;
   if (accentColor) spec.theme = { accentColor };
+  // Test mode is the CRD's default, so a test wetsproces says nothing.
+  if (stable) spec.auth = { mode: 'stable', testAccounts };
   return {
     apiVersion: `${WETSPROCES_RESOURCE.group}/${WETSPROCES_RESOURCE.version}`,
     kind: 'Wetsproces',

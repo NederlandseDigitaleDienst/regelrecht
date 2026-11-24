@@ -115,7 +115,9 @@ func TestValidateSpec(t *testing.T) {
 		"plain http":             func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.RepoURL = "http://git.example.org/a.git" },
 		"a full ref":             func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.Ref = "refs/heads/main" },
 		"a path out of the repo": func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.Path = "../etc/passwd" },
-		"a label too long":       func(w *v1alpha1.Wetsproces) { w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345" },
+		"a label too long": func(w *v1alpha1.Wetsproces) {
+			w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345"
+		},
 	} {
 		w := newWetsproces("a", "a")
 		mutate(w)
@@ -174,6 +176,8 @@ func TestChartValuesExistInChart(t *testing.T) {
 	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
 	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "a-repo"}
 	check("", chartValues(w, validConfig()), chart)
+	w.Spec.Auth = v1alpha1.Auth{Mode: v1alpha1.AuthStable, TestAccounts: true}
+	check("", chartValues(w, validConfig()), chart)
 }
 
 func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {
@@ -185,8 +189,11 @@ func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {
 		WithObjects(objs...).
 		WithStatusSubresource(&v1alpha1.Wetsproces{}).
 		Build()
-	return &WetsprocesReconciler{Client: c, Scheme: scheme, Config: validConfig()}
+	return &WetsprocesReconciler{Client: c, Secrets: c, Scheme: scheme, Config: validConfig(), Now: func() time.Time { return testNow }}
 }
+
+// testNow is the clock of the tests; a pod from releasePod is ten seconds old.
+var testNow = time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)
 
 func reconcileOnce(t *testing.T, r *WetsprocesReconciler, w *v1alpha1.Wetsproces) *v1alpha1.Wetsproces {
 	t.Helper()

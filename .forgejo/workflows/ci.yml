@@ -232,6 +232,16 @@ jobs:
           helm template wetsproces "$C" --set domain=example.org $CNPG \
             --set wetsproces.mode=stable --set wetsproces.login=oidc \
             --set keycloak.enabled=true --set gateway.mode=own > /dev/null
+          # Stable mode as the Fundament plugin renders it: flat hosts, one
+          # label under the wildcard, and the Keycloak on <name>-login. All
+          # three must be listeners of the release's ListenerSet.
+          n=$(helm template a "$C" --set domain=example.org $CNPG \
+            --set surfaces.burger.host=a.example.org \
+            --set surfaces.backoffice.host=a-medewerkers.example.org \
+            --set wetsproces.mode=stable --set wetsproces.login=oidc \
+            --set keycloak.enabled=true --set keycloak.host=a-login.example.org \
+            | grep -cE "hostname: a(-medewerkers|-login)?\.example\.org")
+          [ "$n" = 3 ] || { echo "expected 3 listeners for the plugin's stable mode, got $n"; exit 1; }
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work

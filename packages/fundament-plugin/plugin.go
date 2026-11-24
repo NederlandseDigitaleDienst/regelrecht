@@ -167,9 +167,10 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 		return nil, fmt.Errorf("set up the controller manager: %w", err)
 	}
 	r := &WetsprocesReconciler{
-		Client: mgr.GetClient(),
-		Scheme: p.scheme,
-		Config: p.cfg,
+		Client:  mgr.GetClient(),
+		Secrets: mgr.GetAPIReader(),
+		Scheme:  p.scheme,
+		Config:  p.cfg,
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
 		return nil, err

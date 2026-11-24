@@ -49,24 +49,61 @@ func sourceName(w *v1alpha1.Wetsproces) string { return w.Name + "-chart" }
 // under the domain, where the cluster's wildcard record covers them;
 // medewerkers.<hostname>.<domain> would not be. A hostname with a dot is a
 // domain of its own, and employees get medewerkers.<hostname> under it.
+//
+// In stable mode a third address carries its Keycloak: <hostname>-login
+// beside the citizens' host, which is what the chart makes of an empty
+// keycloak.host behind the shared Gateway, one label under the wildcard.
 type hosts struct {
 	burger     string
 	backoffice string
+	// login is empty in test mode.
+	login string
 }
 
 func hostsOf(w *v1alpha1.Wetsproces, domain string) hosts {
-	h := w.Spec.Hostname
-	if strings.Contains(h, ".") {
-		return hosts{burger: h, backoffice: "medewerkers." + h}
+	name := w.Spec.Hostname
+	var h hosts
+	if strings.Contains(name, ".") {
+		first, rest, _ := strings.Cut(name, ".")
+		h = hosts{burger: name, backoffice: "medewerkers." + name, login: first + "-login." + rest}
+	} else {
+		h = hosts{burger: name + "." + domain, backoffice: name + "-medewerkers." + domain, login: name + "-login." + domain}
 	}
-	return hosts{burger: h + "." + domain, backoffice: h + "-medewerkers." + domain}
+	if !isStable(w) {
+		h.login = ""
+	}
+	return h
+}
+
+// all is every address of h.
+func (h hosts) all() []string {
+	out := []string{h.burger, h.backoffice}
+	if h.login != "" {
+		out = append(out, h.login)
+	}
+	return out
 }
 
 // overlaps reports whether h and o share an address.
 func (h hosts) overlaps(o hosts) bool {
-	return h.burger == o.burger || h.burger == o.backoffice ||
-		h.backoffice == o.burger || h.backoffice == o.backoffice
+	for _, a := range h.all() {
+		for _, b := range o.all() {
+			if a == b {
+				return true
+			}
+		}
+	}
+	return false
 }
+
+// isStable reports whether w logs in through a Keycloak of its own.
+func isStable(w *v1alpha1.Wetsproces) bool {
+	return w.Spec.Auth.Mode == v1alpha1.AuthStable
+}
+
+// keycloakSecret is the Secret the chart generates for the Keycloak of w's
+// release (charts/wetsproces, templates/keycloak.yaml).
+func keycloakSecret(w *v1alpha1.Wetsproces) string { return w.Name + "-keycloak" }
 
 // validateSpec checks what the CRD's schema cannot: the rules of a git ref,
 // a path that stays in the repository, and a hostname that is a DNS name.
@@ -84,7 +121,7 @@ func validateSpec(w *v1alpha1.Wetsproces, domain string) error {
 		return fmt.Errorf("manifest.path must be a relative path inside the repository, got %q", path)
 	}
 	h := hostsOf(w, domain)
-	for _, name := range []string{h.burger, h.backoffice} {
+	for _, name := range h.all() {
 		if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
 			return fmt.Errorf("hostname %q gives %s, which is no valid domain name: %s", w.Spec.Hostname, name, strings.Join(errs, "; "))
 		}
@@ -132,13 +169,18 @@ func newObject(gvk schema.GroupVersionKind, w *v1alpha1.Wetsproces, name string,
 	return obj
 }
 
-// newGitRepository builds the source of the chart: the fork at ChartRef. The
-// ignore rules keep only the chart, so the artifact stays small in a large
-// repository.
+// newGitRepository builds the source of the chart: the fork at ChartRef, or,
+// for a Wetsproces with a version, at that very commit, so the image and the
+// chart that runs it come from one commit. The ignore rules keep only the
+// chart, so the artifact stays small in a large repository.
 func newGitRepository(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Unstructured {
+	ref := map[string]any{"branch": cfg.ChartRef}
+	if w.Spec.Version != "" {
+		ref = map[string]any{"commit": w.Spec.Version}
+	}
 	return newObject(gitRepositoryGVK, w, sourceName(w), map[string]any{
 		"url":      forkURL,
-		"ref":      map[string]any{"branch": cfg.ChartRef},
+		"ref":      ref,
 		"interval": fluxInterval,
 		"ignore":   "/*\n!/" + chartPath + "/\n",
 	})
@@ -170,12 +212,23 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 			"burger":     map[string]any{"host": h.burger},
 			"backoffice": map[string]any{"host": h.backoffice},
 		},
-		"case": caseValues,
-		"theme":  map[string]any{"accentColor": w.Spec.Theme.AccentColor},
-		"tls":    map[string]any{"acme": cfg.ACME},
+		"case":  caseValues,
+		"theme": map[string]any{"accentColor": w.Spec.Theme.AccentColor},
+		"tls":   map[string]any{"acme": cfg.ACME},
 	}
 	if w.Spec.Version != "" {
 		values["image"] = map[string]any{"ref": cfg.DefaultImage + ":" + w.Spec.Version}
+	}
+	if isStable(w) {
+		// The chart's stable mode: PostgreSQL and an instance per side are
+		// its defaults already; login through its own Keycloak, whose host
+		// is set here so the status can name it.
+		values["wetsproces"] = map[string]any{"mode": "stable", "login": "oidc"}
+		values["keycloak"] = map[string]any{
+			"enabled":   true,
+			"host":      h.login,
+			"testUsers": w.Spec.Auth.TestAccounts,
+		}
 	}
 	return values
 }

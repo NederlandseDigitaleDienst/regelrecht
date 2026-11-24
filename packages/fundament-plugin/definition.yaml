@@ -4,7 +4,7 @@ kind: PluginDefinition
 metadata:
   name: wetsproces
   displayName: RegelRecht Wetsproces
-  version: v0.2.1
+  version: v0.3.0
   description: >-
     Offers the regelrecht wetsprocessysteem to the projects of a cluster.
     Installed once per cluster; project members then create a wetsproces per
@@ -111,11 +111,18 @@ spec:
       - apiGroups: ['']
         resources: [pods]
         verbs: [get, list, watch]
-      # The wizard makes the Secret with the token of a private case
-      # repository. Create only: neither the plugin nor its pages read one.
+      # Secrets, without list or watch, so the plugin can see no Secret it
+      # does not name. create: the wizard makes the Secret with the token of
+      # a private case repository. get and delete: after a Wetsproces is
+      # deleted, the plugin reads <name>-keycloak, the Secret the chart's Job
+      # generated for its Keycloak, and deletes it when it carries the
+      # chart's labels for that release (controller.go,
+      # deleteKeycloakSecret). The names are not known in advance, so
+      # resourceNames cannot narrow this, and Fundament grants a ClusterRole.
+      # The console pages only create; they never read a Secret.
       - apiGroups: ['']
         resources: [secrets]
-        verbs: [create]
+        verbs: [create, get, delete]
   crds:
     - wetsprocessen.wetsproces.regelrecht.nl
 

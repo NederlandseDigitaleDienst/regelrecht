@@ -9,6 +9,7 @@ import {
   addresses,
   buildSecret,
   buildWetsproces,
+  keycloakSecretName,
   commitError,
   hostnameError,
   pathError,
@@ -60,10 +61,15 @@ test('a private casus names its Secret, and the Secret is owned by the Wetsproce
 test('an own domain names the object after its first label', () => {
   const w = buildWetsproces({ ...base, hostname: 'zorg.example.nl' });
   assert.equal(w.metadata.name, 'zorg');
-  assert.deepEqual(addresses('zorg.example.nl'), { burger: 'zorg.example.nl', medewerkers: 'medewerkers.zorg.example.nl' });
+  assert.deepEqual(addresses('zorg.example.nl'), {
+    burger: 'zorg.example.nl',
+    medewerkers: 'medewerkers.zorg.example.nl',
+    login: 'zorg-login.example.nl',
+  });
   assert.deepEqual(addresses('zorgtoeslag', 'c.example.org'), {
     burger: 'zorgtoeslag.c.example.org',
     medewerkers: 'zorgtoeslag-medewerkers.c.example.org',
+    login: 'zorgtoeslag-login.c.example.org',
   });
 });
 
@@ -96,4 +102,12 @@ test('the badge follows the phase', () => {
   assert.equal(phaseBadge({ status: { phase: 'Ready' } }).color, 'success');
   assert.equal(phaseBadge({ status: { phase: 'Failed' } }).color, 'critical');
   assert.equal(phaseBadge({}).text, 'Bezig');
+});
+
+test('stable mode asks for the Keycloak of the chart; test mode says nothing', () => {
+  assert.equal(buildWetsproces(base).spec.auth, undefined);
+  const w = buildWetsproces({ ...base, stable: true, testAccounts: true });
+  assert.deepEqual(w.spec.auth, { mode: 'stable', testAccounts: true });
+  assert.deepEqual(buildWetsproces({ ...base, stable: true }).spec.auth, { mode: 'stable', testAccounts: false });
+  assert.equal(keycloakSecretName('zorgtoeslag'), 'zorgtoeslag-keycloak');
 });

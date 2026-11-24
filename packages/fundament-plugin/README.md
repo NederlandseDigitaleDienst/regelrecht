@@ -50,9 +50,11 @@ status:
 | `manifest.ref` | branch, tag or full commit, `main` by default; a commit pins the case to one version |
 | `manifest.path` | path of the source manifest in that repository, `bron.yaml` by default: a manifest repository such as `regelrecht/wetsproces-parkeerkaart` has it at the root, and this repository has it at `packages/wetsproces/bron.yaml`. The case file and the articles it runs are named there, so the wizard does not ask for them |
 | `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository |
-| `version` | the regelrecht commit whose wetsproces image runs, the full 40-character hash. Empty follows the latest build of main |
+| `version` | the regelrecht commit whose wetsproces image runs and whose chart installs it, the full 40-character hash. Empty follows main |
 | `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
 | `hostname` | a name under the base domain, or a domain of your own with a dot in it |
+| `auth.mode` | `test` (the default: the test login and a clock the admin sets) or `stable` (a Keycloak of its own, and the real date) |
+| `auth.testAccounts` | in stable mode, give that Keycloak the test accounts of the case, with one generated password |
 
 The name of the object is at most 40 characters, because it names the Helm
 release and every object of the chart.
@@ -66,6 +68,9 @@ stay one label under the base domain, because the wildcard record of
 `medewerkers.zorgtoeslag.cluster-a.fieldlab2026.nl` would not resolve. A
 hostname with a dot in it is a domain of its own; employees then get
 `medewerkers.<hostname>`, and you make the DNS records for both yourself.
+
+In stable mode a third address carries its Keycloak: `zorgtoeslag-login.<domain>`,
+or `<first label>-login` beside a domain of your own.
 
 Two wetsprocessen cannot share an address. The older one keeps it; the newer
 one goes to `Failed` with the reason `HostnameInUse` and makes nothing until
@@ -94,8 +99,16 @@ release, and as soon as a container stops with an error or keeps stopping
 (`CrashLoopBackOff`), an image cannot be pulled, or a Secret the pod needs is missing, it sets the
 Wetsproces to `Failed` with the reason `NotStarting`. The message names the
 container and gives the last line it wrote, which the chart keeps in the
-container status (`terminationMessagePolicy: FallbackToLogsOnError`). A
-manifest path that is not in the repository therefore reads, within a minute:
+container status (`terminationMessagePolicy: FallbackToLogsOnError`).
+
+The server itself gets some time first. It stops at start while its database,
+or in stable mode its Keycloak, does not answer yet, and Kubernetes starts it
+again; in a test of stable mode on `cluster-a` it restarted four times in its
+first minute. So a crash of the server container is reported from its fifth
+restart, or once its pod is 3 minutes old, whichever comes first. A failed
+init container, an image that cannot be pulled and a missing Secret wait for
+nothing that is still starting, and are reported at once. A manifest path that
+is not in the repository therefore reads, after about two and a half minutes:
 
 ```
 container wetsproces: wetsproces: the case: the manifest does not read: ...
@@ -129,9 +142,19 @@ and helm-controller uninstalls the release. That removes the CloudNativePG
 wetsproces. There is no retention option and there are no backups. The detail
 page in the console and the last step of the wizard say this.
 
-One Secret stays behind: `<name>-letsencrypt-<acme>-account`, the key of the
-ACME account, which cert-manager makes for the release's Issuer without an
-owner. It holds no data of the wetsproces; delete it by hand if you like.
+In stable mode the Keycloak's own database goes the same way, with every
+account in it. The Job of the chart makes the Secret `<name>-keycloak` with
+the passwords outside Helm, so that a reinstall keeps them; nothing owns it.
+Once the Wetsproces is gone, the plugin deletes that Secret itself, if it
+still carries the chart's labels for that release. It does this on the delete
+event, without a finalizer: a Wetsproces with a finalizer that outlives the
+plugin could no longer be deleted. A delete the plugin misses, because its pod
+was down, leaves the Secret behind.
+
+The Secrets `<name>-burger-tls`, `<name>-backoffice-tls` and, in stable mode,
+`<name>-keycloak-tls` stay: cert-manager made them and leaves them when the
+listeners go. They hold certificates, no data of the wetsproces; delete them by
+hand if you like.
 
 ### Version
 
@@ -141,7 +164,13 @@ chart's own `image.ref` counts. That line names the latest build of main:
 commit of its own. Because the HelmRelease rebuilds the chart on every new
 commit of its source (`reconcileStrategy: Revision`), a wetsproces without a
 version rolls out each new build within the interval of its `GitRepository`.
-With a `version` it runs `<DEFAULT_IMAGE>:<version>` and stays there.
+With a `version` it runs `<DEFAULT_IMAGE>:<version>`, and the `GitRepository`
+of the chart points at that same commit (`ref.commit`), so the image runs with
+the chart it was built with. A commit from before the chart existed has no
+`charts/wetsproces`; the last such commit in this repository is `f619755c`.
+Flux keeps trying such a source without giving up, so the plugin sets the
+Wetsproces to `Failed` with the reason `ChartNotInCommit` as soon as Flux
+reports that the chart is not there.
 
 The case comes from `manifest.ref`, not from the image. A case on `main` that
 needs a newer server than the pinned image can stop the server at start; it
@@ -185,8 +214,8 @@ of its own and an HTTP listener of its own, with `dns.*` for the records.
 
 ## Stable mode and the login through Keycloak
 
-The chart can run a wetsproces in stable mode; the plugin does not offer it
-yet. With `wetsproces.login: oidc` each instance logs in through Keycloak, with
+The chart can run a wetsproces in stable mode, and the plugin turns it on with
+`spec.auth.mode: stable` (below). With `wetsproces.login: oidc` each instance logs in through Keycloak, with
 a client of its own: `wetsproces` for citizens and `wetsproces-backoffice` for
 employees, as [Authentication & Roles](../../docs/src/content/docs/auth-and-roles.md#wetsproces-roles)
 describes. The chart sets `BASE_URL` to the instance's own host, so the
@@ -239,6 +268,37 @@ kubectl -n <namespace> get secret <release>-keycloak \
   -o jsonpath='{.data.test-password}' | base64 -d
 ```
 
+### Stable mode from the plugin
+
+A Wetsproces with `auth.mode: stable` gets the values above: `wetsproces.mode:
+stable`, `wetsproces.login: oidc` and `keycloak.enabled: true`, with
+`keycloak.host` set to its `-login` address and `keycloak.testUsers` from
+`auth.testAccounts`. PostgreSQL and an instance per side are the chart's
+defaults already. The status names the login address (`loginUrl`) and the
+Secret with the passwords (`keycloakSecret`, `<name>-keycloak`), by its name
+only; the detail page in the console shows both, and how to read a key with
+`kubectl`.
+
+```yaml
+apiVersion: wetsproces.regelrecht.nl/v1alpha1
+kind: Wetsproces
+metadata:
+  name: zorgtoeslag
+  namespace: tnt-rr-voorbeeld--zorgtoeslag
+spec:
+  manifest:
+    repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/wetsproces-parkeerkaart
+  hostname: zorgtoeslag
+  auth:
+    mode: stable
+    testAccounts: true
+```
+
+The login needs a certificate the server trusts. On an installation with
+`ACME: staging` the plugin therefore refuses stable mode: the Wetsproces goes
+to `Failed` with the reason `StableNeedsProductionCerts`, and nothing is made.
+Test mode is unaffected by this.
+
 For a Keycloak elsewhere, `oidc.issuerUrl` and `oidc.existingSecret` name it
 and the Secret with the client secrets, in the release's namespace. The realm
 is then also available as a `KeycloakRealmImport`, for a Keycloak that the
@@ -265,7 +325,8 @@ The operator fills the client secrets and the test password in from the Secret
 The plugin adds **Wetsprocessen** to the project sidebar, under the heading
 **RegelRecht Wetsproces** (the `displayName` of the definition), with pages of its own
 under `console/`: a list, a detail page with the addresses and the status, and
-a wizard that asks, one step at a time, for the case, the access, the version,
+a wizard that asks, one step at a time, for the case, the access and the login
+(test or stable), the version,
 the accent color and the address, and shows what it will make before it makes
 it. For a private repository the wizard makes the Secret with the token as well,
 owned by the Wetsproces so the two go together.
@@ -316,11 +377,20 @@ Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept
 to the namespaces of a project. The rules in `definition.yaml` say per group
 why the plugin needs them. In short: create and get the plugin's own CRD,
 manage two ClusterRoles by name, manage Wetsproces objects and their status,
-manage Flux `GitRepository` and `HelmRelease` objects, read pods, and create
-Secrets. Pods are read to report a wetsproces that does not start. Secrets are
-for the wizard: a console page acts with the rights the user and the
-plugin share, so the plugin must hold every right a page uses. Neither the
-plugin nor its pages read a Secret.
+manage Flux `GitRepository` and `HelmRelease` objects, read pods, and create,
+get and delete Secrets. Pods are read to report a wetsproces that does not
+start. On Secrets the plugin has no `list` or `watch`, so it sees only a
+Secret it asks for by name:
+
+- `create` is for the wizard, which makes the Secret with the token of a
+  private repository. A console page acts with the rights the user and the
+  plugin share, so the plugin must hold every right a page uses.
+- `get` and `delete` are for one Secret per deleted Wetsproces: the plugin
+  reads `<name>-keycloak` and deletes it when it carries the chart's labels
+  for that release. The names are not known in advance, so `resourceNames`
+  cannot narrow this.
+
+The pages never read a Secret.
 
 The two ClusterRoles aggregate into `admin` and `view`, the roles Fundament
 binds project admins and viewers to. Admins may create and delete
