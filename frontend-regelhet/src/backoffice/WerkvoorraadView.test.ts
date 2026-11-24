@@ -18,7 +18,6 @@ const casus: Casus = {
   andere_cellen: [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld' }],
   indieningen: [{ artikel: 'wet#1', besluit: 'wet#1', cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', soort: 'AANVRAAG' }],
   titel: 'Vergunning',
-  uitkomst: 'vergund',
   // What follows a grant: two acts, each with the button that records it.
   na_toekenning: {
     stand: 'Uw vergunning is verleend.',
@@ -138,20 +137,22 @@ const verzoek: EigenVerzoek = {
 };
 
 describe('the work queue', () => {
-  it('keeps every submission in Alle aanvragen, the newest first, each tagged with how it stands', async () => {
-    const besloten = (id: string, op: string, vergund: boolean): Gram[] => [
+  it('keeps every submission in Alle aanvragen, the newest first, with the day each was decided', async () => {
+    const besloten = (id: string, op: string): Gram[] => [
       { ...aanvraag, id, recorded_on: op },
-      { id: `b${id}`, kind: 'BESLUIT', basis: 'wet#1', refers_to: id, outputs: { vergund }, recorded_on: op, recording_actor: 'gemeente' },
+      { id: `b${id}`, kind: 'BESLUIT', basis: 'wet#1', refers_to: id, recorded_on: op, recording_actor: 'gemeente' },
     ];
-    kroniek.value = [...besloten('t', '2026-10-01', true), ...besloten('w', '2026-10-05', false), aanvraag];
+    kroniek.value = [...besloten('t', '2026-10-01'), ...besloten('w', '2026-10-05'), aanvraag];
     try {
       const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], 'alle');
       expect(lijsten(w)).toContain('Alle aanvragen 3');
       // Te doen holds only what waits: decided submissions are found here.
       expect(lijsten(w)).toContain('Te doen 2');
       const rijen = rijenVan(w, 'Alle aanvragen');
-      expect(rijen.map((r) => r.find('nldd-badge').attributes('text'))).toEqual(['In behandeling', 'Afgewezen', 'Toegewezen']);
-      expect(rijen[1]?.find('nldd-text-cell').attributes('supporting-text')).toContain('Besloten 5 oktober 2026');
+      const regels = rijen.map((r) => r.find('nldd-text-cell').attributes('supporting-text'));
+      expect(regels[0]).not.toContain('Besloten');
+      expect(regels[1]).toContain('Besloten 5 oktober 2026');
+      expect(regels[2]).toContain('Besloten 1 oktober 2026');
       // Each opens beside the list, as a row of Te doen does.
       await rijen[2]?.trigger('click');
       await flushPromises();

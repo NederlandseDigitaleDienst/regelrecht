@@ -23,7 +23,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
-import { artikelNaam, besluitStand, isIndiening, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
+import { artikelNaam, isIndiening, omschrijving, rolVan } from '../gedeeld/keten';
 import { indieningTitel } from '../gedeeld/formulier';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
@@ -103,15 +103,12 @@ const handelingen = computed(() => {
     : [];
 });
 
-/** How a submission stands, as its tag in Alle aanvragen shows it. */
-type Stand = { tekst: string; kleur: 'neutral' | 'warning' | 'success' | 'critical' };
-
 /**
  * A row of a list: a submission, decided or not, or a grant whose next act
  * waits. `sinds` is the day it waits since, `ontvangen` the day it came in.
  */
 type Rij =
-  | { soort: 'indiening'; sleutel: string; sinds: string; ontvangen: string; lijsten: Lijst[]; tekst: string; regel: string; opnieuw: boolean; stand: Stand }
+  | { soort: 'indiening'; sleutel: string; sinds: string; ontvangen: string; lijsten: Lijst[]; tekst: string; regel: string; opnieuw: boolean }
   | {
       soort: 'toekenning';
       sleutel: string;
@@ -124,25 +121,12 @@ type Rij =
       handeling?: Handeling;
     };
 
-/**
- * The decision that answers a submission no longer waiting, with how it
- * stands: by the new decision taken in the place of a revoked one, else by
- * the decision itself, granted or refused, revoked or annulled.
- */
-function beslist(stuk: Gram, kroniek: Kroniek): { op?: string; stand: Stand } {
-  const c = casus.value;
+/** The day the decision that answers a submission no longer waiting was taken: the new one in the place of a revoked one, else its own. */
+function beslotenOp(stuk: Gram, kroniek: Kroniek): string | undefined {
   const a = kroniek.stand.antwoorden[stuk.id];
-  const gram = (id: string) => kroniek.grammen.find((g) => g.id === id);
-  if (!c || !a || a.soort === 'open') return { stand: { tekst: 'Besloten', kleur: 'neutral' } };
-  if (a.soort === 'in_de_plaats') {
-    const t = toegewezen(a.nieuw, c);
-    return {
-      op: a.nieuw.recorded_on,
-      stand: t === undefined ? { tekst: 'Besloten', kleur: 'neutral' } : t ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' },
-    };
-  }
-  const g = gram(a.besluit);
-  return { op: g?.recorded_on, stand: (g && besluitStand(g, kroniek.stand, kroniek.grammen, c)) ?? { tekst: 'Besloten', kleur: 'neutral' } };
+  if (!a || a.soort === 'open') return undefined;
+  if (a.soort === 'in_de_plaats') return a.nieuw.recorded_on;
+  return kroniek.grammen.find((g) => g.id === a.besluit)?.recorded_on;
 }
 
 /**
@@ -155,14 +139,14 @@ function indieningsRij(stuk: Gram, open: { na?: string } | undefined, kroniek: K
   const na = open?.na;
   const naGram = na ? kroniek.grammen.find((g) => g.id === na) : undefined;
   const wachtOp = open ? [...new Set(verzoekenBij(stuk, verzoeken.value).filter((v) => v.open).map((v) => v.aan_naam))] : [];
-  const besluit = open ? undefined : beslist(stuk, kroniek);
+  const besloten = open ? undefined : beslotenOp(stuk, kroniek);
   const regel = [
     `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`,
     naGram && c
       ? `Opnieuw beslissen na ${omschrijving(naGram, c, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
       : '',
     wachtOp.length ? `Wacht op ${wachtOp.join(' en ')}` : '',
-    besluit?.op ? `Besloten ${longDate(besluit.op)}` : '',
+    besloten ? `Besloten ${longDate(besloten)}` : '',
   ];
   return {
     soort: 'indiening',
@@ -173,7 +157,6 @@ function indieningsRij(stuk: Gram, open: { na?: string } | undefined, kroniek: K
     tekst: c ? indieningTitel(stuk, c, vormen.value?.indieningen[stuk.basis]) : stuk.kind,
     regel: regel.filter(Boolean).join(' · '),
     opnieuw: !!na,
-    stand: besluit?.stand ?? (na ? { tekst: 'Opnieuw beslissen', kleur: 'warning' } : { tekst: 'In behandeling', kleur: 'neutral' }),
   };
 }
 
@@ -375,9 +358,8 @@ async function klaar(naam: string) {
           <template v-for="r in zichtbaar" :key="r.sleutel">
             <nldd-list-item v-if="r.soort === 'indiening'" size="md" button :current="r.sleutel === id || undefined" @click="openIndiening(r.sleutel)">
               <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
-              <!-- Alle aanvragen tags how each stands; the other lists only what is to decide again. -->
-              <nldd-cell v-if="lijst === 'alle' || r.opnieuw">
-                <nldd-badge :text="r.stand.tekst" :color="r.stand.kleur" size="sm"></nldd-badge>
+              <nldd-cell v-if="r.opnieuw">
+                <nldd-badge text="Opnieuw beslissen" color="warning" size="sm"></nldd-badge>
               </nldd-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
