@@ -2,8 +2,10 @@
 // (REGELHET_ACCENT_COLOR, GET /api/uiterlijk): a theme of the NLDD design
 // system. The design system recolours itself through `data-nldd-theme` on
 // <html>; the themes themselves come from '@nldd/design-system/themes', which
-// start.ts loads. Without an accent, or without an answer, the screens keep
-// the design system's own accent: the colour is no reason to stop a screen.
+// start.ts loads. Without an accent, or without an answer, the screens wear
+// `donkerblauw` (STANDAARD_ACCENTKLEUR), not the design system's own green:
+// this is the one place that default lives, and the colour is no reason to
+// stop a screen.
 // The same answer names the title of the bar (REGELHET_TITLE, or else the
 // case's own `titel`), which the shell shows on every side of a process.
 // It also names the organisation: on a process that belongs to one,
@@ -13,6 +15,9 @@ import { ref } from 'vue';
 import { haal } from './http';
 
 /** The organisation in front of this server, as `GET /api/uiterlijk` names it. */
+/** The theme the screens wear when the server names none, or does not answer. */
+export const STANDAARD_ACCENTKLEUR = 'donkerblauw';
+
 export interface UiterlijkOrganisatie {
   naam: string;
   /** The front on this side, for the link back; absent on the front itself. */
@@ -23,7 +28,7 @@ export interface UiterlijkOrganisatie {
 }
 
 export interface Uiterlijk {
-  /** A theme of the NLDD design system, or null for its own accent. */
+  /** A theme of the NLDD design system, or null for STANDAARD_ACCENTKLEUR. */
   accentkleur: string | null;
   /** The title of the bar; absent on the front of an organisation, which carries its name. */
   titel?: string | null;
@@ -37,10 +42,9 @@ export const organisatie = ref<UiterlijkOrganisatie | null>(null);
 /** The title of the bar the server named, for the shell. */
 export const titel = ref<string | null>(null);
 
-/** Sets the theme `uiterlijk` names on `root`, or removes it. */
+/** Sets the theme `uiterlijk` names on `root`, or else the default. */
 export function zetUiterlijk(uiterlijk: Uiterlijk, root: HTMLElement = document.documentElement): void {
-  if (uiterlijk.accentkleur) root.dataset.nlddTheme = uiterlijk.accentkleur;
-  else delete root.dataset.nlddTheme;
+  root.dataset.nlddTheme = uiterlijk.accentkleur || STANDAARD_ACCENTKLEUR;
   organisatie.value = uiterlijk.organisatie ?? null;
   titel.value = uiterlijk.titel ?? null;
 }
@@ -50,6 +54,7 @@ export async function laadUiterlijk(root: HTMLElement = document.documentElement
   try {
     zetUiterlijk(await haal<Uiterlijk>('/api/uiterlijk'), root);
   } catch (e) {
-    console.warn('the accent colour could not be loaded; the screens keep the default', e);
+    root.dataset.nlddTheme = STANDAARD_ACCENTKLEUR;
+    console.warn('the accent colour could not be loaded; the screens wear the default', e);
   }
 }

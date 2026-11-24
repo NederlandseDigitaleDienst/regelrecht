@@ -26,7 +26,7 @@
 //!   alone when that build has no `index.html`.
 //! - `REGELHET_ACCENT_COLOR`: the accent colour of the screens, a theme
 //!   of the NLDD design system such as `paars` ([`crate::theme`]). Without
-//!   it the screens keep the design system's own accent; a name that is no
+//!   it the screens wear `donkerblauw`; a name that is no
 //!   theme does not start.
 //! - `REGELHET_CASUS`: the case to run, by the name of its case file
 //!   (`bedrijfsparkeervergunning` for `casussen/bedrijfsparkeervergunning.yaml`),
@@ -416,7 +416,7 @@ pub struct Config {
     pub fsc4b: Fsc4bChoice,
     /// The origins of the browser apps that may call the channel.
     pub fsc4b_origins: Fsc4bOrigins,
-    /// The accent colour of the screens; none keeps the design system's.
+    /// The accent colour of the screens; none leaves them `donkerblauw`.
     pub accent: Option<AccentColor>,
     /// The title in the bar of the screens; none carries the case's own.
     pub title: Option<Title>,

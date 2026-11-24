@@ -62,7 +62,7 @@ function show(item) {
       [
         ['Naam', spec.displayName ?? ''],
         ['Logo', spec.logo || 'geen'],
-        ['Accentkleur', spec.theme?.accentColor || 'standaard'],
+        ['Accentkleur', spec.theme?.accentColor || 'standaard (donkerblauw)'],
         ['Versie', spec.version || 'laatste build van main'],
         ['Inloggen', 'testomgeving'],
         ['Hostnaam', spec.hostname ?? ''],

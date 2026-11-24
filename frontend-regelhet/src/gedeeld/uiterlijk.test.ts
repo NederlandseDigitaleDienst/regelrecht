@@ -1,5 +1,5 @@
 // The accent colour the server names lands on <html> as an NLDD theme, and a
-// failed call leaves the screens on the design system's own accent.
+// server that names none, or does not answer, leaves the screens donkerblauw.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { laadUiterlijk, titel, zetUiterlijk } from './uiterlijk';
 
@@ -21,19 +21,19 @@ describe('the accent colour', () => {
     expect(String((fetch.mock.calls[0] as unknown[])[0])).toContain('/api/uiterlijk');
   });
 
-  it("keeps the design system's own accent without one", () => {
+  it('wears donkerblauw without one', () => {
     const root = document.createElement('html');
     zetUiterlijk({ accentkleur: 'rood' }, root);
     zetUiterlijk({ accentkleur: null }, root);
-    expect(root.dataset.nlddTheme).toBeUndefined();
+    expect(root.dataset.nlddTheme).toBe('donkerblauw');
   });
 
-  it('leaves the screens as they are when the server does not answer', async () => {
+  it('wears donkerblauw when the server does not answer', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     await laadUiterlijk();
-    expect(document.documentElement.dataset.nlddTheme).toBeUndefined();
+    expect(document.documentElement.dataset.nlddTheme).toBe('donkerblauw');
     expect(warn).toHaveBeenCalled();
   });
 });

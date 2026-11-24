@@ -78,7 +78,7 @@ function show(item) {
         ...(manifest.credentialsSecretRef ? [['Token', tokenText(item.status?.token)]] : []),
         ['Versie', spec.version || 'laatste build van main'],
         ['Titel', spec.title || 'uit het casusbestand'],
-        ['Accentkleur', spec.theme?.accentColor || 'standaard'],
+        ['Accentkleur', spec.theme?.accentColor || 'standaard (donkerblauw)'],
         [
           'Inloggen',
           spec.auth?.mode === 'stable'

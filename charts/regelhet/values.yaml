@@ -316,7 +316,7 @@ theme:
   # The accent colour: the name of a theme of the NLDD design system
   # (bruin, donkerblauw, donkerbruin, donkergeel, donkergroen, geel, groen,
   # hemelblauw, lichtblauw, mintgroen, mosgroen, oranje, paars, robijnrood,
-  # rood, roze or violet). Empty keeps the design system's own accent.
+  # rood, roze or violet). Empty wears donkerblauw.
   accentColor: ''
   # The title in the bar at the top of the screens, at most 80 characters
   # on one line. Empty carries the case's own `titel`. The front of an

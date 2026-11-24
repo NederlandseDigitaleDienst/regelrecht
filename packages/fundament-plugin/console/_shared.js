@@ -187,10 +187,10 @@ export function wireSubmit(form, { button, errorBanner, failPrefix, checks, acti
   });
 }
 
-// A dropdown of the accent colours of the NLDD design system, empty for its
-// own accent.
+// A dropdown of the accent colours of the NLDD design system, empty for the
+// screens' default, donkerblauw (frontend-regelhet/src/gedeeld/uiterlijk.ts).
 export function accentDropdown(name, chosen) {
-  const options = [optionHtml('', 'Standaard', !chosen)]
+  const options = [optionHtml('', 'Standaard (donkerblauw)', !chosen)]
     .concat(ACCENT_COLORS.map((c) => optionHtml(c, c, c === chosen)))
     .join('');
   return `<nldd-dropdown><select name="${name}">${options}</select></nldd-dropdown>`;

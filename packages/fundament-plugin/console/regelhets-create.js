@@ -242,7 +242,7 @@ const steps = [
     intro: 'De titel bovenaan de schermen, en hun accentkleur, een van de kleuren van het NLDD-designsysteem.',
     fields: () => `
       ${field('Titel', textField('title', state.title, 'maxlength="80"'), { errorId: 'e-title', hint: 'Bovenaan elk scherm, zoals Parkeervergunningen. Leeg is de titel uit het casusbestand.' })}
-      ${field('Accentkleur', accentDropdown('accentColor', state.accentColor), { hint: 'Leeg is de kleur van het ontwerpsysteem. Een partij krijgt dan rood, naast een rode uitvoerder robijnrood.' })}`,
+      ${field('Accentkleur', accentDropdown('accentColor', state.accentColor), { hint: 'Leeg is donkerblauw. Een partij krijgt dan rood, naast een rode uitvoerder robijnrood.' })}`,
     checks: (f) => [[f.querySelector('[name="title"]'), titleError]],
     keep: (v) => Object.assign(state, { title: v('title'), accentColor: v('accentColor') }),
   },
@@ -380,7 +380,7 @@ const steps = [
             ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}, verwijderd na de kopie` : 'openbaar'],
             ['Versie', state.version || 'laatste versie (main)'],
             ['Titel', state.title || 'uit het casusbestand'],
-            ['Accentkleur', accentColor() || 'standaard'],
+            ['Accentkleur', accentColor() || 'standaard (donkerblauw)'],
             [
               'Inloggen',
               state.stable

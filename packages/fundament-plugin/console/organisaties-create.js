@@ -72,7 +72,7 @@ const steps = [
             ['Objectnaam', nameFromHostname(state.hostname)],
             ['Namespace', ctx.namespaceDisplayNames?.[state.namespace] ?? state.namespace],
             ['Logo', state.logo || 'geen'],
-            ['Accentkleur', state.accentColor || 'standaard'],
+            ['Accentkleur', state.accentColor || 'standaard (donkerblauw)'],
             ['Inloggen', 'testomgeving'],
             ['Burgers', a.burger],
             ['Medewerkers', a.medewerkers],

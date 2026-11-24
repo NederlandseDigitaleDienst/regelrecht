@@ -117,7 +117,7 @@ pub struct AppState {
     http_client: reqwest::Client,
     /// The FSC voor Burgers channel, when it is configured.
     fsc4b: Option<Arc<Fsc4b>>,
-    /// The accent colour of the screens; none keeps the design system's.
+    /// The accent colour of the screens; none leaves them `donkerblauw`.
     accent: Option<AccentColor>,
     /// The title in the bar of the screens; none carries the case's own.
     title: Option<Title>,
@@ -1451,8 +1451,8 @@ async fn clock_state(state: &AppState) -> ApiResult {
 }
 
 /// How the screens look: the accent colour, a theme of the NLDD design
-/// system, or `null` for the design system's own, and the title in their
-/// bar, the deployment's or else the case's own.
+/// system, or `null` when none is set (the screens then wear `donkerblauw`),
+/// and the title in their bar, the deployment's or else the case's own.
 async fn appearance(State(state): State<AppState>) -> Json<Value> {
     let title = state
         .title
