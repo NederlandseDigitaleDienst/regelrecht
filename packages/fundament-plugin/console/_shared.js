@@ -1,4 +1,4 @@
-// Shared helpers for the wetsproces plugin pages. Plain ES module so pages can
+// Shared helpers for the RegelHet plugin pages. Plain ES module so pages can
 // `import` from it. Taken from the _shared.js of Fundament's CloudNativePG
 // plugin (Apache-2.0), with createRoute added; the messages are Dutch.
 //

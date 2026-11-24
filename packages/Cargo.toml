@@ -19,8 +19,8 @@ members = [
     "poc-wetsgeschiedenis",
     "shared",
     "tui",
-    "wetsproces",
-    "wetsproces-app",
+    "regelhet",
+    "regelhet-app",
 ]
 
 [workspace.package]

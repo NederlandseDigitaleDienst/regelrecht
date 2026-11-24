@@ -2,7 +2,7 @@
 // The colour scheme as a submenu of an account menu: system, light or dark,
 // with the one that is on marked. A submenu rather than a setting, because it
 // is something you switch briefly and the radios show at once which one is on.
-// Shared by the editor and the wetsproces screens; the caller keeps the
+// Shared by the editor and the RegelHet screens; the caller keeps the
 // scheme (useColorScheme) and sets what is chosen.
 defineProps<{ waarde: string }>();
 const emit = defineEmits<{ kies: [waarde: string] }>();

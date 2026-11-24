@@ -1,7 +1,7 @@
 //! What a chronicle says about the process, read from its records and the
 //! law alone: which record is a submission, a decision or a recorded fact
 //! ([`Rol`]), which records a later one revoked, and per submission what
-//! answers it now ([`Antwoord`]). The wetsprocessysteem and its screens take
+//! answers it now ([`Antwoord`]). The RegelHet and its screens take
 //! this from here rather than guess it from the kind of a record.
 //!
 //! A record is revoked as the law says it is: a decision or a fact whose

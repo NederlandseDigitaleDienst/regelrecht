@@ -1,13 +1,13 @@
 ---
 title: "Authentication & Roles"
-description: "The role models that gate the editor, the harvester-admin and the wetsproces server, and how they map to Keycloak."
+description: "The role models that gate the editor, the harvester-admin and the RegelHet server, and how they map to Keycloak."
 ---
 
 This page describes the role model that gates the editor and harvester-admin
 services, how the roles are wired up in Keycloak, and the per-deployment
-configuration each service needs. The [wetsproces](/components/wetsproces)
+configuration each service needs. The [regelhet](/components/regelhet)
 server shares the realm but has roles of its own, described in
-[Wetsproces roles](#wetsproces-roles).
+[RegelHet roles](#regelhet-roles).
 
 ## The four-layer model
 
@@ -143,13 +143,13 @@ Each service is gated on a **minimum role** at login time, configured via
 |---|---|
 | `editor` | `editor-reader` |
 | `harvester-admin` | `harvester-reader` |
-| `wetsproces` | `wetsproces-toegang` |
-| `wetsproces-backoffice` | `wetsproces-toegang` |
+| `regelhet` | `regelhet-toegang` |
+| `regelhet-backoffice` | `regelhet-toegang` |
 
 If `OIDC_REQUIRED_ROLE` is unset or empty, the service falls back to
 `allowed-user`, a realm role from before the per-app roles existed, and logs a
 warning on startup. Always set the value explicitly, so the login gate matches
-the per-app reader role (`editor-reader` / `harvester-reader`). The wetsproces
+the per-app reader role (`editor-reader` / `harvester-reader`). The RegelHet
 server has no such fallback: without `OIDC_REQUIRED_ROLE`, or with a value
 other than an access role of its own, it refuses to start.
 
@@ -334,43 +334,43 @@ On a plain Linux host neither applies: use `localhost` for the DB and any free
 port (e.g. `3000`) for `BASE_URL` and Vite, with a matching redirect URI in
 Keycloak.
 
-## Wetsproces roles
+## RegelHet roles
 
-The wetsproces server logs in through the same realm. It runs as two
+The RegelHet server logs in through the same realm. It runs as two
 instances, one for citizens and one for the back office
-([surfaces](/components/wetsproces#surfaces)), and each has an OIDC client of
-its own. Its roles all start with `wetsproces-`, so none of them grants
+([surfaces](/components/regelhet#surfaces)), and each has an OIDC client of
+its own. Its roles all start with `regelhet-`, so none of them grants
 anything in the editor or the harvester, and no editor role grants anything
-in the wetsproces server. The role names live in one place in the code,
-`packages/wetsproces/src/access.rs`.
+in the RegelHet server. The role names live in one place in the code,
+`packages/regelhet/src/access.rs`.
 
 | Role | Grants |
 |---|---|
-| `wetsproces-toegang` | Logging in at all. The server's `OIDC_REQUIRED_ROLE`; it grants nothing else. |
-| `wetsproces-burger` | A citizen: submit for themself, and read their own dossier. |
-| `wetsproces-lezer` | An employee: read the executor's chronicle. |
-| `wetsproces-beslisser` | Also record facts, send copies of decisions and take decisions for the executor. |
-| `wetsproces-admin` | Also set the clock in test mode, and enter in the admin panel what an external party did. |
+| `regelhet-toegang` | Logging in at all. The server's `OIDC_REQUIRED_ROLE`; it grants nothing else. |
+| `regelhet-burger` | A citizen: submit for themself, and read their own dossier. |
+| `regelhet-lezer` | An employee: read the executor's chronicle. |
+| `regelhet-beslisser` | Also record facts, send copies of decisions and take decisions for the executor. |
+| `regelhet-admin` | Also set the clock in test mode, and enter in the admin panel what an external party did. |
 
 The ladder applies to the executor, the one organization the server runs the
-process for ([the executor and the external parties](/components/wetsproces#the-executor-and-the-external-parties)),
+process for ([the executor and the external parties](/components/regelhet#the-executor-and-the-external-parties)),
 so an employee needs a step of the ladder and nothing else. The server treats
-the ladder as ordered, so a `wetsproces-beslisser` may read even when
-Keycloak does not hand it `wetsproces-lezer`. Nobody holds a role for the
+the ladder as ordered, so a `regelhet-beslisser` may read even when
+Keycloak does not hand it `regelhet-lezer`. Nobody holds a role for the
 GGD or the court: an admin enters their acts on their behalf.
 
 The ladder used to have a step between reader and decider,
-`wetsproces-behandelaar`, for recording facts and sending copies. A decider
+`regelhet-behandelaar`, for recording facts and sending copies. A decider
 does both now. The server no longer knows that role, so a session or token
 that still carries it gets only what its other roles grant; with no other
 ladder role it gets `403` on the back office. A realm that still has the role
-can remove it, and give `wetsproces-beslisser` to anyone who held it and
+can remove it, and give `regelhet-beslisser` to anyone who held it and
 still records facts.
 
 Which instance an account logs in at limits what its roles do there. On the
-instance for citizens a session keeps `wetsproces-burger` and drops every
+instance for citizens a session keeps `regelhet-burger` and drops every
 ladder role, even when the token carries them. On the back office it
-keeps those and drops `wetsproces-burger`, so an account with only the
+keeps those and drops `regelhet-burger`, so an account with only the
 citizen's role gets `403` on every route the back office has under `/api/`.
 Someone who is both a citizen and an employee logs in to each instance
 separately.
@@ -384,26 +384,26 @@ corrected attribute counts from the citizen's next login, while the roles are
 also renewed when the session refreshes its token.
 
 A citizen can also reach the server from an app, through
-[FSC voor Burgers](/components/wetsproces-fsc4b). Keycloak plays no part there:
+[FSC voor Burgers](/components/regelhet-fsc4b). Keycloak plays no part there:
 the BSN comes from a Verifiable Credential of an Activatiedienst the server
-trusts, and the server gives that session the rights of `wetsproces-burger` and
+trusts, and the server gives that session the rights of `regelhet-burger` and
 nothing more. No role of the ladder can reach such a session, and
 it reaches only the citizen's routes under `/fsc4b/burger/`.
 
-### Keycloak setup for the wetsproces server
+### Keycloak setup for the RegelHet server
 
 The realm is configured by hand; nothing in the repository changes it.
 
-1. **Create the roles**: `wetsproces-toegang`, `wetsproces-burger` and the
+1. **Create the roles**: `regelhet-toegang`, `regelhet-burger` and the
    three ladder roles.
 2. **Configure composite roles**:
-   - `wetsproces-burger` and `wetsproces-lezer` each contain
-     `wetsproces-toegang`;
-   - `wetsproces-beslisser` contains `wetsproces-lezer`, and
-     `wetsproces-admin` contains `wetsproces-beslisser`.
-3. **Create two clients**, one per instance: `wetsproces` for citizens on
-   `wetsproces.regelrecht.rijks.app`, and `wetsproces-backoffice` for
-   employees on `wetsproces-backoffice.regelrecht.rijks.app`. Each is
+   - `regelhet-burger` and `regelhet-lezer` each contain
+     `regelhet-toegang`;
+   - `regelhet-beslisser` contains `regelhet-lezer`, and
+     `regelhet-admin` contains `regelhet-beslisser`.
+3. **Create two clients**, one per instance: `regelhet` for citizens on
+   `regelhet.regelrecht.rijks.app`, and `regelhet-backoffice` for
+   employees on `regelhet-backoffice.regelrecht.rijks.app`. Each is
    confidential (*Client authentication* On), with *Standard flow* on, the
    scopes `openid`, `email` and `profile`, the redirect URI
    `https://<host>/auth/callback` and the post-logout redirect URI
@@ -413,20 +413,20 @@ The realm is configured by hand; nothing in the repository changes it.
 4. **Add the mappers** to the dedicated scope of the clients:
    - on both, a *User Realm Role* mapper with *Add to ID token* On, as for
      the editor;
-   - on `wetsproces` only, a *User Attribute* mapper with *User Attribute*
+   - on `regelhet` only, a *User Attribute* mapper with *User Attribute*
      `bsn`, *Token Claim Name* `bsn`, *Claim JSON Type* `String`, and *Add to
      ID token* On. The back office identifies no citizen by their account.
 5. **Allow the attribute**: with the realm's user profile enabled, add the
    attribute `bsn` to it, editable by admins only, so a user cannot change
    their own number.
-6. **Assign roles and attributes**: a citizen gets `wetsproces-burger` and the
+6. **Assign roles and attributes**: a citizen gets `regelhet-burger` and the
    attribute `bsn`; an employee of the executor gets a ladder role.
 
-The claim name is `WETSPROCES_SUBJECT_CLAIM` on the server, `bsn` by default.
+The claim name is `REGELHET_SUBJECT_CLAIM` on the server, `bsn` by default.
 A citizen whose account lacks it can log in but gets `403` on everything that
 needs their identity.
 
-The wetsproces server adds its subject claim to `OIDC_EXTRA_CLAIMS` itself;
+The RegelHet server adds its subject claim to `OIDC_EXTRA_CLAIMS` itself;
 how such a claim reaches the session is under
 [Extra claims in the session](#extra-claims-in-the-session).
 
@@ -457,6 +457,6 @@ role still works too. The editor service has no API key path.
   `packages/admin/src/middleware.rs` keeps the API-key bypass.
 - Roles are persisted in the session at login (`SESSION_KEY_ROLES`) so
   per-request checks don't re-parse the JWT.
-- Wetsproces routes: `packages/wetsproces/src/api.rs`, split into a group for
+- RegelHet routes: `packages/regelhet/src/api.rs`, split into a group for
   any user, a citizen group, a back-office group and the admin panel; the
-  roles are in `packages/wetsproces/src/access.rs`.
+  roles are in `packages/regelhet/src/access.rs`.

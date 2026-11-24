@@ -6,7 +6,7 @@
 // bestuursorgaan). When the app can show that origin (`kanOpenen`), a click
 // on the step emits it (`kies`); the row is segmented then: the chevron
 // folds, the rest opens. Shared by the chronolexografie poc and the
-// wetsprocessysteem; each says how it names a regelwerk and a field
+// RegelHet; each says how it names a regelwerk and a field
 // (`namen`) and where a regelwerk sits (`laag`).
 import { computed, ref } from 'vue';
 import { herkomstVan, klikbaar, SOORTEN, stapTekst } from '../../chronolex/keten';

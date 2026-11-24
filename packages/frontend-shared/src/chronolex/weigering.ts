@@ -4,7 +4,7 @@
  * cell and the engine report in English (packages/cel, packages/engine);
  * these patterns copy their messages, so whoever rewrites such a message
  * changes the pattern here too. Shared by the chronolexografie poc
- * (melding.js, which adds its own refusals) and the wetsprocessysteem.
+ * (melding.js, which adds its own refusals) and RegelHet.
  */
 
 /** How an app names a field, and who decides (`casus.rol`). */

@@ -4315,40 +4315,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "regelrecht-shared"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "chrono-tz",
- "serde",
- "serde_json",
- "sqlx",
- "testcontainers",
- "testcontainers-modules",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "regelrecht-tui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "crossterm",
- "ratatui",
- "regelrecht-engine",
- "regelrecht-law-model",
- "regelrecht-shared",
- "tempfile",
- "tokio",
- "tracing",
- "walkdir",
-]
-
-[[package]]
-name = "regelrecht-wetsproces"
+name = "regelrecht-regelhet"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -4381,13 +4348,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "regelrecht-wetsproces-app"
+name = "regelrecht-regelhet-app"
 version = "0.1.0"
 dependencies = [
  "axum",
  "regelrecht-fsc4b",
- "regelrecht-wetsproces",
- "regelrecht-wetsproces-app",
+ "regelrecht-regelhet",
+ "regelrecht-regelhet-app",
  "reqwest 0.12.28",
  "rustls",
  "serde",
@@ -4395,6 +4362,39 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "regelrecht-shared"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "testcontainers",
+ "testcontainers-modules",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "regelrecht-tui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "crossterm",
+ "ratatui",
+ "regelrecht-engine",
+ "regelrecht-law-model",
+ "regelrecht-shared",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "walkdir",
 ]
 
 [[package]]

@@ -1,0 +1,27 @@
+---
+# Het manifest van wat dit RegelHet uitvoert: één casus, de
+# gehandicaptenparkeerkaart bij de fictieve gemeente Wilgendaal, met de
+# regelwerken en cellen die zij draait. Links de plek in de bron, rechts de
+# map vanaf `repo_root`, de root van de repository. Het image neemt dit
+# bestand en die mappen mee (Dockerfile); de server leest het bij het starten
+# met dezelfde code als het poc-portaal (packages/corpus/src/source_manifest.rs).
+#
+# De regelwerken en cellen komen uit het corpus van de chronolexografie-poc;
+# alleen het casusbestand en de UI-beschrijving zijn van dit component zelf.
+# De UI-beschrijving zegt welk veld van de aanvraag het inloggen vult.
+repo_root: ../..
+ui_spec: packages/regelhet/ui_spec.yaml
+directories:
+  casussen: packages/regelhet/casussen
+  regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw: packages/poc-chronolexografie/corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+  regulation/nl/wet/algemene_wet_bestuursrecht: packages/poc-chronolexografie/corpus/regulation/nl/wet/algemene_wet_bestuursrecht
+  regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart: packages/poc-chronolexografie/corpus/regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
+  regulation/nl/gemeentelijke_verordening/wilgendaal: packages/poc-chronolexografie/corpus/regulation/nl/gemeentelijke_verordening/wilgendaal
+  regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal: packages/poc-chronolexografie/corpus/regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal: packages/poc-chronolexografie/corpus/regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
+  regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal: packages/poc-chronolexografie/corpus/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
+  regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal: packages/poc-chronolexografie/corpus/regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+  regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal: packages/poc-chronolexografie/corpus/regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+  cells/gemeente_wilgendaal: packages/poc-chronolexografie/corpus/cells/gemeente_wilgendaal
+  cells/ggd_wilgendaal: packages/poc-chronolexografie/corpus/cells/ggd_wilgendaal
+  cells/rechtbank_wilgendaal: packages/poc-chronolexografie/corpus/cells/rechtbank_wilgendaal

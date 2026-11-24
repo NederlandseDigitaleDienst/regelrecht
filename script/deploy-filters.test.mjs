@@ -364,34 +364,34 @@ test('een Dockerfile raakt alleen de images die hem gebruiken', () => {
   assert.equal(source.admin, true);
 });
 
-test('wetsproces volgt zijn eigen map, de kern van de poc en het corpus dat zijn manifest noemt', () => {
+test('regelhet volgt zijn eigen map, de kern van de poc en het corpus dat zijn manifest noemt', () => {
   for (const pad of [
-    'packages/wetsproces/src/service.rs',
-    'packages/wetsproces/bron.yaml',
-    'packages/wetsproces/casussen/gehandicaptenparkeerkaart.yaml',
-    'packages/wetsproces/Dockerfile',
+    'packages/regelhet/src/service.rs',
+    'packages/regelhet/bron.yaml',
+    'packages/regelhet/casussen/gehandicaptenparkeerkaart.yaml',
+    'packages/regelhet/Dockerfile',
     'packages/poc-chronolexografie/src/kern.rs',
     'packages/poc-chronolexografie/corpus/cells/gemeente_wilgendaal/cel.yaml',
     'packages/cel/src/cell.rs',
     'packages/corpus/src/source_manifest.rs',
-    'frontend-wetsproces/src/App.vue',
+    'frontend-regelhet/src/App.vue',
     'packages/frontend-shared/src/chronolex/voorinvulling.ts',
   ]) {
-    assert.equal(namesOf([pad]).wetsproces, true, pad);
+    assert.equal(namesOf([pad]).regelhet, true, pad);
   }
 
   // De frontend van de poc zit niet in het image, maar ligt in de map van de
   // crate; een te ruime build is hier de goedkope kant.
-  assert.equal(namesOf(['packages/poc-chronolexografie/frontend/src/App.vue']).wetsproces, true);
+  assert.equal(namesOf(['packages/poc-chronolexografie/frontend/src/App.vue']).regelhet, true);
 
   // Het portaal, de demo en het regelrecht-corpus raken het niet.
-  assert.equal(namesOf(['packages/poc-portal/src/app.rs']).wetsproces, false);
-  assert.equal(namesOf(['frontend-demo/src/App.vue']).wetsproces, false);
-  assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).wetsproces, false);
+  assert.equal(namesOf(['packages/poc-portal/src/app.rs']).regelhet, false);
+  assert.equal(namesOf(['frontend-demo/src/App.vue']).regelhet, false);
+  assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).regelhet, false);
 
-  // Een wijziging in alleen wetsproces raakt geen ander image.
-  const alleen = namesOf(['packages/wetsproces/src/api.rs']);
-  for (const naam of allComponents.filter((n) => n !== 'wetsproces')) {
+  // Een wijziging in alleen RegelHet raakt geen ander image.
+  const alleen = namesOf(['packages/regelhet/src/api.rs']);
+  for (const naam of allComponents.filter((n) => n !== 'regelhet')) {
     assert.equal(alleen[naam], false, naam);
   }
 });

@@ -60,7 +60,7 @@ jobs:
               - frontend/**
               - frontend-lawmaking/**
               - frontend-demo/**
-              - frontend-wetsproces/**
+              - frontend-regelhet/**
               - frontend-poc-portal/**
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
@@ -830,11 +830,11 @@ jobs:
       - name: Type check demo
         run: npm run typecheck -w frontend-demo
 
-      - name: Run wetsproces tests
-        run: npm test -w frontend-wetsproces
+      - name: Run regelhet tests
+        run: npm test -w frontend-regelhet
 
-      - name: Type check wetsproces
-        run: npm run typecheck -w frontend-wetsproces
+      - name: Type check regelhet
+        run: npm run typecheck -w frontend-regelhet
 
       - name: Run chronolexografie poc tests
         run: npm test -w packages/poc-chronolexografie/frontend
@@ -896,13 +896,13 @@ jobs:
         run: npm run build -w frontend-demo
 
       # De drie webbuilds: gecombineerd (all), burgers (cookie) en backoffice.
-      - name: Build wetsproces bundles
-        run: npm run build -w frontend-wetsproces
+      - name: Build regelhet bundles
+        run: npm run build -w frontend-regelhet
 
       # De burger-entry met het vervoer van de app (Tauri-commando's). De
       # Tauri-schil zelf bouwt CI niet.
-      - name: Build wetsproces app bundle
-        run: npm run build:app -w frontend-wetsproces
+      - name: Build regelhet app bundle
+        run: npm run build:app -w frontend-regelhet
 
   # Verplichte check op main. De benen hierboven dragen nieuwe namen en mogen
   # dus van vorm veranderen; deze naam moet blijven bestaan, want een required

@@ -1,7 +1,7 @@
-// Package v1alpha1 holds the API of the wetsproces plugin: the Wetsproces
-// resource, one wetsprocessysteem per object.
+// Package v1alpha1 holds the API of the RegelHet plugin: the RegelHet
+// resource, one RegelHet per object.
 // +kubebuilder:object:generate=true
-// +groupName=wetsproces.regelrecht.nl
+// +groupName=regelhet.regelrecht.nl
 package v1alpha1
 
 import (
@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	// GroupVersion is the group and version of the Wetsproces resource.
-	GroupVersion = schema.GroupVersion{Group: "wetsproces.regelrecht.nl", Version: "v1alpha1"}
+	// GroupVersion is the group and version of the RegelHet resource.
+	GroupVersion = schema.GroupVersion{Group: "regelhet.regelrecht.nl", Version: "v1alpha1"}
 
 	// SchemeBuilder adds the types of this group-version to a scheme. The
 	// deprecation is about API packages pulling in controller-runtime; this

@@ -1,7 +1,7 @@
 //! A source made of directories elsewhere in a repository, by a manifest
 //! (`bron.yaml`): read from a local checkout ([`lokaal`]) or from a GitHub
 //! tarball ([`uit_tarball`], feature `github`). The poc-portal serves such a
-//! source to a static poc, and the wetsproces component loads its one case
+//! source to a static poc, and the RegelHet component loads its one case
 //! from one, so both read a manifest with this code.
 
 use std::collections::BTreeMap;

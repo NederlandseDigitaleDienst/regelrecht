@@ -1,0 +1,35 @@
+{{- if and .Values.gateway.enabled .Values.dns.enabled }}
+{{- if ne .Values.gateway.mode "own" }}
+{{- fail "dns.enabled is for gateway.mode own: behind the shared Gateway the cluster's wildcard record covers the hosts" }}
+{{- end }}
+{{- /*
+The address the records point at: dns.target, or else gateway.address. Both
+must be an address reserved for the project. A record that follows an
+ephemeral Gateway address goes stale when the Gateway's Service is made again,
+and an external-dns with upsert-only never removes it, so the name would keep
+pointing at an address the pool may hand to someone else.
+*/}}
+{{- $target := .Values.dns.target | default .Values.gateway.address }}
+{{- if not $target }}
+{{- fail "dns.enabled needs a fixed address in dns.target or gateway.address: an ephemeral Gateway address would leave a record behind that points at someone else's address later" }}
+{{- end }}
+{{- if $target }}
+# A record per host for external-dns (source crd). It publishes the record in
+# its zone; a host outside that zone is ignored.
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+spec:
+  endpoints:
+    {{- range include "regelhet.instances" . | fromJsonArray }}
+    - dnsName: {{ .host }}
+      recordType: A
+      recordTTL: {{ $.Values.dns.ttl }}
+      targets:
+        - {{ $target }}
+    {{- end }}
+{{- end }}
+{{- end }}

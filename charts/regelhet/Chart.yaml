@@ -1,0 +1,14 @@
+---
+apiVersion: v2
+name: regelhet
+description: >-
+  The regelrecht RegelHet for one case: the server in test mode, an
+  instance per side on one PostgreSQL database, the case cloned from a public
+  git repository at start.
+type: application
+version: 0.3.0
+# The commit of the RegelHet image the chart was tested with.
+appVersion: acc91563
+home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
+sources:
+  - https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026

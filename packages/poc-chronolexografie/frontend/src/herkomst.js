@@ -20,7 +20,7 @@ import { bestanden, opgehaaldeBronnen } from './api.js';
 import { grammenVan } from './logboek.js';
 import { state } from './state.js';
 
-/** The kinds of origin, as a tag: text and colour. Shared with the wetsprocessysteem. */
+/** The kinds of origin, as a tag: text and colour. Shared with RegelHet. */
 export { SOORTEN };
 
 const mapVan = (wet) => state.casus?.regelwerken?.find((r) => r.id === wet)?.map ?? '';

@@ -12,15 +12,15 @@ import (
 )
 
 const (
-	pluginName = "wetsproces"
-	fieldOwner = "wetsproces-plugin"
+	pluginName = "regelhet"
+	fieldOwner = "regelhet-plugin"
 
-	chartPath    = "charts/wetsproces"
+	chartPath    = "charts/regelhet"
 	fluxInterval = "10m"
 
-	// nameLabel carries the name of the Wetsproces on everything the plugin
+	// nameLabel carries the name of the RegelHet on everything the plugin
 	// makes for it.
-	nameLabel      = "wetsproces.regelrecht.nl/name"
+	nameLabel      = "regelhet.regelrecht.nl/name"
 	managedByLabel = "app.kubernetes.io/managed-by"
 
 	// The keys of a Secret in credentialsSecretRef.
@@ -33,11 +33,11 @@ var (
 	helmReleaseGVK   = schema.GroupVersionKind{Group: "helm.toolkit.fluxcd.io", Version: "v2", Kind: "HelmRelease"}
 )
 
-// sourceName is the GitRepository with the chart of the Wetsproces w. The
+// sourceName is the GitRepository with the chart of the RegelHet w. The
 // HelmRelease, the Helm release and the chart's own objects (Deployments,
-// Services, Gateway, database) are named after w itself, so two Wetsproces
+// Services, Gateway, database) are named after w itself, so two RegelHet
 // objects in one namespace never share an object.
-func sourceName(w *v1alpha1.Wetsproces) string { return w.Name + "-chart" }
+func sourceName(w *v1alpha1.RegelHet) string { return w.Name + "-chart" }
 
 // hosts are the addresses of w: citizens on its hostname under the base
 // domain, employees on <hostname>-medewerkers beside it. Both stay one label
@@ -49,7 +49,7 @@ type hosts struct {
 	backoffice string
 }
 
-func hostsOf(w *v1alpha1.Wetsproces, domain string) hosts {
+func hostsOf(w *v1alpha1.RegelHet, domain string) hosts {
 	h := w.Spec.Hostname
 	if strings.Contains(h, ".") {
 		return hosts{burger: h, backoffice: "medewerkers." + h}
@@ -66,7 +66,7 @@ func (h hosts) overlaps(o hosts) bool {
 // validateSpec checks what the CRD's schema cannot: the rules of a git ref,
 // a path that stays in the repository, and a hostname that is a DNS name.
 // The schema checks the rest when the object is written.
-func validateSpec(w *v1alpha1.Wetsproces, domain string) error {
+func validateSpec(w *v1alpha1.RegelHet, domain string) error {
 	m := w.Spec.Manifest
 	if err := validateHTTPS("manifest.repoUrl", m.RepoURL); err != nil {
 		return err
@@ -105,16 +105,16 @@ func refOrDefault(ref string) string {
 
 func pathOrDefault(path string) string {
 	if path == "" {
-		return "packages/wetsproces/bron.yaml"
+		return "packages/regelhet/bron.yaml"
 	}
 	return path
 }
 
-func objectLabels(w *v1alpha1.Wetsproces) map[string]any {
+func objectLabels(w *v1alpha1.RegelHet) map[string]any {
 	return map[string]any{managedByLabel: fieldOwner, nameLabel: w.Name}
 }
 
-func newObject(gvk schema.GroupVersionKind, w *v1alpha1.Wetsproces, name string, spec map[string]any) *unstructured.Unstructured {
+func newObject(gvk schema.GroupVersionKind, w *v1alpha1.RegelHet, name string, spec map[string]any) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{Object: map[string]any{
 		"metadata": map[string]any{
 			"name":      name,
@@ -130,7 +130,7 @@ func newObject(gvk schema.GroupVersionKind, w *v1alpha1.Wetsproces, name string,
 // newGitRepository builds the source of the chart: the fork at ChartRef. The
 // ignore rules keep only the chart, so the artifact stays small in a large
 // repository.
-func newGitRepository(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Unstructured {
+func newGitRepository(w *v1alpha1.RegelHet, cfg pluginConfig) *unstructured.Unstructured {
 	return newObject(gitRepositoryGVK, w, sourceName(w), map[string]any{
 		"url":      forkURL,
 		"ref":      map[string]any{"branch": cfg.ChartRef},
@@ -139,7 +139,7 @@ func newGitRepository(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Un
 	})
 }
 
-// chartValues maps the spec of w onto the values of charts/wetsproces. The
+// chartValues maps the spec of w onto the values of charts/regelhet. The
 // chart's own defaults stand for the rest: a CloudNativePG database of the
 // release, an instance per side, and the cluster's shared Gateway.
 //
@@ -147,7 +147,7 @@ func newGitRepository(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Un
 // image.ref counts: the build of main that the chart on main names, which CI
 // moves on after every build. With reconcileStrategy Revision, Flux then rolls
 // out each new build of main.
-func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
+func chartValues(w *v1alpha1.RegelHet, cfg pluginConfig) map[string]any {
 	m := w.Spec.Manifest
 	caseValues := map[string]any{
 		"repoUrl": m.RepoURL,
@@ -178,7 +178,7 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 // newHelmRelease builds the HelmRelease that installs the chart for w.
 // reconcileStrategy Revision rebuilds the chart on every new commit of the
 // source, because the chart version does not change per commit.
-func newHelmRelease(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Unstructured {
+func newHelmRelease(w *v1alpha1.RegelHet, cfg pluginConfig) *unstructured.Unstructured {
 	return newObject(helmReleaseGVK, w, w.Name, map[string]any{
 		"interval":    fluxInterval,
 		"releaseName": w.Name,

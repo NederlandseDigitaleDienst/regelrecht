@@ -112,8 +112,8 @@ fn product_crates_present() {
         "poc-wetsgeschiedenis",
         "shared",
         "tui",
-        "wetsproces",
-        "wetsproces-app",
+        "regelhet",
+        "regelhet-app",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -307,7 +307,7 @@ fn frontend_apps_extracted() {
         "app:frontend-poc-terugbetaalregimes",
         "app:frontend-poc-wetsgeschiedenis",
         "app:frontend-shared",
-        "app:frontend-wetsproces",
+        "app:frontend-regelhet",
         "app:poc-chronolexografie-frontend",
     ]
     .iter()

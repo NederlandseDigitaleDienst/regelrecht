@@ -1,7 +1,7 @@
 /**
  * Values of the chronolexografie kern in words, for the apps that run its
  * steps: the poc (packages/poc-chronolexografie/frontend) and the
- * wetsprocessysteem (frontend-wetsproces). A name from the law, a yes or no,
+ * RegelHet (frontend-regelhet). A name from the law, a yes or no,
  * a decimal as a chronolexogram holds it, an unknown value (RFC-036), and a
  * decision held as a value.
  */

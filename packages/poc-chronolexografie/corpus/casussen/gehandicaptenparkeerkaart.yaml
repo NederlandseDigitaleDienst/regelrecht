@@ -124,7 +124,7 @@ bij_aanvraag:
       datum: datum_onderzoek
 # Wat de gemeente na een toekenning met de kaart doet: bestellen bij de
 # drukker, de ontvangst door de postkamer en de uitreiking, in deze volgorde
-# en elk één keer (zoals in packages/wetsproces/casussen). Zonder deze lijst
+# en elk één keer (zoals in packages/regelhet/casussen). Zonder deze lijst
 # zou de cel die feiten in elke volgorde vastleggen.
 na_toekenning:
   aggregaat: reductie_geldige_gehandicaptenparkeerkaart#kaart

@@ -25,7 +25,7 @@ pub const CHALLENGE_SUB: &str = "challenge";
 pub const SESSION_SERVICE: &str = "sessionApi";
 
 /// The name of the citizen's service in the discovery configuration.
-pub const CITIZEN_SERVICE: &str = "wetsprocesBurgerApi";
+pub const CITIZEN_SERVICE: &str = "regelhetBurgerApi";
 
 /// The member of a submission's payload that holds its idempotency key.
 pub const IDEMPOTENCY_MEMBER: &str = "idempotency_key";

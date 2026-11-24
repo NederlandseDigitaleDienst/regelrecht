@@ -118,10 +118,10 @@ jobs:
       - run: npm run typecheck -w frontend-lawmaking
       - run: npm test -w frontend-demo -- --maxWorkers=2
       - run: npm run typecheck -w frontend-demo
-      - run: npm test -w frontend-wetsproces -- --maxWorkers=2
-      - run: npm run typecheck -w frontend-wetsproces
+      - run: npm test -w frontend-regelhet -- --maxWorkers=2
+      - run: npm run typecheck -w frontend-regelhet
       # The console pages of the Fundament plugin: plain modules, no build.
-      - run: node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
+      - run: node --test packages/fundament-plugin/console-test/regelhets-body.test.js
       - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
       - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
 
@@ -176,44 +176,44 @@ jobs:
       # memory.
       - name: helm lint and template
         run: |
-          C=charts/wetsproces
+          C=charts/regelhet
           CNPG="--api-versions postgresql.cnpg.io/v1/Cluster"
           SMALL="--set database.enabled=false --set surfaces.split=false"
           helm lint "$C" --strict --set domain=example.org $SMALL
-          helm template wetsproces "$C" --set domain=example.org $CNPG > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $CNPG \
+          helm template regelhet "$C" --set domain=example.org $CNPG > /dev/null
+          helm template regelhet "$C" --set domain=example.org $CNPG \
             --set gateway.enabled=false > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $CNPG \
+          helm template regelhet "$C" --set domain=example.org $CNPG \
             --set gateway.mode=own --set dns.enabled=true --set dns.target=192.0.2.1 > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $CNPG \
+          helm template regelhet "$C" --set domain=example.org $CNPG \
             --set gateway.mode=own --set dns.enabled=true --set gateway.address=192.0.2.1 > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $SMALL > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $CNPG \
+          helm template regelhet "$C" --set domain=example.org $SMALL > /dev/null
+          helm template regelhet "$C" --set domain=example.org $CNPG \
             --set gateway.mode=own > /dev/null
-          helm template wetsproces "$C" --set domain=example.org $CNPG \
+          helm template regelhet "$C" --set domain=example.org $CNPG \
             --set gateway.mode=shared > /dev/null
           # Captured and matched rather than piped into `grep -q`: grep stops
           # at the first match, helm is still writing then and gets SIGPIPE,
           # and with pipefail that fails the step with exit code 141.
           contains() {
             want="$1"; shift
-            out="$(helm template wetsproces "$C" --set domain=example.org "$@")"
+            out="$(helm template regelhet "$C" --set domain=example.org "$@")"
             case "$out" in
               *"$want"*) ;;
               *) echo "the render lacks '$want': $*"; exit 1 ;;
             esac
           }
           contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
-          contains WETSPROCES_ACCENT_COLOR $SMALL --set theme.accentColor=paars
+          contains REGELHET_ACCENT_COLOR $SMALL --set theme.accentColor=paars
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work
         run: |
-          C=charts/wetsproces
+          C=charts/regelhet
           CNPG="--api-versions postgresql.cnpg.io/v1/Cluster"
           refuse() {
             want="$1"; shift
-            if out="$(helm template wetsproces "$C" "$@" 2>&1)"; then
+            if out="$(helm template regelhet "$C" "$@" 2>&1)"; then
               echo "accepted, expected a refusal with '$want': $*"; exit 1
             fi
             # A pattern match rather than a pipe into `grep -q`: grep stops at

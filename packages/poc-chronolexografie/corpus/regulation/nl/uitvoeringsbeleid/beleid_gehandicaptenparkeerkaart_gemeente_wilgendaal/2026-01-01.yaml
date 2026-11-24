@@ -20,9 +20,9 @@ valid_from: '2026-01-01'
 # geldt. Het is geen open begrip van de wet: het geeft een waarde voor het
 # veld aanvraag_ondertekend, dat volgens artikel 4:2 van de Awb in de aanvraag
 # staat. Het systeem waarmee de aanvrager indient, voert het uit en zet de
-# uitkomst in dat veld (de UI-beschrijving van het wetsprocessysteem).
+# uitkomst in dat veld (de UI-beschrijving van RegelHet).
 # Artikel 9 zegt wanneer het college de GGD om een geneeskundig onderzoek
-# vraagt. Ook dat is geen open begrip van de wet: het wetsprocessysteem voert
+# vraagt. Ook dat is geen open begrip van de wet: RegelHet voert
 # het uit als een aanvraag binnenkomt, en legt het verzoek vast bij de
 # gemeente en bij de GGD. Artikel 10 koppelt de twee open begrippen van
 # artikel 9 aan de antwoorden van de cel van de gemeente.
@@ -981,7 +981,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
     machine_readable:
       # Geen open begrip van de wet: wat het college doet als een aanvraag
-      # binnenkomt, niet wat het besluit. Het wetsprocessysteem van de
+      # binnenkomt, niet wat het besluit. Het RegelHet van de
       # gemeente voert dit artikel uit bij elke aanvraag van de casus
       # (bij_aanvraag in het casusbestand). Zegt het artikel dat er een
       # onderzoek gevraagd moet worden, dan legt de cel van de gemeente het

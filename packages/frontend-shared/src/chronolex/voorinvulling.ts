@@ -3,7 +3,7 @@
  * the UI spec of a source says (packages/poc-chronolexografie/src/ui_spec.rs):
  * per field which source prefills it (`prefill`, `<regelwerk>#<article>#<output>`),
  * which the system fills (`systeem`) and which the form hides (`verborgen`).
- * Shared by the poc and the wetsprocessysteem.
+ * Shared by the poc and RegelHet.
  *
  * A prefilled value is a proposal: the applicant can change it, and what they
  * submit is what the application holds. The field says where the value comes
@@ -41,7 +41,7 @@ export interface Systeemvulling {
   soort?: Systeemsoort;
   /**
    * A value the system knows itself; from a system that computes them for
-   * the one who submits, such as the wetsproces server, any kind's value.
+   * the one who submits, such as the RegelHet server, any kind's value.
    */
   waarde?: unknown;
   /** The source whose outcome fills it, `<regelwerk>#<article>#<output>`. */

@@ -281,7 +281,7 @@ articles:
       # bestuursorgaan; wie de ontvangst vaststelde staat daarom als gegeven
       # in het feit (ontvangst_vastgesteld_door), niet als bevoegde.
       # In welke volgorde de handelingen komen, legt de casus van het
-      # wetsprocessysteem vast (na_toekenning); dit beleid zegt alleen wat elk
+      # RegelHet vast (na_toekenning); dit beleid zegt alleen wat elk
       # feit vermeldt.
       # De bestelling (lid 1) legt het systeem zelf vast, volgens artikel 7;
       # dat artikel vereist het feit kaart_besteld_bij_drukker.
@@ -417,7 +417,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       # Geen open begrip van de wet: wat het college doet als een
-      # verstrekking geldt, niet wat het besluit. Het wetsprocessysteem van
+      # verstrekking geldt, niet wat het besluit. Het RegelHet van
       # de gemeente voert dit artikel uit zodra een besluit dat een kaart
       # verstrekt geldt (na_toekenning in het casusbestand, door_het_systeem
       # bij de bestelling), en legt dan het feit kaart_besteld_bij_drukker

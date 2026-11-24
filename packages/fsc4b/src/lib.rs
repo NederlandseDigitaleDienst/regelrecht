@@ -6,8 +6,8 @@
 //! - [`client`] (feature `client`): what an app does, step by step, over
 //!   HTTP.
 //!
-//! The server in `packages/wetsproces` checks what this crate produces; the
-//! app in `packages/wetsproces-app` and the end-to-end tests of the server
+//! The server in `packages/regelhet` checks what this crate produces; the
+//! app in `packages/regelhet-app` and the end-to-end tests of the server
 //! run on the same client, so there is one implementation of each side.
 
 #[cfg(feature = "client")]

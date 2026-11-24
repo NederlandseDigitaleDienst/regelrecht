@@ -141,8 +141,8 @@ pub fn met_bronnen(
 }
 
 /// The cases of `bron`, each on the source under `bron/<name>` alone. A case
-/// that does not load is in `stand.fouten`. The wetsproces component loads
-/// its one case with this too (`packages/wetsproces/src/case.rs`).
+/// that does not load is in `stand.fouten`. The RegelHet component loads
+/// its one case with this too (`packages/regelhet/src/case.rs`).
 ///
 /// # Errors
 ///

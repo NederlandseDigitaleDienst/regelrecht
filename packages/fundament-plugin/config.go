@@ -21,18 +21,18 @@ const (
 
 // pluginConfig holds the install-time configuration from spec.configSchema in
 // definition.yaml, which the plugin-controller injects as FUNP_* env vars. It
-// holds defaults only: every wetsprocessysteem is a Wetsproces object of its
+// holds defaults only: every RegelHet is a RegelHet object of its
 // own, with its case, version, colour and address in its spec.
 //
 // The Keycloak of stable mode will be one more default here, its URL, once
 // the chart supports stable mode.
 type pluginConfig struct {
-	// Domain is the base domain: a Wetsproces with hostname x is served on
+	// Domain is the base domain: a RegelHet with hostname x is served on
 	// x.<domain>, unless its hostname is a domain name of its own.
 	Domain string `env:"FUNP_DOMAIN,required"`
-	// DefaultImage is the image repository of the wetsproces server. A
-	// Wetsproces with a version runs <DefaultImage>:<version>.
-	DefaultImage string `env:"FUNP_DEFAULT_IMAGE" envDefault:"code.digitaledienst.overheid.nl/regelrecht/wetsproces"`
+	// DefaultImage is the image repository of the RegelHet server. A
+	// RegelHet with a version runs <DefaultImage>:<version>.
+	DefaultImage string `env:"FUNP_DEFAULT_IMAGE" envDefault:"code.digitaledienst.overheid.nl/regelrecht/regelhet"`
 	// ChartRef is the branch or tag of the fork that the chart is read from.
 	ChartRef string `env:"FUNP_CHART_REF" envDefault:"main"`
 	// ACME is the Let's Encrypt environment of the certificates.

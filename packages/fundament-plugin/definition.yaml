@@ -2,12 +2,12 @@
 apiVersion: fundament.io/v1
 kind: PluginDefinition
 metadata:
-  name: wetsproces
-  displayName: Wetsproces
+  name: regelhet
+  displayName: RegelHet
   version: v0.2.0
   description: >-
-    Offers the regelrecht wetsprocessysteem to the projects of a cluster.
-    Installed once per cluster; project members then create a wetsproces per
+    Offers the regelrecht RegelHet to the projects of a cluster.
+    Installed once per cluster; project members then create a regelhet per
     case from the console, each on its own address with its own database.
   author: regelrecht
   license: EUPL-1.2
@@ -18,13 +18,13 @@ metadata:
     documentation: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/src/branch/main/packages/fundament-plugin/README.md
   tags:
     - regelrecht
-    - wetsproces
+    - regelhet
     - flux
 # There is deliberately no spec.image here. Publishing injects the pushed
 # image's digest, so the stored definition always pins immutable code.
 spec:
-  # Defaults only: each wetsproces has its case, version, colour and address in
-  # its own Wetsproces object. The Keycloak URL of stable mode joins these once
+  # Defaults only: each RegelHet has its case, version, colour and address in
+  # its own RegelHet object. The Keycloak URL of stable mode joins these once
   # the chart supports stable mode.
   configSchema:
     - name: DOMAIN
@@ -32,16 +32,16 @@ spec:
       type: string
       required: true
       description: >-
-        A wetsproces with hostname x is served on x.<domain> for citizens and
+        A regelhet with hostname x is served on x.<domain> for citizens and
         x-medewerkers.<domain> for employees, e.g. cluster-a.fieldlab2026.nl,
         whose wildcard record points at the cluster's shared Gateway.
     - name: DEFAULT_IMAGE
       displayName: Image repository
       type: string
-      default: code.digitaledienst.overheid.nl/regelrecht/wetsproces
+      default: code.digitaledienst.overheid.nl/regelrecht/regelhet
       advanced: true
       description: >-
-        Repository of the wetsproces image, without a tag. A wetsproces with a
+        Repository of the regelhet image, without a tag. A regelhet with a
         version runs <repository>:<version>; one without runs the build of
         main that the chart names.
     - name: CHART_REF
@@ -70,32 +70,32 @@ spec:
       - apiGroups: [apiextensions.k8s.io]
         resources: [customresourcedefinitions]
         resourceNames:
-          - wetsprocessen.wetsproces.regelrecht.nl
+          - regelhets.regelhet.regelrecht.nl
           # The check that Flux is there.
           - gitrepositories.source.toolkit.fluxcd.io
           - helmreleases.helm.toolkit.fluxcd.io
         verbs: [get, patch]
-      # The roles that let project admins and viewers use wetsprocessen
+      # The roles that let project admins and viewers use RegelHet instances
       # (setup.go). They grant nothing the plugin does not hold itself.
       - apiGroups: [rbac.authorization.k8s.io]
         resources: [clusterroles]
         verbs: [create]
       - apiGroups: [rbac.authorization.k8s.io]
         resources: [clusterroles]
-        resourceNames: [fundament-wetsproces-admin, fundament-wetsproces-view]
+        resourceNames: [fundament-regelhet-admin, fundament-regelhet-view]
         verbs: [get, update, patch, delete]
       # The controller and the console pages: the pages act with the rights
       # the user and the plugin share, so the plugin holds what the wizard and
       # the detail page do (create, delete).
-      - apiGroups: [wetsproces.regelrecht.nl]
-        resources: [wetsprocessen]
+      - apiGroups: [regelhet.regelrecht.nl]
+        resources: [regelhets]
         verbs: [get, list, watch, create, update, patch, delete]
-      - apiGroups: [wetsproces.regelrecht.nl]
-        resources: [wetsprocessen/status]
+      - apiGroups: [regelhet.regelrecht.nl]
+        resources: [regelhets/status]
         verbs: [get, update, patch]
       # Owner references with blockOwnerDeletion need update on finalizers.
-      - apiGroups: [wetsproces.regelrecht.nl]
-        resources: [wetsprocessen/finalizers]
+      - apiGroups: [regelhet.regelrecht.nl]
+        resources: [regelhets/finalizers]
         verbs: [update]
       # Flux, which the cluster already runs, does the rest: helm-controller
       # installs the chart with its own service account.
@@ -111,27 +111,27 @@ spec:
         resources: [secrets]
         verbs: [create]
   crds:
-    - wetsprocessen.wetsproces.regelrecht.nl
+    - regelhets.regelhet.regelrecht.nl
 
   menu:
     project:
-      - crd: wetsprocessen.wetsproces.regelrecht.nl
+      - crd: regelhets.regelhet.regelrecht.nl
         list: true
         detail: true
         icon: document
-        label: Wetsprocessen
-        singularLabel: Wetsproces
+        label: RegelHet
+        singularLabel: RegelHet
 
   customComponents:
-    Wetsproces:
-      list: wetsprocessen-list.html
-      detail: wetsprocessen-detail.html
-      create: wetsprocessen-create.html
+    RegelHet:
+      list: regelhets-list.html
+      detail: regelhets-detail.html
+      create: regelhets-create.html
 
   allowedResources:
-    - group: wetsproces.regelrecht.nl
+    - group: regelhet.regelrecht.nl
       version: v1alpha1
-      resource: wetsprocessen
+      resource: regelhets
       verbs: [list, get, create, delete]
     - group: ''
       version: v1
@@ -139,7 +139,7 @@ spec:
       verbs: [create]
 
   uiHints:
-    wetsprocessen.wetsproces.regelrecht.nl:
+    regelhets.regelhet.regelrecht.nl:
       statusMapping:
         jsonPath: .status.phase
         values:

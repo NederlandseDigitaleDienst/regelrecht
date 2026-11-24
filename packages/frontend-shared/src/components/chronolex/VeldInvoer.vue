@@ -15,7 +15,7 @@
 // A field the screen requires (`verplicht`) loses its "Optioneel" badge where
 // the law lets it be empty, and the form refuses to submit it empty; the
 // validation list under it then says so, as the browser judges it.
-// Shared by the chronolexografie poc and the wetsprocessysteem.
+// Shared by the chronolexografie poc and RegelHet.
 import { computed } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
 import type { Kolom } from '../../chronolex/tabel';

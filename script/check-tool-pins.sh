@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 files=(frontend/Dockerfile packages/admin/Dockerfile packages/pipeline/Dockerfile
        packages/poc-portal/Dockerfile packages/poc-napp/Dockerfile
-       packages/wetsproces/Dockerfile)
+       packages/regelhet/Dockerfile)
 reference=""
 status=0
 

@@ -58,8 +58,8 @@ jobs:
             dockerfile: packages/poc-napp/Dockerfile
           - scope: poc-portal
             dockerfile: packages/poc-portal/Dockerfile
-          - scope: wetsproces
-            dockerfile: packages/wetsproces/Dockerfile
+          - scope: regelhet
+            dockerfile: packages/regelhet/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 

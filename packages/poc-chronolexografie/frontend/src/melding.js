@@ -72,7 +72,7 @@ export function vertaling(fout) {
     const gevonden = String(fout).match(patroon);
     if (gevonden) return zin(...gevonden.slice(1));
   }
-  // What a form can cause, shared with the wetsprocessysteem.
+  // What a form can cause, shared with RegelHet.
   return weigeringInWoorden(fout, { veld: leesbaar, rol: state.casus?.rol ?? 'het bestuursorgaan' });
 }
 

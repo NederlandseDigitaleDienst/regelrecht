@@ -17,13 +17,13 @@ import {
 } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { bezwaarBasis, kort, leesbaar, state, toegewezen } from './state.js';
 
-/** A value from the chain in words, shared with the wetsprocessysteem. */
+/** A value from the chain in words, shared with RegelHet. */
 export { toon };
 
 /** The name the case gives a regelwerk, if any (`api.casus`). */
 const naamInCasus = (wet) => state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
 
-/** The name of a regelwerk, shared with the wetsprocessysteem, with the names of this case. */
+/** The name of a regelwerk, shared with RegelHet, with the names of this case. */
 export const wetNaam = (wet) => gedeeldeWetNaam(wet, naamInCasus);
 
 /** `leerplichtwet_1969`, `13a` → `Leerplichtwet 1969 artikel 13a`. */

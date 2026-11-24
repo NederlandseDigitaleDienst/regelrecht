@@ -67,7 +67,7 @@ func TestCustomComponentsAreEmbedded(t *testing.T) {
 	t.Parallel()
 
 	def := loadSourceDefinition(t)
-	pages, ok := def.Spec.CustomComponents["Wetsproces"]
+	pages, ok := def.Spec.CustomComponents["RegelHet"]
 	require.True(t, ok)
 	for view, file := range map[string]string{"list": pages.List, "detail": pages.Detail, "create": pages.Create} {
 		require.NotEmpty(t, file, "the %s page", view)

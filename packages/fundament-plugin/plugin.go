@@ -28,12 +28,12 @@ import (
 // set-up, such as a cluster without Flux yet.
 const setUpRetryInterval = 30 * time.Second
 
-// WetsprocesPlugin offers wetsprocessen to the projects of a cluster. It is
-// installed once per cluster and installs the Wetsproces CRD; each Wetsproces
-// object is one wetsprocessysteem, which the plugin's controller runs with
+// RegelHetPlugin offers RegelHet instances to the projects of a cluster. It is
+// installed once per cluster and installs the RegelHet CRD; each RegelHet
+// object is one RegelHet, which the plugin's controller runs with
 // Flux: a GitRepository for the chart and a HelmRelease per object, in the
 // object's namespace. Flux keeps them running while the plugin pod is down.
-type WetsprocesPlugin struct {
+type RegelHetPlugin struct {
 	initOnce sync.Once
 	initErr  error
 	cfg      pluginConfig
@@ -48,9 +48,9 @@ type WetsprocesPlugin struct {
 	uninstalling bool
 }
 
-// NewWetsprocesPlugin creates a new WetsprocesPlugin.
-func NewWetsprocesPlugin() *WetsprocesPlugin {
-	return &WetsprocesPlugin{}
+// NewRegelHetPlugin creates a new RegelHetPlugin.
+func NewRegelHetPlugin() *RegelHetPlugin {
+	return &RegelHetPlugin{}
 }
 
 func buildScheme() (*runtime.Scheme, error) {
@@ -69,7 +69,7 @@ func buildScheme() (*runtime.Scheme, error) {
 
 // init loads the config and builds the client once. Start and the uninstall
 // RPC can both arrive first, so both call it.
-func (p *WetsprocesPlugin) init() error {
+func (p *RegelHetPlugin) init() error {
 	p.initOnce.Do(func() {
 		cfg, err := loadConfig()
 		if err != nil {
@@ -97,13 +97,13 @@ func (p *WetsprocesPlugin) init() error {
 // Start must be idempotent: the container is restarted on upgrades, node
 // evictions and crashes, so this runs again from scratch every time. The
 // set-up is a server-side apply, and the controller reconciles every
-// Wetsproces again when it starts.
-func (p *WetsprocesPlugin) Start(ctx context.Context, host pluginruntime.Host) error {
+// RegelHet again when it starts.
+func (p *RegelHetPlugin) Start(ctx context.Context, host pluginruntime.Host) error {
 	if err := p.init(); err != nil {
 		host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseFailed, Message: err.Error()})
 		return err
 	}
-	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseInstalling, Message: "installing the Wetsproces CRD"})
+	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseInstalling, Message: "installing the RegelHet CRD"})
 	// Retry here rather than return: the runtime ends the process on an
 	// error from Start, and a pod in a crash loop reports nothing.
 	for {
@@ -126,14 +126,14 @@ func (p *WetsprocesPlugin) Start(ctx context.Context, host pluginruntime.Host) e
 		return pluginerrors.NewPermanent(err)
 	}
 	host.ReportReady()
-	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseRunning, Message: "reconciling wetsprocessen"})
+	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseRunning, Message: "reconciling regelhets"})
 	if err := mgr.Start(ctx); err != nil {
 		return fmt.Errorf("controller manager stopped: %w", pluginerrors.NewTransient(err))
 	}
 	return nil
 }
 
-func (p *WetsprocesPlugin) setUpOnce(ctx context.Context) error {
+func (p *RegelHetPlugin) setUpOnce(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.uninstalling {
@@ -142,10 +142,10 @@ func (p *WetsprocesPlugin) setUpOnce(ctx context.Context) error {
 	return setUp(ctx, p.kube)
 }
 
-// newManager builds the controller manager with the Wetsproces controller.
-// Its cache holds the Wetsproces objects and only the Flux objects the plugin
+// newManager builds the controller manager with the RegelHet controller.
+// Its cache holds the RegelHet objects and only the Flux objects the plugin
 // made, by their label.
-func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
+func (p *RegelHetPlugin) newManager() (ctrl.Manager, error) {
 	mine := cache.ByObject{Label: labels.SelectorFromSet(labels.Set{managedByLabel: fieldOwner})}
 	byObject := map[client.Object]cache.ByObject{}
 	for _, gvk := range []schema.GroupVersionKind{gitRepositoryGVK, helmReleaseGVK} {
@@ -163,7 +163,7 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("set up the controller manager: %w", err)
 	}
-	r := &WetsprocesReconciler{
+	r := &RegelHetReconciler{
 		Client: mgr.GetClient(),
 		Scheme: p.scheme,
 		Config: p.cfg,
@@ -176,13 +176,13 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 
 // Shutdown performs graceful cleanup. It must not uninstall anything: shutdown
 // happens on every restart, not only on uninstall.
-func (p *WetsprocesPlugin) Shutdown(_ context.Context) error {
+func (p *RegelHetPlugin) Shutdown(_ context.Context) error {
 	return nil
 }
 
 // Install sets up the CRD and the roles; Start does the same, so an install
 // that arrives first is no different.
-func (p *WetsprocesPlugin) Install(ctx context.Context, _ pluginruntime.Host) error {
+func (p *RegelHetPlugin) Install(ctx context.Context, _ pluginruntime.Host) error {
 	if err := p.init(); err != nil {
 		return err
 	}
@@ -193,16 +193,16 @@ func (p *WetsprocesPlugin) Install(ctx context.Context, _ pluginruntime.Host) er
 }
 
 // Upgrade applies the CRD and the roles of the new version.
-func (p *WetsprocesPlugin) Upgrade(ctx context.Context, host pluginruntime.Host) error {
+func (p *RegelHetPlugin) Upgrade(ctx context.Context, host pluginruntime.Host) error {
 	return p.Install(ctx, host)
 }
 
-// Uninstall removes the roles that let project members make wetsprocessen.
-// It keeps the CRD and every Wetsproces: deleting the CRD would delete them
-// all and, through their owner references, every running wetsprocessysteem
+// Uninstall removes the roles that let project members make RegelHet instances.
+// It keeps the CRD and every RegelHet: deleting the CRD would delete them
+// all and, through their owner references, every running RegelHet
 // with its data. Flux keeps them running; nobody reconciles a change until the
 // plugin is installed again. Removing them is a deliberate step (README).
-func (p *WetsprocesPlugin) Uninstall(ctx context.Context, _ pluginruntime.Host) error {
+func (p *RegelHetPlugin) Uninstall(ctx context.Context, _ pluginruntime.Host) error {
 	if err := p.init(); err != nil {
 		return err
 	}
@@ -215,10 +215,10 @@ func (p *WetsprocesPlugin) Uninstall(ctx context.Context, _ pluginruntime.Host) 
 	return nil
 }
 
-// Reconcile repairs the CRD and the roles, and reports how many wetsprocessen
+// Reconcile repairs the CRD and the roles, and reports how many RegelHet instances
 // run, every FUNP_RECONCILE_INTERVAL (default 5m). The controller reconciles
-// each Wetsproces on its own events.
-func (p *WetsprocesPlugin) Reconcile(ctx context.Context, host pluginruntime.Host) error {
+// each RegelHet on its own events.
+func (p *RegelHetPlugin) Reconcile(ctx context.Context, host pluginruntime.Host) error {
 	if p.kube == nil {
 		return nil
 	}
@@ -226,18 +226,18 @@ func (p *WetsprocesPlugin) Reconcile(ctx context.Context, host pluginruntime.Hos
 		host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseDegraded, Message: err.Error()})
 		return fmt.Errorf("reconcile: %w", pluginerrors.NewTransient(err))
 	}
-	var all v1alpha1.WetsprocesList
+	var all v1alpha1.RegelHetList
 	if err := p.kube.List(ctx, &all); err != nil {
-		return fmt.Errorf("reconcile: list wetsprocessen: %w", pluginerrors.NewTransient(err))
+		return fmt.Errorf("reconcile: list regelhets: %w", pluginerrors.NewTransient(err))
 	}
 	host.ReportStatus(summary(all.Items))
 	return nil
 }
 
-// summary is the plugin status for the wetsprocessen on the cluster. A
+// summary is the plugin status for the RegelHet instances on the cluster. A
 // failing one does not make the plugin degraded: it is that object's spec or
 // release, and its own status says which.
-func summary(items []v1alpha1.Wetsproces) pluginruntime.PluginStatus {
+func summary(items []v1alpha1.RegelHet) pluginruntime.PluginStatus {
 	ready := 0
 	for i := range items {
 		if items[i].Status.Phase == v1alpha1.PhaseReady {
@@ -246,6 +246,6 @@ func summary(items []v1alpha1.Wetsproces) pluginruntime.PluginStatus {
 	}
 	return pluginruntime.PluginStatus{
 		Phase:   pluginruntime.PhaseRunning,
-		Message: fmt.Sprintf("%d of %d wetsprocessen ready", ready, len(items)),
+		Message: fmt.Sprintf("%d of %d RegelHet instances ready", ready, len(items)),
 	}
 }

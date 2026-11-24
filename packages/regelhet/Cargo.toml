@@ -1,0 +1,89 @@
+[package]
+name = "regelrecht-regelhet"
+version = "0.1.0"
+edition.workspace = true
+authors = ["MinBZK <noreply@minbzk.nl>"]
+description = "A RegelHet: a server that runs one legal process on the cells of the regelrecht method, from one source manifest"
+license = "EUPL-1.2"
+repository = "https://github.com/NederlandseDigitaleDienst/regelrecht"
+publish = false
+
+[lib]
+name = "regelrecht_regelhet"
+path = "src/lib.rs"
+
+[[bin]]
+name = "regelrecht-regelhet"
+path = "src/main.rs"
+
+[dependencies]
+# The process steps and the case loading of the chronolexografie poc, as a
+# library: without the `wasm` feature it is plain native Rust.
+regelrecht-poc-chronolexografie = { path = "../poc-chronolexografie" }
+regelrecht-cel = { path = "../cel" }
+# The source manifest reader the poc-portal uses too (src/source_manifest.rs);
+# no GitHub: the manifest ships with the image.
+regelrecht-corpus = { path = "../corpus", default-features = false }
+# Telemetry, the Dutch calendar date for the real clock, and the database
+# URL and locked migrations the pipeline uses too.
+regelrecht-shared = { path = "../shared", features = ["telemetry", "dates", "postgres"] }
+# The login through Keycloak (OIDC with PKCE) and the session keys it
+# writes, shared with the editor and the admin (src/login.rs).
+regelrecht-auth = { path = "../auth" }
+async-trait.workspace = true
+axum.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# The chronicle store in Postgres (src/store/postgres.rs); plain `query`, no
+# compile-time checked macros, so a build needs no database.
+sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "json", "migrate"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
+tower-http = { workspace = true, features = ["trace", "fs"] }
+# `oneshot` on the service of the built frontend (src/app.rs).
+tower = { workspace = true, features = ["util"] }
+tracing.workspace = true
+# The sessions of the login: in memory with the store in memory, in the
+# schema `regelhet` with the store in Postgres.
+tower-sessions.workspace = true
+tower-sessions-memory-store.workspace = true
+tower-sessions-sqlx-store.workspace = true
+# The HTTP client the OIDC token exchange runs on; the version and features
+# regelrecht-auth uses.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "json"] }
+# The FSC voor Burgers channel (src/fsc4b/): the JOSE formats and the names
+# on the wire, from the crate the app shares with this server; base64 and
+# SHA-256 for the test Stelsel and the hash a session token is kept under.
+regelrecht-fsc4b = { path = "../fsc4b" }
+base64.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+
+[features]
+# The reference client of the FSC voor Burgers channel (the `client` of
+# packages/fsc4b, re-exported as `fsc4b::client`), for the end-to-end tests
+# and the example; not in the server binary.
+test-utils = ["regelrecht-fsc4b/client"]
+
+[[test]]
+name = "fsc4b"
+required-features = ["test-utils"]
+
+[[example]]
+name = "fsc4b_client"
+required-features = ["test-utils"]
+
+[dev-dependencies]
+# `join_all` for the concurrent commits in the store contract tests.
+futures = "0.3"
+# A Postgres database per test for the store contract tests.
+regelrecht-shared = { path = "../shared", features = ["test-utils"] }
+# An OIDC client without discovery, to build stable mode in a test.
+regelrecht-auth = { path = "../auth", features = ["test-utils"] }
+http-body-util.workspace = true
+# The Stelseldocument and key files of a test Stelsel (tests/fsc4b.rs).
+tempfile.workspace = true
+
+[lints]
+workspace = true

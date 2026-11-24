@@ -15,6 +15,6 @@ var consoleFiles embed.FS
 // stay empty. RequireHTML: the pages are hand-written and checked in, so a
 // missing file means the embed pattern broke, and the plugin fails at start
 // rather than with a blank page.
-func (p *WetsprocesPlugin) ConsoleAssets() http.FileSystem {
+func (p *RegelHetPlugin) ConsoleAssets() http.FileSystem {
 	return console.NewFileSystem(consoleFiles, "console", console.RequireHTML())
 }

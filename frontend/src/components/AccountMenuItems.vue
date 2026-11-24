@@ -60,7 +60,7 @@ function goToHarvesting() {
 }
 
 // The colour scheme is a submenu here rather than a setting in the settings
-// sheet (WeergaveMenuItem, shared with the wetsproces screens).
+// sheet (WeergaveMenuItem, shared with the RegelHet screens).
 const { colorScheme, setColorScheme } = useColorScheme();
 
 // Without Weergave the sheet only keeps sections behind a role or an

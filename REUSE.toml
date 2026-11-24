@@ -70,7 +70,7 @@ SPDX-License-Identifier = "EUPL-1.2"
 [[annotations]]
 path = [
   "**/public/regelrecht-icon.svg",
-  "frontend-wetsproces/src-tauri/icons/icon.png",
+  "frontend-regelhet/src-tauri/icons/icon.png",
   "docs/src/assets/editor-notities-screenshot.png",
   "docs/src/assets/portaal-en-screenshot.png",
   "docs/src/assets/portaal-screenshot.png",
@@ -140,8 +140,8 @@ path = [
   "frontend-demo/public/logos/SZW.png",
   "frontend-demo/public/logos/TOESLAGEN.png",
   "frontend-demo/public/logos/VWS.png",
-  "frontend-wetsproces/public/favicon.svg",
-  "frontend-wetsproces/public/touch-icon.png",
+  "frontend-regelhet/public/favicon.svg",
+  "frontend-regelhet/public/touch-icon.png",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "Staat der Nederlanden"

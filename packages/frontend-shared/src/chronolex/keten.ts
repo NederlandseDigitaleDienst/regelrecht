@@ -2,7 +2,7 @@
  * The chain of a decision in words: the trace of the engine as the
  * chronolexografie kern condenses it (`kern::Stap`, in `waarom.keten`), as a
  * tree of steps. Shared by the poc (packages/poc-chronolexografie/frontend)
- * and the wetsprocessysteem (frontend-wetsproces); each app says how it names
+ * and RegelHet (frontend-regelhet); each app says how it names
  * a regelwerk and a field, and where a regelwerk sits in its corpus.
  *
  * A step has a `soort`: `artikel` (an article runs), `hook` (an article that

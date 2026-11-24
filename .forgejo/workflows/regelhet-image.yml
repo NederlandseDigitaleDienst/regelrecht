@@ -1,0 +1,120 @@
+---
+# Builds the RegelHet image from packages/regelhet/Dockerfile and pushes
+# it to the registry of the organisation, as
+# code.digitaledienst.overheid.nl/regelrecht/regelhet:main and :<commit>.
+#
+# After a push from main, the job `chart` points charts/regelhet at the new
+# image, and its case at the same commit while the case comes from this
+# repository, and commits that to main. Flux follows the chart on main, so the
+# deployment on the cluster picks up every build without credentials for the
+# cluster in CI. A push with the job's own token starts no workflow, so the
+# commit cannot loop; `[skip ci]` in its message says the same to a reader.
+#
+# This runs on `vm`, because `docker build` needs a Docker daemon, and only
+# from main: the fieldlab rules allow a push to the registry from main or a tag
+# only. Each VM starts empty, so every build compiles from scratch. The image
+# is public, like every image of the organisation, so it holds no secrets.
+name: regelhet image
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/**
+      - frontend-regelhet/**
+      - schema/**
+      - package.json
+      - package-lock.json
+      - .forgejo/workflows/regelhet-image.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: vm
+    timeout-minutes: 60
+    container:
+      image: docker:29-cli@sha256:5e6baf67325a79f64ed3bed6863954d5e05d0f3d4e57cbdb14809346814bbfdb
+    steps:
+      # actions/checkout needs node, which this image does not have.
+      - name: Check out
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          git clone --depth 1 --branch "${{ forgejo.ref_name }}" \
+            "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" .
+
+      - name: Build and push
+        env:
+          SERVER: ${{ forgejo.server_url }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          HOST="${SERVER#https://}"
+          IMAGE="${HOST}/regelrecht/regelhet"
+          docker build --platform linux/amd64 -f packages/regelhet/Dockerfile \
+            -t "${IMAGE}:main" -t "${IMAGE}:${{ forgejo.sha }}" .
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$HOST" -u "$REGISTRY_USER" --password-stdin
+          docker push "${IMAGE}:${{ forgejo.sha }}"
+          docker push "${IMAGE}:main"
+          docker logout "$HOST"
+
+  chart:
+    needs: build
+    if: forgejo.ref == 'refs/heads/main'
+    runs-on: default
+    timeout-minutes: 10
+    container:
+      image: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
+    steps:
+      - name: Point the chart at the new image
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+          SHA: ${{ forgejo.sha }}
+        run: |
+          set -eu
+          HOST="${SERVER#https://}"
+          NEW="${HOST}/regelrecht/regelhet:${SHA}"
+          SHORT="$(printf '%s' "$SHA" | cut -c1-8)"
+          VALUES=charts/regelhet/values.yaml
+          # Without blobs: the history is enough to compare two builds.
+          git clone -q --filter=blob:none --branch main \
+            "https://x:${TOKEN}@${HOST}/${{ forgejo.repository }}.git" repo
+          cd repo
+          git config user.name "Forgejo Actions"
+          git config user.email "actions@noreply.${HOST}"
+          OWN_REPO="${SERVER}/${{ forgejo.repository }}.git"
+          # The values of one top-level block, such as `case`, without the
+          # same key in another block (image.ref, gitImage.ref).
+          case_value() { sed -n "/^case:/,/^[^ #]/ s|^  $1: *||p" "$VALUES"; }
+          for attempt in 1 2 3 4 5; do
+            CURRENT="$(sed -n 's|^  ref: .*/regelrecht/regelhet:\([0-9a-f]\{40\}\)$|\1|p' "$VALUES")"
+            if [ -z "$CURRENT" ]; then
+              echo "no image.ref with a commit tag in ${VALUES}"; exit 1
+            fi
+            # A case from this repository is pinned to the image's commit, so
+            # the case never runs ahead of the code that reads it. A case
+            # from another repository keeps the ref it has.
+            PIN_CASE=no
+            if [ "$(case_value repoUrl)" = "$OWN_REPO" ]; then PIN_CASE=yes; fi
+            if [ "$CURRENT" = "$SHA" ] && { [ "$PIN_CASE" = no ] || [ "$(case_value ref)" = "$SHA" ]; }; then
+              echo "the chart already runs ${SHORT}"; exit 0
+            fi
+            # Builds can finish out of order; never replace a later build.
+            if [ "$CURRENT" != "$SHA" ] && git merge-base --is-ancestor "$SHA" "$CURRENT" 2>/dev/null; then
+              echo "the chart runs ${CURRENT}, which is later than ${SHA}; leaving it"; exit 0
+            fi
+            sed -i "s|^  ref: .*/regelrecht/regelhet:[0-9a-f]\{40\}\$|  ref: ${NEW}|" "$VALUES"
+            sed -i "s|^appVersion: .*|appVersion: ${SHORT}|" charts/regelhet/Chart.yaml
+            if [ "$PIN_CASE" = yes ]; then
+              sed -i "/^case:/,/^[^ #]/ s|^  ref: .*|  ref: ${SHA}|" "$VALUES"
+            fi
+            git commit -q -am "chore(dev): regelhet-image ${SHORT} in de chart [skip ci]"
+            if git push -q origin HEAD:main; then
+              echo "the chart now runs ${SHORT} (case pinned: ${PIN_CASE})"; exit 0
+            fi
+            echo "main moved on (attempt ${attempt}); trying again on the new main"
+            git fetch -q origin main
+            git reset -q --hard origin/main
+          done
+          echo "could not push to main after 5 attempts"; exit 1

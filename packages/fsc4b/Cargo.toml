@@ -20,13 +20,13 @@ sha2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-# The client (src/client.rs) speaks HTTP; the version the wetsproces server
+# The client (src/client.rs) speaks HTTP; the version the RegelHet server
 # uses, without a TLS provider of its own: whoever uses the client brings one.
 reqwest = { version = "0.12", default-features = false, features = ["json"], optional = true }
 
 [features]
 # The client of the protocol, for the end-to-end tests of the server and for
-# the app (packages/wetsproces-app). The server itself does not need it.
+# the app (packages/regelhet-app). The server itself does not need it.
 client = ["dep:reqwest"]
 
 [lints]

@@ -1,0 +1,116 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "regelhet: FSC voor Burgers",
+    "version": "1.0.0",
+    "description": "The citizen's service of the regelhet server for an app, after the werkversie of FSC voor Burgers (https://docs.fsc4b.nl/specs/protocol/). An app starts a session with CreateSession (section 4.3.4): POST /fsc4b/session/v1/challenge, then POST /fsc4b/session/v1/complete. Every request to the citizen's service carries the session token in the Authorization header and a body that is a compact JWE (alg dir, enc A256GCM) under the session's AES key, holding a JSON object. Every answer of the citizen's service is a JWE under the same key, holding the JSON answer, an error included ({\"fout\": \"...\"}), beside the HTTP status; only a 401 (no live session under the token, or a body that does not decrypt under its key) and a 500 while reading the session are plain JSON."
+  },
+  "paths": {
+    "/fsc4b/session/v1/challenge": {
+      "post": {
+        "summary": "A new challenge",
+        "description": "No body. The answer is a compact JWS (ES256) signed by the organization's key from the Stelseldocument, with the claims sub (\"challenge\"), nonce (16 random bytes, base64) and ephemeral_organization_ec_public_key (base64 DER of a P-256 key). The nonce is valid for one minute and can be answered once.",
+        "responses": {
+          "200": { "description": "The challenge", "content": { "application/jwt": { "schema": { "type": "string" } } } }
+        }
+      }
+    },
+    "/fsc4b/session/v1/complete": {
+      "post": {
+        "summary": "The answer to a challenge, for a session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nonce", "encrypted_challenge_result"],
+                "properties": {
+                  "nonce": { "type": "string", "description": "The nonce of the challenge" },
+                  "encrypted_challenge_result": { "type": "string", "description": "The Verifiable Presentation (section 4.3.4.1) as a compact JWE, alg ECDH-ES, enc A256GCM, to the ephemeral key of the challenge. Its session_aes_key holds 32 bytes, base64." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "The session token, as a compact JWE (alg dir, enc A256GCM) under the session_aes_key of the presentation", "content": { "application/jose": { "schema": { "type": "string" } } } },
+          "401": { "$ref": "#/components/responses/NotAccepted" }
+        }
+      }
+    },
+    "/fsc4b/burger/v1/casus": {
+      "post": {
+        "summary": "The case, and today",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "$ref": "#/components/requestBodies/Empty" },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
+    "/fsc4b/burger/v1/formulier": {
+      "post": {
+        "summary": "The forms, with what the UI spec says of their fields",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "$ref": "#/components/requestBodies/Empty" },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
+    "/fsc4b/burger/v1/dossier": {
+      "post": {
+        "summary": "The records about the citizen of the session, in every cell",
+        "description": "Decrypted: { \"grammen\": [ ... ] }.",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "$ref": "#/components/requestBodies/Empty" },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
+    "/fsc4b/burger/v1/indieningen": {
+      "post": {
+        "summary": "A submission by the citizen of the session, for themself",
+        "description": "Decrypted, the body is a submission as POST /api/indieningen takes it: { \"velden\": { ... }, \"artikel\"?: \"...\", \"op\"?: \"<record id>\", \"idempotency_key\"?: \"...\" }. The idempotency key sits inside the encryption, so it is authenticated: sent again, the request answers as the first time and records nothing. The Idempotency-Key header is not read here. The login field of the case is filled with the BSN of the credential; a submission that names it itself is refused (422).",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "required": true, "content": { "application/jose": { "schema": { "type": "string" } } } },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
+    "/fsc4b/burger/v1/waarom": {
+      "post": {
+        "summary": "Why a decision of the citizen's own dossier came out so",
+        "description": "Decrypted, the body is { \"id\": \"<id of a decision>\" } and the answer is the explanation GET /api/dossier/waarom/{id} gives. A decision outside the citizen's dossier answers 404, the same as one that does not exist.",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "required": true, "content": { "application/jose": { "schema": { "type": "string" } } } },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
+    "/fsc4b/discovery": {
+      "get": {
+        "summary": "The discovery configuration (section 4.2)",
+        "responses": {
+          "200": {
+            "description": "Per service its versions and their URLs",
+            "content": { "application/json": { "schema": { "type": "object", "additionalProperties": { "type": "object", "additionalProperties": { "type": "string", "format": "uri" } } } } }
+          }
+        }
+      }
+    },
+    "/fsc4b/openapi.json": {
+      "get": {
+        "summary": "This specification",
+        "responses": { "200": { "description": "OpenAPI 3", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "SessionToken": { "name": "Authorization", "in": "header", "required": true, "schema": { "type": "string" }, "description": "The session token from /fsc4b/session/v1/complete, bare or after \"Bearer \"." }
+    },
+    "requestBodies": {
+      "Empty": { "required": true, "content": { "application/jose": { "schema": { "type": "string" }, "description": "A compact JWE (alg dir, enc A256GCM) under the session key, holding {}." } } }
+    },
+    "responses": {
+      "Encrypted": { "description": "A compact JWE (alg dir, enc A256GCM) under the session key, holding the JSON answer", "content": { "application/jose": { "schema": { "type": "string" } } } },
+      "NoSession": { "description": "No live session under the token, or a body that does not decrypt under its key", "content": { "application/json": { "schema": { "type": "object", "properties": { "fout": { "type": "string" } } } } } },
+      "NotAccepted": { "description": "The presentation is not accepted; the server's log says why", "content": { "application/json": { "schema": { "type": "object", "properties": { "fout": { "type": "string" } } } } } }
+    }
+  }
+}

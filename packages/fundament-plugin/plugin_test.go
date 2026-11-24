@@ -23,26 +23,26 @@ import (
 	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
 
-const testNamespace = "tnt-voorbeeld--wetsproces"
+const testNamespace = "tnt-voorbeeld--regelhet"
 
 func validConfig() pluginConfig {
 	return pluginConfig{
 		Domain:       "cluster.example.org",
-		DefaultImage: "registry.example.org/regelrecht/wetsproces",
+		DefaultImage: "registry.example.org/regelrecht/regelhet",
 		ChartRef:     "main",
 		ACME:         acmeStaging,
 	}
 }
 
-func newWetsproces(name, hostname string) *v1alpha1.Wetsproces {
-	return &v1alpha1.Wetsproces{
-		TypeMeta: metav1.TypeMeta{APIVersion: v1alpha1.GroupVersion.String(), Kind: "Wetsproces"},
+func newRegelHet(name, hostname string) *v1alpha1.RegelHet {
+	return &v1alpha1.RegelHet{
+		TypeMeta: metav1.TypeMeta{APIVersion: v1alpha1.GroupVersion.String(), Kind: "RegelHet"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: testNamespace,
 			UID:       types.UID("uid-" + name),
 		},
-		Spec: v1alpha1.WetsprocesSpec{
+		Spec: v1alpha1.RegelHetSpec{
 			Manifest: v1alpha1.Manifest{RepoURL: "https://git.example.org/casus/a.git"},
 			Hostname: hostname,
 		},
@@ -51,7 +51,7 @@ func newWetsproces(name, hostname string) *v1alpha1.Wetsproces {
 
 func TestPluginImplementsInterfaces(t *testing.T) {
 	t.Parallel()
-	var p any = NewWetsprocesPlugin()
+	var p any = NewRegelHetPlugin()
 	_, ok := p.(pluginruntime.Plugin)
 	assert.True(t, ok)
 	_, ok = p.(pluginruntime.Installer)
@@ -67,7 +67,7 @@ func TestConfigValidate(t *testing.T) {
 	require.NoError(t, validConfig().validate())
 	for name, mutate := range map[string]func(*pluginConfig){
 		"a domain that is no domain": func(c *pluginConfig) { c.Domain = "not a domain" },
-		"an image with a tag":        func(c *pluginConfig) { c.DefaultImage = "registry.example.org/wetsproces:main" },
+		"an image with a tag":        func(c *pluginConfig) { c.DefaultImage = "registry.example.org/regelhet:main" },
 		"a chart ref with dots":      func(c *pluginConfig) { c.ChartRef = "a..b" },
 		"an unknown ACME":            func(c *pluginConfig) { c.ACME = "test" },
 	} {
@@ -87,19 +87,19 @@ func TestLoadConfigRequiresTheDomainOnly(t *testing.T) {
 	t.Setenv("FUNP_DOMAIN", "cluster-a.example.org")
 	cfg, err := loadConfig()
 	require.NoError(t, err)
-	assert.Equal(t, "code.digitaledienst.overheid.nl/regelrecht/wetsproces", cfg.DefaultImage)
+	assert.Equal(t, "code.digitaledienst.overheid.nl/regelrecht/regelhet", cfg.DefaultImage)
 	assert.Equal(t, acmeProduction, cfg.ACME)
 }
 
 func TestHostsStayOneLabelUnderTheDomain(t *testing.T) {
 	t.Parallel()
-	h := hostsOf(newWetsproces("zorgtoeslag", "zorgtoeslag"), "cluster.example.org")
+	h := hostsOf(newRegelHet("zorgtoeslag", "zorgtoeslag"), "cluster.example.org")
 	assert.Equal(t, hosts{burger: "zorgtoeslag.cluster.example.org", backoffice: "zorgtoeslag-medewerkers.cluster.example.org"}, h)
 
-	own := hostsOf(newWetsproces("zorg", "zorg.example.nl"), "cluster.example.org")
+	own := hostsOf(newRegelHet("zorg", "zorg.example.nl"), "cluster.example.org")
 	assert.Equal(t, hosts{burger: "zorg.example.nl", backoffice: "medewerkers.zorg.example.nl"}, own)
 
-	assert.True(t, h.overlaps(hostsOf(newWetsproces("x", "zorgtoeslag-medewerkers"), "cluster.example.org").swapped()))
+	assert.True(t, h.overlaps(hostsOf(newRegelHet("x", "zorgtoeslag-medewerkers"), "cluster.example.org").swapped()))
 	assert.False(t, h.overlaps(own))
 }
 
@@ -109,15 +109,15 @@ func (h hosts) swapped() hosts { return hosts{burger: h.backoffice, backoffice: 
 
 func TestValidateSpec(t *testing.T) {
 	t.Parallel()
-	require.NoError(t, validateSpec(newWetsproces("a", "a"), "cluster.example.org"))
-	for name, mutate := range map[string]func(*v1alpha1.Wetsproces){
-		"credentials in the URL": func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.RepoURL = "https://u:p@git.example.org/a.git" },
-		"plain http":             func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.RepoURL = "http://git.example.org/a.git" },
-		"a full ref":             func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.Ref = "refs/heads/main" },
-		"a path out of the repo": func(w *v1alpha1.Wetsproces) { w.Spec.Manifest.Path = "../etc/passwd" },
-		"a label too long":       func(w *v1alpha1.Wetsproces) { w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345" },
+	require.NoError(t, validateSpec(newRegelHet("a", "a"), "cluster.example.org"))
+	for name, mutate := range map[string]func(*v1alpha1.RegelHet){
+		"credentials in the URL": func(w *v1alpha1.RegelHet) { w.Spec.Manifest.RepoURL = "https://u:p@git.example.org/a.git" },
+		"plain http":             func(w *v1alpha1.RegelHet) { w.Spec.Manifest.RepoURL = "http://git.example.org/a.git" },
+		"a full ref":             func(w *v1alpha1.RegelHet) { w.Spec.Manifest.Ref = "refs/heads/main" },
+		"a path out of the repo": func(w *v1alpha1.RegelHet) { w.Spec.Manifest.Path = "../etc/passwd" },
+		"a label too long":       func(w *v1alpha1.RegelHet) { w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345" },
 	} {
-		w := newWetsproces("a", "a")
+		w := newRegelHet("a", "a")
 		mutate(w)
 		assert.Error(t, validateSpec(w, "cluster.example.org"), name)
 	}
@@ -125,14 +125,14 @@ func TestValidateSpec(t *testing.T) {
 
 func TestChartValuesFollowTheSpec(t *testing.T) {
 	t.Parallel()
-	w := newWetsproces("zorgtoeslag", "zorgtoeslag")
+	w := newRegelHet("zorgtoeslag", "zorgtoeslag")
 	values := chartValues(w, validConfig())
 	_, pinned := values["image"]
 	assert.False(t, pinned, "without a version the chart's own image.ref, the latest build of main, must count")
 	assert.Equal(t, map[string]any{
 		"repoUrl": "https://git.example.org/casus/a.git",
 		"ref":     "main",
-		"path":    "packages/wetsproces/bron.yaml",
+		"path":    "packages/regelhet/bron.yaml",
 	}, values["case"])
 	assert.Equal(t, "zorgtoeslag.cluster.example.org", values["host"])
 	assert.Equal(t, map[string]any{
@@ -144,16 +144,16 @@ func TestChartValuesFollowTheSpec(t *testing.T) {
 	w.Spec.Theme.AccentColor = "paars"
 	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "zorgtoeslag-repo"}
 	values = chartValues(w, validConfig())
-	assert.Equal(t, map[string]any{"ref": "registry.example.org/regelrecht/wetsproces:0123456789abcdef0123456789abcdef01234567"}, values["image"])
+	assert.Equal(t, map[string]any{"ref": "registry.example.org/regelrecht/regelhet:0123456789abcdef0123456789abcdef01234567"}, values["image"])
 	assert.Equal(t, map[string]any{"accentColor": "paars"}, values["theme"])
 	assert.Equal(t, "zorgtoeslag-repo", values["case"].(map[string]any)["credentialsSecret"])
 }
 
 // The chart is the other half of chartValues: every value the plugin sets must
-// be a key of charts/wetsproces/values.yaml, or Helm drops it silently.
+// be a key of charts/regelhet/values.yaml, or Helm drops it silently.
 func TestChartValuesExistInChart(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile("../../charts/wetsproces/values.yaml")
+	raw, err := os.ReadFile("../../charts/regelhet/values.yaml")
 	require.NoError(t, err)
 	var chart map[string]any
 	require.NoError(t, yaml.Unmarshal(raw, &chart))
@@ -170,36 +170,36 @@ func TestChartValuesExistInChart(t *testing.T) {
 			}
 		}
 	}
-	w := newWetsproces("a", "a")
+	w := newRegelHet("a", "a")
 	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
 	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "a-repo"}
 	check("", chartValues(w, validConfig()), chart)
 }
 
-func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {
+func newReconciler(t *testing.T, objs ...client.Object) *RegelHetReconciler {
 	t.Helper()
 	scheme, err := buildScheme()
 	require.NoError(t, err)
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(objs...).
-		WithStatusSubresource(&v1alpha1.Wetsproces{}).
+		WithStatusSubresource(&v1alpha1.RegelHet{}).
 		Build()
-	return &WetsprocesReconciler{Client: c, Scheme: scheme, Config: validConfig()}
+	return &RegelHetReconciler{Client: c, Scheme: scheme, Config: validConfig()}
 }
 
-func reconcileOnce(t *testing.T, r *WetsprocesReconciler, w *v1alpha1.Wetsproces) *v1alpha1.Wetsproces {
+func reconcileOnce(t *testing.T, r *RegelHetReconciler, w *v1alpha1.RegelHet) *v1alpha1.RegelHet {
 	t.Helper()
 	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(w)})
 	require.NoError(t, err)
-	var got v1alpha1.Wetsproces
+	var got v1alpha1.RegelHet
 	require.NoError(t, r.Client.Get(context.Background(), client.ObjectKeyFromObject(w), &got))
 	return &got
 }
 
-func TestReconcileMakesFluxObjectsOwnedByTheWetsproces(t *testing.T) {
+func TestReconcileMakesFluxObjectsOwnedByTheRegelHet(t *testing.T) {
 	t.Parallel()
-	w := newWetsproces("zorgtoeslag", "zorgtoeslag")
+	w := newRegelHet("zorgtoeslag", "zorgtoeslag")
 	r := newReconciler(t, w)
 	got := reconcileOnce(t, r, w)
 
@@ -210,10 +210,10 @@ func TestReconcileMakesFluxObjectsOwnedByTheWetsproces(t *testing.T) {
 		obj := fluxObject(t, r.Client, want.gvkKind, want.name)
 		refs := obj.GetOwnerReferences()
 		require.Len(t, refs, 1, want.name)
-		assert.Equal(t, "Wetsproces", refs[0].Kind)
+		assert.Equal(t, "RegelHet", refs[0].Kind)
 		assert.Equal(t, w.UID, refs[0].UID)
 		require.NotNil(t, refs[0].Controller)
-		assert.True(t, *refs[0].Controller, "the garbage collector deletes it with the Wetsproces")
+		assert.True(t, *refs[0].Controller, "the garbage collector deletes it with the RegelHet")
 		assert.Equal(t, "zorgtoeslag", obj.GetLabels()[nameLabel])
 	}
 	hr := fluxObject(t, r.Client, "HelmRelease", "zorgtoeslag")
@@ -251,7 +251,7 @@ func setReleaseConditions(t *testing.T, c client.Client, name string, conditions
 
 func TestTheStatusFollowsTheRelease(t *testing.T) {
 	t.Parallel()
-	w := newWetsproces("a", "a")
+	w := newRegelHet("a", "a")
 	r := newReconciler(t, w)
 	reconcileOnce(t, r, w)
 
@@ -271,7 +271,7 @@ func TestTheStatusFollowsTheRelease(t *testing.T) {
 
 func TestAnInvalidSpecMakesNothing(t *testing.T) {
 	t.Parallel()
-	w := newWetsproces("a", "a")
+	w := newRegelHet("a", "a")
 	w.Spec.Manifest.Path = "../buiten"
 	r := newReconciler(t, w)
 	got := reconcileOnce(t, r, w)
@@ -284,20 +284,20 @@ func TestAnInvalidSpecMakesNothing(t *testing.T) {
 	assert.Empty(t, list.Items)
 }
 
-// Two wetsprocessen side by side: each gets its own release and source; one
+// Two RegelHet instances side by side: each gets its own release and source; one
 // that wants an address another one has is refused, and the older keeps it.
-func TestTwoWetsprocessenSideBySide(t *testing.T) {
+func TestTwoRegelHetSideBySide(t *testing.T) {
 	t.Parallel()
-	older := newWetsproces("zorgtoeslag", "zorgtoeslag")
+	older := newRegelHet("zorgtoeslag", "zorgtoeslag")
 	older.CreationTimestamp = metav1.NewTime(time.Unix(1000, 0))
-	other := newWetsproces("parkeerkaart", "parkeerkaart")
+	other := newRegelHet("parkeerkaart", "parkeerkaart")
 	other.CreationTimestamp = metav1.NewTime(time.Unix(2000, 0))
-	clash := newWetsproces("tweede", "zorgtoeslag")
+	clash := newRegelHet("tweede", "zorgtoeslag")
 	clash.Namespace = "tnt-voorbeeld--ander"
 	clash.CreationTimestamp = metav1.NewTime(time.Unix(3000, 0))
 	r := newReconciler(t, older, other, clash)
 
-	for _, w := range []*v1alpha1.Wetsproces{older, other} {
+	for _, w := range []*v1alpha1.RegelHet{older, other} {
 		got := reconcileOnce(t, r, w)
 		assert.Equal(t, v1alpha1.PhasePending, got.Status.Phase, w.Name)
 		fluxObject(t, r.Client, "HelmRelease", w.Name)
@@ -318,11 +318,11 @@ func TestUserRolesAggregateIntoAdminAndViewAndGoOnUninstall(t *testing.T) {
 	require.NoError(t, applyUserRoles(ctx, r.Client), "a second apply must update, not fail")
 
 	var admin rbacv1.ClusterRole
-	require.NoError(t, r.Client.Get(ctx, client.ObjectKey{Name: "fundament-wetsproces-admin"}, &admin))
+	require.NoError(t, r.Client.Get(ctx, client.ObjectKey{Name: "fundament-regelhet-admin"}, &admin))
 	assert.Equal(t, "true", admin.Labels["rbac.authorization.k8s.io/aggregate-to-admin"])
 	assert.Contains(t, admin.Rules[0].Verbs, "create")
 	var view rbacv1.ClusterRole
-	require.NoError(t, r.Client.Get(ctx, client.ObjectKey{Name: "fundament-wetsproces-view"}, &view))
+	require.NoError(t, r.Client.Get(ctx, client.ObjectKey{Name: "fundament-regelhet-view"}, &view))
 	assert.NotContains(t, view.Rules[0].Verbs, "create")
 
 	require.NoError(t, deleteUserRoles(ctx, r.Client))
@@ -339,16 +339,16 @@ func TestTheEmbeddedCRDIsTheOneTheDefinitionNames(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"metadata"`
 	}
-	require.NoError(t, yaml.Unmarshal(wetsprocesCRD, &crd))
+	require.NoError(t, yaml.Unmarshal(regelhetCRD, &crd))
 	assert.Equal(t, crdName, crd.Metadata.Name)
 	assert.Equal(t, []string{crdName}, loadSourceDefinition(t).Spec.CRDs)
 }
 
 func TestSummary(t *testing.T) {
 	t.Parallel()
-	ready := v1alpha1.Wetsproces{Status: v1alpha1.WetsprocesStatus{Phase: v1alpha1.PhaseReady}}
-	pending := v1alpha1.Wetsproces{}
-	s := summary([]v1alpha1.Wetsproces{ready, pending})
+	ready := v1alpha1.RegelHet{Status: v1alpha1.RegelHetStatus{Phase: v1alpha1.PhaseReady}}
+	pending := v1alpha1.RegelHet{}
+	s := summary([]v1alpha1.RegelHet{ready, pending})
 	assert.Equal(t, pluginruntime.PhaseRunning, s.Phase)
-	assert.Equal(t, "1 of 2 wetsprocessen ready", s.Message)
+	assert.Equal(t, "1 of 2 RegelHet instances ready", s.Message)
 }

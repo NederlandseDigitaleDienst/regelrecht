@@ -78,7 +78,7 @@ An error with a status or an exception in it is the diagnostic case. Then:
 
 1. Check the container logs: `zad logs <deployment>` (for example `zad logs pr429`)
 2. Look for `ERROR` lines. Common causes are migration conflicts, missing environment variables and panics at startup
-3. If the database is in a bad state (for example a migration checksum mismatch after renumbering), delete the preview deployment (`zad deployment delete <deployment>`) and re-trigger CI to get a fresh database. That empties every schema in it, the `wetsproces` schema included (see [The database](#the-database))
+3. If the database is in a bad state (for example a migration checksum mismatch after renumbering), delete the preview deployment (`zad deployment delete <deployment>`) and re-trigger CI to get a fresh database. That empties every schema in it, the `regelhet` schema included (see [The database](#the-database))
 4. Do not retry blindly; find the cause first
 
 One failure is harmless: `Could not extract URL from result` with `"status": "superseded"` in the JSON below it. ZAD let the task give way to a newer task covering the same deployment (a new push, or the cleanup of a closed PR). The newer task did the work, and re-running only this job is enough.
@@ -114,7 +114,7 @@ What the check can and cannot establish:
 | Docs | `regelrecht-docs` | `docs.regelrecht.rijks.app` + `regelrecht.rijks.app` (landing) |
 | PoC portal | `regelrecht-poc` | `poc.regelrecht.rijks.app` |
 | PoC napp | `regelrecht-poc-napp` | (internal; reached through the portal at `/napp/`) |
-| Wetsproces | `regelrecht-wetsproces` | (built only; no ZAD component yet, see [Wetsproces](/components/wetsproces)) |
+| RegelHet | `regelrecht-regelhet` | (built only; no ZAD component yet, see [RegelHet](/components/regelhet)) |
 | PoC wetsgeschiedenis | `regelrecht-poc-wetsgeschiedenis` | (internal; reached through the portal at `/wetsgeschiedenis/`) |
 | Grafana | `regelrecht-grafana` | `grafana.regelrecht.rijks.app` (built on `main` only; not part of a preview) |
 
@@ -122,7 +122,7 @@ The docs image also serves `/roadmap`, a read-only rendering of the werkpakkette
 
 ## The database
 
-A deployment has one PostgreSQL database, which ZAD passes to its components as `DATABASE_SERVER_FULL`. The pipeline, the admin and the editor API run the pipeline's migrations (`packages/pipeline/migrations/`), whose tables are in the `public` schema. Once the wetsproces server runs as a component, it keeps its chronicles in a schema of its own, `wetsproces`, described on [Wetsproces](/components/wetsproces#storage). Neither set of migrations touches the other's tables.
+A deployment has one PostgreSQL database, which ZAD passes to its components as `DATABASE_SERVER_FULL`. The pipeline, the admin and the editor API run the pipeline's migrations (`packages/pipeline/migrations/`), whose tables are in the `public` schema. Once the RegelHet server runs as a component, it keeps its chronicles in a schema of its own, `regelhet`, described on [RegelHet](/components/regelhet#storage). Neither set of migrations touches the other's tables.
 
 ## The demo
 

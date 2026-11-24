@@ -1,9 +1,9 @@
-# Wetsproces Fundament plugin
+# RegelHet Fundament plugin
 
 A [Fundament](https://github.com/fundament-oss/fundament) plugin that offers
-the wetsprocessysteem (`packages/wetsproces`) to the projects of a cluster. It
+RegelHet (`packages/regelhet`) to the projects of a cluster. It
 is installed once per cluster. After that a project member creates a
-wetsproces in the console under **Wetsprocessen**, and each one runs one case
+RegelHet in the console under **RegelHet**, and each one runs one case
 on an address of its own, with a database of its own. Several can run in one
 namespace or spread over several. The model is that of Fundament's
 CloudNativePG plugin, where a project makes its own databases.
@@ -13,23 +13,23 @@ The plugin is derived from the Haven+ plugin
 EUPL-1.2), and its console pages from those of Fundament's CloudNativePG plugin
 (Apache-2.0).
 
-## The Wetsproces resource
+## The RegelHet resource
 
-A wetsproces is a namespaced object of kind `Wetsproces`
-(`wetsproces.regelrecht.nl/v1alpha1`, CRD in `crds/`). The plugin installs the
+A RegelHet is a namespaced object of kind `RegelHet`
+(`regelhet.regelrecht.nl/v1alpha1`, CRD in `crds/`). The plugin installs the
 CRD when it starts.
 
 ```yaml
-apiVersion: wetsproces.regelrecht.nl/v1alpha1
-kind: Wetsproces
+apiVersion: regelhet.regelrecht.nl/v1alpha1
+kind: RegelHet
 metadata:
   name: zorgtoeslag
-  namespace: tnt-rr-voorbeeld--wetsproces
+  namespace: tnt-rr-voorbeeld--regelhet
 spec:
   manifest:
     repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
     ref: main
-    path: packages/wetsproces/bron.yaml
+    path: packages/regelhet/bron.yaml
     # For a private repository: a Secret with the keys username and token.
     # credentialsSecretRef:
     #   name: zorgtoeslag-repo
@@ -50,7 +50,7 @@ status:
 | `manifest.ref` | branch, tag or full commit, `main` by default; a commit pins the case to one version |
 | `manifest.path` | path of the source manifest (`bron.yaml`) in that repository. The case file and the articles it runs are named there, so the wizard does not ask for them |
 | `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository |
-| `version` | the regelrecht commit whose wetsproces image runs, the full 40-character hash. Empty follows the latest build of main |
+| `version` | the regelrecht commit whose RegelHet image runs, the full 40-character hash. Empty follows the latest build of main |
 | `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
 | `hostname` | a name under the base domain, or a domain of your own with a dot in it |
 
@@ -67,17 +67,17 @@ stay one label under the base domain, because the wildcard record of
 hostname with a dot in it is a domain of its own; employees then get
 `medewerkers.<hostname>`, and you make the DNS records for both yourself.
 
-Two wetsprocessen cannot share an address. The older one keeps it; the newer
+Two RegelHet instances cannot share an address. The older one keeps it; the newer
 one goes to `Failed` with the reason `HostnameInUse` and makes nothing until
 its hostname changes or the other one is gone.
 
 ## What the plugin makes
 
-For each Wetsproces the plugin's controller makes two Flux objects in the
+For each RegelHet the plugin's controller makes two Flux objects in the
 namespace of the object, both owned by it:
 
 1. a `GitRepository` named `<name>-chart` for this repository, kept to
-   `charts/wetsproces` at `CHART_REF`;
+   `charts/regelhet` at `CHART_REF`;
 2. a `HelmRelease` named `<name>` that installs that chart with values from the
    spec.
 
@@ -89,28 +89,28 @@ spec is refused, `Pending` before that.
 The chart then runs what it runs by default since PR #7: a CloudNativePG
 `Cluster` as the database of the release, one instance for citizens and one for
 employees, each on its own address. Behind the shared Gateway (below) a release
-needs no public address of its own, so two wetsprocessen take no more IP
+needs no public address of its own, so two RegelHet instances take no more IP
 addresses than one.
 
-### Deleting a wetsproces deletes its data
+### Deleting a RegelHet deletes its data
 
-Deleting a Wetsproces deletes its `HelmRelease` through the owner reference,
+Deleting a RegelHet deletes its `HelmRelease` through the owner reference,
 and helm-controller uninstalls the release. That removes the CloudNativePG
 `Cluster`, which removes its PVCs, and with them every chronicle of the
-wetsproces. There is no retention option and there are no backups. The detail
+RegelHet. There is no retention option and there are no backups. The detail
 page in the console and the last step of the wizard say this.
 
 One Secret stays behind: `<name>-letsencrypt-<acme>-account`, the key of the
 ACME account, which cert-manager makes for the release's Issuer without an
-owner. It holds no data of the wetsproces; delete it by hand if you like.
+owner. It holds no data of the RegelHet; delete it by hand if you like.
 
 ### Version
 
 Without a `version` the HelmRelease leaves `image` out of its values, so the
 chart's own `image.ref` counts. That line names the latest build of main:
-`.forgejo/workflows/wetsproces-image.yml` sets it after every build, in a
+`.forgejo/workflows/regelhet-image.yml` sets it after every build, in a
 commit of its own. Because the HelmRelease rebuilds the chart on every new
-commit of its source (`reconcileStrategy: Revision`), a wetsproces without a
+commit of its source (`reconcileStrategy: Revision`), a RegelHet without a
 version rolls out each new build within the interval of its `GitRepository`.
 With a `version` it runs `<DEFAULT_IMAGE>:<version>` and stays there.
 
@@ -120,7 +120,7 @@ says why in its log.
 
 ## The chart behind a shared Gateway
 
-`charts/wetsproces` reaches its hosts in one of three ways, chosen by
+`charts/regelhet` reaches its hosts in one of three ways, chosen by
 `gateway.mode`. The default, `listenerSet`, is the one the plugin uses on
 `cluster-a` and `cluster-b`:
 
@@ -156,30 +156,30 @@ of its own and an HTTP listener of its own, with `dns.*` for the records.
 
 ## Console
 
-The plugin adds **Wetsprocessen** to the project sidebar, with pages of its own
+The plugin adds **RegelHet** to the project sidebar, with pages of its own
 under `console/`: a list, a detail page with the addresses and the status, and
 a wizard that asks, one step at a time, for the case, the access, the version,
 the accent color and the address, and shows what it will make before it makes
 it. For a private repository the wizard makes the Secret with the token as well,
-owned by the Wetsproces so the two go together.
+owned by the RegelHet so the two go together.
 
 The version step offers the latest build or a commit typed in. It does not list
 the available builds: the console's content security policy lets a page reach
 only Fundament's own APIs, not the registry.
 
 The pages are plain ES modules with the NLDD components the console serves
-(0.15.0). Their logic outside the DOM is in `console/wetsprocessen-body.js`,
+(0.15.0). Their logic outside the DOM is in `console/regelhets-body.js`,
 with tests in `console-test/`.
 
 ## Configuration
 
-The install form holds defaults only; everything per wetsproces is in its
+The install form holds defaults only; everything per RegelHet is in its
 object. The plugin reads each key as the `FUNP_<name>` environment variable.
 
 | Key | Required | Default | What it is |
 |---|---|---|---|
 | `DOMAIN` | yes | | the base domain, e.g. `cluster-a.fieldlab2026.nl` |
-| `DEFAULT_IMAGE` | no (advanced) | `code.digitaledienst.overheid.nl/regelrecht/wetsproces` | image repository for a wetsproces with a version |
+| `DEFAULT_IMAGE` | no (advanced) | `code.digitaledienst.overheid.nl/regelrecht/regelhet` | image repository for a RegelHet with a version |
 | `CHART_REF` | no (advanced) | `main` | branch or tag of this repository that the chart is read from |
 | `ACME` | no (advanced) | `production` | Let's Encrypt environment: `staging` or `production` |
 
@@ -196,18 +196,18 @@ v0.1 made stay in their namespace until they are deleted by hand.
 | Event | What the plugin does |
 |---|---|
 | Start, install, upgrade | Checks that Flux is there, applies the CRD and the two roles below, then runs the controller. A failed set-up is retried every 30 seconds. |
-| Reconcile | Repairs the CRD and the roles and reports how many wetsprocessen are ready, every `FUNP_RECONCILE_INTERVAL` (default 5m). |
-| Uninstall | Deletes the two roles. It keeps the CRD and every Wetsproces: deleting the CRD would delete every wetsproces with its data. Flux keeps them running; without the plugin nobody reconciles a change. |
+| Reconcile | Repairs the CRD and the roles and reports how many RegelHet instances are ready, every `FUNP_RECONCILE_INTERVAL` (default 5m). |
+| Uninstall | Deletes the two roles. It keeps the CRD and every RegelHet: deleting the CRD would delete every RegelHet with its data. Flux keeps them running; without the plugin nobody reconciles a change. |
 
-To remove everything after an uninstall, delete the Wetsproces objects first
-(`kubectl delete wetsprocessen --all -n <namespace>`), then the CRD.
+To remove everything after an uninstall, delete the RegelHet objects first
+(`kubectl delete RegelHet instances --all -n <namespace>`), then the CRD.
 
 ## Permissions
 
 Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept
 to the namespaces of a project. The rules in `definition.yaml` say per group
 why the plugin needs them. In short: create and get the plugin's own CRD,
-manage two ClusterRoles by name, manage Wetsproces objects and their status,
+manage two ClusterRoles by name, manage RegelHet objects and their status,
 manage Flux `GitRepository` and `HelmRelease` objects, and create Secrets. The
 last one is for the wizard: a console page acts with the rights the user and the
 plugin share, so the plugin must hold every right a page uses. Neither the
@@ -215,7 +215,7 @@ plugin nor its pages read a Secret.
 
 The two ClusterRoles aggregate into `admin` and `view`, the roles Fundament
 binds project admins and viewers to. Admins may create and delete
-wetsprocessen; viewers may read them.
+RegelHet instances; viewers may read them.
 
 ## Develop
 
@@ -225,11 +225,11 @@ regenerate the deep copies and the CRD with controller-gen 0.20:
 ```sh
 controller-gen object paths=./api/... crd:crdVersions=v1 output:crd:dir=./crds
 go -C packages/fundament-plugin test ./...
-node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
-docker build -t wetsproces-fundament-plugin:dev packages/fundament-plugin
+node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+docker build -t regelhet-fundament-plugin:dev packages/fundament-plugin
 ```
 
-`TestChartValuesExistInChart` reads `charts/wetsproces/values.yaml`, so the
+`TestChartValuesExistInChart` reads `charts/regelhet/values.yaml`, so the
 tests run from a checkout of the whole repository.
 
 ## Publish
@@ -240,11 +240,11 @@ publish` takes the image by digest and injects it into the definition:
 
 ```sh
 docker buildx build --platform linux/amd64 --push \
-  -t code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.2.0 packages/fundament-plugin
-docker buildx imagetools inspect code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin:v0.2.0
+  -t code.digitaledienst.overheid.nl/regelrecht/regelhet-plugin:v0.2.0 packages/fundament-plugin
+docker buildx imagetools inspect code.digitaledienst.overheid.nl/regelrecht/regelhet-plugin:v0.2.0
 FUNCTL_REGISTRY_URL=https://marketplace-registry-api.fundament-poc.nl \
   functl plugin publish packages/fundament-plugin/definition.yaml --create --submit \
-  --image=code.digitaledienst.overheid.nl/regelrecht/wetsproces-plugin@sha256:<digest>
+  --image=code.digitaledienst.overheid.nl/regelrecht/regelhet-plugin@sha256:<digest>
 ```
 
 `--submit` sends the version to review. The console offers only approved

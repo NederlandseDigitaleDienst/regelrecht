@@ -1,0 +1,109 @@
+---
+# Het RegelHet dat dit component uitvoert: de gehandicaptenparkeerkaart bij
+# de fictieve gemeente Wilgendaal (BABW, artikel 49), met de Awb-keten van
+# aanvraag, bezwaar en beroep. Dezelfde cel, hetzelfde artikel en hetzelfde
+# corpus als de casus van de chronolexografie-poc
+# (packages/poc-chronolexografie/corpus/casussen/gehandicaptenparkeerkaart.yaml);
+# wat daar alleen voor het naspelen dient, zoals de scenario's en de
+# voorbeeldgegevens, staat hier niet. De regelwerken die de cel draait leidt
+# de kern af uit dit artikel en de cel, binnen dit corpus.
+cel: gemeente_wilgendaal
+artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+corpus:
+  - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+# De uitvoer die zegt of het besluit het gevraagde toewijst.
+uitkomst: gehandicaptenparkeerkaart_verstrekt
+titel: Gehandicaptenparkeerkaart
+cel_naam: gemeente Wilgendaal
+# De dag waarop de bestuurbare klok in test mode begint.
+speeldatum: 2026-10-13
+voorbeeld: {}
+# De GGD die het geneeskundig onderzoek verricht en de bestuursrechter, elk
+# met een eigen kroniek (RFC-048, RFC-053).
+andere_cellen:
+  - cel: ggd_wilgendaal
+    cel_naam: GGD Wilgendaal
+  - cel: rechtbank_wilgendaal
+    cel_naam: Rechtbank Wilgendaal
+# Wat het college uit eigen beleid doet als een aanvraag binnenkomt: artikel 9
+# van zijn fictieve beleid zegt of het de GGD om een geneeskundig onderzoek
+# vraagt. Zo ja, dan legt de gemeente het verzoek vast en de GGD de
+# ontvangst, in dezelfde stap. Het artikel krijgt de velden van de aanvraag,
+# de dag waarop zij binnenkwam (datum_verzoek) en de aanvraag zelf. De GGD
+# antwoordt met het advies van artikel 5; een advies hoort bij een verzoek
+# als het over dezelfde aanvrager gaat en het onderzoek op of na de dag van
+# het verzoek plaatsvond.
+# `taak` is hoe dat antwoord heet zolang het nog moet komen; het feit noemt
+# wat er daarna vastligt.
+bij_aanvraag:
+  - artikel: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9
+    parameters:
+      datum_verzoek: date
+      aanvraag: submission
+    antwoord:
+      feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht
+      datum: datum_onderzoek
+      taak: Geneeskundig advies uitbrengen
+# Wat er na een toekenning met de kaart gebeurt: de gemeente bestelt haar bij
+# de drukker, de postkamer stelt vast dat de gedrukte kaart binnen is, en de
+# gemeente reikt haar uit. Elk is een feit van artikel 5 van het fictieve
+# beleid over verstrekte kaarten, dat verwijst naar het besluit dat de kaart
+# verstrekte. Het aggregaat per besluit van de reductie van de gemeente houdt
+# bij welk besluit dat is (toekenning) en op welke dag elke handeling
+# plaatsvond (gedaan). De handelingen komen in deze volgorde en elk één keer;
+# na een weigering, of een verstrekking die op bezwaar is herroepen of door de
+# rechter vernietigd, komt er geen. `knop` is wat de medewerker aanklikt,
+# `taak` hoe de handeling als volgende stap heet, en `stand` wat de burger
+# leest zodra de handeling gedaan is.
+na_toekenning:
+  aggregaat: reductie_geldige_gehandicaptenparkeerkaart#kaart
+  toekenning: toekenningsbesluit
+  stand: Uw kaart is toegekend. De gemeente bestelt haar bij de drukker.
+  handelingen:
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7#kaart_besteld_bij_drukker
+      gedaan: datum_bestelling
+      taak: Kaart bij de drukker bestellen
+      # Geen mens nodig: het systeem bestelt zelf zodra de toekenning geldt
+      # (artikel 7), in dezelfde stap als het besluit.
+      door_het_systeem:
+        artikel: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7
+        parameters:
+          datum_bestelling: date
+          toekenningsbesluit: submission
+      stand: Uw kaart wordt gedrukt.
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#gedrukte_kaart_ontvangen
+      gedaan: datum_ontvangst
+      knop: Ontvangst van de gedrukte kaart vastleggen
+      taak: Gedrukte kaart ontvangen
+      stand: Uw kaart ligt klaar.
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_uitgereikt
+      gedaan: datum_uitreiking
+      knop: Kaart uitreiken
+      taak: Kaart uitreiken
+      stand: Uw kaart is op {datum} aan u uitgereikt.
+  # Wat de burger leest onder een kaart die niet meer geldt omdat er een
+  # nieuwe voor in de plaats kwam, zoals een duplicaat (artikel 53, eerste
+  # lid, onder b, van het BABW).
+  vervallen: Deze kaart geldt niet meer. Er is een nieuwe kaart voor in de plaats gekomen.
+  # Wat de burger kan aanvragen bij een kaart die is uitgereikt: een
+  # duplicaat van een kaart die kwijt is (artikel 52 van het BABW). De
+  # aanvraag verwijst naar het besluit dat de kaart verstrekte.
+  aanvragen:
+    - artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#52
+      knop: Kaart kwijt?
+      titel: Kaart kwijt of gestolen
+      uitkomst: duplicaat_verstrekt
+      uitleg: >-
+        Is uw kaart kwijt of gestolen? Meld het hier en vraag meteen een
+        nieuwe kaart aan. U krijgt een duplicaat dat even lang geldig is als
+        uw kaart. Uw oude kaart geldt dan niet meer.
+scenarios: []

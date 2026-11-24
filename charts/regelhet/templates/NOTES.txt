@@ -1,0 +1,12 @@
+regelhet runs the case from {{ .Values.case.repoUrl }} at {{ .Values.case.ref }} ({{ .Values.case.path }}).
+Chronicles: {{ if .Values.database.enabled }}PostgreSQL, CNPG Cluster {{ include "regelhet.dbCluster" . }}{{ else }}in memory, gone at every restart{{ end }}.
+{{- if .Values.gateway.enabled }}
+
+Addresses:
+{{- range include "regelhet.instances" . | fromJsonArray }}
+  {{ .surface }}: https://{{ .host }}
+{{- end }}
+(Let's Encrypt {{ .Values.tls.acme }})
+The hosts must resolve to the address of Gateway {{ .Release.Name }}:
+  kubectl -n {{ .Release.Namespace }} get gateway {{ .Release.Name }}
+{{- end }}

@@ -9,7 +9,7 @@
 // table anew; removing the last row empties the field, and saving a new row
 // with nothing filled in adds nothing. A table the system fills
 // (`alleenLezen`) shows its rows without the buttons. Shared by the
-// chronolexografie poc and the wetsprocessysteem.
+// chronolexografie poc and RegelHet.
 import { computed, ref } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
 import { bronRij, celTekst, kolomVeld, sleutelKolommen } from '../../chronolex/tabel';

@@ -18,7 +18,7 @@ import (
 	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
 
-// retryRequeue is how soon a Wetsproces refused for a hostname another one
+// retryRequeue is how soon a RegelHet refused for a hostname another one
 // holds is looked at again: that one may be deleted without an event here.
 const retryRequeue = 5 * time.Minute
 
@@ -31,13 +31,13 @@ const (
 	reasonReleaseStalled = "ReleaseStalled"
 )
 
-// WetsprocesReconciler makes, for each Wetsproces, the Flux objects that run
-// it, in the namespace of the object and owned by it. Deleting a Wetsproces
+// RegelHetReconciler makes, for each RegelHet, the Flux objects that run
+// it, in the namespace of the object and owned by it. Deleting a RegelHet
 // therefore deletes its HelmRelease, and helm-controller uninstalls the
 // release with everything in it, the database and its volume included. It
 // writes what it finds back into the status.
-type WetsprocesReconciler struct {
-	// Client reads the Wetsproces objects and the Flux objects from the
+type RegelHetReconciler struct {
+	// Client reads the RegelHet objects and the Flux objects from the
 	// manager's cache.
 	Client client.Client
 	Scheme *runtime.Scheme
@@ -45,28 +45,28 @@ type WetsprocesReconciler struct {
 }
 
 // SetupWithManager registers the reconciler: it runs for every change of a
-// Wetsproces and of a GitRepository or HelmRelease it owns.
-func (r *WetsprocesReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// RegelHet and of a GitRepository or HelmRelease it owns.
+func (r *RegelHetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	owned := func(gvk schema.GroupVersionKind) *unstructured.Unstructured {
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(gvk)
 		return obj
 	}
 	err := ctrl.NewControllerManagedBy(mgr).
-		Named("wetsproces").
-		For(&v1alpha1.Wetsproces{}).
+		Named("regelhet").
+		For(&v1alpha1.RegelHet{}).
 		Owns(owned(gitRepositoryGVK)).
 		Owns(owned(helmReleaseGVK)).
 		Complete(r)
 	if err != nil {
-		return fmt.Errorf("register the Wetsproces controller: %w", err)
+		return fmt.Errorf("register the RegelHet controller: %w", err)
 	}
 	return nil
 }
 
-// Reconcile brings one Wetsproces to its spec.
-func (r *WetsprocesReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var w v1alpha1.Wetsproces
+// Reconcile brings one RegelHet to its spec.
+func (r *RegelHetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	var w v1alpha1.RegelHet
 	if err := r.Client.Get(ctx, req.NamespacedName, &w); err != nil {
 		// Gone: the garbage collector removes what it owned.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -83,7 +83,7 @@ func (r *WetsprocesReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return result, err
 }
 
-func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetsproces) (ctrl.Result, error) {
+func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet) (ctrl.Result, error) {
 	h := hostsOf(w, r.Config.Domain)
 	w.Status.URL = "https://" + h.burger + "/"
 	w.Status.BackofficeURL = "https://" + h.backoffice + "/"
@@ -96,7 +96,7 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 		return ctrl.Result{}, err
 	}
 	if taken != "" {
-		refuse(w, reasonHostnameInUse, fmt.Sprintf("hostname %s gives an address Wetsproces %s has already", w.Spec.Hostname, taken))
+		refuse(w, reasonHostnameInUse, fmt.Sprintf("hostname %s gives an address RegelHet %s has already", w.Spec.Hostname, taken))
 		return ctrl.Result{RequeueAfter: retryRequeue}, nil
 	}
 
@@ -125,7 +125,7 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 }
 
 // refuse marks w failed for reason, and makes nothing for it.
-func refuse(w *v1alpha1.Wetsproces, reason, message string) {
+func refuse(w *v1alpha1.RegelHet, reason, message string) {
 	w.Status.Phase = v1alpha1.PhaseFailed
 	w.Status.Message = message
 	apimeta.SetStatusCondition(&w.Status.Conditions, metav1.Condition{
@@ -133,14 +133,14 @@ func refuse(w *v1alpha1.Wetsproces, reason, message string) {
 	})
 }
 
-// hostTakenBy names the Wetsproces that has an address of w already, or "".
+// hostTakenBy names the RegelHet that has an address of w already, or "".
 // Of two with one address the older keeps it, and between two made at the same
 // second the first by namespace and name, so the answer does not depend on
 // which one is reconciled first.
-func (r *WetsprocesReconciler) hostTakenBy(ctx context.Context, w *v1alpha1.Wetsproces) (string, error) {
-	var all v1alpha1.WetsprocesList
+func (r *RegelHetReconciler) hostTakenBy(ctx context.Context, w *v1alpha1.RegelHet) (string, error) {
+	var all v1alpha1.RegelHetList
 	if err := r.Client.List(ctx, &all); err != nil {
-		return "", fmt.Errorf("list wetsprocessen: %w", err)
+		return "", fmt.Errorf("list regelhets: %w", err)
 	}
 	mine := hostsOf(w, r.Config.Domain)
 	for i := range all.Items {
@@ -155,7 +155,7 @@ func (r *WetsprocesReconciler) hostTakenBy(ctx context.Context, w *v1alpha1.Wets
 	return "", nil
 }
 
-func comesFirst(a, b *v1alpha1.Wetsproces) bool {
+func comesFirst(a, b *v1alpha1.RegelHet) bool {
 	if !a.CreationTimestamp.Equal(&b.CreationTimestamp) {
 		return a.CreationTimestamp.Before(&b.CreationTimestamp)
 	}
@@ -163,7 +163,7 @@ func comesFirst(a, b *v1alpha1.Wetsproces) bool {
 }
 
 // apply server-side applies obj, owned by w.
-func (r *WetsprocesReconciler) apply(ctx context.Context, w *v1alpha1.Wetsproces, obj *unstructured.Unstructured) error {
+func (r *RegelHetReconciler) apply(ctx context.Context, w *v1alpha1.RegelHet, obj *unstructured.Unstructured) error {
 	if err := controllerutil.SetControllerReference(w, obj, r.Scheme); err != nil {
 		return fmt.Errorf("own %s %s: %w", obj.GetKind(), obj.GetName(), err)
 	}
@@ -176,7 +176,7 @@ func (r *WetsprocesReconciler) apply(ctx context.Context, w *v1alpha1.Wetsproces
 
 // releaseCondition is ReleaseReady: the HelmRelease's Ready, with Stalled
 // (Flux gave up until the spec changes) as a failure of its own.
-func (r *WetsprocesReconciler) releaseCondition(ctx context.Context, w *v1alpha1.Wetsproces) metav1.Condition {
+func (r *RegelHetReconciler) releaseCondition(ctx context.Context, w *v1alpha1.RegelHet) metav1.Condition {
 	c := metav1.Condition{Type: v1alpha1.ConditionReleaseReady, Status: metav1.ConditionFalse, Reason: reasonReleasePending}
 	hr := &unstructured.Unstructured{}
 	hr.SetGroupVersionKind(helmReleaseGVK)

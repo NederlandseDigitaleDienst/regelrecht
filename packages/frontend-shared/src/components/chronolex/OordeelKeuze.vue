@@ -3,7 +3,7 @@
 // reconsideration empty is "leave what it found before"; on a term the cell
 // does not know for this application it is "not judged yet". The value is
 // true, false or undefined. Shared by the chronolexografie poc and the
-// wetsprocessysteem; `label` names the field as a UI spec may say it.
+// RegelHet; `label` names the field as a UI spec may say it.
 import { computed } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
 
