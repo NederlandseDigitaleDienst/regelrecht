@@ -1,36 +1,43 @@
 <script setup lang="ts">
 // The work queue of the executor, the one cell the employee works for: the
 // submissions that wait for its decision, as the server gives them
-// (`GET /api/backoffice/werkvoorraad`), and the facts it records itself. A
+// (`GET /api/backoffice/werkvoorraad`), the grants whose acts are not all done
+// (`na_toekenning` in the case file), and the facts it records itself. A
 // submission waits when no decision was taken on it yet, or when a later
 // record revoked its last decision with nothing in its place, such as the
 // receipt of a judgment that annulled a decision on objection: then it is to
-// be decided again, after that record (`na`). Every employee opens a
-// submission to read it, and a decider decides on it there and records
-// facts. What the account may not do does not show. What an external party
-// does, such as the GGD's advice, comes in through the admin panel. Laid out as the
-// editor's library: the queue in the sidebar, the submission being handled
-// in the main pane beside it (BehandelenPaneel.vue). Under the queue, what
-// follows a grant (`na_toekenning` in the case file): each grant whose acts
-// are not all done, how far it is, and for a decider the next act as a
-// button. Those acts are recorded only there, never on their own.
+// be decided again, after that record (`na`).
+//
+// Laid out as the editor's library: the lists in the primary sidebar (Te doen
+// first, see lijsten.ts), the rows of the chosen list beside them, and the
+// submission being handled in the main pane (BehandelenPaneel.vue). The list
+// is in the address (`?lijst=`), so it stays when a submission opens. Every
+// employee opens a submission to read it; a decider decides on it there, and
+// opens the next act after a grant from its row. What the account may not do
+// does not show. What an external party does, such as the GGD's advice, comes
+// in through the admin panel.
+
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { hoofdletter, toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
 import { artikelNaam, omschrijving, rolVan } from '../gedeeld/keten';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
-import type { Kroniek, Werkvoorraad } from './api';
+import type { EigenVerzoek, Kroniek, Werkvoorraad } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 import { feitNaam } from './feit';
+import { LIJSTEN, lijstVan, lijstenVanIndiening, lijstenVanToekenning, oudsteEerst } from './lijsten';
+import type { Lijst } from './lijsten';
+import { verzoekenBij } from './verzoek';
 import { medewerkerStand, vervolgFeiten } from '../gedeeld/vervolg';
 import type { Vervolgstand } from '../gedeeld/types';
 import FeitVastleggen from './FeitVastleggen.vue';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string; id?: string }>();
+const route = useRoute();
 const router = useRouter();
 const { casus, vormen, wie, kronieken, fout, laden, laad: laadBackoffice } = useBackoffice();
 
@@ -41,9 +48,12 @@ const geladenVoor = ref<string | undefined>();
 /** The grants of the executor and how far their acts are. */
 const vervolg = ref<Vervolgstand[]>([]);
 const vervolgFout = ref('');
+/** The requests the executor's policy made, to tell what waits on an answer. */
+const verzoeken = ref<EigenVerzoek[]>([]);
+const verzoekenFout = ref('');
 /**
- * Load the queue, the chronicles and the grants; `stil` keeps what shows
- * while it loads, as when another submission is opened.
+ * Load the queue, the chronicles, the grants and the requests; `stil` keeps
+ * what shows while it loads, as when another submission is opened.
  */
 async function laad(stil = false) {
   // What the pane may decide on is the queue as loaded for the submission
@@ -64,6 +74,13 @@ async function laad(stil = false) {
   } catch (e) {
     vervolgFout.value = foutTekst(e);
   }
+  try {
+    verzoeken.value = (await backofficeApi.verzoeken()).verzoeken;
+    verzoekenFout.value = '';
+  } catch (e) {
+    verzoeken.value = [];
+    verzoekenFout.value = foutTekst(e);
+  }
 }
 onMounted(() => laad());
 // Opening a submission loads the queue again, so a decision another
@@ -73,62 +90,119 @@ watch(
   (id, voor) => id && id !== voor && laad(true),
 );
 
-/** Per grant whose acts are not all done: how far it is and the next act, as the case names it. */
-const openToekenningen = computed(() => {
-  const na = casus.value?.na_toekenning;
-  if (!na) return [];
-  return vervolg.value
-    .filter((s) => s.volgende)
-    .map((s) => {
-      const volgende = na.handelingen.find((h) => h.feit === s.volgende);
-      // An act the system takes itself has no button: it waits for the system.
-      const doorSysteem = !!volgende?.door_het_systeem;
-      // By name where the application recorded one, else by the login field.
-      const wie = s.naam || (s.aanvrager ? toon(s.aanvrager) : '');
-      return {
-        stand: s,
-        tekst: [casus.value?.titel, wie ? `voor ${wie}` : ''].filter(Boolean).join(' '),
-        regel: medewerkerStand(s, na),
-        knop: doorSysteem ? 'wacht op het systeem' : (volgende?.knop ?? `${feitNaam(s.volgende ?? '')} vastleggen`),
-        handeling: doorSysteem ? undefined : vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),
-      };
-    });
+/** The list the address names, Te doen when it names none. */
+const lijst = computed(() => lijstVan(route.query.lijst));
+const huidigeLijst = computed(() => LIJSTEN.find((l) => l.naam === lijst.value) ?? LIJSTEN[0]);
+
+/** What the account may do at the executor; none when it may not read its chronicle. */
+const recht = computed(() => wie.value?.cellen.find((c) => c.cel === casus.value?.cel));
+
+/** The facts the executor records on their own; an act after a grant is recorded beside that grant. */
+const handelingen = computed(() => {
+  const eigen = vormen.value?.eigen;
+  return recht.value?.beslissen && eigen?.cel === recht.value.cel
+    ? eigen.handelingen.filter((h) => !vervolgFeiten(casus.value).has(h.feit))
+    : [];
 });
 
-/** The executor: what the account may do there, its open submissions and the facts it records. */
-const cellen = computed(() =>
-  (wie.value?.cellen ?? []).map((recht) => {
-    const kroniek = kronieken.value.find((k) => k.cel === recht.cel);
-    const eigen = vormen.value?.eigen;
-    return {
-      recht,
-      open: kroniek && werkvoorraad.value?.cel === recht.cel ? werkvoorraad.value.open.map((w) => rij(w.stuk, w.na, kroniek)) : [],
-      // An act after a grant is recorded beside that grant, not on its own.
-      handelingen:
-        recht.beslissen && eigen?.cel === recht.cel
-          ? eigen.handelingen.filter((h) => !vervolgFeiten(casus.value).has(h.feit))
-          : [],
+/** A row of a list: a submission to decide on, or a grant whose next act waits. */
+type Rij =
+  | { soort: 'indiening'; sleutel: string; sinds: string; lijsten: Lijst[]; tekst: string; regel: string; opnieuw: boolean }
+  | {
+      soort: 'toekenning';
+      sleutel: string;
+      sinds: string;
+      lijsten: Lijst[];
+      tekst: string;
+      regel: string;
+      knop: string;
+      handeling?: Handeling;
     };
-  }),
-);
 
 /**
- * A row of the queue: the submission in words, and when its decision was
- * revoked, the record to decide after, in words.
+ * A submission that waits for a decision, in words: when it came in, when
+ * its decision was revoked the record to decide after, and whom it waits on
+ * when a request about it is still open.
  */
-function rij(stuk: Gram, na: string | undefined, kroniek: Kroniek) {
+function indieningsRij(stuk: Gram, na: string | undefined, kroniek: Kroniek): Rij {
   const c = casus.value;
   const naGram = na ? kroniek.grammen.find((g) => g.id === na) : undefined;
-  const regel = `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`;
+  const wachtOp = [...new Set(verzoekenBij(stuk, verzoeken.value).filter((v) => v.open).map((v) => v.aan_naam))];
+  const regel = [
+    `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`,
+    naGram && c
+      ? `Opnieuw beslissen na ${omschrijving(naGram, c, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
+      : '',
+    wachtOp.length ? `Wacht op ${wachtOp.join(' en ')}` : '',
+  ];
   return {
-    stuk,
-    opnieuw: !!na,
+    soort: 'indiening',
+    sleutel: stuk.id,
+    sinds: naGram?.recorded_on ?? stuk.recorded_on,
+    lijsten: lijstenVanIndiening(wachtOp.length > 0),
     tekst: c ? omschrijving(stuk, c, 'indiening') : stuk.kind,
-    regel:
-      naGram && c
-        ? `${regel} · Opnieuw beslissen na ${omschrijving(naGram, c, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
-        : regel,
+    regel: regel.filter(Boolean).join(' · '),
+    opnieuw: !!na,
   };
+}
+
+/** Per grant whose acts are not all done: how far it is and the next act, as the case names it. */
+function toekenningsRijen(): Rij[] {
+  const na = casus.value?.na_toekenning;
+  if (!na) return [];
+  return vervolg.value.flatMap((s): Rij[] => {
+    if (!s.volgende) return [];
+    const volgende = na.handelingen.find((h) => h.feit === s.volgende);
+    // An act the system takes itself has no button: it waits for the system.
+    const doorSysteem = !!volgende?.door_het_systeem;
+    // By name where the application recorded one, else by the login field.
+    const wie = s.naam || (s.aanvrager ? toon(s.aanvrager) : '');
+    const knop = doorSysteem ? 'wacht op het systeem' : (volgende?.knop ?? `${feitNaam(s.volgende)} vastleggen`);
+    const regel = medewerkerStand(s, na);
+    const gedaan = s.stappen.flatMap((st) => (st.gedaan ? [st.gedaan] : [])).sort();
+    return [
+      {
+        soort: 'toekenning',
+        sleutel: s.toekenning,
+        sinds: gedaan.at(-1) ?? s.toegekend_op ?? '',
+        lijsten: lijstenVanToekenning(doorSysteem),
+        tekst: [casus.value?.titel, wie ? `voor ${wie}` : ''].filter(Boolean).join(' '),
+        regel: recht.value?.beslissen ? `${regel} · Volgende stap: ${knop}` : regel,
+        knop,
+        handeling: doorSysteem ? undefined : vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),
+      },
+    ];
+  });
+}
+
+/** Every row, whatever list it is in. */
+const rijen = computed((): Rij[] => {
+  const kroniek = kronieken.value.find((k) => k.cel === casus.value?.cel);
+  const open = kroniek && werkvoorraad.value?.cel === kroniek.cel ? werkvoorraad.value.open : [];
+  return [...(kroniek ? open.map((w) => indieningsRij(w.stuk, w.na, kroniek)) : []), ...toekenningsRijen()];
+});
+const aantallen = computed(
+  () => Object.fromEntries(LIJSTEN.map((l) => [l.naam, rijen.value.filter((r) => r.lijsten.includes(l.naam)).length])) as Record<Lijst, number>,
+);
+/** The lists the sidebar offers: Te doen always, another when it holds something or is open. */
+const lijsten = computed(() => LIJSTEN.filter((l) => l.naam === 'te-doen' || l.naam === lijst.value || aantallen.value[l.naam] > 0));
+/** The rows of the open list, what waited longest first. */
+const zichtbaar = computed(() => oudsteEerst(rijen.value.filter((r) => r.lijsten.includes(lijst.value))));
+
+function kies(naam: Lijst) {
+  router.push({ query: { ...route.query, lijst: naam } });
+}
+
+function openIndiening(id: string) {
+  if (!casus.value) return;
+  router.push({ name: 'behandelen', params: { cel: casus.value.cel, id }, query: route.query.lijst ? { lijst: lijst.value } : {} });
+}
+
+// The back button of the list leads to the lists, that of the submission to its list.
+const lijstPagina = ref<HTMLElement | null>(null);
+function terug(e: Event) {
+  if (lijstPagina.value && e.composedPath().includes(lijstPagina.value)) router.push({ path: '/backoffice' });
+  else router.push({ path: '/backoffice', query: { lijst: lijst.value } });
 }
 
 // The fact the sheet records, in the cell `cel`.
@@ -143,86 +217,113 @@ async function klaar(naam: string) {
 </script>
 
 <template>
-  <nldd-navigation-split-view @back="router.push('/backoffice')">
+  <nldd-navigation-split-view @back="terug">
     <nldd-page slot="primary-sidebar" sticky-header accessible-label="Aanvragen">
-        <nldd-top-title-bar slot="header" text="Aanvragen" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
-        <nldd-simple-section width="full">
-          <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Aanvragen</h3></nldd-title>
-          <nldd-text color="secondary"><p>De indieningen die op een besluit wachten.</p></nldd-text>
-          <nldd-spacer size="16"></nldd-spacer>
-          <nldd-activity-indicator v-if="laden" text="De aanvragen laden" show-text></nldd-activity-indicator>
-          <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De aanvragen laden niet" :supporting-text="fout"></nldd-inline-dialog>
-          <template v-else-if="casus">
-            <template v-if="vastgelegd">
-              <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
-              <nldd-spacer size="16"></nldd-spacer>
-            </template>
-            <nldd-inline-dialog v-if="cellen.length === 0" icon="info" text="Geen aanvragen" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
-            <template v-for="(c, i) in cellen" :key="c.recht.cel">
-              <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
-              <nldd-title size="display-5"><h4>{{ hoofdletter(c.recht.cel_naam) }}</h4></nldd-title>
-              <nldd-list v-if="c.open.length" appearance="simple" :accessible-label="`Aanvragen van ${c.recht.cel_naam}`">
-                <nldd-list-item
-                  v-for="r in c.open"
-                  :key="r.stuk.id"
-                  size="md"
-                  button
-                  :current="r.stuk.id === id || undefined"
-                  @click="router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: r.stuk.id } })"
-                >
-                  <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
-                  <nldd-cell v-if="r.opnieuw">
-                    <nldd-badge text="Opnieuw beslissen" color="warning" size="sm"></nldd-badge>
-                  </nldd-cell>
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                </nldd-list-item>
-              </nldd-list>
-              <nldd-text v-else color="secondary"><p>Geen open indieningen.</p></nldd-text>
-              <nldd-text v-if="c.open.length && !c.recht.beslissen" size="sm" color="secondary">
-                <p>Een beslisser neemt het besluit; u ziet de indieningen wel.</p>
-              </nldd-text>
-              <template v-if="c.handelingen.length">
-                <nldd-spacer size="8"></nldd-spacer>
-                <nldd-button-group>
-                  <nldd-button
-                    v-for="h in c.handelingen"
-                    :key="h.feit"
-                    appearance="secondary"
-                    start-icon="add"
-                    :text="`${feitNaam(h.feit)} vastleggen`"
-                    @click="keuze = { cel: c.recht.cel, handeling: h }"
-                  ></nldd-button>
-                </nldd-button-group>
-              </template>
-              <template v-if="c.recht.cel === casus.cel && casus.na_toekenning">
-                <nldd-spacer size="24"></nldd-spacer>
-                <nldd-title size="display-6"><h5>Na de toekenning</h5></nldd-title>
-                <nldd-text color="secondary"><p>Wat er na een toekenning nog moet gebeuren, per toekenning de volgende stap.</p></nldd-text>
-                <nldd-spacer size="8"></nldd-spacer>
-                <nldd-inline-dialog v-if="vervolgFout" icon="warning" icon-color="critical" text="Dit overzicht laadt niet" :supporting-text="vervolgFout"></nldd-inline-dialog>
-                <nldd-list v-else-if="openToekenningen.length" appearance="simple" accessible-label="Na de toekenning">
-                  <!-- For a decider the row opens the sheet of the next act; a reader only sees how far it is. -->
-                  <nldd-list-item
-                    v-for="t in openToekenningen"
-                    :key="t.stand.toekenning"
-                    size="md"
-                    :button="(c.recht.beslissen && t.handeling) || undefined"
-                    @click="c.recht.beslissen && t.handeling && (keuze = { cel: c.recht.cel, handeling: t.handeling, verwijst_naar: t.stand.toekenning, titel: t.knop })"
-                  >
-                    <nldd-text-cell :text="t.tekst" :supporting-text="c.recht.beslissen ? `${t.regel} · Volgende stap: ${t.knop}` : t.regel"></nldd-text-cell>
-                    <template v-if="c.recht.beslissen && t.handeling">
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                    </template>
-                  </nldd-list-item>
-                </nldd-list>
-                <nldd-text v-else color="secondary"><p>Er wacht niets na een toekenning.</p></nldd-text>
-              </template>
+      <nldd-top-title-bar slot="header" text="Aanvragen" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
+      <nldd-simple-section width="full">
+        <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Aanvragen</h3></nldd-title>
+        <nldd-text v-if="casus" color="secondary"><p>{{ hoofdletter(casus.cel_naam) }}</p></nldd-text>
+        <nldd-spacer size="16"></nldd-spacer>
+        <nldd-activity-indicator v-if="laden" text="De aanvragen laden" show-text></nldd-activity-indicator>
+        <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De aanvragen laden niet" :supporting-text="fout"></nldd-inline-dialog>
+        <template v-else-if="casus">
+          <nldd-inline-dialog v-if="!recht" icon="info" text="Geen aanvragen" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
+          <template v-else>
+            <nldd-list appearance="simple" accessible-label="Lijsten">
+              <nldd-list-item
+                v-for="l in lijsten"
+                :key="l.naam"
+                size="md"
+                button
+                :current="l.naam === lijst || undefined"
+                @click="kies(l.naam)"
+              >
+                <nldd-icon-cell size="20"><nldd-icon :icon="l.icoon"></nldd-icon></nldd-icon-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell :text="l.tekst"></nldd-text-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell :text="String(aantallen[l.naam])" color="secondary" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
+                <nldd-spacer-cell size="2"></nldd-spacer-cell>
+                <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+              </nldd-list-item>
+            </nldd-list>
+            <template v-if="handelingen.length">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-button-group>
+                <nldd-button
+                  v-for="h in handelingen"
+                  :key="h.feit"
+                  appearance="secondary"
+                  start-icon="add"
+                  :text="`${feitNaam(h.feit)} vastleggen`"
+                  @click="keuze = { cel: recht.cel, handeling: h }"
+                ></nldd-button>
+              </nldd-button-group>
             </template>
           </template>
-        </nldd-simple-section>
-      </nldd-page>
+        </template>
+      </nldd-simple-section>
+    </nldd-page>
+
+    <nldd-page
+      v-if="!laden && !fout && casus && recht"
+      ref="lijstPagina"
+      slot="secondary-sidebar"
+      sticky-header
+      :accessible-label="huidigeLijst.tekst"
+      :empty="route.query.lijst ? undefined : true"
+    >
+      <nldd-top-title-bar slot="header" :text="huidigeLijst.tekst" heading-level="3" back-text="Aanvragen" collapse-anchor="lijst-titel"></nldd-top-title-bar>
+      <nldd-simple-section width="full">
+        <nldd-title id="lijst-titel" size="display-3"><h3>{{ huidigeLijst.tekst }}</h3></nldd-title>
+        <nldd-text color="secondary"><p>{{ huidigeLijst.uitleg }}</p></nldd-text>
+        <nldd-spacer size="16"></nldd-spacer>
+        <template v-if="vastgelegd">
+          <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
+          <nldd-spacer size="16"></nldd-spacer>
+        </template>
+        <template v-if="vervolgFout">
+          <nldd-inline-dialog icon="warning" icon-color="critical" text="De toekenningen laden niet" :supporting-text="vervolgFout"></nldd-inline-dialog>
+          <nldd-spacer size="16"></nldd-spacer>
+        </template>
+        <template v-if="verzoekenFout">
+          <nldd-inline-dialog icon="warning" icon-color="critical" text="Niet bekend wat op een antwoord wacht" :supporting-text="verzoekenFout"></nldd-inline-dialog>
+          <nldd-spacer size="16"></nldd-spacer>
+        </template>
+        <nldd-list v-if="zichtbaar.length" appearance="simple" :accessible-label="huidigeLijst.tekst">
+          <template v-for="r in zichtbaar" :key="r.sleutel">
+            <nldd-list-item v-if="r.soort === 'indiening'" size="md" button :current="r.sleutel === id || undefined" @click="openIndiening(r.sleutel)">
+              <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
+              <nldd-cell v-if="r.opnieuw">
+                <nldd-badge text="Opnieuw beslissen" color="warning" size="sm"></nldd-badge>
+              </nldd-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+            </nldd-list-item>
+            <!-- For a decider the row of a grant opens the sheet of its next act; a reader only sees how far it is. -->
+            <nldd-list-item
+              v-else
+              size="md"
+              :button="(recht.beslissen && r.handeling) || undefined"
+              @click="recht.beslissen && r.handeling && (keuze = { cel: recht.cel, handeling: r.handeling, verwijst_naar: r.sleutel, titel: r.knop })"
+            >
+              <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
+              <template v-if="recht.beslissen && r.handeling">
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+              </template>
+            </nldd-list-item>
+          </template>
+        </nldd-list>
+        <nldd-inline-dialog v-else icon="info" :text="lijst === 'te-doen' ? 'Niets te doen' : 'Niets in deze lijst'"></nldd-inline-dialog>
+        <template v-if="!recht.beslissen && zichtbaar.some((r) => r.soort === 'indiening')">
+          <nldd-spacer size="8"></nldd-spacer>
+          <nldd-text size="sm" color="secondary">
+            <p>Een beslisser neemt het besluit; u ziet de indieningen wel.</p>
+          </nldd-text>
+        </template>
+      </nldd-simple-section>
+    </nldd-page>
 
     <div slot="main" :empty="id ? undefined : true">
       <BehandelenPaneel
@@ -235,11 +336,12 @@ async function klaar(naam: string) {
         :wie="wie"
         :kronieken="kronieken"
         :open="werkvoorraad && werkvoorraad.cel === cel && geladenVoor === id ? werkvoorraad.open : undefined"
+        :terug="huidigeLijst.tekst"
         @besloten="laad(true)"
       />
       <nldd-page v-else landmarks="page">
         <nldd-simple-section width="full">
-          <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de aanvragen."></nldd-inline-dialog>
+          <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de lijst."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </div>

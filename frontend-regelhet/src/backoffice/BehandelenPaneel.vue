@@ -64,6 +64,8 @@ const props = defineProps<{
    * loaded.
    */
   open?: Wachtend[];
+  /** Where the back button leads, in words, such as the list the submission was opened from. */
+  terug?: string;
 }>();
 const emit = defineEmits<{ besloten: [] }>();
 
@@ -286,7 +288,7 @@ async function beslissen() {
 
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
-    <nldd-top-title-bar slot="header" :text="titel" :back-text="namens ? 'Beheerpaneel' : 'Aanvragen'" collapse-anchor="indiening-titel"></nldd-top-title-bar>
+    <nldd-top-title-bar slot="header" :text="titel" :back-text="terug ?? (namens ? 'Beheerpaneel' : 'Aanvragen')" collapse-anchor="indiening-titel"></nldd-top-title-bar>
     <nldd-simple-section width="full">
       <nldd-inline-dialog
         v-if="!indiening"
