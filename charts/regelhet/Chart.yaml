@@ -15,7 +15,7 @@ description: >-
 type: application
 version: 0.9.0
 # The commit of the RegelHet image the chart was tested with.
-appVersion: a5adda00
+appVersion: 698a2209
 home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
 sources:
   - https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
