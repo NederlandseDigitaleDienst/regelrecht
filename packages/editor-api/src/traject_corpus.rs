@@ -32,6 +32,9 @@ use std::time::{Duration, Instant};
 
 use regelrecht_corpus::GithubSettings;
 use regelrecht_corpus::backend::create_backend;
+use regelrecht_corpus::consumers_index::{
+    Consumer, ConsumersIndex, SourceBinding, collect_source_bindings,
+};
 use regelrecht_corpus::models::{GitHubSource, LocalSource, Source, SourceType};
 use regelrecht_corpus::source_map::collect_law_implements;
 use regelrecht_corpus::timing;
@@ -196,6 +199,23 @@ pub struct TrajectCorpus {
     /// entries of the current snapshot, so it cannot grow beyond
     /// O(corpus) across content churn.
     implements_memo: Arc<RwLock<ImplementsMemo>>,
+    /// "Law → articles elsewhere that read it" index, built on demand by
+    /// [`Self::consumers_of`] for the scoped enrichment's stelselcontext. A
+    /// build that ran out of its time budget is kept but marked partial, and
+    /// the next lookup continues it: everything already read sits in
+    /// `bindings_memo`. A save drops it (the memo survives), so the saver's
+    /// own change is in the next lookup.
+    consumers_index: RwLock<Option<Arc<ConsumersSnapshot>>>,
+    /// Single-flight gate for building `consumers_index`.
+    consumers_build_lock: Mutex<()>,
+    /// Bumped by every save. A build stores its result only when this did not
+    /// move while it ran, so a build that read a body from before a save cannot
+    /// overwrite the `None` that save left behind.
+    consumers_gen: AtomicU64,
+    /// Content-addressed memo for the consumers scan, the counterpart of
+    /// `implements_memo`: `(source_id, blob sha) → cross-law bindings`.
+    /// Shared across refreshes, so a rebuild only reads what changed.
+    bindings_memo: Arc<RwLock<BindingsMemo>>,
     /// Short-lived cache of the "edited in this traject" diff
     /// ([`changed_law_ids`]). Each `changed-laws` request would otherwise
     /// fire a GitHub Compare API call, and the library sidebar re-requests
@@ -438,6 +458,30 @@ fn git_blob_sha(content: &str) -> String {
 /// implementor panel (never legal calculations), and it self-heals once
 /// the law's sha changes again and a rebuild overwrites the memo wholesale.
 type ImplementsMemo = HashMap<(String, String), Vec<String>>;
+
+/// Memo behind [`TrajectCorpus::bindings_memo`].
+type BindingsMemo = HashMap<(String, String), Vec<SourceBinding>>;
+
+/// How long one consumers build may spend fetching bodies before it stops
+/// and reports itself partial. The request that triggers it is a person
+/// waiting on an enrich dialog; a cold scan of a federated corpus must not
+/// hold it for minutes.
+const CONSUMERS_BUILD_BUDGET: Duration = Duration::from_secs(8);
+
+/// The reverse index plus whether it covers the whole snapshot.
+struct ConsumersSnapshot {
+    index: ConsumersIndex,
+    /// Laws not read: budget spent, or the fetch failed.
+    unread: usize,
+}
+
+/// Result of [`TrajectCorpus::consumers_of`].
+pub struct ConsumersResult {
+    pub consumers: Vec<Consumer>,
+    /// `true` when some laws could not be read, so a missing consumer is not
+    /// proof that there is none.
+    pub partial: bool,
+}
 
 /// Per-snapshot forward index: each law's parsed `implements` list, plus
 /// the laws whose body couldn't be fetched during the scan (throttling,
@@ -812,6 +856,10 @@ impl TrajectCorpus {
                 .await
                 .remove(&global_body_key(&law.source_id, &law.relative_path));
         }
+        // The saved body may add or drop a binding; the memo keeps the rest
+        // cheap, so dropping the index is enough.
+        self.consumers_gen.fetch_add(1, Ordering::SeqCst);
+        *self.consumers_index.write().await = None;
         if let Some(index) = self.implements_index.write().await.as_mut() {
             let index = Arc::make_mut(index);
             // The law's body is now known, so it can no longer count as
@@ -1007,6 +1055,128 @@ impl TrajectCorpus {
             implementors,
             skipped_count: index.failed_law_ids.len(),
         }
+    }
+
+    /// Articles elsewhere in this snapshot's corpus that read `law_id`:
+    /// `source.regulation`/`output`, a fixed `source.article`, or an
+    /// `implements` of one of its open terms.
+    pub async fn consumers_of(&self, law_id: &str) -> ConsumersResult {
+        let snapshot = self.consumers_index_get_or_build().await;
+        ConsumersResult {
+            consumers: snapshot.index.consumers_of(law_id),
+            partial: snapshot.unread > 0,
+        }
+    }
+
+    async fn consumers_index_get_or_build(&self) -> Arc<ConsumersSnapshot> {
+        if let Some(snapshot) = self.consumers_index.read().await.as_ref()
+            && snapshot.unread == 0
+        {
+            return Arc::clone(snapshot);
+        }
+        let _build = self.consumers_build_lock.lock().await;
+        if let Some(snapshot) = self.consumers_index.read().await.as_ref()
+            && snapshot.unread == 0
+        {
+            return Arc::clone(snapshot);
+        }
+        let gen_before = self.consumers_gen.load(Ordering::SeqCst);
+        let snapshot = self.build_consumers_index().await;
+        let mut slot = self.consumers_index.write().await;
+        if self.consumers_gen.load(Ordering::SeqCst) == gen_before {
+            *slot = Some(Arc::clone(&snapshot));
+        }
+        snapshot
+    }
+
+    /// One pass over the snapshot's laws collecting their cross-law
+    /// bindings, cheapest source first (overlay, loaded body, memo, fetch),
+    /// within [`CONSUMERS_BUILD_BUDGET`] for the fetches.
+    async fn build_consumers_index(&self) -> Arc<ConsumersSnapshot> {
+        let overlay = self.overlay.read().await.clone();
+        let memo = self.bindings_memo.read().await.clone();
+        let mut new_memo: BindingsMemo = HashMap::new();
+        struct ScanEntry {
+            law_id: String,
+            source_id: String,
+            content_sha: Option<String>,
+            loaded_body: Option<String>,
+        }
+        let entries: Vec<ScanEntry> = self
+            .corpus
+            .source_map
+            .laws()
+            .map(|law| ScanEntry {
+                law_id: law.law_id.clone(),
+                source_id: law.source_id.clone(),
+                content_sha: law.content_sha.clone(),
+                loaded_body: law.is_loaded().then(|| law.yaml_content.clone()),
+            })
+            .collect();
+        let current_keys: HashSet<(String, String)> = entries
+            .iter()
+            .filter_map(|e| e.content_sha.clone().map(|sha| (e.source_id.clone(), sha)))
+            .collect();
+        let deadline = std::time::Instant::now() + CONSUMERS_BUILD_BUDGET;
+        let mut per_law: Vec<(String, Vec<SourceBinding>)> = Vec::new();
+        let mut unread = 0usize;
+        for entry in entries {
+            let bindings = if let Some(body) = overlay.get(&entry.law_id) {
+                collect_source_bindings(body)
+            } else if let Some(body) = &entry.loaded_body {
+                collect_source_bindings(body)
+            } else {
+                let key = entry.content_sha.map(|sha| (entry.source_id.clone(), sha));
+                if let Some(hit) = key.as_ref().and_then(|k| memo.get(k)) {
+                    if let Some(k) = key {
+                        new_memo.insert(k, hit.clone());
+                    }
+                    hit.clone()
+                } else if std::time::Instant::now() >= deadline {
+                    unread += 1;
+                    continue;
+                } else {
+                    match self.law_yaml(&entry.law_id).await {
+                        Ok(Some(yaml)) => {
+                            let bindings = collect_source_bindings(&yaml);
+                            if let Some(k) = key {
+                                new_memo.insert(k, bindings.clone());
+                            }
+                            bindings
+                        }
+                        Ok(None) => continue,
+                        Err(e) => {
+                            tracing::debug!(law_id = %entry.law_id, error = %e, "consumers scan: body fetch failed");
+                            unread += 1;
+                            continue;
+                        }
+                    }
+                }
+            };
+            per_law.push((entry.law_id, bindings));
+        }
+        if unread > 0 {
+            tracing::info!(
+                unread,
+                "consumers index partial; the next lookup continues it"
+            );
+        }
+        // Keep what an earlier partial build read and this one did not reach,
+        // but only for blobs this snapshot still has: like `implements_memo`,
+        // the memo is bounded by the corpus, not by its history.
+        {
+            let mut memo_guard = self.bindings_memo.write().await;
+            for (k, v) in memo {
+                if current_keys.contains(&k) {
+                    new_memo.entry(k).or_insert(v);
+                }
+            }
+            *memo_guard = new_memo;
+        }
+        Arc::new(ConsumersSnapshot {
+            index: ConsumersIndex::from_bindings(per_law),
+            unread,
+        })
     }
 
     /// Get the snapshot's implements index, building it on first use.
@@ -1968,6 +2138,10 @@ async fn build_traject_corpus(
         implements_index_stale: AtomicBool::new(false),
         implements_build_lock: Mutex::new(()),
         implements_memo: Arc::new(RwLock::new(HashMap::new())),
+        consumers_index: RwLock::new(None),
+        consumers_build_lock: Mutex::new(()),
+        consumers_gen: AtomicU64::new(0),
+        bindings_memo: Arc::new(RwLock::new(HashMap::new())),
         changed_cache: Arc::new(RwLock::new(None)),
         changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
         changed_refresh_gate: Arc::new(Mutex::new(())),
@@ -2315,6 +2489,10 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
         implements_index_stale: AtomicBool::new(true),
         implements_build_lock: Mutex::new(()),
         implements_memo: old.implements_memo.clone(),
+        consumers_index: RwLock::new(None),
+        consumers_build_lock: Mutex::new(()),
+        consumers_gen: AtomicU64::new(0),
+        bindings_memo: old.bindings_memo.clone(),
         changed_cache: old.changed_cache.clone(),
         changed_refresh_in_flight: old.changed_refresh_in_flight.clone(),
         changed_refresh_gate: old.changed_refresh_gate.clone(),
@@ -2694,6 +2872,10 @@ mod tests {
             implements_index_stale: AtomicBool::new(false),
             implements_build_lock: Mutex::new(()),
             implements_memo: Arc::new(RwLock::new(HashMap::new())),
+            consumers_index: RwLock::new(None),
+            consumers_build_lock: Mutex::new(()),
+            consumers_gen: AtomicU64::new(0),
+            bindings_memo: Arc::new(RwLock::new(HashMap::new())),
             changed_cache: Arc::new(RwLock::new(None)),
             changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
             changed_refresh_gate: Arc::new(Mutex::new(())),
@@ -3040,6 +3222,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn consumers_of_reverses_source_bindings_and_reuses_the_index() {
+        let mut map = SourceMap::new("2026-06-01");
+        metadata_entry(&mut map, "lezer", "seed");
+        metadata_entry(&mut map, "bron", "seed");
+        let lezer = "$id: lezer\narticles:\n  - number: \"4\"\n    machine_readable:\n      execution:\n        input:\n          - name: x\n            source:\n              regulation: bron\n              output: bedrag\n";
+        let stub = StubBackend::with_files(&[
+            ("wet/lezer/2025-01-01.yaml", lezer),
+            ("wet/bron/2025-01-01.yaml", &law_body("bron", None)),
+        ]);
+        let reads = stub.reads.clone();
+        let corpus = test_corpus(
+            map,
+            HashMap::from([("seed".to_string(), backend_entry(stub))]),
+        );
+
+        let result = corpus.consumers_of("bron").await;
+        assert!(!result.partial);
+        assert_eq!(result.consumers.len(), 1);
+        assert_eq!(result.consumers[0].law_id, "lezer");
+        assert_eq!(result.consumers[0].article, "4");
+        assert_eq!(result.consumers[0].target, "bedrag");
+        let reads_after_build = reads.load(Ordering::SeqCst);
+
+        assert!(corpus.consumers_of("lezer").await.consumers.is_empty());
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            reads_after_build,
+            "a second lookup reuses the index"
+        );
+    }
+
+    #[tokio::test]
     async fn implementors_of_reports_fetch_failures_as_skipped() {
         let mut map = SourceMap::new("2026-06-01");
         metadata_entry(&mut map, "regeling_a", "seed");
@@ -3204,6 +3418,10 @@ mod tests {
             implements_index_stale: AtomicBool::new(false),
             implements_build_lock: Mutex::new(()),
             implements_memo: Arc::new(RwLock::new(HashMap::new())),
+            consumers_index: RwLock::new(None),
+            consumers_build_lock: Mutex::new(()),
+            consumers_gen: AtomicU64::new(0),
+            bindings_memo: Arc::new(RwLock::new(HashMap::new())),
             changed_cache: Arc::new(RwLock::new(None)),
             changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
             changed_refresh_gate: Arc::new(Mutex::new(())),

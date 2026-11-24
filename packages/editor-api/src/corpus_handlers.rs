@@ -1147,6 +1147,44 @@ pub async fn list_traject_law_implementors(
     Ok(Json(implementors_in_scope(&scope, &law_id).await))
 }
 
+/// Response of the consumers lookup: who reads a law, and whether that
+/// answer is complete.
+#[derive(serde::Serialize)]
+pub struct LawConsumersResponse {
+    pub consumers: Vec<regelrecht_corpus::consumers_index::Consumer>,
+    /// The traject index could not read every law (yet): a missing consumer
+    /// is then no proof that there is none.
+    pub partial: bool,
+}
+
+/// GET /api/trajects/{traject_ref}/corpus/laws/{law_id}/consumers — the
+/// articles elsewhere in the traject's corpus that read `{law_id}`: its
+/// outputs, a decision of one of its articles, or an open term it declares.
+/// The article enrich dialog shows this before the request is sent; the
+/// request itself puts the same answer in the stelselcontext.
+pub async fn list_traject_law_consumers(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    session: Session,
+    Path((traject_ref, law_id)): Path<(String, String)>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<LawConsumersResponse>, (StatusCode, String)> {
+    let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
+    match &scope {
+        ReadScope::Traject(ts) => {
+            let found = ts.traject.consumers_of(&law_id).await;
+            Ok(Json(LawConsumersResponse {
+                consumers: found.consumers,
+                partial: found.partial,
+            }))
+        }
+        ReadScope::Global(_) => Ok(Json(LawConsumersResponse {
+            consumers: Vec::new(),
+            partial: true,
+        })),
+    }
+}
+
 async fn implementors_in_scope(scope: &ReadScope, law_id: &str) -> Vec<String> {
     match scope {
         // Traject: federated laws are metadata-only until first read, so

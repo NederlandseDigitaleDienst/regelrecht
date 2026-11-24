@@ -284,6 +284,23 @@ number without a `type`, because nothing then says whether 0.137 is a share or
 a factor, or whether 3971900 is cents. Its findings go back to the agent as a
 feedback round.
 
+### Type check
+
+A law can be schema-valid and still fail to load. The engine type-checks every
+law when it loads it (nullability rules N1–N5 of RFC-036, typing rules of
+RFC-037), and one finding rejects the whole regulation, not only the article
+it sits in. The schema gate therefore runs the same check
+(`typecheck::check_law_alone`) once the schema is clean, limited to the window,
+and hands its findings to the agent as a repair round. A run that cannot repair
+them fails instead of delivering a proposal that would block the regulation in
+the editor.
+
+The check runs on the law alone. N5 across laws needs the laws this one reads,
+which the worker has at most as context slices, so a nullability mismatch with
+another law is still found only when the editor loads both. The translation
+prompt carries the same rules as instructions, so most runs never need the
+repair round.
+
 ### LLM Providers
 
 `LLM_PROVIDER` selects `opencode` (the default) or `claude`. The binary and model
