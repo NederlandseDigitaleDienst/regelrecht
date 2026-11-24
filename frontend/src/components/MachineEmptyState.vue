@@ -38,6 +38,11 @@ const props = withDefaults(defineProps<{
    *  hier), 'login' of 'traject'. Stuurt de uitleg boven de knoppen en de vorm
    *  van het knoplabel. */
   needs?: string;
+  /** Artikel- en wetmodus aangeboden (feature flag `enrich.scoped`). */
+  scoped?: boolean;
+  /** Wat de lopende verrijking bestrijkt ("artikel 3", "4 artikelen"); leeg
+   *  bij de klassieke verrijking van de hele wet. */
+  enrichingScope?: string;
 }>(), {
   reviewReady: false,
   reviewArticle: '',
@@ -48,6 +53,8 @@ const props = withDefaults(defineProps<{
   createHref: undefined,
   enrichError: '',
   needs: '',
+  scoped: false,
+  enrichingScope: '',
 });
 
 const emit = defineEmits<{
@@ -61,6 +68,10 @@ const emit = defineEmits<{
   create: [button: EventTarget | null];
   'view-tasks': [];
   review: [];
+  /** Alleen dit artikel verrijken (artikelmodus). */
+  'enrich-article': [];
+  /** De hele wet verrijken met keuzes over scope, model en rondes. */
+  'enrich-options': [];
 }>();
 
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
@@ -108,7 +119,7 @@ const emptyText = computed(() => {
     v-else-if="enriching"
     data-testid="enriching"
     icon="ai"
-    text="We genereren een voorstel"
+    :text="enrichingScope ? `We genereren een voorstel voor ${enrichingScope}` : 'We genereren een voorstel'"
     supporting-text="Er staat een wacht-taak klaar. Zodra het voorstel er is, kun je het beoordelen."
   >
     <nldd-button
@@ -152,6 +163,18 @@ const emptyText = computed(() => {
             :details="option.model"
             :data-testid="`enrich-with-${option.id}`"
             @select="emit('enrich', null, option.id)"
+          ></nldd-menu-item>
+        </nldd-menu-group>
+        <nldd-menu-group v-if="scoped" text="Met scope">
+          <nldd-menu-item
+            text="Alleen dit artikel…"
+            data-testid="enrich-article"
+            @select="emit('enrich-article')"
+          ></nldd-menu-item>
+          <nldd-menu-item
+            text="Regelwerk met opties…"
+            data-testid="enrich-options"
+            @select="emit('enrich-options')"
           ></nldd-menu-item>
         </nldd-menu-group>
       </nldd-menu>

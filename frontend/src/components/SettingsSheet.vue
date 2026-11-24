@@ -46,6 +46,7 @@ const editorPanelFlags: [key: string, label: string][] = [
   ['panel.yaml_editor', 'YAML editor'],
   ['panel.notes', 'Notities'],
   ['panel.regelrijm', 'RegelRijm (experimenteel)'],
+  ['enrich.scoped', 'Verrijken per artikel en met scope (experimenteel)'],
 ];
 
 // De sectie-poorten staan in useSettingsSections, want AppShell stelt dezelfde

@@ -73,6 +73,10 @@ const props = withDefaults(defineProps<{
   /** Message from the most recent failed enrich request, shown in place of
    *  the supporting text. */
   enrichError?: string;
+  /** Artikel- en wetmodus aangeboden (feature flag `enrich.scoped`). */
+  scopedEnrich?: boolean;
+  /** Wat de lopende verrijking bestrijkt; zie MachineEmptyState. */
+  enrichingScope?: string;
   /** Er staat een openstaande review-taak klaar voor deze wet. */
   reviewReady?: boolean;
   reviewArticle?: string;
@@ -98,6 +102,8 @@ const props = withDefaults(defineProps<{
   needs: '',
   enriching: false,
   enrichError: '',
+  scopedEnrich: false,
+  enrichingScope: '',
   reviewReady: false,
   reviewArticle: '',
   createHref: undefined,
@@ -121,6 +127,8 @@ const emit = defineEmits<{
   'init-mr': [];
   /** Ask for a generated proposal instead of writing one by hand. */
   'enrich': [trigger: EventTarget | null, provider?: string];
+  'enrich-article': [];
+  'enrich-options': [];
   /** Open the task list filtered to this law, while a run is pending. */
   'view-tasks': [];
   /** Open review-modus voor de klaarstaande taak. */
@@ -393,7 +401,11 @@ function addOutput() {
     :can-create="canCreate"
     :create-href="createHref"
     :enrich-error="enrichError"
+    :scoped="scopedEnrich"
+    :enriching-scope="enrichingScope"
     @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
+    @enrich-article="emit('enrich-article')"
+    @enrich-options="emit('enrich-options')"
     @write="emit('init-mr')"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"

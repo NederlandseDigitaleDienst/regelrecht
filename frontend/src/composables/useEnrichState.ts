@@ -18,7 +18,7 @@
 import { computed, onMounted, toValue, type MaybeRefOrGetter } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from './useAuth';
-import { useTaskActions, usePollWhile } from './useTasks';
+import { useTaskActions, usePollWhile, type EnrichOptions, type RunningScope } from './useTasks';
 import { reviewTarget, sameTraject } from '../lib/taskReview';
 import type { Task } from '../lib/taskCategories';
 
@@ -35,6 +35,8 @@ interface RunningJobView {
   job_type?: string;
   law_id?: string | null;
   traject_ref?: string | null;
+  mode?: string | null;
+  articles?: string[] | null;
 }
 
 /**
@@ -151,16 +153,34 @@ export function useEnrichState({ trajectRef, lawId, articleNumber, reviewActive 
   // `isEnriching` false, slaat de bezig-staat niet om en begint usePollWhile
   // nooit te pollen. Die koppeling hoort hier en niet bij elke aanroeper - daar
   // is hij één keer vergeten.
-  async function requestEnrich(provider?: string) {
+  // A provider name (as callers have always passed it) or the full options of
+  // the article/law mode.
+  async function requestEnrich(options?: string | EnrichOptions) {
     // Both callers (LibraryView, EditorView) only call this with a traject and
     // a law; nothing here checks that.
-    const result = await requestEnrichRaw(toValue(trajectRef) as string, toValue(lawId) as string, provider);
+    const result = await requestEnrichRaw(toValue(trajectRef) as string, toValue(lawId) as string, options);
     await refreshTasks();
     return result;
   }
 
+  // What the running enrichment of this law covers: one article, a selection,
+  // or (null) the whole law. Lets the pane say "artikel 3 wordt verrijkt".
+  const runningScope = computed<RunningScope | null>(() => {
+    const traject = toValue(trajectRef);
+    if (!traject) return null;
+    const job = runningJobs.value.find(
+      (j: RunningJobView) =>
+        j.job_type === 'enrich' &&
+        j.law_id === toValue(lawId) &&
+        sameTraject(j.traject_ref, traject),
+    );
+    if (!job || !job.mode) return null;
+    return { mode: job.mode, articles: job.articles ?? null };
+  });
+
   return {
     isEnriching,
+    runningScope,
     pendingReviewTask,
     reviewReady,
     reviewArticleForPane,
