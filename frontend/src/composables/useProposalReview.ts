@@ -23,7 +23,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import * as yaml from 'js-yaml';
 import { useTaskActions } from './useTasks';
-import type { EnrichDecision, JobTaskSummary, TaskDetail } from './useTasks';
+import type { EnrichDecision, EnrichSignal, JobTasksResponse, JobTaskSummary, TaskDetail } from './useTasks';
 import { useEnrichVerdictsStore, type Verdict } from '../stores/enrichVerdicts';
 import { proposalDivergence } from '../lib/taskReview';
 import type { RequestError } from '../lib/apiFetch';
@@ -82,6 +82,10 @@ export function useProposalReview(host: ProposalReviewHost) {
   // Eén element voor een taak zonder job (of wanneer het ophalen mislukt) -
   // dan is deze taak zelf de hele verrijking.
   const jobParts = ref<JobTaskSummary[]>([]);
+  // Wat de verrijking zelf meldt naast de onderdelen: modus, de instructie van
+  // de engineer en de signalen (teruggezette wijzigingen, lezers elders die
+  // braken, problemen in andere wetten). Geen oordeel; context bij het oordeel.
+  const jobMeta = ref<Pick<JobTasksResponse, 'mode' | 'instruction' | 'signals'>>({});
 
   const jobId = computed(() => reviewTask.value?.job_id ?? null);
   // Waaronder de tussenstand wordt bewaard. Eén sleutel voor de hele
@@ -154,9 +158,15 @@ export function useProposalReview(host: ProposalReviewHost) {
         title: detail.title,
       },
     ];
+    jobMeta.value = {};
     if (!detail.job_id) return fallback;
     try {
       const json = await fetchJobTasks(detail.job_id);
+      jobMeta.value = {
+        mode: json?.mode ?? null,
+        instruction: json?.instruction ?? null,
+        signals: Array.isArray(json?.signals) ? json.signals : [],
+      };
       const parts = Array.isArray(json?.tasks) ? json.tasks : [];
       return parts.length > 0 ? parts : fallback;
     } catch {
@@ -764,9 +774,22 @@ export function useProposalReview(host: ProposalReviewHost) {
     }
   }
 
+  // Signalen van deze verrijking: eerst die over het artikel dat je nu
+  // beoordeelt, dan de rest (andere artikelen, andere wetten).
+  const reviewSignals = computed<EnrichSignal[]>(() => {
+    if (!reviewActive.value) return [];
+    const all = jobMeta.value.signals ?? [];
+    const here = String(reviewTask.value?.payload?.article ?? '');
+    return [...all].sort((a, b) => Number(b.article === here) - Number(a.article === here));
+  });
+
   return {
     /** The review task in the URL, which editor routes carry along. */
     taskId: reviewTaskIdParam,
+    /** Signals of a scoped enrichment; none for the classic run. */
+    signals: reviewSignals,
+    /** The instruction the engineer gave the article enrichment. */
+    instruction: computed(() => (reviewActive.value ? jobMeta.value.instruction ?? null : null)),
     /** Review mode is on: a task is loaded and the open article is the one it is about. */
     active: reviewActive,
     isLawCreate: reviewIsLawCreate,

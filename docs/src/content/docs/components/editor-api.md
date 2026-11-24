@@ -108,11 +108,12 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET | `.../corpus/laws/{law_id}/versions` | Reader |
 | GET | `.../corpus/laws/{law_id}/outputs` | Reader |
 | GET | `.../corpus/laws/{law_id}/implementors` | Reader |
+| GET | `.../corpus/laws/{law_id}/consumers` | Reader; articles elsewhere in the traject that read this law, with `partial: true` while the index has not read every law |
 | GET | `.../corpus/laws/{law_id}/scenarios` | Reader |
 | GET, PUT, DELETE | `.../corpus/laws/{law_id}/scenarios/{filename}` | Reader / Writer (1 MiB) |
 | GET, PUT | `.../corpus/laws/{law_id}/annotations` | Reader / Writer (1 MiB) |
 | POST | `.../corpus/laws/{law_id}/promote` | Writer; copy a law from the central corpus into the traject repo |
-| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task. An optional body `{"provider": "opencode"}` picks the provider; without it `TASK_ENRICH_PROVIDER` decides, and an unknown name returns 400 |
+| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task. Every body field is optional, see [Scoped enrichment](#scoped-enrichment); without a body `TASK_ENRICH_PROVIDER` decides and the whole law is enriched. 409 names the run already active |
 | POST | `/api/trajects/{traject_ref}/corpus/harvest` | Writer; harvest a law into the traject via a task |
 | GET | `/api/trajects/{traject_ref}/corpus/documents` | Reader |
 | POST | `.../corpus/documents/upload` | Writer; PDF or Word, converted to markdown asynchronously (25 MiB) |
@@ -121,6 +122,20 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET, PUT, DELETE | `.../corpus/documents/{*doc_path}` | Reader / Writer (1 MiB) |
 
 `...` stands for `/api/trajects/{traject_ref}`.
+
+### Scoped enrichment
+
+The enrich request has two modes, both behind the feature flag `enrich.scoped`. With the flag off the editor hides them and the API refuses any field beyond `provider` with a 400.
+
+The article mode (`"mode": "article"`, `"articles": ["3"]`) enriches one article. The worker may also change the articles of the same law that the translation of article 3 directly affects: those that produce a value it reads, those that read a value it produces, and those that reference it. Each changed article becomes its own review task. Any other edit is put back after the run and reported as a signal. An optional `instruction` (at most 2000 characters) goes into the prompt as the engineer's instruction; the agent follows it only where the statutory text supports it.
+
+The law mode takes a selection (`"articles"`), `"only_missing": true` to skip articles that already have `machine_readable`, or both. The worker walks the selection in batches of `ENRICH_MAX_ARTICLES_PER_RUN`; a continuation job carries what is left of it. A body without a selection is the unscoped run it always was.
+
+Both modes accept `model` (checked against `ENRICH_MODELS` in the pipeline) and `feedback_rounds` (0 to 3 per gate). `context` sends the stelselcontext along, on by default in the article mode. The editor-api then writes `.enrichment-stelsel.yaml` next to the law (who reads it, its open terms and who fills them, what it reads elsewhere) and slices of those other laws under `context/`, at most 16 laws and 2 MiB in total, readers before what the law reads. A slice carries `x-regelrecht-context-slice: true`, so the binding check reads a missing output there as not given rather than as a wrong binding. The worker has no corpus in the task flow, so this is the only way the agent sees other laws. Laws left out are named in the file.
+
+Signals come back in `GET /api/tasks/jobs/{job_id}` under `signals`, with `mode` and `instruction`. They carry no verdict and do not affect `apply`.
+
+Deploy the enrich-worker before turning on the flag: a worker from before this change ignores `articles` and enriches the whole law.
 
 The first request to a traject after a restart builds its index, and every request waits for that build. After that the index is served from memory and refreshed in the background once it is a minute old. A later request waits only when the traject's own repository could not be listed and its own GitHub token can repair the index. The list of changed laws works the same way: when only a member's own GitHub token can read the traject repository, the first member past the minute lends that token to the background refresh and gets the previous list meanwhile.
 

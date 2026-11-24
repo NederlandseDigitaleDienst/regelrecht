@@ -42,6 +42,10 @@ export interface RunningTaskJob extends RunningJob {
   target_path: string | null;
   status: string;
   created_at: string;
+  /** `article` or `law` for a scoped enrichment; absent for the classic run. */
+  mode?: string | null;
+  /** The work list of a scoped enrichment. */
+  articles?: string[] | null;
 }
 
 /** `GET /api/tasks` (TaskListResponse in tasks_api.rs). */
@@ -75,6 +79,24 @@ export interface JobTasksResponse {
   job_id: string;
   law_id: string | null;
   tasks: JobTaskSummary[];
+  /** `article` or `law` for a scoped enrichment. */
+  mode?: string | null;
+  /** The engineer's instruction (article mode). */
+  instruction?: string | null;
+  /** What the reviewer should know that is not a change (Signal in stelsel.rs). */
+  signals?: EnrichSignal[];
+}
+
+/**
+ * Something a scoped enrichment reports that is not a change: an edit outside
+ * its scope that was put back, a reader elsewhere it broke, a problem the
+ * agent saw in another law. Carries no verdict.
+ */
+export interface EnrichSignal {
+  kind: string;
+  law_id?: string | null;
+  article?: string | null;
+  text: string;
 }
 
 /** One verdict in `POST /api/tasks/jobs/:id/apply` (Decision in enrich_review.rs). */
@@ -190,20 +212,79 @@ async function resolveTask(taskId: string, action: ResolveAction): Promise<void>
 async function requestEnrich(
   trajectRef: string,
   lawId: string,
-  provider?: string,
-): Promise<{ alreadyRunning: boolean; tooMany: boolean }> {
-  // Without a provider there is no body, and the deployment's default runs.
-  const init = provider
+  options?: string | EnrichOptions,
+): Promise<EnrichRequestResult> {
+  // A bare string is the provider, as callers have always passed it.
+  const body = typeof options === 'string' ? { provider: options } : enrichBody(options);
+  // Without any option there is no body, and the deployment's default runs.
+  const init = Object.keys(body).length
     ? {
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify(body),
       }
     : {};
   const res = await apiFetch(
     `/api/trajects/${encodeURIComponent(trajectRef)}/corpus/laws/${encodeURIComponent(lawId)}/enrich`,
     { method: 'POST', allowStatuses: [409, 429], ...init }
   );
-  return { alreadyRunning: res.status === 409, tooMany: res.status === 429 };
+  let running: RunningScope | null = null;
+  if (res.status === 409 && typeof res.json === 'function') {
+    // The 409 names the run that is in the way, so the editor can say it is
+    // article 3 and not the whole law. An older backend answers in plain text.
+    try {
+      const conflict = (await res.json()) as { mode?: string | null; articles?: string[] | null };
+      running = { mode: conflict.mode ?? null, articles: conflict.articles ?? null };
+    } catch {
+      running = null;
+    }
+  }
+  return { alreadyRunning: res.status === 409, tooMany: res.status === 429, running };
+}
+
+/** The scope of a running enrichment, as the 409 and `/api/tasks` report it. */
+export interface RunningScope {
+  mode: string | null;
+  articles: string[] | null;
+}
+
+export interface EnrichRequestResult {
+  alreadyRunning: boolean;
+  tooMany: boolean;
+  running?: RunningScope | null;
+}
+
+/**
+ * What an enrichment may be asked for (EnrichRequest in
+ * packages/editor-api/src/enrich_scope.rs). Every field is optional; an empty
+ * object is the classic whole-law run on the deployment's provider.
+ */
+export interface EnrichOptions {
+  provider?: string;
+  model?: string;
+  /** `article`: one article from the article panel; `law`: the whole law. */
+  mode?: 'article' | 'law';
+  articles?: string[];
+  onlyMissing?: boolean;
+  /** Send the stelselcontext along (default on in the article mode). */
+  context?: boolean;
+  feedbackRounds?: number;
+  instruction?: string;
+}
+
+/** The request body for `options`, leaving out what was not chosen. */
+export function enrichBody(options?: EnrichOptions): Record<string, unknown> {
+  if (!options) return {};
+  const body: Record<string, unknown> = {};
+  if (options.provider) body.provider = options.provider;
+  if (options.model) body.model = options.model;
+  if (options.mode) body.mode = options.mode;
+  if (options.articles?.length) body.articles = options.articles;
+  if (options.onlyMissing) body.only_missing = true;
+  if (options.context !== undefined) body.context = options.context;
+  if (options.feedbackRounds !== undefined) body.feedback_rounds = options.feedbackRounds;
+  const instruction = options.instruction?.trim();
+  if (instruction) body.instruction = instruction;
+  return body;
 }
 
 export function useTasks() {

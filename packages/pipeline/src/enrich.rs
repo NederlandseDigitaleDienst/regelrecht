@@ -783,6 +783,11 @@ pub(crate) async fn call_agent(
     if let Pass::Feedback(feedback) = &payload.pass {
         let prompt =
             build_feedback_prompt(&payload.yaml_path, feedback, vocabulary_of(yaml_abs).await);
+        // A repair round may not widen what the translation was given.
+        let prompt = match &payload.scope {
+            Some(scope) => format!("{prompt}\n\n{}", scope.prompt_section()),
+            None => prompt,
+        };
         // A resumed round starts from a conversation in which the agent
         // wrote the very thing the gate is complaining about, so it is
         // told first of all to go and look.
@@ -834,7 +839,12 @@ pub(crate) async fn call_agent(
         tracing::info!("context brief withheld by ENRICH_CONTEXT_BRIEF=0");
         None
     } else {
-        context::write_brief(yaml_abs, payload.chunk_articles.as_deref(), repo_path)
+        context::write_brief(
+            yaml_abs,
+            payload.chunk_articles.as_deref(),
+            repo_path,
+            payload.scope.as_ref(),
+        )
     };
     if brief.is_none() {
         tracing::warn!(law = %payload.yaml_path, "no context brief written");
@@ -849,6 +859,19 @@ pub(crate) async fn call_agent(
         payload.skip_mvt.unwrap_or(false),
         brief.is_some(),
     );
+    // Whole-law and chunked runs keep their prompt byte-identical; only a
+    // scoped run gets the scope (and the engineer's instruction). An unscoped
+    // run that was nonetheless handed the stelselcontext is told that the
+    // other laws are there to read.
+    let prompt = match &payload.scope {
+        Some(scope) => format!("{prompt}\n{}", scope.prompt_section()),
+        None if crate::enrich_v2::stelsel::read(yaml_abs.parent().unwrap_or(Path::new(".")))
+            .is_some() =>
+        {
+            format!("{prompt}\n{}", crate::enrich_v2::stelsel::CONTEXT_READ_ONLY)
+        }
+        None => prompt,
+    };
     let call = AgentCall {
         payload,
         prompt: &prompt,
@@ -1042,6 +1065,19 @@ impl FeedbackRounds {
         }
     }
 
+    /// Every gate capped at `max` rounds: a job may ask for fewer rounds than
+    /// the worker's default, never for an unbounded number.
+    #[must_use]
+    pub fn clamped(self, max: usize) -> Self {
+        Self {
+            schema: self.schema.min(max),
+            checks: self.checks.min(max),
+            marking: self.marking.min(max),
+            reconcile: self.reconcile.min(max),
+            binding: self.binding.min(max),
+        }
+    }
+
     /// The most feedback rounds one run can spend over all gates: each window
     /// gate, the closing pass, the binding gate, and the schema gate a second
     /// time after the closing pass. With one round per gate this is
@@ -1229,9 +1265,46 @@ pub struct EnrichPayload {
     /// `chunk_articles`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_mvt: Option<bool>,
+    /// `"article"` or `"law"`: which interaction mode the editor started.
+    /// `None` is the unscoped walk every job had before modes existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    /// The articles (top-level numbers) still to enrich in a scoped run. The
+    /// article mode names exactly one; the law mode names its selection, and a
+    /// continuation carries what is left of it. Persisted, unlike
+    /// `chunk_articles`: it is the work list, not a per-run window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub articles: Option<Vec<String>>,
+    /// Free-text instruction from the engineer (article mode), bounded to
+    /// [`crate::enrich_v2::stelsel::MAX_INSTRUCTION_CHARS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instruction: Option<String>,
+    /// Feedback rounds for this job, as a [`FeedbackRounds::parse`] spec.
+    /// Overrides `ENRICH_FEEDBACK_ROUNDS`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feedback_rounds: Option<String>,
+    /// Model for this job, from [`ENRICH_MODELS`]. Overrides the provider's
+    /// configured model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The scope this run was given, decided by `execute_enrich_with_runner`
+    /// once the law is read. Runtime only, like [`Pass`].
+    #[serde(skip)]
+    pub scope: Option<crate::enrich_v2::stelsel::RunScope>,
 }
 
 impl EnrichPayload {
+    /// Whether the editor asked for a scoped run (article or law mode with a
+    /// work list), as opposed to the classic walk.
+    pub fn is_scoped(&self) -> bool {
+        self.articles.is_some()
+    }
+
+    /// Whether this is the article mode.
+    pub fn is_article_mode(&self) -> bool {
+        self.mode.as_deref() == Some("article")
+    }
+
     /// Taak-flow: resultaat naar Postgres + taak i.p.v. push naar git.
     pub fn deliver_as_task(&self) -> bool {
         self.deliver.as_deref() == Some("task")
@@ -1262,6 +1335,20 @@ impl EnrichPayload {
 /// All known provider names. Used to create one enrich job per provider
 /// after a successful harvest.
 pub const ENRICH_PROVIDERS: &[&str] = &["opencode", "claude"];
+
+/// Models a job may ask for, per provider: `(provider, model)`. A request for
+/// anything else is refused at the API, so a typo cannot become a CLI flag.
+/// opencode's model comes from the image configuration and is not chosen per
+/// job.
+pub const ENRICH_MODELS: &[(&str, &str)] = &[
+    ("claude", "claude-opus-5-5"),
+    ("claude", "claude-sonnet-5-5"),
+];
+
+/// Upper bound on the feedback rounds per gate a job may ask for. Every round
+/// takes a share of the same job timeout (`bound_llm_timeout`), so a higher
+/// number starves the translation call.
+pub const MAX_JOB_FEEDBACK_ROUNDS: usize = 3;
 
 /// A related-legislation reference returned by the enrichment agent in the
 /// `.enrichment-result.yaml` sidecar (the "result envelope").
@@ -1310,6 +1397,10 @@ pub struct EnrichmentResultEnvelope {
     /// actually reviewed the window, so the run can still count as progress.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunk_report: Option<ChunkReport>,
+    /// Coherence problems the agent saw outside its scope (scoped runs):
+    /// reported, never fixed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub signals: Vec<crate::enrich_v2::stelsel::Signal>,
 }
 
 /// Proof-of-review for one enrichment chunk, written by the agent into the
@@ -1495,6 +1586,11 @@ pub struct EnrichResult {
     /// so a stored result says what produced its figures.
     #[serde(default)]
     pub session_reuse: String,
+    /// What the reviewer should know that is not a change: edits put back
+    /// because they fell outside the scope, consumers elsewhere this run
+    /// broke, problems the agent reported in other laws.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub signals: Vec<crate::enrich_v2::stelsel::Signal>,
 }
 
 /// Serde default for [`EnrichResult::law_complete`]: results stored before
@@ -1958,6 +2054,18 @@ impl EnrichConfig {
         self
     }
 
+    /// Return a config whose provider runs `model`. The caller checks the
+    /// name against [`ENRICH_MODELS`]; this only sets it.
+    #[must_use]
+    pub fn with_model_override(mut self, model: &str) -> Self {
+        match &mut self.provider {
+            LlmProvider::OpenCode { model: m, .. } | LlmProvider::Claude { model: m, .. } => {
+                *m = Some(model.to_string());
+            }
+        }
+        self
+    }
+
     /// Return a config with the provider overridden if the payload specifies one.
     ///
     /// Selects from pre-built provider configs — no env vars are re-read.
@@ -2161,6 +2269,8 @@ fn build_prompt(
         );
     }
 
+    out.push_str(NULLABILITY_RULES);
+
     // Unconditional, and it used to hang off the sentence above. When the
     // retrieval step left the chain nothing was omitted any more, so the rule
     // left with it. The pull towards a remembered citation does not need a
@@ -2204,6 +2314,31 @@ fn build_prompt(
 
     out
 }
+
+/// What the engine's type check (RFC-036/037) demands of absence, put in the
+/// prompt so the agent writes it right the first time. The schema gate holds
+/// the result to it either way; this saves the repair round.
+const NULLABILITY_RULES: &str = "\
+## Absence and nullability\n\
+The engine type-checks every law when it loads it, and one finding rejects the whole \
+law, every article of it. Before you write machine_readable:\n\
+1. A fact that exists only in some cases (\"if the minister sets a new date\", \"where \
+applicable\") is a parameter or input with `nullable: true`, and stays `required: true`: \
+a value that is not passed is unknown, absence is an explicit `null`.\n\
+2. A value that may be absent is not used in arithmetic, ordering, AND/OR/NOT, an IF \
+condition or a date operation, and not assigned to an output that is never absent, until \
+the path has established it is present (N4). Test for presence first and fall back to \
+the main rule of the text: an IF whose case is `NOT(EQUALS $x null)` with `then: $x`, and \
+a `default` that is the rule the article applies when the exception does not occur.\n\
+3. `EQUALS ... null` only against a field that may be absent (N1).\n\
+4. A literal `null`, or an IF without `default`, only as the value of a nullable output \
+(N2/N3). Make an output nullable only when \"none\" is a real outcome; a deadline or an \
+entitlement almost never is.\n\
+5. An input whose `source` is a nullable output is itself nullable (N5).\n\
+6. Each exception to one main rule gets its own presence-tested case, in the precedence \
+the text gives, followed by the main rule as `default`.\n\
+Before you finish: every nullable field is used only inside a branch whose condition \
+proves it present, or in an EQUALS/IN test.\n\n";
 
 /// The names a law file may use to record what its model does not do.
 ///
@@ -3553,6 +3688,31 @@ struct GateReading {
 ///
 /// `None` for an error about the document as a whole, which stays in every
 /// window: a missing `$schema` is nobody's article and everybody's problem.
+/// The engine's type check (nullability N1–N5, typing T1–T5) over the law
+/// alone, as feedback lines for the agent, limited to the window.
+///
+/// Alone, without the rest of the corpus: N5 across laws needs the laws this
+/// one reads, and the worker has them only as slices, if at all. Within the
+/// law every rule applies. A file the engine cannot parse at all yields
+/// nothing here: the schema check before this one already speaks for it, and
+/// an unsupported schema version is not something this run can repair.
+fn type_findings(raw: &str, window: Option<&[String]>) -> Vec<String> {
+    use regelrecht_engine::LawLoad as _;
+    let Ok(law) = regelrecht_engine::ArticleBasedLaw::from_yaml_str(raw) else {
+        return Vec::new();
+    };
+    regelrecht_engine::typecheck::check_law_alone(&law)
+        .into_iter()
+        .filter(|f| in_window(window, Some(f.article.as_str())))
+        .map(|f| {
+            format!(
+                "[type {}] art. {} {}: {}",
+                f.rule, f.article, f.location, f.message
+            )
+        })
+        .collect()
+}
+
 fn schema_error_article(raw: &str, error: &str) -> Option<String> {
     let index: usize = error
         .strip_prefix("/articles/")?
@@ -3629,6 +3789,15 @@ async fn evaluate_gate(
                 .into_iter()
                 .filter(|error| in_window(window, schema_error_article(&raw, error).as_deref()))
                 .collect();
+            // Schema-valid is not loadable. The engine type-checks every law
+            // when it loads it (RFC-036/037), and one finding rejects the
+            // whole law, every article of it, in the editor and at run time.
+            // Checked here so the agent that wrote the article repairs it in
+            // the same session, instead of the reviewer meeting a regulation
+            // that no longer loads.
+            if reading.answerable.is_empty() {
+                reading.answerable = type_findings(&raw, window);
+            }
         }
         // The closing gate reads the whole law and never the window: the
         // whole point is that it looks at what every earlier window left.
@@ -3740,6 +3909,41 @@ fn entries_of(entry_numbers: &[String], article: &str) -> Vec<String> {
         .filter(|n| n.as_str() == article || n.starts_with(&with_dot))
         .cloned()
         .collect()
+}
+
+/// The scope of a scoped run: the target entries, and in the article mode the
+/// neighbours the target's translation directly affects.
+fn decide_scope(
+    payload: &EnrichPayload,
+    raw: &str,
+    targets: &[String],
+    entry_numbers: &[String],
+) -> crate::enrich_v2::stelsel::RunScope {
+    let mut neighbours = if payload.is_article_mode() {
+        serde_yaml_ng::from_str::<serde_yaml_ng::Value>(raw)
+            .map(|doc| crate::enrich_v2::stelsel::neighbours(&doc, targets))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    // An entry of the target itself (`69.1` of article `69`) is the target,
+    // not a neighbour.
+    neighbours.retain(|n| !targets.contains(n));
+    let mut allowed: Vec<String> = targets.to_vec();
+    for article in &neighbours {
+        for entry in entries_of(entry_numbers, article) {
+            if !allowed.contains(&entry) {
+                allowed.push(entry);
+            }
+        }
+    }
+    crate::enrich_v2::stelsel::RunScope {
+        article_mode: payload.is_article_mode(),
+        targets: targets.to_vec(),
+        neighbours,
+        allowed,
+        instruction: crate::enrich_v2::stelsel::bound_instruction(payload.instruction.as_deref()),
+    }
 }
 
 /// Convenience wrapper around `execute_enrich_with_runner` using `ProcessLlmRunner`.
@@ -3955,6 +4159,31 @@ pub async fn execute_enrich_with_runner(
         chunk = ?chunk_window.as_ref().map(|(start, numbers)| (*start, numbers.len())),
         "starting enrichment"
     );
+
+    // A scoped run (article or law mode from the editor) is told what it may
+    // change, and held to it after the run. The scope is decided here, once
+    // the law is read, because the neighbours of an article follow from the
+    // law and not from the request.
+    let raw_before = tokio::fs::read_to_string(&yaml_abs).await?;
+    let scope = match (&chunk_window, payload.is_scoped() && targeted) {
+        (Some((_, targets)), true) => {
+            Some(decide_scope(payload, &raw_before, targets, &entry_numbers))
+        }
+        _ => None,
+    };
+    if let Some(scope) = &scope {
+        tracing::info!(
+            law_id = %payload.law_id,
+            targets = ?scope.targets,
+            neighbours = ?scope.neighbours,
+            instruction = scope.instruction.is_some(),
+            "scoped enrichment"
+        );
+    }
+    let payload = &EnrichPayload {
+        scope: scope.clone(),
+        ..payload.clone()
+    };
 
     // An empty window (valid cursor already at the end of the document) means
     // the chunk loop finished this law earlier: nothing to process, no LLM run
@@ -4184,6 +4413,50 @@ pub async fn execute_enrich_with_runner(
         }
     }
 
+    // The write scope, enforced. The prompt asks the agent to stay inside it;
+    // this makes it so. An edit outside the scope is put back, not kept and not
+    // silently dropped: the reviewer reads that it happened.
+    let mut signals: Vec<crate::enrich_v2::stelsel::Signal> = Vec::new();
+    if let Some(scope) = &scope {
+        let raw_after = tokio::fs::read_to_string(&yaml_abs).await?;
+        if let Some((text, reverted)) =
+            crate::enrich_v2::stelsel::revert_out_of_scope(&raw_before, &raw_after, &scope.allowed)
+        {
+            tracing::warn!(
+                law_id = %payload.law_id,
+                reverted = ?reverted,
+                "edits outside the scope put back"
+            );
+            tokio::fs::write(&yaml_abs, &text).await?;
+            signals.extend(crate::enrich_v2::stelsel::broken_by_revert(
+                &raw_before,
+                &text,
+                &scope.allowed,
+            ));
+            for number in reverted {
+                signals.push(crate::enrich_v2::stelsel::Signal {
+                    kind: "scope_reverted".into(),
+                    law_id: Some(payload.law_id.clone()),
+                    article: Some(number.clone()),
+                    text: format!(
+                        "De verrijking wijzigde artikel {number}, dat buiten de scope van \
+                         deze run viel; die wijziging is teruggezet."
+                    ),
+                });
+            }
+        }
+        if let Some(ctx) =
+            crate::enrich_v2::stelsel::read(yaml_abs.parent().unwrap_or(Path::new(".")))
+        {
+            let raw_after = tokio::fs::read_to_string(&yaml_abs).await?;
+            signals.extend(crate::enrich_v2::stelsel::consumer_breaks(
+                &ctx,
+                &raw_before,
+                &raw_after,
+            ));
+        }
+    }
+
     // Count articles with machine_readable after enrichment.
     // Coverage score measures what the LLM *added* this session, not total coverage.
     let law_after = load_law(&yaml_abs).await?;
@@ -4225,6 +4498,24 @@ pub async fn execute_enrich_with_runner(
     // plus (chunked) the chunk_report used by the no-op guard below. Never
     // fails: absent/malformed → default (see read_enrichment_result_envelope).
     let envelope = read_enrichment_result_envelope(&yaml_abs).await;
+    if scope.is_some() {
+        signals.extend(envelope.signals.iter().cloned().map(|mut s| {
+            if s.kind.is_empty() {
+                s.kind = "agent".into();
+            }
+            s
+        }));
+        for round in &feedback {
+            for line in &round.outside_corpus {
+                signals.push(crate::enrich_v2::stelsel::Signal {
+                    kind: "outside_corpus".into(),
+                    law_id: None,
+                    article: None,
+                    text: line.clone(),
+                });
+            }
+        }
+    }
 
     // Capture what the agent flagged in the enriched YAML: untranslatables
     // (RFC-012, schema v0.5.x) and the markings that replaced them in v0.7.0.
@@ -4407,6 +4698,7 @@ pub async fn execute_enrich_with_runner(
         agent_calls,
         models,
         session_reuse: config.session_reuse.label().to_string(),
+        signals,
     };
 
     Ok((result, written_files))
@@ -4677,6 +4969,7 @@ mod tests {
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
 
         let json = serde_json::to_string(&payload).unwrap();
@@ -4701,6 +4994,7 @@ mod tests {
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
         let json_no_provider = serde_json::to_string(&payload_no_provider).unwrap();
         assert!(!json_no_provider.contains("provider"));
@@ -4731,6 +5025,7 @@ mod tests {
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         }
     }
 
@@ -4783,6 +5078,7 @@ mod tests {
             agent_calls: Vec::new(),
             models: Vec::new(),
             session_reuse: SessionReuse::Off.label().to_string(),
+            signals: Vec::new(),
         };
 
         let json = serde_json::to_value(&result).unwrap();
@@ -5131,6 +5427,7 @@ articles:
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
         let roundtrip: EnrichPayload =
             serde_json::from_value(serde_json::to_value(&new).unwrap()).unwrap();
@@ -7160,6 +7457,7 @@ articles:
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
 
         let config = test_config(LlmProvider::OpenCode {
@@ -7290,6 +7588,7 @@ articles:
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
 
         let config = test_config(LlmProvider::OpenCode {
@@ -7342,6 +7641,7 @@ articles:
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
 
         let config = test_config(LlmProvider::OpenCode {
@@ -8214,6 +8514,7 @@ articles:
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         };
         let json = serde_json::to_string(&bare).unwrap();
         assert!(!json.contains("chunk_articles"));
@@ -8322,6 +8623,188 @@ chunk_report:
         }
     }
 
+    /// Overreaching fake: gives every article a `machine_readable`, whatever
+    /// it was told, and records the translation prompt.
+    struct OverreachingRunner {
+        prompts: std::sync::Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LlmRunner for OverreachingRunner {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            if !matches!(call.payload.pass, Pass::Translate) {
+                return Ok(AgentRun::default());
+            }
+            self.prompts.lock().unwrap().push(call.prompt.to_string());
+            let content = tokio::fs::read_to_string(call.yaml_abs).await?;
+            let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
+            if let Some(serde_yaml_ng::Value::Sequence(articles)) = value.get_mut("articles") {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(map) = article {
+                        map.insert(
+                            serde_yaml_ng::Value::String("machine_readable".into()),
+                            serde_yaml_ng::Value::Mapping(Default::default()),
+                        );
+                    }
+                }
+            }
+            tokio::fs::write(call.yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
+            tokio::fs::write(
+                enrichment_result_path(call.yaml_abs),
+                "chunk_report:\n  articles_reviewed: [\"4\"]\nsignals:\n  - law_id: andere_wet\n    article: \"9\"\n    kind: \"\"\n    text: leest een output die niet bestaat\n",
+            )
+            .await?;
+            Ok(AgentRun::default())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_scoped_run_is_held_to_its_scope_and_says_what_it_put_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("regulation/nl/wet/test_law");
+        tokio::fs::create_dir_all(&law_dir).await.unwrap();
+        let yaml_path = "regulation/nl/wet/test_law/2025-01-01.yaml";
+        tokio::fs::write(dir.path().join(yaml_path), four_article_law())
+            .await
+            .unwrap();
+
+        let mut config = test_config(LlmProvider::OpenCode {
+            path: "fake".into(),
+            model: None,
+        });
+        config.target_articles = vec!["4".into()];
+        let payload = EnrichPayload {
+            mode: Some("article".into()),
+            articles: Some(vec!["4".into()]),
+            instruction: Some("  houd het bij lid 1  ".into()),
+            ..chunk_test_payload(yaml_path)
+        };
+        let runner = OverreachingRunner {
+            prompts: std::sync::Mutex::new(Vec::new()),
+        };
+
+        let (result, _) =
+            execute_enrich_with_runner(&payload, dir.path(), &config, "sha1", &runner)
+                .await
+                .unwrap();
+
+        // Only the target kept its edit.
+        assert_eq!(result.articles_with_machine_readable, 1);
+        let reverted: Vec<&str> = result
+            .signals
+            .iter()
+            .filter(|s| s.kind == "scope_reverted")
+            .filter_map(|s| s.article.as_deref())
+            .collect();
+        assert_eq!(reverted, vec!["1", "2", "3"]);
+        // The agent's own report comes through, labelled.
+        assert!(
+            result
+                .signals
+                .iter()
+                .any(|s| s.kind == "agent" && s.article.as_deref() == Some("9"))
+        );
+        // The prompt named the scope and quoted the instruction.
+        let prompt = runner.prompts.lock().unwrap()[0].clone();
+        assert!(prompt.contains("## Scope of this run"), "{prompt}");
+        assert!(prompt.contains("> houd het bij lid 1"), "{prompt}");
+    }
+
+    #[test]
+    fn the_article_mode_scope_allows_the_target_and_its_neighbours() {
+        let law = "$id: t\nbwb_id: BWBR0000001\narticles:\n  - number: \"2\"\n    text: \"Het bedrag, bedoeld in artikel 3.\"\n  - number: \"3\"\n    text: \"De grondslag.\"\n  - number: \"3.1\"\n    text: \"Een onderdeel.\"\n  - number: \"4\"\n    text: \"Losstaand.\"\n";
+        let entries: Vec<String> = ["2", "3", "3.1", "4"].map(String::from).to_vec();
+        let article = EnrichPayload {
+            mode: Some("article".into()),
+            articles: Some(vec!["2".into()]),
+            ..Default::default()
+        };
+        assert!(article.is_article_mode());
+        let scope = decide_scope(&article, law, &["2".to_string()], &entries);
+        assert!(scope.article_mode);
+        assert_eq!(scope.neighbours, vec!["3".to_string()]);
+        assert_eq!(scope.allowed, vec!["2", "3", "3.1"]);
+
+        // The law mode has no neighbours: only the targets may change.
+        let law_mode = EnrichPayload {
+            mode: Some("law".into()),
+            articles: Some(vec!["2".into()]),
+            ..Default::default()
+        };
+        assert!(!law_mode.is_article_mode());
+        let scope = decide_scope(&law_mode, law, &["2".to_string()], &entries);
+        assert!(scope.neighbours.is_empty());
+        assert_eq!(scope.allowed, vec!["2"]);
+    }
+
+    #[tokio::test]
+    async fn an_unscoped_run_with_a_stelsel_file_is_told_context_is_read_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("regulation/nl/wet/test_law");
+        tokio::fs::create_dir_all(&law_dir).await.unwrap();
+        let yaml_path = "regulation/nl/wet/test_law/2025-01-01.yaml";
+        tokio::fs::write(dir.path().join(yaml_path), four_article_law())
+            .await
+            .unwrap();
+        tokio::fs::write(
+            law_dir.join(crate::enrich_v2::stelsel::STELSEL_FILE),
+            "law_id: test_law\n",
+        )
+        .await
+        .unwrap();
+        let config = test_config(LlmProvider::OpenCode {
+            path: "fake".into(),
+            model: None,
+        });
+        let runner = OverreachingRunner {
+            prompts: std::sync::Mutex::new(Vec::new()),
+        };
+        let _ = execute_enrich_with_runner(
+            &chunk_test_payload(yaml_path),
+            dir.path(),
+            &config,
+            "sha1",
+            &runner,
+        )
+        .await;
+        let prompt = runner.prompts.lock().unwrap()[0].clone();
+        assert!(prompt.contains(crate::enrich_v2::stelsel::CONTEXT_READ_ONLY));
+        assert!(!prompt.contains("## Scope of this run"));
+    }
+
+    #[tokio::test]
+    async fn an_unscoped_run_keeps_its_prompt_and_reports_no_signals() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("regulation/nl/wet/test_law");
+        tokio::fs::create_dir_all(&law_dir).await.unwrap();
+        let yaml_path = "regulation/nl/wet/test_law/2025-01-01.yaml";
+        tokio::fs::write(dir.path().join(yaml_path), four_article_law())
+            .await
+            .unwrap();
+        let mut config = test_config(LlmProvider::OpenCode {
+            path: "fake".into(),
+            model: None,
+        });
+        // Targeted, but not scoped: the `enrich-once --article` path.
+        config.target_articles = vec!["4".into()];
+        let runner = OverreachingRunner {
+            prompts: std::sync::Mutex::new(Vec::new()),
+        };
+        let (result, _) = execute_enrich_with_runner(
+            &chunk_test_payload(yaml_path),
+            dir.path(),
+            &config,
+            "sha1",
+            &runner,
+        )
+        .await
+        .unwrap();
+        assert!(result.signals.is_empty());
+        let prompt = runner.prompts.lock().unwrap()[0].clone();
+        assert!(!prompt.contains("## Scope of this run"));
+        assert!(!prompt.contains(crate::enrich_v2::stelsel::CONTEXT_READ_ONLY));
+    }
+
     fn four_article_law() -> &'static str {
         r#"---
 $schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.7.0/schema/v0.7.0/schema.json
@@ -8372,6 +8855,7 @@ articles:
             chunk_articles: None,
             skip_mvt: None,
             session: None,
+            ..Default::default()
         }
     }
 
@@ -9009,6 +9493,40 @@ articles:
         let mut expected = vec![Duration::from_secs(1290)];
         expected.extend(std::iter::repeat_n(Duration::from_secs(430), calls - 1));
         assert_eq!(ceilings, expected);
+    }
+
+    /// An IF without `default` feeding an output that is never absent: the
+    /// schema allows it, the engine refuses to load the law (rule N3).
+    const N3_LAW: &str = "$id: t\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - number: '1'\n    text: t\n    machine_readable:\n      execution:\n        input:\n          - name: huur\n            type: amount\n            source: {}\n        output:\n          - name: klasse\n            type: string\n        actions:\n          - output: klasse\n            value:\n              operation: IF\n              cases:\n                - when:\n                    operation: GREATER_THAN\n                    subject: $huur\n                    value: 500\n                  then: hoog\n  - number: '2'\n    text: t\n";
+
+    #[test]
+    fn the_schema_gate_reports_what_the_engine_would_refuse_to_load() {
+        let findings = type_findings(N3_LAW, None);
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert!(
+            findings[0].starts_with("[type N3] art. 1 "),
+            "{}",
+            findings[0]
+        );
+        // Outside the window it is not this run's to repair.
+        assert!(type_findings(N3_LAW, Some(&["2".to_string()])).is_empty());
+        // With a default the law loads, and the gate says nothing.
+        let fixed = N3_LAW.replace(
+            "                  then: hoog\n",
+            "                  then: hoog\n              default: laag\n",
+        );
+        assert!(
+            type_findings(&fixed, None).is_empty(),
+            "{:?}",
+            type_findings(&fixed, None)
+        );
+    }
+
+    #[test]
+    fn the_translation_prompt_carries_the_nullability_rules() {
+        let prompt = build_prompt("law.yaml", "/tmp/p.json", &lane_plan(), None, false, false);
+        assert!(prompt.contains("## Absence and nullability"));
+        assert!(prompt.contains("NOT(EQUALS $x null)"));
     }
 
     #[test]

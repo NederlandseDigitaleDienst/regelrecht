@@ -476,6 +476,7 @@ pub async fn chain_enrich_and_complete(
         skip_mvt: None,
         // Queue payload: the session belongs to the run, not to the row.
         session: None,
+        ..Default::default()
     };
     let payload_json = serde_json::to_value(&enrich_payload)
         .map_err(|e| PipelineError::Enrich(format!("serialize enrich payload: {e}")))?;

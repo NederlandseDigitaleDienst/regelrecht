@@ -1374,6 +1374,7 @@ pub async fn create_enrich_jobs(
             skip_mvt: None,
             // Wachtrij-payload: de sessie hoort bij de run, niet bij de rij.
             session: None,
+            ..Default::default()
         };
 
         let payload_json = serde_json::to_value(&enrich_payload).map_err(|e| {

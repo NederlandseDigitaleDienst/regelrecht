@@ -583,6 +583,7 @@ async fn process_next_job(
                         skip_mvt: None,
                         // Queue payload: a session never outlives its window.
                         session: None,
+                        ..Default::default()
                     };
                     let payload_json = match serde_json::to_value(&enrich_payload) {
                         Ok(json) => json,
@@ -2017,8 +2018,45 @@ pub async fn finish_enrich_task_job(
     law_complete: bool,
     result_json: Option<serde_json::Value>,
 ) -> Result<Option<crate::models::Job>> {
-    let payload: EnrichPayload = serde_json::from_value(job.payload.clone().unwrap_or_default())
-        .map_err(|e| PipelineError::Enrich(format!("invalid enrich payload: {e}")))?;
+    finish_enrich_task_job_scoped(
+        pool,
+        job,
+        workdir,
+        written_files,
+        law_complete,
+        result_json,
+        None,
+    )
+    .await
+}
+
+/// Whether an input blob is part of the stelselcontext the editor-api sent
+/// along: a slice of another law under `context/`, or the stelsel file beside
+/// the law. Those go to a continuation unchanged.
+pub(crate) fn is_context_blob(path: &str) -> bool {
+    path.starts_with("context/")
+        || Path::new(path).file_name()
+            == Some(std::ffi::OsStr::new(
+                crate::enrich_v2::stelsel::STELSEL_FILE,
+            ))
+}
+
+/// [`finish_enrich_task_job`] for a scoped run: `next_articles` is what is left
+/// of the work list, and becomes the continuation's `articles`. Without it a
+/// continuation of a scoped run would carry the whole list again, or, with no
+/// list at all, walk the whole law: exactly what the engineer narrowed away.
+pub async fn finish_enrich_task_job_scoped(
+    pool: &PgPool,
+    job: &crate::models::Job,
+    workdir: &Path,
+    written_files: &[std::path::PathBuf],
+    law_complete: bool,
+    result_json: Option<serde_json::Value>,
+    next_articles: Option<Vec<String>>,
+) -> Result<Option<crate::models::Job>> {
+    let mut payload: EnrichPayload =
+        serde_json::from_value(job.payload.clone().unwrap_or_default())
+            .map_err(|e| PipelineError::Enrich(format!("invalid enrich payload: {e}")))?;
 
     // Vóór de transactie, want delete_blobs_for_job hieronder gooit de
     // input-blobs weg: dit is de bronsnapshot waartegen we de proposal diffen.
@@ -2028,6 +2066,14 @@ pub async fn finish_enrich_task_job(
     let continuation_input = inputs
         .iter()
         .any(|b| Path::new(&b.path).file_name() == Some(std::ffi::OsStr::new(".enrichment.yaml")));
+    // The stelselcontext and the slices of other laws came from the editor-api
+    // at request time. A continuation reads the same corpus, so it gets them
+    // again rather than a brief without them.
+    let context_blobs: Vec<(String, String)> = inputs
+        .iter()
+        .filter(|b| is_context_blob(&b.path))
+        .map(|b| (b.path.clone(), b.content.clone()))
+        .collect();
     let source_yaml = inputs
         .into_iter()
         .find(|b| b.path == payload.yaml_path)
@@ -2076,6 +2122,9 @@ pub async fn finish_enrich_task_job(
     });
     if new_law {
         task_payload["kind"] = serde_json::json!("law_create");
+    }
+    if let Some(mode) = &payload.mode {
+        task_payload["mode"] = serde_json::json!(mode);
     }
 
     // Eén taak per gewijzigd artikel. Een verrijking raakt doorgaans een
@@ -2175,6 +2224,9 @@ pub async fn finish_enrich_task_job(
         // Na `complete_job` in dezelfde transactie, zodat
         // `idx_unique_active_enrich_job` deze job niet meer als actief ziet
         // (zelfde patroon als `complete_enrich_success_tx`).
+        if let Some(next) = next_articles {
+            payload.articles = Some(next);
+        }
         let next_json = serde_json::to_value(&payload).map_err(|e| {
             PipelineError::Enrich(format!("serialize continuation enrich payload: {e}"))
         })?;
@@ -2199,6 +2251,16 @@ pub async fn finish_enrich_task_job(
                             .is_some_and(|n| n.starts_with('.'))
                 });
                 for (rel, content) in carried {
+                    crate::tasks::insert_blob(
+                        &mut *tx,
+                        next.id,
+                        crate::tasks::BlobKind::Input,
+                        rel,
+                        content,
+                    )
+                    .await?;
+                }
+                for (rel, content) in &context_blobs {
                     crate::tasks::insert_blob(
                         &mut *tx,
                         next.id,
@@ -2388,6 +2450,51 @@ fn task_walk_complete(law_complete: bool, steps: crate::enrich::RunSteps) -> boo
     law_complete || !steps.window
 }
 
+/// The config for one task-flow job, with what the payload asks for on top of
+/// the worker's defaults: a model, a number of feedback rounds, and for a
+/// scoped run the batch of articles this run enriches.
+///
+/// Returns the config and, for a scoped run, the articles left after this
+/// batch (`Some(vec![])` when this batch finishes the list). An invalid
+/// request (unknown model, unreadable rounds spec, empty work list) is an
+/// error: the API refuses those, so one arriving here is a bug, not a retry.
+pub(crate) fn scoped_task_config(
+    base: &EnrichConfig,
+    payload: &EnrichPayload,
+) -> std::result::Result<(EnrichConfig, Option<Vec<String>>), String> {
+    let mut config = base.clone();
+    if let Some(model) = &payload.model {
+        let provider = config.provider.name().to_string();
+        if !crate::enrich::ENRICH_MODELS
+            .iter()
+            .any(|(p, m)| *p == provider && *m == model)
+        {
+            return Err(format!("model {model} is niet toegestaan voor {provider}"));
+        }
+        config = config.with_model_override(model);
+    }
+    if let Some(spec) = &payload.feedback_rounds {
+        config.feedback_rounds = crate::enrich::FeedbackRounds::parse(spec)?
+            .clamped(crate::enrich::MAX_JOB_FEEDBACK_ROUNDS);
+    }
+    let Some(list) = &payload.articles else {
+        return Ok((config, None));
+    };
+    if list.is_empty() {
+        return Err("gerichte verrijking zonder artikelen".to_string());
+    }
+    // The article mode is one article, whatever the batch size. The law mode
+    // walks its selection in batches of the worker's window size, so a long
+    // selection does not become one session that cannot finish in time.
+    let batch = if payload.is_article_mode() || config.max_articles_per_run == 0 {
+        list.len()
+    } else {
+        config.max_articles_per_run.min(list.len())
+    };
+    config.target_articles = list[..batch].to_vec();
+    Ok((config, Some(list[batch..].to_vec())))
+}
+
 /// Taak-flow-verwerking van een enrich-job: werkdirectory uit input-blobs,
 /// enrichment draaien, resultaat als blobs + taak terugschrijven. Raakt
 /// bewust geen law_entries, untranslatables of vervolg-harvests aan: dit is
@@ -2434,7 +2541,14 @@ async fn process_enrich_task_job(
         tracing::warn!(error = %e, "failed to set up skill symlinks");
     }
 
-    let mut bounded_config = effective_config.clone();
+    let (mut bounded_config, remaining) = match scoped_task_config(&effective_config, payload) {
+        Ok(v) => v,
+        Err(msg) => {
+            // Een payload die de API had moeten weigeren: deterministisch kapot.
+            fail_enrich_task_job(pool, job, &msg).await?;
+            return Ok(JobOutcome::Processed);
+        }
+    };
     bound_llm_timeout(&mut bounded_config, job_timeout);
     // A fresh view of the agent per job, read by the progress poller.
     bounded_config.activity = crate::agent_activity::ActivityHandle::new();
@@ -2505,14 +2619,28 @@ async fn process_enrich_task_job(
                     None
                 }
             };
-            let law_complete = task_walk_complete(result.law_complete, bounded_config.steps);
-            match finish_enrich_task_job(
+            // Een gerichte run is af wanneer zijn werklijst op is, niet wanneer
+            // de cursor het einde van het document haalt: die staat bij een
+            // gerichte run stil, en een vervolgjob zonder werklijst zou de hele
+            // wet aflopen.
+            let law_complete = match &remaining {
+                Some(rest) => rest.is_empty(),
+                None => task_walk_complete(result.law_complete, bounded_config.steps),
+            };
+            let result_json = result_json.map(|mut v| {
+                if remaining.is_some() {
+                    v["law_complete"] = serde_json::json!(law_complete);
+                }
+                v
+            });
+            match finish_enrich_task_job_scoped(
                 pool,
                 job,
                 workdir.path(),
                 &written_files,
                 law_complete,
                 result_json,
+                remaining.clone(),
             )
             .await
             {
@@ -2621,6 +2749,7 @@ pub async fn complete_enrich_success_tx(
             skip_mvt: None,
             // The continuation is a new window and opens its own session.
             session: None,
+            ..Default::default()
         };
         let continuation_json = serde_json::to_value(&continuation_payload).map_err(|e| {
             PipelineError::Enrich(format!("serialize continuation enrich payload: {e}"))
@@ -4108,6 +4237,107 @@ articles:
         assert!(task_walk_complete(true, walking));
         assert!(task_walk_complete(false, reconcile_only));
         assert!(task_walk_complete(true, reconcile_only));
+    }
+
+    fn scoped(mode: &str, articles: &[&str]) -> EnrichPayload {
+        EnrichPayload {
+            mode: Some(mode.into()),
+            articles: Some(articles.iter().map(|a| a.to_string()).collect()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_unscoped_task_keeps_the_worker_config() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 2;
+        let (config, remaining) =
+            scoped_task_config(&base, &EnrichPayload::default()).expect("valid");
+        assert!(remaining.is_none());
+        assert!(config.target_articles.is_empty());
+    }
+
+    #[test]
+    fn the_law_mode_walks_its_selection_in_batches() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 2;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("law", &["1", "3", "5"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["1", "3"]);
+        assert_eq!(remaining, Some(vec!["5".to_string()]));
+        let (_, last) = scoped_task_config(&base, &scoped("law", &["5"])).expect("valid");
+        assert_eq!(last, Some(vec![]), "the last batch finishes the list");
+    }
+
+    #[test]
+    fn context_blobs_are_the_slices_and_the_stelsel_file() {
+        assert!(is_context_blob("context/awir/law.yaml"));
+        assert!(is_context_blob("laws/zorgtoeslag/.enrichment-stelsel.yaml"));
+        assert!(!is_context_blob("laws/zorgtoeslag/law.yaml"));
+        assert!(!is_context_blob("laws/zorgtoeslag/.enrichment.yaml"));
+    }
+
+    #[test]
+    fn without_a_window_size_the_law_mode_is_one_batch() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 0;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("law", &["1", "3", "5"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["1", "3", "5"]);
+        assert_eq!(remaining, Some(vec![]));
+    }
+
+    #[test]
+    fn the_article_mode_is_one_run() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 1;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("article", &["69"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["69"]);
+        assert_eq!(remaining, Some(vec![]));
+    }
+
+    #[test]
+    fn model_and_rounds_come_from_the_job_within_bounds() {
+        let base = config_with_timeouts(600);
+        let payload = EnrichPayload {
+            model: Some("claude-sonnet-5-5".into()),
+            feedback_rounds: Some("9,schema=0".into()),
+            ..Default::default()
+        };
+        let (config, _) = scoped_task_config(&base, &payload).expect("valid");
+        assert_eq!(config.provider.model(), Some("claude-sonnet-5-5"));
+        assert_eq!(
+            config.feedback_rounds.checks,
+            crate::enrich::MAX_JOB_FEEDBACK_ROUNDS
+        );
+        assert_eq!(config.feedback_rounds.schema, 0);
+    }
+
+    #[test]
+    fn an_unknown_model_or_an_empty_list_is_refused() {
+        let base = config_with_timeouts(600);
+        let unknown = EnrichPayload {
+            model: Some("gpt-x".into()),
+            ..Default::default()
+        };
+        assert!(scoped_task_config(&base, &unknown).is_err());
+        assert!(scoped_task_config(&base, &scoped("law", &[])).is_err());
+    }
+
+    #[test]
+    fn a_queued_payload_from_before_the_modes_still_reads() {
+        let old = serde_json::json!({
+            "law_id": "x",
+            "yaml_path": "laws/x/law.yaml",
+            "provider": "claude",
+            "deliver": "task"
+        });
+        let payload: EnrichPayload = serde_json::from_value(old).expect("old payload");
+        assert!(!payload.is_scoped());
+        let round_trip = serde_json::to_value(&payload).unwrap();
+        assert!(round_trip.get("articles").is_none());
+        assert!(round_trip.get("mode").is_none());
     }
 
     fn config_with_timeouts(secs: u64) -> crate::enrich::EnrichConfig {

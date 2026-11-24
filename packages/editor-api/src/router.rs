@@ -407,6 +407,10 @@ fn traject_reader_routes() -> Router<AppState> {
             get(corpus_handlers::list_traject_law_implementors),
         )
         .route(
+            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/consumers",
+            get(corpus_handlers::list_traject_law_consumers),
+        )
+        .route(
             "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
             get(corpus_handlers::list_traject_scenarios),
         )

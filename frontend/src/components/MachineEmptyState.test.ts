@@ -43,6 +43,35 @@ describe('MachineEmptyState', () => {
     expect(supporting).toContain('alle artikelen van deze versie');
   });
 
+  describe('with the scope modes on', () => {
+    function mountScoped() {
+      return mount(MachineEmptyState, { props: { canEnrich: true, needs: '', scoped: true } });
+    }
+
+    it('opens the sheet instead of starting a run on the whole law', async () => {
+      const w = mountScoped();
+      expect(enrichLabel(w)).toBe('Verrijk…');
+      await w.find('[data-testid="enrich-btn"]').trigger('action-click');
+      expect(w.emitted('enrich')).toBeUndefined();
+      expect(w.emitted('enrich-options')).toHaveLength(1);
+    });
+
+    it('offers no menu item that starts a whole-law run at once', async () => {
+      const w = mountScoped();
+      expect(w.find('[data-testid="enrich-with-opencode"]').exists()).toBe(false);
+      await w.find('[data-testid="enrich-article"]').trigger('select');
+      expect(w.emitted('enrich-article')).toHaveLength(1);
+      expect(w.emitted('enrich')).toBeUndefined();
+    });
+
+    it('does not promise every article', () => {
+      const supporting = mountScoped()
+        .find('[data-testid="no-machine-readable"]')
+        .attributes('supporting-text');
+      expect(supporting).not.toContain('alle artikelen');
+    });
+  });
+
   describe('choice of model', () => {
     it('runs the default when the button itself is clicked', async () => {
       const w = mountEmpty('');

@@ -1011,6 +1011,7 @@ pub fn write_brief(
     yaml_abs: &Path,
     window: Option<&[String]>,
     corpus_root: &Path,
+    run_scope: Option<&super::stelsel::RunScope>,
 ) -> Option<PathBuf> {
     let body = std::fs::read_to_string(yaml_abs).ok()?;
     let doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&body).ok()?;
@@ -1069,8 +1070,17 @@ pub fn write_brief(
 
     let cited = resolve_citations(&doc, &known, &scope, corpus_root);
 
+    let mut brief = render_brief(&law, &scope, &cited);
+    // The stelselcontext rides along when the request computed one: who reads
+    // this law, its open terms, what it reads elsewhere. Absent for the
+    // classic walk, which keeps its brief byte-identical.
+    if let Some(stelsel) = super::stelsel::read(dir) {
+        brief.push('\n');
+        brief.push_str(&super::stelsel::render_section(&stelsel, run_scope));
+    }
+
     let path = dir.join(CONTEXT_BRIEF);
-    std::fs::write(&path, render_brief(&law, &scope, &cited)).ok()?;
+    std::fs::write(&path, brief).ok()?;
     Some(path)
 }
 
@@ -1470,7 +1480,7 @@ articles:
         .expect("write sidecar");
 
         let written =
-            write_brief(&law, Some(&["8.1".to_owned()]), dir.path()).expect("brief written");
+            write_brief(&law, Some(&["8.1".to_owned()]), dir.path(), None).expect("brief written");
         let brief = std::fs::read_to_string(written).expect("read brief");
 
         assert!(brief.contains("## Article 8"), "brief was: {brief}");

@@ -189,7 +189,7 @@ describe('useEnrichState', () => {
         : tasksResponse({ running: [runningEnrich()] }),
     );
     const result = await requestEnrich();
-    expect(result).toEqual({ alreadyRunning: false, tooMany: false });
+    expect(result).toEqual({ alreadyRunning: false, tooMany: false, running: null });
     expect(apiFetch).toHaveBeenCalledWith(
       `/api/trajects/${TRAJECT}/corpus/laws/${LAW}/enrich`,
       expect.objectContaining({ method: 'POST' }),

@@ -1215,6 +1215,17 @@ pub fn binding_integrity(doc: &Value, corpus_root: Option<&Path>) -> Vec<Finding
                         Some(&number),
                         format!("\"{regulation}\" does not produce output \"{output}\""),
                     )),
+                    // The worker was given a slice of that law, not the law:
+                    // a miss says only that the editor-api did not include the
+                    // producing article, which nothing in this file can fix.
+                    Ok(TargetOutput::NotInSlice) => findings.push(Finding::new(
+                        "outside-corpus",
+                        Some(&number),
+                        format!(
+                            "reads \"{output}\" from \"{regulation}\", which the context slice \
+                             of that law does not contain; the full law was not given to this run"
+                        ),
+                    )),
                 },
                 Some(_) => {}
             }
@@ -3465,6 +3476,10 @@ enum TargetOutput {
     /// harvested and not yet interpreted, so it produces nothing at all and
     /// says nothing about whether this binding is right.
     NotYetInterpreted,
+    /// The file is a context slice of the target law (see
+    /// [`super::stelsel::SLICE_MARKER`]) and the output is not in it. The rest
+    /// of the law was not given, so this says nothing about the binding.
+    NotInSlice,
 }
 
 /// # Errors
@@ -3478,6 +3493,13 @@ fn target_output(path: &Path, output: &str) -> Result<TargetOutput, String> {
     let doc = read_corpus_law(path)?;
     if law_defines_output_in(&doc, output) {
         return Ok(TargetOutput::Produced);
+    }
+    if doc
+        .get(super::stelsel::SLICE_MARKER)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return Ok(TargetOutput::NotInSlice);
     }
     let interpreted = articles(&doc)
         .iter()

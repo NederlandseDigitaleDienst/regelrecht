@@ -37,6 +37,10 @@ static DEFAULTS: LazyLock<HashMap<String, bool>> = LazyLock::new(|| {
         // RegelRijm in the editor's Machine pane (RFC-054). Default off while
         // the reading is a draft.
         ("panel.regelrijm".into(), false),
+        // Artikel- en wetmodus voor verrijken. Default off: aan zetten pas
+        // wanneer de enrich-worker met scope-ondersteuning draait, want een
+        // oudere worker negeert de scope en verrijkt dan de hele wet.
+        ("enrich.scoped".into(), false),
     ])
 });
 

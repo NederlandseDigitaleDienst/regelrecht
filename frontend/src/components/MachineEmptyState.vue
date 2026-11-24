@@ -38,6 +38,11 @@ const props = withDefaults(defineProps<{
    *  hier), 'login' of 'traject'. Stuurt de uitleg boven de knoppen en de vorm
    *  van het knoplabel. */
   needs?: string;
+  /** Artikel- en wetmodus aangeboden (feature flag `enrich.scoped`). */
+  scoped?: boolean;
+  /** Wat de lopende verrijking bestrijkt ("artikel 3", "4 artikelen"); leeg
+   *  bij de klassieke verrijking van de hele wet. */
+  enrichingScope?: string;
 }>(), {
   reviewReady: false,
   reviewArticle: '',
@@ -48,6 +53,8 @@ const props = withDefaults(defineProps<{
   createHref: undefined,
   enrichError: '',
   needs: '',
+  scoped: false,
+  enrichingScope: '',
 });
 
 const emit = defineEmits<{
@@ -61,6 +68,10 @@ const emit = defineEmits<{
   create: [button: EventTarget | null];
   'view-tasks': [];
   review: [];
+  /** Alleen dit artikel verrijken (artikelmodus). */
+  'enrich-article': [];
+  /** De hele wet verrijken met keuzes over scope, model en rondes. */
+  'enrich-options': [];
 }>();
 
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
@@ -75,11 +86,25 @@ const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
 // Wie bij artikel 5 op deze knop drukte, kreeg taken terug voor artikel 3, 7 en
 // 12 zonder dat de knop dat ergens had gezegd.
 const actsHere = computed(() => !props.needs);
-const enrichLabel = computed(() => (actsHere.value ? 'Verrijk dit regelwerk' : 'Dit regelwerk verrijken'));
+// With the scope modes on, the button opens the sheet instead of starting a
+// run on the whole law: a run cannot be stopped once it is queued, so the
+// first press must never be the one that commits to all articles. The label's
+// ellipsis says a choice follows.
+const enrichLabel = computed(() => {
+  if (!actsHere.value) return 'Dit regelwerk verrijken';
+  return props.scoped ? 'Verrijk…' : 'Verrijk dit regelwerk';
+});
+function onEnrichAction(button: EventTarget | null) {
+  if (props.scoped) emit('enrich-options');
+  else emit('enrich', button);
+}
 const IN_EEN_TRAJECT = 'Een voorstel komt in een traject te staan, want daar leg je wijzigingen vast.';
 const emptyText = computed(() => {
   if (props.needs === 'login') return `${IN_EEN_TRAJECT} Log in en kies een traject om dit artikel daar te openen.`;
   if (props.needs === 'traject') return `${IN_EEN_TRAJECT} Kies een traject om dit artikel daar te openen.`;
+  if (props.scoped) {
+    return 'Kies wat je verrijkt: alleen dit artikel, of artikelen van dit regelwerk. Je krijgt een voorstel per gewijzigd artikel in dit traject.';
+  }
   return 'Genereren verrijkt alle artikelen van deze versie en levert een voorstel per artikel op in dit traject.';
 });
 </script>
@@ -108,7 +133,7 @@ const emptyText = computed(() => {
     v-else-if="enriching"
     data-testid="enriching"
     icon="ai"
-    text="We genereren een voorstel"
+    :text="enrichingScope ? `We genereren een voorstel voor ${enrichingScope}` : 'We genereren een voorstel'"
     supporting-text="Er staat een wacht-taak klaar. Zodra het voorstel er is, kun je het beoordelen."
   >
     <nldd-button
@@ -141,10 +166,13 @@ const emptyText = computed(() => {
       width="full"
       data-testid="enrich-btn"
       :text="enrichLabel"
-      @action-click="emit('enrich', $event.currentTarget)"
+      @action-click="onEnrichAction($event.currentTarget)"
     >
       <nldd-menu slot="popup">
-        <nldd-menu-group text="Verrijk met">
+        <!-- With the scope modes on, provider and model are chosen in the
+             sheet; a menu item that starts a whole-law run at once is exactly
+             the click that cannot be taken back. -->
+        <nldd-menu-group v-if="!scoped" text="Verrijk met">
           <nldd-menu-item
             v-for="option in ENRICH_PROVIDER_OPTIONS"
             :key="option.id"
@@ -152,6 +180,18 @@ const emptyText = computed(() => {
             :details="option.model"
             :data-testid="`enrich-with-${option.id}`"
             @select="emit('enrich', null, option.id)"
+          ></nldd-menu-item>
+        </nldd-menu-group>
+        <nldd-menu-group v-if="scoped" text="Met scope">
+          <nldd-menu-item
+            text="Alleen dit artikel…"
+            data-testid="enrich-article"
+            @select="emit('enrich-article')"
+          ></nldd-menu-item>
+          <nldd-menu-item
+            text="Regelwerk met opties…"
+            data-testid="enrich-options"
+            @select="emit('enrich-options')"
           ></nldd-menu-item>
         </nldd-menu-group>
       </nldd-menu>

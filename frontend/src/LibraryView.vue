@@ -9,6 +9,9 @@ import type { NLDDSearchField } from '@nldd/design-system/search-field';
 import type { NLDDTabBarItem } from '@nldd/design-system/tab-bar';
 import ArticleText from './components/ArticleText.vue';
 import MachineReadable from './components/MachineReadable.vue';
+import EnrichSheet from './components/EnrichSheet.vue';
+import { articleOf } from './lib/enrichScope';
+import type { EnrichOptions } from './composables/useTasks';
 import YamlView from './components/YamlView.vue';
 import ActionSheet from './components/ActionSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
@@ -1044,6 +1047,42 @@ const {
   lawId: selectedLawId,
   articleNumber: selectedArticleNumber,
 });
+
+// Met de artikel- en wetmodus aan (flag `enrich.scoped`) opent de grote knop
+// de sheet in plaats van meteen de hele wet te verrijken, net als in de
+// editor: een verrijking die eenmaal in de rij staat, is niet meer te stoppen.
+const scopedEnrich = computed(() => featureFlags.isEnabled('enrich.scoped'));
+const enrichSheetMode = ref<'article' | 'law' | null>(null);
+const enrichSheetBusy = ref(false);
+const enrichSheetArticle = ref<string | null>(null);
+function openEnrichSheet(mode: 'article' | 'law', anchorEl: EventTarget | null = null) {
+  if (!selectedLawId.value) return;
+  if (!authenticated.value || !activeTrajectRef.value) {
+    openEditor(anchorEl);
+    return;
+  }
+  const entries = new Set((selectedLaw.value?.articles ?? []).map((a) => String(a.number)));
+  const article =
+    selectedArticleNumber.value == null ? null : articleOf(String(selectedArticleNumber.value), entries);
+  if (mode === 'article' && !article) return;
+  enrichSheetArticle.value = article;
+  enrichSheetMode.value = mode;
+}
+async function submitEnrichSheet(options: EnrichOptions) {
+  enrichSheetBusy.value = true;
+  enrichError.value = '';
+  try {
+    const { tooMany } = await requestEnrich(options);
+    if (tooMany) enrichError.value = 'Je hebt te veel verrijkingen tegelijk lopen.';
+  } catch (e) {
+    const status = (e as { status?: number }).status;
+    const body = (e as { body?: string }).body;
+    enrichError.value = status && status < 500 && body ? body : 'Verrijking aanvragen mislukt.';
+  } finally {
+    enrichSheetBusy.value = false;
+    enrichSheetMode.value = null;
+  }
+}
 
 // Recently-viewed laws (most-recent-first), persisted across sessions. Stored
 // as { law_id, name } so a law that fails to load in the active traject - and
@@ -3195,8 +3234,8 @@ watch(activeTrajectRef, () => {
                   <nldd-spacer size="24"></nldd-spacer>
                   <KeepAlive>
                     <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
-                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
+                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" :scoped-enrich="scopedEnrich" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" />
+                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" :scoped-enrich="scopedEnrich" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" />
                   </KeepAlive>
                 </nldd-simple-section>
               </template>
@@ -3212,6 +3251,16 @@ watch(activeTrajectRef, () => {
     <!-- LibraryApp is a read-only browser; ActionSheet is mounted without editable
          so the output field is hidden and the footer button just closes the sheet. -->
     <ActionSheet :action="activeAction" :article="selectedArticle" :editable="false" @close="activeAction = null" @save="activeAction = null" @edit="editInEditor" />
+    <EnrichSheet
+      :mode="enrichSheetMode"
+      :law="selectedLaw"
+      :law-id="selectedLawId"
+      :traject-ref="activeTrajectRef"
+      :article="enrichSheetArticle"
+      :busy="enrichSheetBusy"
+      @submit="submitEnrichSheet"
+      @close="enrichSheetMode = null"
+    />
     <SearchPopover
       ref="searchPopoverRef"
       @select-law="(lawId) => selectLaw(lawId, true)"
