@@ -58,6 +58,7 @@ pub fn config_on(mode: Mode, surface: Surface) -> Config {
         fsc4b: Fsc4bChoice::Off,
         accent: None,
         link: Default::default(),
+        role: regelrecht_wetsproces::config::Role::Process(None),
     }
 }
 

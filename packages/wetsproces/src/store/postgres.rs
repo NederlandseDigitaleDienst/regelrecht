@@ -9,7 +9,7 @@
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
 //!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in,
 //!   when it was stored and who asked for it (`recorded_by`, migration 0002)
-//!   by which channel (`recorded_via`, migrations 0003, 0006 and 0009). A trigger refuses every `UPDATE`, `DELETE` and
+//!   by which channel (`recorded_via`, migrations 0003, 0006, 0009, 0010 and 0011). A trigger refuses every `UPDATE`, `DELETE` and
 //!   `TRUNCATE`: a chronicle only grows, except that a reset of test mode
 //!   may empty it (migrations 0007 and 0008);
 //! - `heads`: per cell its head, the number of records in it. A commit locks

@@ -57,6 +57,7 @@ fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
         fsc4b,
         accent: None,
         link: Default::default(),
+        role: regelrecht_wetsproces::config::Role::Process(None),
     }
 }
 

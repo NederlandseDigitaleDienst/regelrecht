@@ -71,12 +71,19 @@
 //! instead opens the channel on a demo Stelsel the server makes at start,
 //! with a test Activatiedienst; test mode only, and with none of the above.
 //! The channel is for citizens: the back office refuses either.
+//!
+//! The role ([`Role`], [`crate::organisatie::settings`]): `WETSPROCES_ROL`
+//! is `proces` (the default), a server that runs one legal process, or
+//! `organisatie`, the front of an organisation before its processes. The
+//! variables of each role, and of a process that belongs to an organisation,
+//! are listed there.
 
 use std::path::PathBuf;
 
 use regelrecht_auth::OidcConfig;
 
 use crate::access::{CITIZEN, Level, ROLE_PREFIX};
+pub use crate::organisatie::settings::{FrontSettings, Membership, OrganisationKey, Role};
 use crate::store::postgres::PoolSize;
 use crate::surface::Surface;
 use crate::theme::AccentColor;
@@ -308,6 +315,9 @@ pub struct Config {
     pub fsc4b: Fsc4bChoice,
     /// The accent colour of the screens; none keeps the design system's.
     pub accent: Option<AccentColor>,
+    /// A process, on its own or in an organisation, or an organisation's
+    /// front.
+    pub role: Role,
     /// The link with the servers of other cells of the case.
     pub link: LinkSettings,
 }
@@ -476,6 +486,43 @@ pub enum ConfigError {
     Fsc4bNeedsBsn(String),
     #[error("FSC voor Burgers needs WETSPROCES_FSC4B_PUBLIC_URL or BASE_URL")]
     Fsc4bNeedsPublicUrl,
+    #[error("WETSPROCES_ROL is `{0}`: it is `proces` or `organisatie`")]
+    UnknownRole(String),
+    #[error(
+        "the front of an organisation runs in test mode for now; stable mode follows with its \
+         own Keycloak"
+    )]
+    StableFront,
+    #[error("the front of an organisation needs {0}")]
+    FrontNeeds(&'static str),
+    #[error("the front of an organisation keeps nothing; WETSPROCES_STORE is `postgres`")]
+    FrontKeepsNoStore,
+    #[error("the front of an organisation offers no FSC voor Burgers; its processes do")]
+    Fsc4bOnFront,
+    #[error(
+        "the front of an organisation links with no cell (WETSPROCES_LINK_*); its processes do"
+    )]
+    LinkOnFront,
+    #[error("WETSPROCES_PROCES_ID is set on the front of an organisation, which runs no process")]
+    ProcessIdOnFront,
+    #[error("{0} is for the front of an organisation, and WETSPROCES_ROL is not `organisatie`")]
+    FrontVariableOnProcess(&'static str),
+    #[error("WETSPROCES_ORGANISATIE_LOGO is `{0}`: it is an https URL")]
+    BadLogo(String),
+    #[error(
+        "{0} is set but WETSPROCES_PROCES_ID is not: a process belongs to an organisation with \
+         all of its variables or none"
+    )]
+    PartialMembership(&'static str),
+    #[error("a process that belongs to an organisation needs {0}")]
+    MembershipNeeds(&'static str),
+    #[error(
+        "stable mode fetches no key: pin the organisation's key with \
+         WETSPROCES_ORGANISATIE_SLEUTEL_JWK instead of WETSPROCES_ORGANISATIE_SLEUTEL_URL"
+    )]
+    StableFetchesNoKey,
+    #[error("an address of the organisation is `{0}`: it is an http(s) URL")]
+    BadOrganisationUrl(String),
     #[error("WETSPROCES_FSC4B_PUBLIC_URL: {0}")]
     BadFsc4bPublicUrl(String),
     #[error(
@@ -525,6 +572,18 @@ impl Config {
             return Err(ConfigError::Fsc4bOnBackoffice);
         }
         let link = link_settings(mode, surface, &set)?;
+        let role = crate::organisatie::settings::role(mode, surface, &set)?;
+        if let Role::Organisation(_) = role {
+            if store != StoreChoice::Memory {
+                return Err(ConfigError::FrontKeepsNoStore);
+            }
+            if !matches!(fsc4b, Fsc4bChoice::Off) {
+                return Err(ConfigError::Fsc4bOnFront);
+            }
+            if link.party.is_some() || !link.peers.is_empty() || link.key.is_some() {
+                return Err(ConfigError::LinkOnFront);
+            }
+        }
         Ok(Self {
             mode,
             surface,
@@ -537,6 +596,7 @@ impl Config {
             fsc4b,
             accent,
             link,
+            role,
         })
     }
 }

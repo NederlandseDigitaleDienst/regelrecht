@@ -32,6 +32,9 @@
 //! - [`dossier`]: which records are about one person;
 //! - [`external`]: what the admin panel shows of an external party;
 //! - [`timeline`]: what happened about one application, and what comes next;
+//! - [`organisatie`]: the front of an organisation before several
+//!   processes (`WETSPROCES_ROL=organisatie`), and the statements it signs
+//!   for them;
 //! - [`case`]: the one case, from the manifest;
 //! - [`service`]: the steps, against a store and a clock;
 //! - [`api`]: the HTTP API over the service;
@@ -48,6 +51,7 @@ pub mod external;
 pub mod fsc4b;
 pub mod link;
 pub mod login;
+pub mod organisatie;
 pub mod service;
 pub mod store;
 pub mod surface;

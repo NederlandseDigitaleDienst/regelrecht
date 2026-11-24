@@ -1103,6 +1103,45 @@ wetsproces-iit:
     WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7181}" \
     WETSPROCES_MANIFEST=packages/wetsproces/iit-groningen/bron.yaml \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
+# An organisation in front of two processes, in test mode: the parking card
+# on http://localhost:7184, the IIT of Groningen on :7185, and the front of the
+# organisation (WETSPROCES_ROL=organisatie) on both sides at
+# http://localhost:7186. The processes fetch the front's key from it. Log in
+# at the front and a tile opens a process without a second login. A browser
+# keeps cookies per host, not per port, so the tiles lead to 127.0.0.1: the
+# front's session on localhost stays apart from the processes'. Stop all
+# three with Ctrl-C. Build the screens first (`npm run build -w
+# frontend-wetsproces`) to see them.
+wetsproces-organisatie:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
+    dir="$(mktemp -d)"
+    cat > "$dir/processen.yaml" <<YAML
+    processen:
+      - id: lokaal/parkeerkaart
+        naam: parkeerkaart
+        burger: { intern: 'http://localhost:7184', publiek: 'http://127.0.0.1:7184' }
+        backoffice: { intern: 'http://localhost:7184', publiek: 'http://127.0.0.1:7184' }
+      - id: lokaal/iit-groningen
+        naam: iit-groningen
+        burger: { intern: 'http://localhost:7185', publiek: 'http://127.0.0.1:7185' }
+        backoffice: { intern: 'http://localhost:7185', publiek: 'http://127.0.0.1:7185' }
+    YAML
+    trap 'kill 0' EXIT
+    run=(cargo run -q --manifest-path packages/Cargo.toml --package regelrecht-wetsproces)
+    member=(WETSPROCES_MODE=test WETSPROCES_ORGANISATIE_ID=lokaal/wilgendaal \
+      "WETSPROCES_ORGANISATIE_NAAM=Gemeente Wilgendaal" \
+      WETSPROCES_ORGANISATIE_URL=http://localhost:7186 \
+      WETSPROCES_ORGANISATIE_SLEUTEL_URL=http://localhost:7186/organisatie/v1/sleutel)
+    env "${member[@]}" WETSPROCES_PORT=7184 WETSPROCES_PROCES_ID=lokaal/parkeerkaart "${run[@]}" &
+    env "${member[@]}" WETSPROCES_PORT=7185 WETSPROCES_PROCES_ID=lokaal/iit-groningen \
+      WETSPROCES_MANIFEST=packages/wetsproces/iit-groningen/bron.yaml "${run[@]}" &
+    env WETSPROCES_MODE=test WETSPROCES_ROL=organisatie WETSPROCES_PORT=7186 \
+      WETSPROCES_ORGANISATIE_ID=lokaal/wilgendaal "WETSPROCES_ORGANISATIE_NAAM=Gemeente Wilgendaal" \
+      WETSPROCES_PROCESSEN="$dir/processen.yaml" "${run[@]}" &
+    wait
+
 # Start de wetsgeschiedenis los, op http://localhost:8420/wetsgeschiedenis/
 #
 # Bouwt de frontend met hetzelfde voorvoegsel als achter het portaal, zodat

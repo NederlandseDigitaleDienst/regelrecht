@@ -56,6 +56,7 @@ async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::Jo
         fsc4b,
         accent: None,
         link: Default::default(),
+        role: regelrecht_wetsproces::config::Role::Process(None),
     };
     let router = app::build_with(&config, Login::TestLogin)
         .await

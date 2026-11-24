@@ -171,6 +171,8 @@ The server makes that account itself: the role `wetsproces-burger` and no other,
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 
+A process can also belong to an [organisation](/components/wetsproces-organisatie): a front with one login before several processes, which hands a person over to this server with a signed statement at `GET /auth/organisatie`.
+
 ## API
 
 The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). Which of the routes below an instance has depends on its surface. The routes under `/api/backoffice/` exist on `backoffice` and `all`, those under `/api/dossier` and `/api/indieningen` on `burger` and `all`, and the others everywhere. An error answers `{ "fout": "<reason>" }`. For a `500` the reason is a fixed sentence and the cause goes to the server log only. A body that does not parse gets axum's own plain-text answer. Without a session the answer is `401`; with a session that lacks the role, `403`.
@@ -383,7 +385,7 @@ WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:54
 
 ## Deployment
 
-CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) when the crate or what it depends on changes. The image holds the three builds of the screens under `/app/frontend`, so one image runs as either surface. Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no wetsproces component. See [Deployment](/operations/deployment).
+CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) when the crate or what it depends on changes. The image holds the builds of the screens under `/app/frontend`, so one image runs as either surface, and as the front of an [organisation](/components/wetsproces-organisatie). Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no wetsproces component. See [Deployment](/operations/deployment).
 
 Until then the server runs as a test setup in a ZAD deployment of its own, `fieldlab`, apart from the previews and with a database of its own:
 

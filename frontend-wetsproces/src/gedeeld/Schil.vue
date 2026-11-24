@@ -8,7 +8,9 @@
 // without keeps its bar on top, in a toolbar of its own for that size, where
 // the action is an icon button. The shell knows no side: the
 // tabs come from the route (schil.ts), who is in and how to leave from the
-// shell that uses it.
+// shell that uses it. When the server belongs to an organisation
+// (uiterlijk.ts), the bar starts with the organisation's name as a link back
+// to its front; on the front itself the name is the bar's title.
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 // The page height the shell needs; see the comment in that file.
@@ -18,6 +20,7 @@ import ProefStrook from './ProefStrook.vue';
 import { isHuidig } from './schil';
 import type { Actie, Tab } from './schil';
 import type { Klok } from './types';
+import { organisatie } from './uiterlijk';
 import { wijsDeWeg } from './wegwijs';
 
 const props = withDefaults(
@@ -45,6 +48,10 @@ const route = useRoute();
 const router = useRouter();
 
 const zichtbaar = computed(() => props.tabs.filter((t) => !t.recht || props.rechten.includes(t.recht)));
+/** The organisation's front to go back to, when this is a process of one. */
+const terugNaarOrganisatie = computed(() => (organisatie.value?.url ? { naam: organisatie.value.naam, url: organisatie.value.url } : null));
+/** The bar's title: the side's own, or on the front of an organisation its name. */
+const kopTitel = computed(() => props.titel ?? (organisatie.value?.voorkant ? organisatie.value.naam : null));
 const huidig = (t: Tab) => isHuidig(t, route.name);
 const open = (t: Tab) => {
   if (!huidig(t) || route.path !== t.pad) void router.push(t.pad);
@@ -68,7 +75,11 @@ const wijzen = computed(
 
       <nldd-container slot="primary-bar" above="md" padding="8" padding-left="16">
         <nldd-toolbar size="md">
-          <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
+          <nldd-toolbar-item v-if="terugNaarOrganisatie" slot="start" :priority="0">
+            <nldd-button appearance="neutral-transparent" start-icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-title v-if="kopTitel" slot="start" :text="kopTitel"></nldd-toolbar-title>
           <nldd-toolbar-item v-if="zichtbaar.length" slot="start" :priority="1">
             <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
               <nldd-tab-bar-item
@@ -122,7 +133,11 @@ const wijzen = computed(
 
       <nldd-container v-if="!zichtbaar.length" slot="primary-bar-sm" only="sm" padding="8" padding-left="16">
         <nldd-toolbar size="md">
-          <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
+          <nldd-toolbar-item v-if="terugNaarOrganisatie" slot="start" :priority="0">
+            <nldd-icon-button size="md" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-title v-if="kopTitel" slot="start" :text="kopTitel"></nldd-toolbar-title>
           <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
             <nldd-icon-button size="md" appearance="primary" :icon="actie.icoon" :text="actie.tekst" @click="ga(actie.hash)"></nldd-icon-button>
             <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>

@@ -18,6 +18,12 @@
 //! build of the screens is served: the directory of the surface's name
 //! under `WETSPROCES_FRONTEND`.
 //!
+//! The front of an organisation (`WETSPROCES_ROL=organisatie`) is built
+//! apart ([`build_front`]): no case, no store and no clock, the login and the
+//! sessions in memory as the process's, and the build `organisatie` of the
+//! screens. A process that belongs to an organisation gets the check of its
+//! statements ([`crate::organisatie::statement::Acceptor`]).
+//!
 //! When Postgres is asked for and cannot be reached or migrated, the server
 //! does not start: it never falls back to memory. The sessions live beside
 //! the chronicles ([`crate::login`]), and so do the challenges and sessions
@@ -41,13 +47,15 @@ use tower_sessions::cookie::time::Duration as CookieDuration;
 use tower_sessions::{ExpiredDeletion, Expiry, SessionManagerLayer, SessionStore};
 use tower_sessions_memory_store::MemoryStore;
 
-use crate::api::{ApiError, AppState, router};
+use crate::api::{ApiError, AppState, Organisation, router};
 use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
-use crate::config::{Config, Fsc4bChoice, Mode, StoreChoice};
+use crate::config::{Config, FrontSettings, Fsc4bChoice, Mode, Role, StoreChoice};
 use crate::fsc4b::{Fsc4b, Fsc4bError};
 use crate::link::{Link, LinkError};
 use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
+use crate::organisatie::statement::{Acceptor, StatementError};
+use crate::organisatie::{FrontError, FrontState};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
 use crate::store::postgres::{
@@ -91,7 +99,15 @@ pub enum StartupError {
     Fsc4b(#[from] Fsc4bError),
     #[error("the link with other cells: {0}")]
     Link(#[from] LinkError),
+    #[error("the front of the organisation: {0}")]
+    Front(#[from] FrontError),
+    #[error("the organisation's key: {0}")]
+    OrganisationKey(#[from] StatementError),
 }
+
+/// The directory of the screens of an organisation's front, under
+/// `WETSPROCES_FRONTEND`, on every surface.
+pub const FRONT_SCREENS: &str = "organisatie";
 
 /// The router of the server for `config`, with its login discovered.
 ///
@@ -114,6 +130,10 @@ pub async fn build(config: &Config) -> Result<Router, StartupError> {
 /// mode on [`Surface::All`]; otherwise when the manifest gives no case to
 /// run, the stores do not open, or the service does not start.
 pub async fn build_with(config: &Config, login: Login) -> Result<Router, StartupError> {
+    let membership = match &config.role {
+        Role::Organisation(settings) => return build_front(config, settings, login),
+        Role::Process(membership) => membership.as_ref(),
+    };
     let stable = config.mode == Mode::Stable;
     if stable && (matches!(login, Login::TestLogin) || config.store == StoreChoice::Memory) {
         return Err(StartupError::StableNeedsLogin);
@@ -189,6 +209,18 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         link.spawn(service);
         state = state.with_link(link);
     }
+    if let Some(membership) = membership {
+        tracing::info!(
+            organisation = %membership.organisation_id,
+            process = %membership.process_id,
+            "belongs to an organisation"
+        );
+        state = state.with_organisation(Organisation {
+            name: membership.name.clone(),
+            url: membership.url.clone(),
+            acceptor: Arc::new(Acceptor::build(membership, config.surface, config.mode)?),
+        });
+    }
     let frontend = config.frontend.join(config.surface.name());
     let app = with_frontend(router(state.clone()), &frontend).layer(
         middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<AppState>),
@@ -203,6 +235,37 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
             secure,
         )),
     }
+}
+
+/// The router of the front of an organisation `settings` describe: its
+/// routes ([`crate::organisatie::router`]), its screens and the sessions in
+/// memory.
+///
+/// # Errors
+///
+/// [`StartupError::StableNeedsLogin`] in stable mode, which the
+/// configuration already refuses; [`StartupError::Front`] when the processes
+/// or the key cannot be read.
+fn build_front(
+    config: &Config,
+    settings: &FrontSettings,
+    login: Login,
+) -> Result<Router, StartupError> {
+    if config.mode == Mode::Stable {
+        return Err(StartupError::StableNeedsLogin);
+    }
+    let secure = login.secure_cookie();
+    let state = FrontState::build(config, settings, login)?;
+    let frontend = config.frontend.join(FRONT_SCREENS);
+    let app = with_frontend(crate::organisatie::router(state.clone()), &frontend).layer(
+        middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<FrontState>),
+    );
+    Ok(with_sessions(
+        app,
+        MemoryStore::default(),
+        config.surface,
+        secure,
+    ))
 }
 
 /// `app` with the built frontend in `dir` behind it, when `dir` holds an
@@ -237,6 +300,7 @@ fn with_frontend(app: Router, dir: &Path) -> Router {
             if path.starts_with("/api/")
                 || path.starts_with("/auth/")
                 || path.starts_with("/fsc4b/")
+                || path.starts_with("/organisatie/")
             {
                 return ApiError::new(StatusCode::NOT_FOUND, "there is no such route")
                     .into_response();
@@ -424,6 +488,7 @@ mod tests {
             fsc4b: Fsc4bChoice::Off,
             accent: None,
             link: Default::default(),
+            role: Role::Process(None),
         }
     }
 

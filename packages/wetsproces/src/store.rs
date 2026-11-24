@@ -99,17 +99,22 @@ pub enum Channel {
     /// one that cell's own server made and sent ([`crate::link`]). The
     /// account beside it names that cell.
     Link,
+    /// A session or a call handed over by the front of the organisation the
+    /// process belongs to ([`crate::organisatie`]), which logged the account
+    /// in. The account beside the record is `<organisation id>:<sub>`.
+    Organisation,
 }
 
 impl Channel {
     /// Every channel.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Keycloak,
         Self::TestLogin,
         Self::Fsc4b,
         Self::AdminPanel,
         Self::Policy,
         Self::Link,
+        Self::Organisation,
     ];
 
     /// The name the store keeps.
@@ -121,6 +126,7 @@ impl Channel {
             Self::AdminPanel => "beheerpaneel",
             Self::Policy => "beleid",
             Self::Link => "koppeling",
+            Self::Organisation => "organisatie",
         }
     }
 

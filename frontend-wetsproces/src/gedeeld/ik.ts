@@ -35,9 +35,15 @@ export function laadIk(opnieuw = false): Promise<Ik | null> {
   return geladen;
 }
 
-/** Whether the account works in the back office: it reads a cell, or it may set the clock. */
+/**
+ * Whether the account works in the back office: it reads a cell, or it may set
+ * the clock, or enters what its party did, or (on the front of an
+ * organisation, which runs no cell and works for no party) it holds a step
+ * of the ladder.
+ */
 export const isMedewerker = (wie: Ik | null): boolean =>
-  !!wie && (wie.cellen.length > 0 || wie.klok_zetten || (!!wie.partij && wie.partijen_invoeren));
+  !!wie &&
+  (wie.cellen.length > 0 || wie.klok_zetten || (!!wie.partij && wie.partijen_invoeren) || (!wie.burger && !!wie.niveau && !wie.partij));
 
 /** Where the app opens for `wie`: its own side, or the login. */
 export function startpagina(wie: Ik | null): string {

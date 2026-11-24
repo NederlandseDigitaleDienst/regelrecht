@@ -390,6 +390,13 @@ trusts, and the server gives that session the rights of `wetsproces-burger` and
 nothing more. No role of the ladder can reach such a session, and
 it reaches only the citizen's routes under `/fsc4b/burger/`.
 
+A process that belongs to an [organisation](/components/wetsproces-organisatie)
+also takes a person the organisation's front logged in, with a statement the
+front signs. One ladder holds for the whole organisation: the roles of the
+front's session reach every process behind it, filtered by the side the
+statement is for and by the process's own surface. What such a person records
+is kept with the channel `organisatie`.
+
 ### Keycloak setup for the wetsproces server
 
 The realm is configured by hand; nothing in the repository changes it.

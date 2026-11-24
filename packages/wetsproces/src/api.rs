@@ -17,6 +17,7 @@
 //! | Method and path | Who | What |
 //! |---|---|---|
 //! | `GET /health` | anyone | `ok` once the server runs |
+//! | `GET /api/uiterlijk` | anyone | the accent colour, and the organisation the process belongs to (`organisatie: { naam, url }`, or `null`) |
 //! | `GET /api/casus` | citizen or employee | the case, and today |
 //! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
 //! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
@@ -86,9 +87,10 @@ use crate::clock::ControllableClock;
 use crate::config::Mode;
 use crate::fsc4b::Fsc4b;
 use crate::link::Link;
-use crate::login::{Login, OidcLogin};
+use crate::login::{Host, Login};
+use crate::organisatie::statement::Acceptor;
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
-use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
+use crate::store::{Actor, IdempotencyKey, StoreError};
 use crate::surface::Surface;
 use crate::theme::AccentColor;
 use crate::visibility;
@@ -115,6 +117,19 @@ pub struct AppState {
     accent: Option<AccentColor>,
     /// The link with the servers of other cells, when one is configured.
     link: Option<Arc<Link>>,
+    /// The organisation the process belongs to, when it belongs to one.
+    organisation: Option<Organisation>,
+}
+
+/// The organisation a process belongs to: what its screens show of it, and
+/// the check of its statements.
+#[derive(Debug, Clone)]
+pub struct Organisation {
+    /// Its name.
+    pub name: String,
+    /// Its front on this instance's side, for the link back.
+    pub url: Option<String>,
+    pub acceptor: Arc<Acceptor>,
 }
 
 impl AppState {
@@ -137,7 +152,14 @@ impl AppState {
             fsc4b: None,
             accent: None,
             link: None,
+            organisation: None,
         }
+    }
+
+    /// The state of a process that belongs to `organisation`.
+    pub fn with_organisation(mut self, organisation: Organisation) -> Self {
+        self.organisation = Some(organisation);
+        self
     }
 
     /// The state with the screens in the accent colour `accent`.
@@ -178,22 +200,6 @@ impl AppState {
         &self.subject_claim
     }
 
-    /// The channel of a browser session: the login this server runs.
-    pub fn session_channel(&self) -> Channel {
-        match self.login {
-            Login::Oidc(_) => Channel::Keycloak,
-            Login::TestLogin => Channel::TestLogin,
-        }
-    }
-
-    /// The OIDC login, when the server logs in through Keycloak.
-    pub fn oidc(&self) -> Option<&OidcLogin> {
-        match &self.login {
-            Login::Oidc(o) => Some(o),
-            Login::TestLogin => None,
-        }
-    }
-
     pub fn http_client(&self) -> &reqwest::Client {
         &self.http_client
     }
@@ -201,6 +207,27 @@ impl AppState {
     /// The process this server runs.
     pub fn service(&self) -> &Service {
         &self.service
+    }
+}
+
+impl Host for AppState {
+    fn surface(&self) -> Surface {
+        self.surface
+    }
+    fn subject_claim(&self) -> &str {
+        &self.subject_claim
+    }
+    fn login(&self) -> &Login {
+        &self.login
+    }
+    fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
+    }
+    fn acceptor(&self) -> Option<&Acceptor> {
+        self.organisation.as_ref().map(|o| o.acceptor.as_ref())
+    }
+    async fn test_personas(&self) -> Vec<Value> {
+        crate::login::process_personas(self)
     }
 }
 
@@ -356,6 +383,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/uiterlijk", get(appearance))
         .merge(state.login.routes(state.surface))
         .merge(shared);
+    if state.organisation.is_some() {
+        routes = routes.route("/auth/organisatie", get(crate::login::organisation_handoff));
+    }
     if state.surface.serves_citizens() {
         routes = routes.merge(citizen).merge(fsc4b);
     }
@@ -704,16 +734,10 @@ async fn grants(State(state): State<AppState>) -> ApiResult {
 async fn me(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
-    session: tower_sessions::Session,
 ) -> ApiResult {
-    // The name is only shown; a session that does not give it leaves it out.
-    let name: Option<String> = session
-        .get(regelrecht_auth::SESSION_KEY_NAME)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "reading the name from the session");
-            None
-        });
+    // The name is only shown; a login or a statement that does not give it
+    // leaves it out.
+    let name = principal.name();
     let citizen = principal.citizen(&state.subject_claim).ok();
     let service = &state.service;
     // On the server of an external party nobody reads or decides for the
@@ -1050,7 +1074,7 @@ pub(crate) async fn submit_for(
 fn submitter(state: &AppState, principal: &Principal, citizen: &Citizen) -> Indiener {
     Indiener {
         inlog: login_claims(principal, state.service.login_field(), citizen.subject()),
-        inlogmiddel: access::login_method(principal.channel()).map(str::to_string),
+        inlogmiddel: access::login_method(principal.login_channel()).map(str::to_string),
     }
 }
 
@@ -1281,7 +1305,14 @@ async fn clock_state(state: &AppState) -> ApiResult {
 /// How the screens look: the accent colour, a theme of the NLDD design
 /// system, or `null` for the design system's own.
 async fn appearance(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({ "accentkleur": state.accent.map(AccentColor::name) }))
+    let organisation = state
+        .organisation
+        .as_ref()
+        .map(|o| json!({ "naam": o.name, "url": o.url }));
+    Json(json!({
+        "accentkleur": state.accent.map(AccentColor::name),
+        "organisatie": organisation,
+    }))
 }
 
 async fn clock(State(state): State<AppState>) -> ApiResult {
@@ -1382,7 +1413,7 @@ mod tests {
                 ("bsn".to_string(), json!("999990032")),
                 ("telefoon".to_string(), json!("0600000000")),
             ]),
-            Channel::TestLogin,
+            crate::store::Channel::TestLogin,
         )
         .with_name(Some("Anna Voorbeeld".into()));
         let inlog = login_claims(&principal, "bsn_aanvrager", "999990032");

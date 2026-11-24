@@ -10,7 +10,10 @@
 // either, and nothing that keeps data in the webview's storage. The back
 // office has its own entry (src/backofficeomgeving/, backoffice.html): no
 // module of backoffice/ imports one of burger/ or names a citizen's route,
-// and nothing the entry reaches is of the public side. The combined entry
+// and nothing the entry reaches is of the public side. The front of an
+// organisation has its own entry (src/organisatieomgeving/, organisatie.html):
+// it reaches none of a process's screens, and its modules name no route of a
+// process, since the front calls the processes itself. The combined entry
 // (main.ts) is the only one that carries both.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -155,6 +158,30 @@ describe('the back-office entry', () => {
       expect(m, m).not.toBe('main.ts');
     }
   });
+});
+
+describe("the entry of an organisation's front", () => {
+  const front = bundel('cookie', join('organisatieomgeving', 'main.ts'));
+
+  it('reaches the tiles, the login and the shell', () => {
+    expect(front).toContain(join('organisatie', 'OrganisatieHome.vue'));
+    expect(front).toContain(join('inloggen', 'InloggenView.vue'));
+    expect(front).toContain('App.vue');
+  });
+
+  it("reaches none of a process's screens", () => {
+    for (const m of front) {
+      expect(m, m).not.toMatch(/^(burger|burgeromgeving|backoffice)\//);
+      expect(m, m).not.toBe('main.ts');
+    }
+  });
+
+  it.each(bestanden(join(src, 'organisatie')).map((p) => [relative(src, p), p]))(
+    "%s names no route of a process's API",
+    (_, pad) => {
+      expect(readFileSync(pad, 'utf8')).not.toMatch(/\/api\/(backoffice|dossier|indieningen|casus|formulier)/);
+    },
+  );
 });
 
 describe('the combined entry', () => {

@@ -39,6 +39,10 @@ serde_json.workspace = true
 # compile-time checked macros, so a build needs no database.
 sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "json", "migrate"] }
 thiserror.workspace = true
+# The file of processes of an organisation's front (src/organisatie/processes.rs).
+serde_yaml_ng.workspace = true
+# The query of a hand-off to a process (src/organisatie/relay.rs).
+url.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 tower-http = { workspace = true, features = ["trace", "fs"] }
 # `oneshot` on the service of the built frontend (src/app.rs).
