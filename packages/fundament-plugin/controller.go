@@ -244,7 +244,9 @@ func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet
 	// new one is taken or fails, the one it ran before.
 	running := snap.current
 	if running == nil {
-		running = statusSnapshot(w)
+		if running, err = r.runningSnapshot(ctx, w); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 	if running == nil {
 		// Nothing to install yet: the first snapshot is on its way, or failed.

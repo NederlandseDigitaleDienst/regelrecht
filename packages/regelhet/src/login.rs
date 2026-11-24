@@ -64,7 +64,7 @@ use crate::config::LoginChoice;
 use crate::identity::{Identifier, Kind};
 use crate::organisatie::statement::Acceptor;
 use crate::service::LoginOutcome;
-use crate::store::Channel;
+use crate::store::{Channel, IdempotencyKey};
 use crate::surface::Surface;
 
 /// What a server's state gives the login and the principal of a request:
@@ -491,6 +491,7 @@ pub async fn process_step_log_in(
     state: &AppState,
     user: &str,
     password: &str,
+    key: Option<IdempotencyKey>,
 ) -> Result<(String, String), ApiError> {
     let bad = |message: &str| ApiError::new(StatusCode::BAD_REQUEST, message);
     let service = state.service();
@@ -498,7 +499,7 @@ pub async fn process_step_log_in(
         return Err(bad("Deze casus heeft geen inlogstap."));
     };
     let claims = match service
-        .log_in(user, password)
+        .log_in(user, password, key)
         .await
         .map_err(ApiError::from)?
     {
@@ -542,6 +543,111 @@ pub async fn process_step_log_in(
         })
         .unwrap_or_else(|| user.to_owned());
     Ok((number, name))
+}
+
+/// The key in a session that says the case's login step logged the
+/// citizen of a login through Keycloak in, with the number it asserted.
+const SESSION_KEY_STEP_LOGIN: &str = "regelhet.inlogstap";
+
+/// After a login through Keycloak, on a case with a login step of its own
+/// (`inloggen.inlogstap`): log the account in at that step once per
+/// session, as the test login does with a user name and the password of
+/// the simulation, so the step's cell records the authentication the case
+/// requires. The Keycloak user name (`preferred_username`) is the user name
+/// at the step; the step must assert the number the token carries.
+///
+/// A refusal, or a number other than the token's, records nothing and is
+/// noted in the session too, so it is not tried on every request: the
+/// application then lacks the authentication, as it would after a real
+/// refusal.
+///
+/// # Errors
+///
+/// When the session does not read or write, or the service fails.
+pub async fn record_step_login(
+    state: &AppState,
+    session: &Session,
+    principal: &Principal,
+) -> Result<(), ApiError> {
+    if principal.channel() != Channel::Keycloak || !state.has_login_step() {
+        return Ok(());
+    }
+    let failed = |e: tower_sessions::session::Error| {
+        tracing::error!(error = %e, "the session of a login step");
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the server failed on this request; the cause is in its log",
+        )
+    };
+    // The marker names the account: a session another account logs in on
+    // keeps its data (the OIDC callback only cycles its id).
+    let done: Option<Value> = session.get(SESSION_KEY_STEP_LOGIN).await.map_err(failed)?;
+    if done.is_some_and(|d| d["sub"] == principal.sub()) {
+        return Ok(());
+    }
+    // Requests that arrive at once each see no marker: the key makes the
+    // step commit once for this session and account, and the others replay
+    // its answer.
+    // A session not stored yet has no id, and no key: it is one request.
+    let key = session.id().and_then(|id| {
+        format!("inlogstap:{id}:{}", principal.sub())
+            .parse::<IdempotencyKey>()
+            .ok()
+    });
+    let claim = state.subject_claim();
+    let user = principal
+        .claims()
+        .get(crate::config::USERNAME_CLAIM)
+        .and_then(Value::as_str);
+    let number = principal.claims().get(claim).and_then(Value::as_str);
+    let outcome = match (user, number) {
+        (Some(user), Some(number)) => {
+            match process_step_log_in(
+                state,
+                user,
+                regelrecht_poc_chronolexografie::inlogstap::WACHTWOORD,
+                key,
+            )
+            .await
+            {
+                Ok((asserted, _)) if asserted == number => {
+                    tracing::info!(
+                        user,
+                        number,
+                        "the login step recorded the login through Keycloak"
+                    );
+                    json!({ "vastgelegd": number })
+                }
+                Ok((asserted, _)) => {
+                    // The step recorded its own user's login; the realm gave
+                    // that user another number.
+                    tracing::error!(
+                        user,
+                        number,
+                        asserted,
+                        "the login step asserts another number than the token: a mistake in the realm"
+                    );
+                    json!({ "vastgelegd_voor": asserted, "token": number })
+                }
+                Err(e) if e.status().is_client_error() => {
+                    let reason = e.body()["fout"].clone();
+                    tracing::warn!(user, %reason, "the login step refused the account of Keycloak");
+                    json!({ "geweigerd": reason })
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        _ => {
+            tracing::warn!(sub = %principal.sub(), claim, "a login through Keycloak without a user name or number for the login step");
+            json!({ "geweigerd": "geen gebruikersnaam of nummer" })
+        }
+    };
+    let mut outcome = outcome;
+    outcome["sub"] = Value::from(principal.sub());
+    session
+        .insert(SESSION_KEY_STEP_LOGIN, outcome)
+        .await
+        .map_err(failed)
 }
 
 /// `GET /auth/simulatie`: what the simulated login of the citizens' side
@@ -1043,5 +1149,126 @@ pub(crate) mod tests {
         let unmarked = record(2);
         shared.save(&unmarked).await.unwrap();
         assert_eq!(backoffice.load(&unmarked.id).await.unwrap(), None);
+    }
+
+    /// A login through Keycloak on a case with a login step: the step
+    /// logs the account in once per session, by its Keycloak user name,
+    /// and records the authentication; a second request records nothing.
+    #[tokio::test]
+    async fn a_login_through_keycloak_is_logged_in_at_the_case_step_once() {
+        let service = Arc::new(crate::service::tests::login_step_service().await);
+        let state = AppState::new(
+            Arc::clone(&service),
+            crate::config::Mode::Stable,
+            Surface::Citizen,
+            None,
+            offline_login(),
+            "kvk_nummer",
+        );
+        let cell = "voorbeeld_erkende_dienst";
+        let head = || async {
+            service.chronicle(cell).await.unwrap()["kop"]
+                .as_u64()
+                .unwrap()
+        };
+        let before = head().await;
+        let account = |user: &str, number: &str| {
+            Principal::new(
+                format!("kc-{user}"),
+                BTreeSet::from([CITIZEN.to_string()]),
+                BTreeMap::from([
+                    ("kvk_nummer".to_string(), Value::from(number)),
+                    (crate::config::USERNAME_CLAIM.to_string(), Value::from(user)),
+                ]),
+                Channel::Keycloak,
+            )
+        };
+        let session = || {
+            Session::new(
+                None,
+                Arc::new(tower_sessions_memory_store::MemoryStore::default()),
+                None,
+            )
+        };
+
+        let bakker = session();
+        record_step_login(&state, &bakker, &account("bakker", "99970011"))
+            .await
+            .unwrap();
+        assert_eq!(head().await, before + 1);
+        record_step_login(&state, &bakker, &account("bakker", "99970011"))
+            .await
+            .unwrap();
+        assert_eq!(head().await, before + 1, "once per session");
+
+        // Refused at the step, or a number other than the token's: nothing
+        // is recorded, and it is not tried again in that session.
+        let kapper = session();
+        record_step_login(&state, &kapper, &account("kapper", "99970022"))
+            .await
+            .unwrap();
+        let other = session();
+        record_step_login(&state, &other, &account("bakker", "99970033"))
+            .await
+            .unwrap();
+        assert_eq!(
+            head().await,
+            before + 2,
+            "the step records before the number is compared"
+        );
+        let noted: Option<Value> = other.get(SESSION_KEY_STEP_LOGIN).await.unwrap();
+        assert_eq!(
+            noted,
+            Some(json!({ "vastgelegd_voor": "99970011", "token": "99970033", "sub": "kc-bakker" }))
+        );
+
+        // Another account on a session that holds a marker is logged in at
+        // the step again.
+        record_step_login(&state, &bakker, &account("bloemist", "99970033"))
+            .await
+            .unwrap();
+        assert_eq!(head().await, before + 3);
+    }
+
+    /// Requests of one stored session that arrive before the marker is
+    /// written replay the first one's step and record nothing more.
+    #[tokio::test]
+    async fn a_second_request_of_the_session_replays_the_step() {
+        let service = Arc::new(crate::service::tests::login_step_service().await);
+        let state = AppState::new(
+            Arc::clone(&service),
+            crate::config::Mode::Stable,
+            Surface::Citizen,
+            None,
+            offline_login(),
+            "kvk_nummer",
+        );
+        let head = || async {
+            service.chronicle("voorbeeld_erkende_dienst").await.unwrap()["kop"]
+                .as_u64()
+                .unwrap()
+        };
+        let before = head().await;
+        let bakker = Principal::new(
+            "kc-bakker".into(),
+            BTreeSet::from([CITIZEN.to_string()]),
+            BTreeMap::from([
+                ("kvk_nummer".to_string(), Value::from("99970011")),
+                (
+                    crate::config::USERNAME_CLAIM.to_string(),
+                    Value::from("bakker"),
+                ),
+            ]),
+            Channel::Keycloak,
+        );
+        let store = Arc::new(tower_sessions_memory_store::MemoryStore::default());
+        let session = Session::new(None, store, None);
+        session.insert("x", 1).await.unwrap();
+        session.save().await.unwrap();
+        record_step_login(&state, &session, &bakker).await.unwrap();
+        // As a request that read the session before the marker was written.
+        session.remove_value(SESSION_KEY_STEP_LOGIN).await.unwrap();
+        record_step_login(&state, &session, &bakker).await.unwrap();
+        assert_eq!(head().await, before + 1);
     }
 }

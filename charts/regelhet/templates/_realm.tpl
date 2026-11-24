@@ -36,6 +36,22 @@ operator from a Secret.
         "access.token.claim" "true"
         "userinfo.token.claim" "true") }}
 {{- /*
+A case that logs in on another key than bsn (regelhet.subjectClaim, such as
+kvk_nummer): its claim from the user attribute of that name, beside bsn.
+*/}}
+{{- $claim := .Values.regelhet.subjectClaim }}
+{{- $claimMapper := dict
+      "name" $claim
+      "protocol" "openid-connect"
+      "protocolMapper" "oidc-usermodel-attribute-mapper"
+      "config" (dict
+        "user.attribute" $claim
+        "claim.name" $claim
+        "jsonType.label" "String"
+        "id.token.claim" "true"
+        "access.token.claim" "true"
+        "userinfo.token.claim" "true") }}
+{{- /*
 The realm's user profile: Keycloak's default attributes, and `bsn`, which only
 an admin may change. Without it Keycloak drops the attribute of every user.
 Display names are plain text: the operator would read `${...}` as a
@@ -58,6 +74,15 @@ placeholder.
           "permissions" (dict "view" (list "admin" "user") "edit" (list "admin"))
           "validations" (dict "pattern" (dict "pattern" "^[0-9]{9}$" "error-message" "nine digits"))))
       "groups" (list) }}
+{{- if and $claim (ne $claim "bsn") }}
+{{- $validations := dict "length" (dict "max" 64) }}
+{{- if eq $claim "kvk_nummer" }}
+{{- $validations = dict "pattern" (dict "pattern" "^[0-9]{8}$" "error-message" "eight digits") }}
+{{- end }}
+{{- $_ := set $profile "attributes" (append $profile.attributes (dict "name" $claim "displayName" (ternary "KvK-nummer" $claim (eq $claim "kvk_nummer")) "multivalued" false
+      "permissions" (dict "view" (list "admin" "user") "edit" (list "admin"))
+      "validations" $validations)) }}
+{{- end }}
 realm: {{ .Values.keycloak.realm }}
 enabled: true
 sslRequired: external
@@ -119,6 +144,9 @@ clients:
       - {{- toYaml $roleMapper | nindent 12 }}
       {{- if eq $side "burger" }}
       - {{- toYaml $bsnMapper | nindent 12 }}
+      {{- if and $claim (ne $claim "bsn") }}
+      - {{- toYaml $claimMapper | nindent 12 }}
+      {{- end }}
       {{- end }}
   {{- end }}
 {{- if .Values.keycloak.testUsers }}
@@ -127,6 +155,25 @@ users:
   {{- $citizens := list
         (dict "username" "anna.voorbeeld" "first" "Anna" "last" "Voorbeeld" "bsn" "999990032")
         (dict "username" "bram.proef" "first" "Bram" "last" "Proef" "bsn" "999990020") }}
+  {{- if and $claim (ne $claim "bsn") .Values.keycloak.testApplicants }}
+  {{- /* The applicants of the case, under its own key (the plugin reads them from its begin data). */}}
+  {{- range .Values.keycloak.testApplicants }}
+  - username: {{ .username | quote }}
+    enabled: true
+    email: {{ printf "%s@example.org" .username | quote }}
+    emailVerified: true
+    firstName: {{ default .username .name | quote }}
+    {{- /* Keycloak's name is first and last name together; the number is in its own attribute. */}}
+    lastName: "Test"
+    attributes:
+      {{ $claim }}: [{{ .number | quote }}]
+    realmRoles: [regelhet-burger]
+    credentials:
+      - type: password
+        value: "${REGELHET_TEST_PASSWORD}"
+        temporary: false
+  {{- end }}
+  {{- else }}
   {{- range $citizens }}
   - username: {{ .username }}
     enabled: true
@@ -141,6 +188,7 @@ users:
       - type: password
         value: "${REGELHET_TEST_PASSWORD}"
         temporary: false
+  {{- end }}
   {{- end }}
   {{- range $role := list "beslisser" "admin" }}
   - username: {{ $role }}

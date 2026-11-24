@@ -932,7 +932,8 @@ impl Service {
     /// `wachtwoord`, on today's date: the cell of the step answers whether
     /// that user may act for the service, and when it may, records the fact
     /// of the case's login, in a commit of its own
-    /// (`inlogstap::inloggen`).
+    /// (`inlogstap::inloggen`). With `key` a second login under the same key
+    /// gives the first one's outcome and records nothing.
     ///
     /// # Errors
     ///
@@ -942,6 +943,7 @@ impl Service {
         &self,
         gebruikersnaam: &str,
         wachtwoord: &str,
+        key: Option<IdempotencyKey>,
     ) -> Result<LoginOutcome, ServiceError> {
         let actor = Actor {
             account: format!("inlogstap:{gebruikersnaam}"),
@@ -951,7 +953,7 @@ impl Service {
             gebruikersnaam: gebruikersnaam.to_owned(),
             wachtwoord: wachtwoord.to_owned(),
         });
-        LoginOutcome::from_answer(&self.perform(None, step, &actor).await?)
+        LoginOutcome::from_answer(&self.perform(key, step, &actor).await?)
     }
 
     /// The cell this server runs the process for, whose employees log in to
@@ -2179,7 +2181,7 @@ pub(crate) mod tests {
 
     /// A service on the PoC's test source with a login step, whose
     /// accredited service knows the users bakker, kapper and bloemist.
-    async fn login_step_service() -> Service {
+    pub(crate) async fn login_step_service() -> Service {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../poc-chronolexografie/tests/bron-inlogstap/bron.yaml");
         let (corpus, _) = crate::case::load(&manifest).unwrap();
@@ -2198,13 +2200,14 @@ pub(crate) mod tests {
         let head = || async { s.chronicle(cell).await.unwrap()["kop"].as_u64().unwrap() };
         let before = head().await;
 
-        let refused = s.log_in("kapper", "welkom").await.unwrap();
+        let refused = s.log_in("kapper", "welkom", None).await.unwrap();
         assert_eq!(refused, LoginOutcome::NotAuthorized);
-        let wrong = s.log_in("bakker", "verkeerd").await.unwrap();
+        let wrong = s.log_in("bakker", "verkeerd", None).await.unwrap();
         assert_eq!(wrong, LoginOutcome::WrongPassword);
         assert_eq!(head().await, before, "a refused login records nothing");
 
-        let LoginOutcome::LoggedIn(claims) = s.log_in("bakker", "welkom").await.unwrap() else {
+        let LoginOutcome::LoggedIn(claims) = s.log_in("bakker", "welkom", None).await.unwrap()
+        else {
             panic!("bakker may log in");
         };
         assert_eq!(claims["kvk_nummer"], "99970011");

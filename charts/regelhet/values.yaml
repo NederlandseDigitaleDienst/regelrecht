@@ -69,6 +69,12 @@ regelhet:
   surface: all
   # `testlogin` or `oidc`. Test mode takes either; stable mode only `oidc`.
   login: testlogin
+  # The claim that identifies an applicant (REGELHET_SUBJECT_CLAIM), when the
+  # case logs in on another key than `bsn`, such as `kvk_nummer`. Empty leaves
+  # it to the case in test mode and to `bsn` with Keycloak. With
+  # keycloak.enabled the realm puts the user attribute of that name in the
+  # token, and the test accounts carry it.
+  subjectClaim: ''
 
 # The login through Keycloak, read with `login: oidc`. Each side has a client
 # of its own, whose redirect URI is https://<host of that side>/auth/callback;
@@ -115,6 +121,13 @@ keycloak:
   # under `testPasswordKey`. For a test setup only.
   testUsers: false
   testPasswordKey: test-password
+  # With testUsers and regelhet.subjectClaim: the applicants of the case,
+  # instead of the two citizens, each `{username, number, name}` with the
+  # number under the attribute regelhet.subjectClaim. The Fundament plugin
+  # reads them from the begin data of the case. A case with a login step of
+  # its own takes the user name of that step: the server logs that user in
+  # there after the login through Keycloak.
+  testApplicants: []
   # The database of this Keycloak, apart from the chronicles.
   database:
     instances: 1

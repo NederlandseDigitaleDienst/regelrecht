@@ -193,6 +193,8 @@ func TestChartValuesExistInChart(t *testing.T) {
 	check("", chartValues(w, validConfig(), testSnapshot), chart)
 	w.Spec.Auth = v1alpha1.Auth{Mode: v1alpha1.AuthStable, TestAccounts: true}
 	check("", chartValues(w, validConfig(), testSnapshot), chart)
+	kvk := &snapshot{configMaps: testSnapshot.configMaps, login: &caseLogin{Key: "kvk_nummer", Applicants: []caseApplicant{{Number: "1", Username: "abc"}}}}
+	check("", chartValues(w, validConfig(), kvk), chart)
 	w.Spec.Auth = v1alpha1.Auth{}
 	w.Spec.Fsc4b.Enabled = true
 	check("", chartValues(w, validConfig(), testSnapshot), chart)

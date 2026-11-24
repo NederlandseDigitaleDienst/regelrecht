@@ -246,7 +246,7 @@ impl Host for AppState {
         self.service.login_offer().await.map_err(ApiError::from)
     }
     async fn step_log_in(&self, user: &str, password: &str) -> Result<(String, String), ApiError> {
-        crate::login::process_step_log_in(self, user, password).await
+        crate::login::process_step_log_in(self, user, password, None).await
     }
 }
 
@@ -449,12 +449,20 @@ async fn gate_user(
     gate(principal, Principal::is_user, request, next).await
 }
 
-/// A citizen.
+/// A citizen. After a login through Keycloak on a case with a login step of
+/// its own, the step logs the citizen in once per session first, so the
+/// authentication the case requires is recorded before anything else
+/// ([`crate::login::record_step_login`]).
 async fn gate_citizen(
+    State(state): State<AppState>,
+    session: tower_sessions::Session,
     principal: Principal,
     request: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
+    if principal.is_citizen() {
+        crate::login::record_step_login(&state, &session, &principal).await?;
+    }
     gate(principal, |p| p.is_citizen(), request, next).await
 }
 

@@ -288,14 +288,46 @@ func chartValues(w *v1alpha1.RegelHet, cfg pluginConfig, snap *snapshot) map[str
 		// The chart's stable mode: PostgreSQL and an instance per side are
 		// its defaults already; login through its own Keycloak, whose host
 		// is set here so the status can name it.
-		values["regelhet"] = map[string]any{"mode": "stable", "login": "oidc"}
-		values["keycloak"] = map[string]any{
+		regelhet := map[string]any{"mode": "stable", "login": "oidc"}
+		keycloak := map[string]any{
 			"enabled":   true,
 			"host":      h.login,
 			"testUsers": w.Spec.Auth.TestAccounts,
 		}
+		// A case that logs in on another key than bsn, such as a KvK
+		// number: the server takes that claim, Keycloak puts it in the
+		// token, and the test accounts are the case's own applicants.
+		if l := caseLoginOf(snap); l != nil && l.Key != "" && l.Key != bsnClaim {
+			regelhet["subjectClaim"] = l.Key
+			if w.Spec.Auth.TestAccounts {
+				keycloak["testApplicants"] = applicantValues(l.Applicants)
+			}
+		}
+		values["regelhet"] = regelhet
+		values["keycloak"] = keycloak
 	}
 	return values
+}
+
+// bsnClaim is the claim of a citizen service number, which the chart's realm
+// carries already.
+const bsnClaim = "bsn"
+
+func caseLoginOf(snap *snapshot) *caseLogin {
+	if snap == nil {
+		return nil
+	}
+	return snap.login
+}
+
+// applicantValues are applicants as the chart's keycloak.testApplicants
+// takes them.
+func applicantValues(applicants []caseApplicant) []any {
+	out := make([]any, 0, len(applicants))
+	for _, a := range applicants {
+		out = append(out, map[string]any{"username": a.Username, "number": a.Number, "name": a.Name})
+	}
+	return out
 }
 
 // baseValues are the values a RegelHet and an Organisatie set alike: the

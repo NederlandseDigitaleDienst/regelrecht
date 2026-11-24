@@ -274,6 +274,22 @@ jobs:
           if grep -q behandelaar realm.yaml; then
             echo "the realm still has a behandelaar"; exit 1
           fi
+          # A case that logs in on a KvK number, as the Fundament plugin sets
+          # it: the claim from the user attribute, and the case's applicants as
+          # test accounts instead of the two citizens.
+          helm template regelhet "$C" --set domain=example.org $CNPG \
+            --set keycloak.realmImport.enabled=true \
+            --set keycloak.realmImport.secretName=regelhet-realm \
+            --set keycloak.testUsers=true --set regelhet.subjectClaim=kvk_nummer \
+            --set keycloak.testApplicants[0].username=maasstad-vooruit \
+            --set-string keycloak.testApplicants[0].number=90123456 \
+            --show-only templates/keycloak-realm.yaml > realm-kvk.yaml
+          grep -q 'claim.name: kvk_nummer' realm-kvk.yaml
+          grep -q 'username: "maasstad-vooruit"' realm-kvk.yaml
+          if grep -q anna.voorbeeld realm-kvk.yaml; then
+            echo "a KvK case still has the citizens of the test range"; exit 1
+          fi
+          contains "name: REGELHET_SUBJECT_CLAIM" $CNPG --set regelhet.subjectClaim=kvk_nummer
           helm template regelhet "$C" --set domain=example.org $CNPG \
             --set regelhet.mode=stable --set regelhet.login=oidc \
             --set keycloak.enabled=true --set keycloak.testUsers=true > /dev/null

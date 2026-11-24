@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -23,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
@@ -70,6 +72,8 @@ const (
 	// The annotations on each ConfigMap of a snapshot.
 	commitAnnotation = "regelhet.regelrecht.nl/commit"
 	partsAnnotation  = "regelhet.regelrecht.nl/parts"
+	// loginAnnotation holds the login of the case, as JSON (caseLogin).
+	loginAnnotation = "regelhet.regelrecht.nl/login"
 	// snapshotKey is the key of the tar.gz part in each ConfigMap.
 	snapshotKey = "part"
 
@@ -107,6 +111,9 @@ func snapshotJobName(w *v1alpha1.RegelHet, source string) string {
 type snapshot struct {
 	commit     string
 	configMaps []string
+	// login is the login of the case in it, for the Keycloak of stable
+	// mode (caselogin.go); nil when it did not read.
+	login *caseLogin
 }
 
 // snapshotState is what reconcileSnapshot found and did.
@@ -128,6 +135,47 @@ func statusSnapshot(w *v1alpha1.RegelHet) *snapshot {
 		return nil
 	}
 	return &snapshot{commit: s.Commit, configMaps: s.ConfigMaps}
+}
+
+// withParts is annotations with the number of parts.
+func withParts(annotations map[string]string, parts int) map[string]string {
+	out := map[string]string{partsAnnotation: strconv.Itoa(parts)}
+	for k, v := range annotations {
+		out[k] = v
+	}
+	return out
+}
+
+// loginOf is the login of the case a ConfigMap of a snapshot names, or nil.
+func loginOf(annotations map[string]string) *caseLogin {
+	raw, ok := annotations[loginAnnotation]
+	if !ok {
+		return nil
+	}
+	var l caseLogin
+	if err := json.Unmarshal([]byte(raw), &l); err != nil {
+		return nil
+	}
+	return &l
+}
+
+// runningSnapshot is the snapshot the status names, with the login of its
+// case from its ConfigMaps: the one the release ran before a new one.
+func (r *RegelHetReconciler) runningSnapshot(ctx context.Context, w *v1alpha1.RegelHet) (*snapshot, error) {
+	s := statusSnapshot(w)
+	if s == nil {
+		return nil, nil
+	}
+	all, err := r.snapshotsOf(ctx, w)
+	if err != nil {
+		return nil, err
+	}
+	for _, o := range all {
+		if strings.Join(o.configMaps, ",") == strings.Join(s.configMaps, ",") {
+			s.login = o.login
+		}
+	}
+	return s, nil
 }
 
 // minRequeue is the sooner of two requeues, where 0 is none.
@@ -369,10 +417,19 @@ func (r *RegelHetReconciler) storeSnapshot(ctx context.Context, w *v1alpha1.Rege
 	if err != nil {
 		return nil, err
 	}
+	annotations := map[string]string{commitAnnotation: commit}
+	login, err := readCaseLogin(data, pathOrDefault(w.Spec.Manifest.Path))
+	if err != nil {
+		// The release runs without it; only the Keycloak of stable mode
+		// misses the case's own login key and its test applicants.
+		ctrllog.FromContext(ctx).Info("the login of the case does not read from the snapshot", "error", err.Error())
+	} else if raw, err := json.Marshal(login); err == nil {
+		annotations[loginAnnotation] = string(raw)
+	}
 	sum := sha256.Sum256(data)
 	prefix := w.Name + "-case-" + hex.EncodeToString(sum[:])[:10]
 	parts := splitParts(data)
-	s := &snapshot{commit: commit}
+	s := &snapshot{commit: commit, login: login}
 	for i, part := range parts {
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
@@ -381,7 +438,7 @@ func (r *RegelHetReconciler) storeSnapshot(ctx context.Context, w *v1alpha1.Rege
 				Labels: map[string]string{
 					managedByLabel: fieldOwner, nameLabel: w.Name, componentLabel: snapshotComponent, sourceLabel: source,
 				},
-				Annotations: map[string]string{commitAnnotation: commit, partsAnnotation: strconv.Itoa(len(parts))},
+				Annotations: withParts(annotations, len(parts)),
 			},
 			Immutable:  new(true),
 			BinaryData: map[string][]byte{snapshotKey: part},
@@ -467,6 +524,7 @@ func (r *RegelHetReconciler) snapshotsOf(ctx context.Context, w *v1alpha1.RegelH
 	}
 	type group struct {
 		names  []string
+		login  *caseLogin
 		commit string
 		parts  int
 	}
@@ -476,7 +534,7 @@ func (r *RegelHetReconciler) snapshotsOf(ctx context.Context, w *v1alpha1.RegelH
 		g := groups[key]
 		if g == nil {
 			parts, _ := strconv.Atoi(cm.Annotations[partsAnnotation])
-			g = &group{commit: cm.Annotations[commitAnnotation], parts: parts}
+			g = &group{commit: cm.Annotations[commitAnnotation], parts: parts, login: loginOf(cm.Annotations)}
 			groups[key] = g
 		}
 		g.names = append(g.names, cm.Name)
@@ -488,7 +546,7 @@ func (r *RegelHetReconciler) snapshotsOf(ctx context.Context, w *v1alpha1.RegelH
 		}
 		sort.Slice(g.names, func(i, j int) bool { return partIndex(g.names[i]) < partIndex(g.names[j]) })
 		source, _, _ := strings.Cut(key, "/")
-		out[source] = &snapshot{commit: g.commit, configMaps: g.names}
+		out[source] = &snapshot{commit: g.commit, configMaps: g.names, login: g.login}
 	}
 	return out, nil
 }

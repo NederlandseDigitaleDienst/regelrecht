@@ -103,6 +103,10 @@
             "testlogin",
             "oidc"
           ]
+        },
+        "subjectClaim": {
+          "type": "string",
+          "pattern": "^$|^[a-z][a-z0-9_]{0,63}$"
         }
       },
       "not": {
@@ -582,6 +586,32 @@
             },
             "secretName": {
               "type": "string"
+            }
+          }
+        },
+        "testApplicants": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": [
+              "username",
+              "number"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "username": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]{2,254}$"
+              },
+              "number": {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z]{1,64}$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 255
+              }
             }
           }
         }

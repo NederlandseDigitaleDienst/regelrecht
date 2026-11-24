@@ -295,6 +295,10 @@ const FSC4B_VARIABLES: [&str; 6] = [
 /// not set.
 pub const DEFAULT_SUBJECT_CLAIM: &str = "bsn";
 
+/// The claim of the user name an OIDC login keeps beside the subject
+/// claim: Keycloak's `preferred_username`.
+pub const USERNAME_CLAIM: &str = "preferred_username";
+
 /// The port the server listens on when `REGELHET_PORT` is not set.
 pub const DEFAULT_PORT: u16 = 8000;
 
@@ -698,8 +702,13 @@ fn login_choice(
         return Err(ConfigError::ForeignAccessRole(role.to_string()));
     }
     oidc.required_role = role.to_string();
-    if !oidc.extra_claims.iter().any(|c| c == subject_claim) {
-        oidc.extra_claims.push(subject_claim.to_string());
+    // The user name too: for a case with a login step of its own the
+    // server logs that user in at the step after the login through
+    // Keycloak (`crate::login::record_step_login`).
+    for claim in [subject_claim, USERNAME_CLAIM] {
+        if !oidc.extra_claims.iter().any(|c| c == claim) {
+            oidc.extra_claims.push(claim.to_string());
+        }
     }
     let base_url = regelrecht_auth::parse_base_url_from(set).map_err(ConfigError::BadBaseUrl)?;
     if mode == Mode::Stable && base_url.is_none() {
@@ -1119,7 +1128,7 @@ mod tests {
             panic!("stable mode logs in through OIDC");
         };
         assert_eq!(oidc.required_role, "regelhet-toegang");
-        assert_eq!(oidc.extra_claims, [DEFAULT_SUBJECT_CLAIM]);
+        assert_eq!(oidc.extra_claims, [DEFAULT_SUBJECT_CLAIM, USERNAME_CLAIM]);
         assert_eq!(base_url.as_deref(), Some("https://regelhet.example.org"));
         let c = Config::from_env(env(&[
             STABLE,
@@ -1133,7 +1142,7 @@ mod tests {
         let LoginChoice::Oidc { oidc, .. } = &c.login else {
             panic!("stable mode logs in through OIDC");
         };
-        assert_eq!(oidc.extra_claims, ["kvk_nummer", "naam"]);
+        assert_eq!(oidc.extra_claims, ["kvk_nummer", "naam", USERNAME_CLAIM]);
         assert_eq!(c.subject_claim.as_deref(), Some("kvk_nummer"));
         assert_eq!(
             c.subject_claim_for(Some("bsn")),

@@ -461,6 +461,26 @@ spec:
     testAccounts: true
 ```
 
+#### A case that logs in on a KvK number
+
+A case that identifies an applicant by another key than a BSN
+(`inloggen.sleutel: kvk_nummer`) gets that key from the snapshot. The plugin
+reads the case out of the copy it stores (`caselogin.go`) and sets
+`regelhet.subjectClaim: kvk_nummer`. The server then takes that claim, and the
+realm puts the user attribute `kvk_nummer` in the token. With
+`auth.testAccounts` the test accounts are the case's own applicants
+(`keycloak.testApplicants`) instead of the two citizens of the BSN test range,
+with the same generated password. These are the numbers of that key in what the
+cells record before the first step, with a name from a record beside them. For
+a case with a login step of its own (`inloggen.inlogstap`, such as the Napp),
+the accounts are the users of that step, under the step's user name. After a
+login through Keycloak the server logs that user in at the step once per
+session, and the step's cell records the authentication the case requires.
+
+The realm is imported at Keycloak's first start only, so the test accounts are
+those of the case at install. A RegelHet made before this plugin version
+keeps its realm, and gets the claim once its Keycloak database is new.
+
 The login needs a certificate the server trusts. On an installation with
 `ACME: staging` the plugin therefore refuses stable mode: the RegelHet goes
 to `Failed` with the reason `StableNeedsProductionCerts`, and nothing is made.

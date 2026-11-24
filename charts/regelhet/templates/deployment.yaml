@@ -199,6 +199,10 @@ spec:
             {{- end }}
             - name: REGELHET_LOGIN
               value: {{ .Values.regelhet.login | quote }}
+            {{- with .Values.regelhet.subjectClaim }}
+            - name: REGELHET_SUBJECT_CLAIM
+              value: {{ . | quote }}
+            {{- end }}
             {{- if eq .Values.regelhet.login "oidc" }}
             {{- $client := get .Values.oidc.clients (include "regelhet.clientKey" $inst.surface) }}
             - name: OIDC_DISCOVERY_URL
