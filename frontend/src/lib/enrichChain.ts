@@ -216,3 +216,42 @@ export function preselection(chain: Chain): Set<string> {
   }
   return keys;
 }
+
+/**
+ * A chain of the start article alone, for when the real chain could not be
+ * fetched: the flow can still continue with just this article instead of
+ * stalling on step 1.
+ */
+export function rootOnlyChain(lawId: string, article: string, hasMr: boolean): Chain {
+  return {
+    root: { law_id: lawId, article },
+    nodes: [
+      {
+        law_id: lawId,
+        bwb_id: '',
+        article,
+        depth: 0,
+        has_mr: hasMr,
+        gaps: { missing_mr: !hasMr, dangling: 0, unresolved: 0, open_terms: 0 },
+        via: null,
+        hotspot: null,
+      },
+    ],
+    gaps: [],
+    partial: { unread_laws: 0, depth_capped: false, node_capped: false },
+  };
+}
+
+/**
+ * What to tell the user when the chain request failed: the server's own
+ * reason when it gave one (a 404 says which of law or article it could not
+ * find), else a generic line with the status.
+ */
+export function chainErrorText(error: unknown): string {
+  const status = (error as { status?: number } | null)?.status;
+  const body = ((error as { body?: string } | null)?.body ?? '').trim();
+  if (status && status < 500 && body && body.length <= 300) {
+    return `De keten kon niet worden opgehaald: ${body}`;
+  }
+  return status ? `De keten kon niet worden opgehaald (status ${status}).` : 'De keten kon niet worden opgehaald.';
+}

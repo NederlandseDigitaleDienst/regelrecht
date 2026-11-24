@@ -48,6 +48,8 @@ import {
   articleKey,
   chainCounts,
   chainUrl,
+  chainErrorText,
+  rootOnlyChain,
   gapTags,
   groupChain,
   pathText,
@@ -237,10 +239,13 @@ async function loadChain() {
     if (mine !== chainGeneration) return;
     chain.value = result;
     picked.value = preselection(result);
-  } catch {
+  } catch (e) {
     if (mine !== chainGeneration) return;
-    chainError.value = 'De keten kon niet worden opgehaald.';
-    chain.value = null;
+    chainError.value = chainErrorText(e);
+    // Continue with the start article alone rather than stall on step 1.
+    const hasMr = articles.value.find((a) => a.number === props.article)?.hasMachineReadable ?? false;
+    chain.value = rootOnlyChain(props.lawId, props.article, hasMr);
+    picked.value = preselection(chain.value);
   } finally {
     if (mine === chainGeneration) chainLoading.value = false;
   }
@@ -479,7 +484,12 @@ function onSubmit() {
                 <nldd-spacer size="16"></nldd-spacer>
 
                 <nldd-activity-indicator v-if="chainLoading" text="Keten laden" show-text></nldd-activity-indicator>
-                <nldd-inline-dialog v-else-if="chainError" variant="alert" :text="chainError">
+                <nldd-inline-dialog
+                  v-else-if="chainError"
+                  variant="alert"
+                  :text="chainError"
+                  supporting-text="Je kunt verder met alleen dit artikel, of het opnieuw proberen."
+                >
                   <nldd-button slot="actions" appearance="secondary" size="md" text="Probeer opnieuw" @click="loadChain"></nldd-button>
                 </nldd-inline-dialog>
                 <template v-else-if="chain && counts">

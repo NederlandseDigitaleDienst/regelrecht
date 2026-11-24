@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  articleKey,
   chainCounts,
+  chainErrorText,
   chainUrl,
   gapTags,
   groupChain,
@@ -9,6 +11,7 @@ import {
   preselection,
   reasonText,
   refText,
+  rootOnlyChain,
 } from './enrichChain';
 import type { Chain, ChainNode } from './enrichChain';
 
@@ -93,5 +96,28 @@ describe('words', () => {
     );
     expect(hotspotsUrl('t-abcd1234', 5)).toBe('/api/trajects/t-abcd1234/hotspots?limit=5');
     expect(hotspotsUrl('t-abcd1234', 50, 'awir')).toBe('/api/trajects/t-abcd1234/hotspots?limit=50&law_id=awir');
+  });
+});
+
+describe('when the chain cannot be fetched', () => {
+  it('passes on the server reason for a refusal', () => {
+    const e = { status: 404, body: 'artikel 26 staat niet tussen de 12 artikelen in de index' };
+    expect(chainErrorText(e)).toBe(
+      'De keten kon niet worden opgehaald: artikel 26 staat niet tussen de 12 artikelen in de index',
+    );
+  });
+
+  it('names the status but not the body of a server error', () => {
+    expect(chainErrorText({ status: 500, body: '<html>stack</html>' })).toBe(
+      'De keten kon niet worden opgehaald (status 500).',
+    );
+    expect(chainErrorText(new Error('offline'))).toBe('De keten kon niet worden opgehaald.');
+  });
+
+  it('falls back to the start article alone, preselected', () => {
+    const chain = rootOnlyChain('glb', '26', false);
+    expect(chain.nodes).toHaveLength(1);
+    expect(chain.nodes[0]?.gaps.missing_mr).toBe(true);
+    expect([...preselection(chain)]).toEqual([articleKey('glb', '26')]);
   });
 });

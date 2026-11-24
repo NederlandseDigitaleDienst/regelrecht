@@ -1243,6 +1243,11 @@ pub async fn get_traject_article_chain(
         return Err((StatusCode::NOT_FOUND, "no traject corpus".to_string()));
     };
     let snapshot = ts.traject.facts().await;
+    // What the index holds for this law, for a refusal that says why.
+    let indexed_articles = snapshot.laws().get(&law_id).map(|f| f.articles.len());
+    let indexed_laws = snapshot.laws().len();
+    let unread_laws = snapshot.unread();
+    let (wanted_law, wanted_article) = (law_id.clone(), article.clone());
     let depth = query
         .depth
         .unwrap_or(crate::enrich_chain::DEFAULT_DEPTH)
@@ -1263,10 +1268,37 @@ pub async fn get_traject_article_chain(
     match chain {
         Ok(chain) => Ok(Json(chain)),
         Err(crate::enrich_chain::ChainError::UnknownLaw) => {
-            Err((StatusCode::NOT_FOUND, "Regelwerk niet gevonden".to_string()))
+            tracing::info!(
+                law_id = %wanted_law,
+                indexed_laws,
+                unread_laws,
+                "chain: law not in the facts index"
+            );
+            let reason = if unread_laws > 0 {
+                format!(
+                    "dit regelwerk staat nog niet in de index; {unread_laws} wetten zijn nog niet gelezen"
+                )
+            } else {
+                "dit regelwerk staat niet in de index van het traject".to_string()
+            };
+            Err((StatusCode::NOT_FOUND, reason))
         }
         Err(crate::enrich_chain::ChainError::UnknownArticle) => {
-            Err((StatusCode::NOT_FOUND, "Artikel niet gevonden".to_string()))
+            let read = indexed_articles.unwrap_or(0);
+            tracing::info!(
+                law_id = %wanted_law,
+                article = %wanted_article,
+                indexed_articles = read,
+                "chain: article not in the facts index"
+            );
+            let reason = if read == 0 {
+                "van dit regelwerk kon de index geen artikelen lezen".to_string()
+            } else {
+                format!(
+                    "artikel {wanted_article} staat niet tussen de {read} artikelen in de index"
+                )
+            };
+            Err((StatusCode::NOT_FOUND, reason))
         }
     }
 }
