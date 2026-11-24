@@ -1,0 +1,20 @@
+---
+# The process `parkeerkaart` of gemeente Wilgendaal, as the Fundament plugin
+# renders a RegelHet with spec.organisatie: its own hosts and database as
+# always, plus the organisation it accepts statements from. CI renders the
+# chart with this file; it is also the example of the values contract.
+domain: cluster-a.fieldlab2026.nl
+host: parkeerkaart.cluster-a.fieldlab2026.nl
+surfaces:
+  burger:
+    host: parkeerkaart.cluster-a.fieldlab2026.nl
+  backoffice:
+    host: parkeerkaart-medewerkers.cluster-a.fieldlab2026.nl
+tls:
+  acme: staging
+organisatie:
+  id: tnt-rr-voorbeeld--wilgendaal/wilgendaal
+  naam: Gemeente Wilgendaal
+  url: https://wilgendaal.cluster-a.fieldlab2026.nl
+  medewerkersUrl: https://wilgendaal-medewerkers.cluster-a.fieldlab2026.nl
+  sleutelUrl: http://wilgendaal-backoffice.tnt-rr-voorbeeld--wilgendaal.svc.cluster.local:8000/organisatie/v1/sleutel

@@ -1,0 +1,227 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: reductie_iit_gegevens
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de gemeente Groningen
+# over zijn eigen kroniek (RFC-022 §4.1, RFC-048), zoals
+# reductie_geneeskundig_advies bij Wilgendaal. Artikel vastlegging houdt per
+# feit van artikel 1 van het fictieve beleid (beleid_iit_gemeente_groningen)
+# de vastgelegde gegevens bij. Artikel iit_gegevens_aanvrager geeft de
+# gegevens die de behandelaar het laatst vóór het besluit over de aanvrager
+# vastlegde; de cel geeft ze als antwoord (cel.yaml), en artikel 3 van het
+# beleid leest ze. Er is geen bekendmaking; de url wijst naar artikel 36.
+url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+name: Vastgelegde gegevens individuele inkomenstoeslag bij de gemeente Groningen (reductie)
+articles:
+  - number: vastlegging
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Groningen
+      houdt door middel van een chronolexografische reductie op zijn eigen
+      kroniek per vastlegging bij over wie zij gaat, op welke dag zij is
+      gedaan, en welke gegevens de behandelaar vaststelde.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      projection:
+        per: beleid_iit_gemeente_groningen#1#gegevens_voor_iit_vastgesteld
+        state:
+          - name: bsn_aanvrager
+            type: string
+          - name: datum_vastlegging
+            type: date
+          - name: geboortedatum
+            type: date
+          - name: heeft_pensioengerechtigde_leeftijd_bereikt
+            type: boolean
+          - name: leefvorm
+            type: string
+          - name: in_aanmerking_te_nemen_vermogen
+            type: amount
+          - name: inkomen_artikel_32_per_maand
+            type: amount
+          - name: bijstand_naar_de_norm
+            type: boolean
+          - name: algemene_bijstand_per_maand
+            type: amount
+          - name: afwijkende_maanden
+            type: array
+            columns:
+              - name: maand
+                type: date
+              - name: inkomen_artikel_32
+                type: amount
+              - name: algemene_bijstand
+                type: amount
+          - name: artikel_3a_eerder_toegepast
+            type: boolean
+          - name: echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+            type: boolean
+          - name: rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+            type: boolean
+          - name: volgt_op_peildatum_opleiding_wtos
+            type: boolean
+          - name: volgt_op_peildatum_studie_wsf_2000
+            type: boolean
+          - name: laatste_dag_opleiding_wtos
+            type: date
+            nullable: true
+          - name: laatste_dag_studie_wsf_2000
+            type: date
+            nullable: true
+          - name: volledig_arbeidsongeschikt
+            type: boolean
+          - name: ontheffing_arbeidsverplichtingen
+            type: boolean
+          - name: duur_ontheffing_maanden
+            type: number
+          - name: ontheffing_arbeidsinschakeling
+            type: boolean
+          - name: medisch_urenbeperkt
+            type: boolean
+          - name: vrijlating_inkomsten_medisch_urenbeperkt
+            type: boolean
+          - name: aangewezen_op_ondersteuning
+            type: boolean
+          - name: duur_aangewezen_op_ondersteuning_maanden
+            type: number
+          - name: aangewezen_op_participatieplaats
+            type: boolean
+          - name: aangewezen_op_sociale_activering
+            type: boolean
+          - name: aangewezen_op_vrijwilligerswerk
+            type: boolean
+          - name: datum_maatregel_artikel_18_vierde_lid
+            type: date
+            nullable: true
+        steps:
+          - record: beleid_iit_gemeente_groningen#1#gegevens_voor_iit_vastgesteld
+            actions:
+              - output: bsn_aanvrager
+                value: $record.bsn_aanvrager
+              - output: datum_vastlegging
+                value: $record.datum_vastlegging
+              - output: geboortedatum
+                value: $record.geboortedatum
+              - output: heeft_pensioengerechtigde_leeftijd_bereikt
+                value: $record.heeft_pensioengerechtigde_leeftijd_bereikt
+              - output: leefvorm
+                value: $record.leefvorm
+              - output: in_aanmerking_te_nemen_vermogen
+                value: $record.in_aanmerking_te_nemen_vermogen
+              - output: inkomen_artikel_32_per_maand
+                value: $record.inkomen_artikel_32_per_maand
+              - output: bijstand_naar_de_norm
+                value: $record.bijstand_naar_de_norm
+              - output: algemene_bijstand_per_maand
+                value: $record.algemene_bijstand_per_maand
+              - output: afwijkende_maanden
+                value: $record.afwijkende_maanden
+              - output: artikel_3a_eerder_toegepast
+                value: $record.artikel_3a_eerder_toegepast
+              - output: echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+                value: $record.echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+              - output: rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+                value: $record.rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+              - output: volgt_op_peildatum_opleiding_wtos
+                value: $record.volgt_op_peildatum_opleiding_wtos
+              - output: volgt_op_peildatum_studie_wsf_2000
+                value: $record.volgt_op_peildatum_studie_wsf_2000
+              - output: laatste_dag_opleiding_wtos
+                value: $record.laatste_dag_opleiding_wtos
+              - output: laatste_dag_studie_wsf_2000
+                value: $record.laatste_dag_studie_wsf_2000
+              - output: volledig_arbeidsongeschikt
+                value: $record.volledig_arbeidsongeschikt
+              - output: ontheffing_arbeidsverplichtingen
+                value: $record.ontheffing_arbeidsverplichtingen
+              - output: duur_ontheffing_maanden
+                value: $record.duur_ontheffing_maanden
+              - output: ontheffing_arbeidsinschakeling
+                value: $record.ontheffing_arbeidsinschakeling
+              - output: medisch_urenbeperkt
+                value: $record.medisch_urenbeperkt
+              - output: vrijlating_inkomsten_medisch_urenbeperkt
+                value: $record.vrijlating_inkomsten_medisch_urenbeperkt
+              - output: aangewezen_op_ondersteuning
+                value: $record.aangewezen_op_ondersteuning
+              - output: duur_aangewezen_op_ondersteuning_maanden
+                value: $record.duur_aangewezen_op_ondersteuning_maanden
+              - output: aangewezen_op_participatieplaats
+                value: $record.aangewezen_op_participatieplaats
+              - output: aangewezen_op_sociale_activering
+                value: $record.aangewezen_op_sociale_activering
+              - output: aangewezen_op_vrijwilligerswerk
+                value: $record.aangewezen_op_vrijwilligerswerk
+              - output: datum_maatregel_artikel_18_vierde_lid
+                value: $record.datum_maatregel_artikel_18_vierde_lid
+  - number: iit_gegevens_aanvrager
+    text: >-
+      Geen regelgeving. Het systeem van het college kijkt door middel van een
+      chronolexografische reductie op zijn eigen kroniek welke gegevens de
+      behandelaar over de aanvrager vastlegde, en geeft de laatste vastlegging
+      op of vóór de dag van het besluit. Vindt het er geen, dan zwijgt het.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      # De laatste vastlegging: die met het kleinste aantal dagen tot het
+      # besluit. Twee vastleggingen op dezelfde dag kan ONLY niet kiezen; dan
+      # faalt de beoordeling, en legt de behandelaar het opnieuw vast op een
+      # andere dag. Eigen keuze, in de casus genoeg.
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: vastleggingen
+            type: array
+            source:
+              projections: reductie_iit_gegevens#vastlegging
+              where:
+                bsn_aanvrager: $bsn_aanvrager
+        output:
+          - name: dagen_sinds_laatste_vastlegging
+            type: number
+            nullable: true
+          - name: iit_gegevens_aanvrager
+            type: object
+            nullable: true
+            description: De laatste vastlegging over de aanvrager vóór het besluit; afwezig als er geen is.
+        actions:
+          - output: dagen_sinds_laatste_vastlegging
+            value:
+              operation: FOREACH
+              collection: $vastleggingen
+              as: v
+              filter:
+                operation: GREATER_THAN_OR_EQUAL
+                subject:
+                  operation: DATE_DIFF
+                  from: $v.datum_vastlegging
+                  to: $besluit_datum
+                  in: days
+                value: 0
+              body:
+                operation: DATE_DIFF
+                from: $v.datum_vastlegging
+                to: $besluit_datum
+                in: days
+              combine: MIN
+          - output: iit_gegevens_aanvrager
+            value:
+              operation: FOREACH
+              collection: $vastleggingen
+              as: v
+              filter:
+                operation: EQUALS
+                subject:
+                  operation: DATE_DIFF
+                  from: $v.datum_vastlegging
+                  to: $besluit_datum
+                  in: days
+                value: $dagen_sinds_laatste_vastlegging
+              body: $v
+              combine: ONLY

@@ -67,13 +67,68 @@ func TestCustomComponentsAreEmbedded(t *testing.T) {
 	t.Parallel()
 
 	def := loadSourceDefinition(t)
-	pages, ok := def.Spec.CustomComponents["RegelHet"]
-	require.True(t, ok)
-	for view, file := range map[string]string{"list": pages.List, "detail": pages.Detail, "create": pages.Create} {
-		require.NotEmpty(t, file, "the %s page", view)
-		_, err := consoleFiles.ReadFile("console/" + file)
-		require.NoError(t, err, "the %s page %s is not embedded", view, file)
+	for _, kind := range []string{"RegelHet", "Organisatie"} {
+		pages, ok := def.Spec.CustomComponents[kind]
+		require.True(t, ok, kind)
+		for view, file := range map[string]string{"list": pages.List, "detail": pages.Detail, "create": pages.Create} {
+			require.NotEmpty(t, file, "the %s page of %s", view, kind)
+			_, err := consoleFiles.ReadFile("console/" + file)
+			require.NoError(t, err, "the %s page %s is not embedded", view, file)
+		}
 	}
-	require.Len(t, def.Spec.Menu.Project, 1)
+	require.Len(t, def.Spec.Menu.Project, 2)
 	assert.Equal(t, crdName, def.Spec.Menu.Project[0].CRD)
+	assert.Equal(t, organisatieCRDName, def.Spec.Menu.Project[1].CRD)
+	for _, crd := range []string{crdName, organisatieCRDName} {
+		assert.Contains(t, def.Spec.UIHints, crd, "the status badge of %s", crd)
+	}
+}
+
+// The RBAC of the plugin is what Digilab reviews. v0.5.0 adds the organisatie
+// rules and get on namespaces, and nothing more: namespaces stay get only, and
+// the organisaties carry the same verbs as the RegelHet instances.
+func TestTheRBACOfOrganisaties(t *testing.T) {
+	t.Parallel()
+
+	def := loadSourceDefinition(t)
+	verbs := map[string][]string{}
+	for _, rule := range def.Spec.Permissions.RBAC {
+		if len(rule.ResourceNames) > 0 {
+			continue
+		}
+		for _, resource := range rule.Resources {
+			verbs[resource] = append(verbs[resource], rule.Verbs...)
+		}
+	}
+	for _, sub := range []string{"", "/status", "/finalizers"} {
+		assert.ElementsMatch(t, verbs["regelhets"+sub], verbs["organisaties"+sub], "organisaties%s", sub)
+	}
+	assert.Equal(t, []string{"get"}, verbs["namespaces"], "the project check reads one namespace at a time")
+
+	var crds []string
+	for _, rule := range def.Spec.Permissions.RBAC {
+		if len(rule.Resources) == 1 && rule.Resources[0] == "customresourcedefinitions" {
+			crds = append(crds, rule.ResourceNames...)
+		}
+	}
+	assert.Contains(t, crds, organisatieCRDName)
+}
+
+// v0.6.0 adds the snapshot of the case and nothing more: its own Jobs, the
+// ConfigMaps of the copy without watch, and the log of a pod, read only.
+func TestTheRBACOfTheSnapshot(t *testing.T) {
+	t.Parallel()
+
+	def := loadSourceDefinition(t)
+	verbs := map[string][]string{}
+	for _, rule := range def.Spec.Permissions.RBAC {
+		for _, resource := range rule.Resources {
+			verbs[resource] = append(verbs[resource], rule.Verbs...)
+		}
+	}
+	assert.ElementsMatch(t, []string{"create", "get", "list", "watch", "delete"}, verbs["jobs"])
+	assert.ElementsMatch(t, []string{"create", "get", "list", "delete"}, verbs["configmaps"])
+	assert.Equal(t, []string{"get"}, verbs["pods/log"])
+	assert.ElementsMatch(t, []string{"create", "get", "delete"}, verbs["secrets"], "no list or watch on Secrets")
+	assert.Equal(t, "v0.6.0", def.Metadata.Version)
 }

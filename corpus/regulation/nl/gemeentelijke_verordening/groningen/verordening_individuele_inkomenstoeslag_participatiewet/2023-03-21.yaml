@@ -1,0 +1,1003 @@
+---
+# Bron: CVDR367471 versie 3 op lokaleregelgeving.overheid.nl, de consolidatie die geldt
+# sinds 21 maart 2023. Vastgesteld door de raad op 22 april 2015 (Gemeenteblad 2015, 50),
+# gewijzigd op 2 november 2022 (Gemeenteblad 2022, 505547: referteperiode van vijf naar
+# twee jaar, terugwerkend tot 1 januari 2022) en op 8 maart 2023 (Gemeenteblad 2023,
+# 114086: artikel 3a, terugwerkend tot en met 1 januari 2023). valid_from is de dag van
+# inwerkingtreding, zoals het schema voorschrijft.
+#
+# De opsomming van artikel 1, eerste lid, heeft in de bron streepjes en geen letters; dat is
+# zo overgenomen. name is de citeertitel van artikel 7, tweede lid. Artikel 3a en 4 vullen de
+# open begrippen van artikel 8 Participatiewet in (zie dossiers/iit-groningen).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: verordening_individuele_inkomenstoeslag_participatiewet_groningen
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2023-03-20'
+valid_from: '2023-03-21'
+gemeente_code: GM0014
+officiele_titel: Verordening individuele inkomenstoeslag Participatiewet 2015
+url: https://lokaleregelgeving.overheid.nl/CVDR367471/3
+name: Verordening individuele inkomenstoeslag Participatiewet 2015
+legal_basis:
+  - law_id: participatiewet
+    article: '8'
+    description: >-
+      Artikel 8, eerste lid, aanhef en onderdeel b, en tweede lid: regels over het verlenen van een individuele
+      inkomenstoeslag
+preamble:
+  text: |-
+    DE RAAD VAN DE GEMEENTE GRONINGEN;
+
+    (4886844);
+
+    Gelezen het voorstel van het college van 17 maart 2015;
+
+    Gelet op artikel 8, eerste lid, aanhef en onderdeel b, en tweede lid, van de Participatiewet;
+
+    HEEFT BESLOTEN:
+
+    de Verordening individuele inkomenstoeslag Participatiewet 2015 vast te stellen.
+  url: https://lokaleregelgeving.overheid.nl/CVDR367471/3
+articles:
+  - number: '1'
+    text: |-
+      **Begrippen**
+
+      1. In deze verordening wordt verstaan onder:
+
+         - inkomen: totaal van het inkomen, bedoeld in artikel 32 van de Participatiewet, en de algemene bijstand;
+
+         - peildatum: datum waartegen een persoon een verzoek om individuele inkomenstoeslag indient;
+
+         - referteperiode: periode van twee jaar voorafgaand aan de peildatum;
+
+         - wet: Participatiewet.
+
+      2. Voor zover niet anders is bepaald, worden begrippen in deze verordening gebruikt in dezelfde betekenis als in de
+      wet.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_1_Begrippen
+    machine_readable:
+      markings:
+        - about: de betekenis die de begrippen van de wet in deze verordening hebben
+          reason: >-
+            Het tweede lid geeft elk begrip dat deze verordening niet zelf omschrijft de betekenis die het in de
+            Participatiewet heeft. Het model kent alleen een binding per begrip: een input met een source naar het
+            artikel dat het begrip bepaalt. Een verklaring dat alle overige begrippen uit een andere regeling komen,
+            heeft geen veld, dus elk artikel dat zo'n begrip gebruikt (alleenstaande, gehuwden, bijstandsnorm) moet
+            het zelf binden of als gegeven vragen.
+          resolution: model
+          resolved_by: >-
+            Een vorm waarin een regeling verklaart dat de begrippen van een andere regeling in haar bereik komen,
+            waarna de binding per begrip uit die verklaring volgt in plaats van per artikel te worden geschreven.
+          target: []
+          legal_text_excerpt: >-
+            Voor zover niet anders is bepaald, worden begrippen in deze verordening gebruikt in dezelfde betekenis als
+            in de wet.
+          accepted: true
+        - about: het inkomen, bedoeld in artikel 32 van de Participatiewet, en de algemene bijstand per maand
+          reason: >-
+            Artikel 3 toetst het inkomen over elke maand van de referteperiode, die twee jaar teruggaat. Een binding
+            leest een andere regeling op de rekendatum en geeft één waarde. Een binding die per maand van een
+            verstreken periode het inkomen in de zin van artikel 32 Participatiewet opvraagt, bestaat niet. Daarom
+            levert de aanroeper per maand de twee bedragen, en telt dit artikel ze op.
+          resolution: model
+          resolved_by: >-
+            Een binding die een uitkomst van een andere regeling voor elke maand van een periode opvraagt, gelezen op
+            een dag in die maand, met het resultaat als verzameling.
+          target: []
+          legal_text_excerpt: >-
+            inkomen: totaal van het inkomen, bedoeld in artikel 32 van de Participatiewet, en de algemene bijstand
+          accepted: true
+      definitions:
+        # Eerste lid, vierde streepje: "wet: Participatiewet".
+        wet:
+          value: Participatiewet
+          type: string
+      execution:
+        produces:
+          legal_character: INFORMATIEF
+        parameters:
+          - name: datum_verzoek
+            type: date
+            required: true
+            description: >-
+              De datum waarop de persoon het verzoek om individuele inkomenstoeslag indient (eerste lid, tweede
+              streepje: "datum waartegen een persoon een verzoek ... indient"). Zonder verzoek is er geen peildatum.
+          - name: maandgegevens
+            type: array
+            required: false
+            description: >-
+              Per kalendermaand: `maand` (de eerste dag van die maand), `inkomen_artikel_32` (het inkomen, bedoeld in
+              artikel 32 Participatiewet, in eurocent) en `algemene_bijstand` (in eurocent). Zie de tweede markering.
+        output:
+          - name: peildatum
+            type: date
+          - name: referteperiode_begin
+            type: date
+            description: De eerste dag van de referteperiode; de periode loopt tot de peildatum.
+          - name: inkomen_per_maand
+            type: array
+            description: Per maand `maand` en `inkomen`, het inkomen in de zin van dit artikel, in eurocent.
+        actions:
+          - output: peildatum
+            value: $datum_verzoek
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '1'
+              paragraph: '1'
+              explanation: >-
+                Tweede streepje. De peildatum is de datum van het verzoek. Bij ambtshalve toekenning (Beleidsregels IIT,
+                artikel 5a) is er geen verzoek en dus geen peildatum (bevinding W8).
+          - output: referteperiode_begin
+            value:
+              operation: DATE_ADD
+              date: $peildatum
+              years: -2
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '1'
+              paragraph: '1'
+              explanation: >-
+                Derde streepje: "periode van twee jaar voorafgaand aan de peildatum". De twee jaar worden van de
+                peildatum afgeteld; de periode eindigt op de dag voor de peildatum.
+          - output: inkomen_per_maand
+            value:
+              operation: FOREACH
+              collection: $maandgegevens
+              as: maand
+              body:
+                operation: RECORD
+                fields:
+                  maand: $maand.maand
+                  inkomen:
+                    operation: ADD
+                    values:
+                      - $maand.inkomen_artikel_32
+                      - $maand.algemene_bijstand
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '1'
+              paragraph: '1'
+              explanation: >-
+                Eerste streepje: inkomen is het totaal van het inkomen, bedoeld in artikel 32 van de Participatiewet,
+                en de algemene bijstand. Dat totaal wordt per maand gemaakt, omdat artikel 3 per maand toetst.
+  - number: '2'
+    text: |-
+      **Indienen verzoek**
+
+      Een verzoek als bedoeld in artikel 36, eerste lid, van de wet, wordt ingediend middels een door het college vastgesteld
+      formulier.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_2_Indienen_verzoek
+    machine_readable:
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          - name: verzoek_ingediend_middels_vastgesteld_formulier
+            type: boolean
+            required: true
+            description: Of het verzoek is ingediend met het formulier dat het college daarvoor heeft vastgesteld.
+        output:
+          - name: verzoek_voldoet_aan_artikel_2
+            type: boolean
+        actions:
+          - output: verzoek_voldoet_aan_artikel_2
+            value:
+              operation: EQUALS
+              subject: $verzoek_ingediend_middels_vastgesteld_formulier
+              value: true
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '2'
+              explanation: >-
+                Een verzoek als bedoeld in artikel 36, eerste lid, van de wet wordt ingediend met het formulier van het
+                college. De verordening spreekt van een verzoek; artikel 36 spreekt sinds 1 januari 2024 van een
+                aanvraag (Stb. 2023, 417; bevinding W3). Welk formulier het college vaststelt, regelt dit artikel niet.
+  - number: '3'
+    text: |-
+      **Langdurig laag inkomen**
+
+      Een persoon heeft een langdurig laag inkomen als bedoeld in artikel 36, eerste lid, van de wet als gedurende de
+      referteperiode het in aanmerking te nemen inkomen niet hoger is dan honderd procent van de toepasselijke bijstandsnorm
+      zoals die is vermeld in paragraaf 3.2 van de wet, met uitzondering van artikel 22a.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_3_Langdurig_laag_inkomen
+    machine_readable:
+      markings:
+        - about: de toepasselijke bijstandsnorm in elke maand van de referteperiode
+          reason: >-
+            De norm van paragraaf 3.2 van de wet wijzigt elk half jaar, en de toets loopt over twee jaar terug. Een
+            binding leest artikel 21 alleen op de rekendatum. Een binding die de norm leest zoals die in een eerdere
+            maand gold, bestaat niet. Daarom levert de aanroeper per maand de toepasselijke norm, zonder artikel 22a,
+            en past dit artikel er de honderd procent op toe.
+          resolution: model
+          resolved_by: >-
+            Een binding die een uitkomst van een andere regeling voor elke maand van een periode opvraagt, gelezen op
+            een dag in die maand, met het resultaat als verzameling.
+          target: []
+          legal_text_excerpt: >-
+            honderd procent van de toepasselijke bijstandsnorm zoals die is vermeld in paragraaf 3.2 van de wet, met
+            uitzondering van artikel 22a
+          accepted: true
+      definitions:
+        # "honderd procent van de toepasselijke bijstandsnorm"
+        percentage_laag_inkomen:
+          value: 100
+          type: number
+          type_spec:
+            unit: percentage
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          - name: datum_verzoek
+            type: date
+            required: true
+            description: Zie artikel 1; doorgegeven aan de definities van dat artikel.
+          - name: maandgegevens
+            type: array
+            required: false
+            description: Zie artikel 1; doorgegeven aan de definities van dat artikel.
+          - name: toepasselijke_bijstandsnormen
+            type: array
+            required: false
+            description: >-
+              Per kalendermaand: `maand` (de eerste dag van die maand) en `norm` (de toepasselijke bijstandsnorm volgens
+              paragraaf 3.2 van de wet, zonder de kostendelersnorm van artikel 22a, per maand in eurocent).
+        input:
+          - name: peildatum
+            type: date
+            source:
+              output: peildatum
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+          - name: referteperiode_begin
+            type: date
+            source:
+              output: referteperiode_begin
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+          - name: inkomen_per_maand
+            type: array
+            source:
+              output: inkomen_per_maand
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+        output:
+          - name: aantal_maanden_referteperiode
+            type: number
+          - name: aantal_maanden_bekend
+            type: number
+          - name: heeft_langdurig_laag_inkomen_artikel_3
+            type: boolean
+            nullable: true
+            description: >-
+              Of het inkomen in elke maand van de referteperiode niet hoger is dan de norm. Afwezig als niet voor
+              elke maand van de referteperiode een inkomen bekend is.
+        actions:
+          - output: aantal_maanden_referteperiode
+            value:
+              operation: DATE_DIFF
+              from: $referteperiode_begin
+              to: $peildatum
+              in: months
+          - output: aantal_maanden_bekend
+            value:
+              operation: FOREACH
+              collection: $inkomen_per_maand
+              as: maand
+              filter:
+                operation: AND
+                conditions:
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject: $maand.maand
+                    value: $referteperiode_begin
+                  - operation: LESS_THAN
+                    subject: $maand.maand
+                    value: $peildatum
+              body: 1
+              combine: ADD
+          - output: heeft_langdurig_laag_inkomen_artikel_3
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $aantal_maanden_bekend
+                    value: $aantal_maanden_referteperiode
+                  then:
+                    operation: FOREACH
+                    collection: $inkomen_per_maand
+                    as: maand
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: GREATER_THAN_OR_EQUAL
+                          subject: $maand.maand
+                          value: $referteperiode_begin
+                        - operation: LESS_THAN
+                          subject: $maand.maand
+                          value: $peildatum
+                    body:
+                      operation: LESS_THAN_OR_EQUAL
+                      subject: $maand.inkomen
+                      value:
+                        operation: MULTIPLY
+                        values:
+                          - operation: FOREACH
+                            collection: $toepasselijke_bijstandsnormen
+                            as: norm
+                            filter:
+                              operation: EQUALS
+                              subject: $norm.maand
+                              value: $maand.maand
+                            body: $norm.norm
+                            combine: ONLY
+                          - operation: DIVIDE
+                            values:
+                              - $percentage_laag_inkomen
+                              - 100
+                    combine: AND
+              default: null
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '3'
+              explanation: >-
+                "Gedurende de referteperiode het in aanmerking te nemen inkomen niet hoger ... dan honderd procent van
+                de toepasselijke bijstandsnorm": elke maand van de referteperiode wordt getoetst. Een maand telt mee als
+                haar eerste dag in de referteperiode valt; dat is een eigen keuze, de tekst noemt geen maanden. Zijn
+                niet alle maanden bekend, dan is de uitkomst afwezig in plaats van onwaar. De toelichting laat een
+                marginale overschrijding (ongeveer 5 euro per maand) buiten beschouwing; dat staat niet in de tekst en
+                is niet gemodelleerd (vraag U8).
+  - number: 3a
+    text: |-
+      **Tijdelijk hoger inkomen**
+
+      1. De referteperiode als bedoeld in artikel 1, eerste lid kan gedurende een aaneengesloten termijn van maximaal drie
+      maanden worden onderbroken zonder dat het gevolgen heeft voor het recht op individuele inkomenstoeslag, indien:
+
+         a. het in aanmerking te nemen inkomen gedurende die termijn niet hoger is dan honderdveertig procent van de
+         toepasselijke bijstandsnorm zoals die is vermeld in paragraaf 3.2 van de wet met uitzondering van artikel 22a; en
+
+         b. een persoon direct voorafgaand aan de onderbreking onafgebroken ten minste twee jaar een laag inkomen als bedoeld
+         in artikel 3 heeft gehad.
+
+      2. Het voorgaande lid is eenmalig van toepassing.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_3a
+    machine_readable:
+      implements:
+        - law: participatiewet
+          article: '8'
+          open_term: heeft_langdurig_laag_inkomen
+          gelet_op: Gelet op artikel 8, eerste lid, aanhef en onderdeel b, en tweede lid, van de Participatiewet
+      definitions:
+        # "een aaneengesloten termijn van maximaal drie maanden"
+        maximale_termijn_onderbreking:
+          value: 3
+          type: number
+          type_spec:
+            unit: months
+        # "niet hoger ... dan honderdveertig procent van de toepasselijke bijstandsnorm"
+        percentage_onderbreking:
+          value: 140
+          type: number
+          type_spec:
+            unit: percentage
+        # "onafgebroken ten minste twee jaar een laag inkomen"
+        duur_laag_inkomen_voor_onderbreking:
+          value: 2
+          type: number
+          type_spec:
+            unit: years
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          - name: datum_verzoek
+            type: date
+            required: true
+            description: Zie artikel 1; doorgegeven aan de definities van dat artikel.
+          - name: maandgegevens
+            type: array
+            required: false
+            description: Zie artikel 1; doorgegeven aan de definities van dat artikel.
+          - name: toepasselijke_bijstandsnormen
+            type: array
+            required: false
+            description: >-
+              Dezelfde verzameling als bij artikel 3 (`maand`, `norm`), ook voor de twee jaar vóór een onderbreking.
+          - name: artikel_3a_eerder_toegepast
+            type: boolean
+            required: false
+            description: >-
+              Of het eerste lid al eerder op deze persoon is toegepast (tweede lid: "eenmalig van toepassing").
+        input:
+          - name: peildatum
+            type: date
+            source:
+              output: peildatum
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+          - name: referteperiode_begin
+            type: date
+            source:
+              output: referteperiode_begin
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+          - name: inkomen_per_maand
+            type: array
+            source:
+              output: inkomen_per_maand
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+          - name: heeft_langdurig_laag_inkomen_artikel_3
+            type: boolean
+            nullable: true
+            source:
+              output: heeft_langdurig_laag_inkomen_artikel_3
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+                toepasselijke_bijstandsnormen: $toepasselijke_bijstandsnormen
+          - name: aantal_maanden_referteperiode
+            type: number
+            source:
+              output: aantal_maanden_referteperiode
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+                toepasselijke_bijstandsnormen: $toepasselijke_bijstandsnormen
+          - name: aantal_maanden_bekend
+            type: number
+            source:
+              output: aantal_maanden_bekend
+              parameters:
+                datum_verzoek: $datum_verzoek
+                maandgegevens: $maandgegevens
+                toepasselijke_bijstandsnormen: $toepasselijke_bijstandsnormen
+        output:
+          - name: maanden_hoger_inkomen
+            type: array
+            description: >-
+              De maanden van de referteperiode waarin het inkomen hoger is dan de norm van artikel 3, elk met `maand`,
+              `inkomen`, `norm` en `volgnummer` (het aantal maanden vanaf het begin van de referteperiode).
+          - name: aantal_maanden_hoger_inkomen
+            type: number
+          - name: eerste_maand_onderbreking
+            type: number
+            nullable: true
+          - name: laatste_maand_onderbreking
+            type: number
+            nullable: true
+          - name: begin_onderbreking
+            type: date
+            nullable: true
+          - name: onderbreking_voldoet_aan_eerste_lid
+            type: boolean
+          - name: heeft_langdurig_laag_inkomen
+            type: boolean
+            nullable: true
+            description: >-
+              Of de persoon een langdurig laag inkomen heeft, met de onderbreking die dit artikel toelaat. Afwezig als
+              niet voor elke maand van de referteperiode een inkomen bekend is.
+        actions:
+          - output: maanden_hoger_inkomen
+            value:
+              operation: FOREACH
+              collection:
+                operation: FOREACH
+                collection: $inkomen_per_maand
+                as: maand
+                filter:
+                  operation: AND
+                  conditions:
+                    - operation: GREATER_THAN_OR_EQUAL
+                      subject: $maand.maand
+                      value: $referteperiode_begin
+                    - operation: LESS_THAN
+                      subject: $maand.maand
+                      value: $peildatum
+                body:
+                  operation: RECORD
+                  fields:
+                    maand: $maand.maand
+                    inkomen: $maand.inkomen
+                    norm:
+                      operation: FOREACH
+                      collection: $toepasselijke_bijstandsnormen
+                      as: norm
+                      filter:
+                        operation: EQUALS
+                        subject: $norm.maand
+                        value: $maand.maand
+                      body: $norm.norm
+                      combine: ONLY
+                    volgnummer:
+                      operation: DATE_DIFF
+                      from: $referteperiode_begin
+                      to: $maand.maand
+                      in: months
+              as: kandidaat
+              filter:
+                operation: GREATER_THAN
+                subject: $kandidaat.inkomen
+                value: $kandidaat.norm
+              body: $kandidaat
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: 3a
+              paragraph: '1'
+              explanation: >-
+                De onderbreking van de referteperiode zijn de maanden waarin het inkomen niet laag is in de zin van
+                artikel 3 (honderd procent van de norm).
+          - output: aantal_maanden_hoger_inkomen
+            value:
+              operation: FOREACH
+              collection: $maanden_hoger_inkomen
+              as: maand
+              body: 1
+              combine: ADD
+          - output: eerste_maand_onderbreking
+            value:
+              operation: FOREACH
+              collection: $maanden_hoger_inkomen
+              as: maand
+              body: $maand.volgnummer
+              combine: MIN
+          - output: laatste_maand_onderbreking
+            value:
+              operation: FOREACH
+              collection: $maanden_hoger_inkomen
+              as: maand
+              body: $maand.volgnummer
+              combine: MAX
+          - output: begin_onderbreking
+            value:
+              operation: FOREACH
+              collection: $maanden_hoger_inkomen
+              as: maand
+              filter:
+                operation: EQUALS
+                subject: $maand.volgnummer
+                value: $eerste_maand_onderbreking
+              body: $maand.maand
+              combine: ONLY
+          - output: onderbreking_voldoet_aan_eerste_lid
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: OR
+                    conditions:
+                      - operation: EQUALS
+                        subject: $aantal_maanden_hoger_inkomen
+                        value: 0
+                      - operation: GREATER_THAN
+                        subject: $aantal_maanden_hoger_inkomen
+                        value: $maximale_termijn_onderbreking
+                  then: false
+                - when:
+                    operation: OR
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_maand_onderbreking
+                        value: null
+                      - operation: EQUALS
+                        subject: $laatste_maand_onderbreking
+                        value: null
+                      - operation: EQUALS
+                        subject: $begin_onderbreking
+                        value: null
+                  then: false
+              default:
+                operation: AND
+                conditions:
+                  # "aaneengesloten": de maanden met een hoger inkomen liggen zonder gat achter elkaar.
+                  - operation: EQUALS
+                    subject:
+                      operation: ADD
+                      values:
+                        - operation: SUBTRACT
+                          values:
+                            - $laatste_maand_onderbreking
+                            - $eerste_maand_onderbreking
+                        - 1
+                    value: $aantal_maanden_hoger_inkomen
+                  # Onderdeel a.
+                  - operation: FOREACH
+                    collection: $maanden_hoger_inkomen
+                    as: maand
+                    body:
+                      operation: LESS_THAN_OR_EQUAL
+                      subject: $maand.inkomen
+                      value:
+                        operation: MULTIPLY
+                        values:
+                          - $maand.norm
+                          - operation: DIVIDE
+                            values:
+                              - $percentage_onderbreking
+                              - 100
+                    combine: AND
+                  # Onderdeel b: de twee jaar direct voor de onderbreking, maand voor maand laag en volledig bekend.
+                  - operation: EQUALS
+                    subject:
+                      operation: FOREACH
+                      collection: $inkomen_per_maand
+                      as: maand
+                      filter:
+                        operation: AND
+                        conditions:
+                          - operation: GREATER_THAN_OR_EQUAL
+                            subject: $maand.maand
+                            value:
+                              operation: DATE_ADD
+                              date: $begin_onderbreking
+                              years:
+                                operation: MULTIPLY
+                                values:
+                                  - $duur_laag_inkomen_voor_onderbreking
+                                  - -1
+                          - operation: LESS_THAN
+                            subject: $maand.maand
+                            value: $begin_onderbreking
+                      body: 1
+                      combine: ADD
+                    value:
+                      operation: DATE_DIFF
+                      from:
+                        operation: DATE_ADD
+                        date: $begin_onderbreking
+                        years:
+                          operation: MULTIPLY
+                          values:
+                            - $duur_laag_inkomen_voor_onderbreking
+                            - -1
+                      to: $begin_onderbreking
+                      in: months
+                  - operation: FOREACH
+                    collection: $inkomen_per_maand
+                    as: maand
+                    filter:
+                      operation: AND
+                      conditions:
+                        - operation: GREATER_THAN_OR_EQUAL
+                          subject: $maand.maand
+                          value:
+                            operation: DATE_ADD
+                            date: $begin_onderbreking
+                            years:
+                              operation: MULTIPLY
+                              values:
+                                - $duur_laag_inkomen_voor_onderbreking
+                                - -1
+                        - operation: LESS_THAN
+                          subject: $maand.maand
+                          value: $begin_onderbreking
+                    body:
+                      operation: LESS_THAN_OR_EQUAL
+                      subject: $maand.inkomen
+                      value:
+                        operation: FOREACH
+                        collection: $toepasselijke_bijstandsnormen
+                        as: norm
+                        filter:
+                          operation: EQUALS
+                          subject: $norm.maand
+                          value: $maand.maand
+                        body: $norm.norm
+                        combine: ONLY
+                    combine: AND
+                  # Tweede lid.
+                  - operation: NOT
+                    value: $artikel_3a_eerder_toegepast
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: 3a
+              explanation: >-
+                Eerste lid: één aaneengesloten termijn van ten hoogste drie maanden met een hoger inkomen, in elk van
+                die maanden niet meer dan honderdveertig procent van de norm (onder a), direct na ten minste twee jaar
+                onafgebroken laag inkomen in de zin van artikel 3 (onder b). Die twee jaar kunnen vóór de referteperiode
+                beginnen. Tweede lid: eenmalig. Of "eenmalig" per persoon voor altijd geldt en of "kan" een keuze van
+                het college is, zegt de tekst niet (vraag U10); het model leest "kan" als het gevolg dat de tekst
+                beschrijft, niet als een bevoegdheid, omdat de zin geen bestuursorgaan noemt.
+          - output: heeft_langdurig_laag_inkomen
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $aantal_maanden_bekend
+                      value: $aantal_maanden_referteperiode
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $heeft_langdurig_laag_inkomen_artikel_3
+                    value: true
+                  then: true
+              default: $onderbreking_voldoet_aan_eerste_lid
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: 3a
+              paragraph: '1'
+              explanation: >-
+                Een onderbreking die aan het eerste lid voldoet, heeft "geen gevolgen voor het recht op individuele
+                inkomenstoeslag": de persoon heeft dan een langdurig laag inkomen zoals artikel 36 Participatiewet dat
+                vraagt. Daarom vult dit artikel, en niet artikel 3 alleen, het open begrip van artikel 8 in.
+  - number: '4'
+    text: |-
+      **Hoogte individuele inkomenstoeslag**
+
+      1. De individuele inkomenstoeslag bedraagt per kalenderjaar:
+
+         a. voor een alleenstaande: 27,18 procent van de gehuwdennorm als bedoeld in artikel 21 onderdeel b van de wet zoals
+         die op 1 januari van elk kalenderjaar geldt;
+
+         b. voor een alleenstaande ouder: 34,81 procent van de gehuwdennorm als bedoeld in artikel 21 onderdeel b van de wet
+         zoals die op 1 januari van elk kalenderjaar geldt;
+
+         c. voor gehuwden: 38,78 procent van de gehuwdennorm als bedoeld in artikel 21 onderdeel b van de wet zoals die op 1
+         januari van elk kalenderjaar geldt.
+
+      2. Als één van de gehuwden is uitgesloten van het recht op individuele inkomenstoeslag ingevolge de artikelen 11 of 13,
+      eerste lid, van de wet, komt de rechthebbende echtgenoot in aanmerking voor een individuele inkomenstoeslag naar de
+      hoogte die voor hem als alleenstaande of alleenstaande ouder zou gelden.
+
+      3. Voor toepassing van het eerste en tweede lid is de situatie op de peildatum bepalend.
+
+      4. De bedragen genoemd in het eerste lid worden naar boven afgerond op hele euro’s.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_4_Hoogte_individuele_inkomenstoeslag
+    machine_readable:
+      implements:
+        - law: participatiewet
+          article: '8'
+          open_term: hoogte_individuele_inkomenstoeslag
+          gelet_op: Gelet op artikel 8, eerste lid, aanhef en onderdeel b, en tweede lid, van de Participatiewet
+      markings:
+        - about: de gehuwdennorm zoals die op 1 januari van elk kalenderjaar geldt
+          reason: >-
+            De binding leest artikel 21 van de Participatiewet op de rekendatum van de uitvoering. De verordening vraagt
+            de norm zoals die op 1 januari van het kalenderjaar gold. De norm wijzigt op 1 januari en op 1 juli, dus
+            een uitvoering met een rekendatum na 30 juni leest de norm van 1 juli. Een binding heeft geen veld voor
+            een andere dag dan de rekendatum.
+          resolution: model
+          resolved_by: >-
+            Een veld op een binding dat de dag noemt waarop de bron wordt gelezen, hier 1 januari van het kalenderjaar.
+            Welk kalenderjaar dat is (van de peildatum of van het besluit), zegt de tekst niet (vraag U11).
+          target: []
+          legal_text_excerpt: >-
+            de gehuwdennorm als bedoeld in artikel 21 onderdeel b van de wet zoals die op 1 januari van elk kalenderjaar
+            geldt
+          accepted: true
+      definitions:
+        # Eerste lid, onder a: "27,18 procent van de gehuwdennorm"
+        percentage_alleenstaande:
+          value: 27.18
+          type: number
+          type_spec:
+            unit: percentage
+        # Eerste lid, onder b: "34,81 procent van de gehuwdennorm"
+        percentage_alleenstaande_ouder:
+          value: 34.81
+          type: number
+          type_spec:
+            unit: percentage
+        # Eerste lid, onder c: "38,78 procent van de gehuwdennorm"
+        percentage_gehuwden:
+          value: 38.78
+          type: number
+          type_spec:
+            unit: percentage
+      execution:
+        produces:
+          legal_character: WAARDEBEPALING
+        parameters:
+          - name: leefvorm_op_peildatum
+            type: string
+            required: true
+            description: >-
+              "alleenstaande", "alleenstaande ouder" of "gehuwden", in de betekenis van de Participatiewet (artikel 1,
+              tweede lid, van deze verordening), op de peildatum (derde lid).
+          - name: echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+            type: boolean
+            required: false
+            description: >-
+              Bij gehuwden: of één van de echtgenoten is uitgesloten van het recht op individuele inkomenstoeslag
+              ingevolge artikel 11 of artikel 13, eerste lid, van de wet, op de peildatum (tweede en derde lid).
+          - name: rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+            type: boolean
+            required: false
+            description: >-
+              Bij het tweede lid: of voor de rechthebbende echtgenoot de hoogte van een alleenstaande ouder zou gelden,
+              en niet die van een alleenstaande.
+        input:
+          - name: gehuwdennorm
+            type: amount
+            type_spec:
+              unit: eurocent
+            source:
+              regulation: participatiewet
+              output: norm_gehuwden_artikel_21
+            description: De norm van artikel 21, onderdeel b, van de wet, per kalendermaand. Zie de markering.
+        output:
+          - name: toepasselijk_percentage
+            type: number
+            nullable: true
+            type_spec:
+              unit: percentage
+          - name: hoogte_individuele_inkomenstoeslag
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            description: De individuele inkomenstoeslag per kalenderjaar, naar boven afgerond op hele euro's.
+        actions:
+          - output: toepasselijk_percentage
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $leefvorm_op_peildatum
+                    value: alleenstaande
+                  then: $percentage_alleenstaande
+                - when:
+                    operation: EQUALS
+                    subject: $leefvorm_op_peildatum
+                    value: alleenstaande ouder
+                  then: $percentage_alleenstaande_ouder
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $leefvorm_op_peildatum
+                        value: gehuwden
+                      - operation: EQUALS
+                        subject: $echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+                        value: true
+                      - operation: EQUALS
+                        subject: $rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+                        value: true
+                  then: $percentage_alleenstaande_ouder
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $leefvorm_op_peildatum
+                        value: gehuwden
+                      - operation: EQUALS
+                        subject: $echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+                        value: true
+                  then: $percentage_alleenstaande
+                - when:
+                    operation: EQUALS
+                    subject: $leefvorm_op_peildatum
+                    value: gehuwden
+                  then: $percentage_gehuwden
+              default: null
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '4'
+              explanation: >-
+                Eerste lid, onder a tot en met c: het percentage hangt af van de leefvorm. Tweede lid: is één van de
+                gehuwden uitgesloten ingevolge artikel 11 of 13, eerste lid, van de wet, dan geldt voor de
+                rechthebbende echtgenoot de hoogte van een alleenstaande of alleenstaande ouder. Derde lid: de situatie
+                op de peildatum is bepalend; de parameters zijn op die dag vastgesteld. Een andere leefvorm geeft
+                geen bedrag.
+          - output: hoogte_individuele_inkomenstoeslag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $toepasselijk_percentage
+                    value: null
+                  then: null
+              default:
+                operation: CEIL
+                value:
+                  operation: MULTIPLY
+                  values:
+                    - $gehuwdennorm
+                    - operation: DIVIDE
+                      values:
+                        - $toepasselijk_percentage
+                        - 100
+                precision: -2
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '4'
+              paragraph: '4'
+              explanation: >-
+                Eerste lid: het percentage van de gehuwdennorm. Vierde lid: "naar boven afgerond op hele euro's", op een
+                bedrag in eurocent dus naar boven op honderdtallen.
+  - number: '5'
+    text: |-
+      **Onvoorzien en nadere regels**
+
+      1. In gevallen waarin deze verordening niet voorziet, beslist het college.
+
+      2. Het college kan nadere regels stellen over de uitvoering van deze verordening.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_5_Onvoorzien_en_nadere_regels
+    machine_readable:
+      open_terms:
+        - id: beslissing_college_in_onvoorzien_geval
+          type: string
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 5, eerste lid)
+          description: >-
+            Wat het college beslist in een geval waarin de verordening niet voorziet. Die beslissing is een besluit
+            met een motivering (Awb 3:46); deze verordening geeft er geen inhoud aan.
+        - id: nadere_regels_uitvoering
+          type: string
+          required: false
+          delegated_to: het college van burgemeester en wethouders
+          description: >-
+            Tweede lid: nadere regels over de uitvoering van deze verordening. Het college kan ze stellen; de
+            verordening zegt niet welke.
+      execution:
+        output:
+          - name: beslissing_in_onvoorzien_geval
+            type: string
+            nullable: true
+          - name: nadere_regels_over_uitvoering
+            type: string
+            nullable: true
+        actions:
+          - output: beslissing_in_onvoorzien_geval
+            value: $beslissing_college_in_onvoorzien_geval
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '5'
+              paragraph: '1'
+              explanation: Een vangnet voor gevallen die de verordening niet regelt; de beslissing is aan het college.
+          - output: nadere_regels_over_uitvoering
+            value: $nadere_regels_uitvoering
+            legal_basis:
+              law: Verordening individuele inkomenstoeslag Participatiewet 2015
+              article: '5'
+              paragraph: '2'
+              explanation: De bevoegdheid van het college om nadere regels te stellen; of en welke, regelt dit artikel niet.
+  - number: '6'
+    text: |-
+      **Intrekken oude verordening**
+
+      De Verordening Langdurigheidstoeslag gemeente Groningen wordt ingetrokken.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_6_Intrekken_oude_verordening
+    machine_readable:
+      markings:
+        - about: het intrekken van de Verordening Langdurigheidstoeslag gemeente Groningen
+          reason: >-
+            Dit artikel beëindigt een andere regeling. Het model legt het einde van een regeling vast in haar eigen
+            valid_to, en een artikel kan met declares alleen eigenschappen van zijn eigen document vastleggen. Een
+            bepaling waarmee het ene document het einde van een ander document bepaalt, heeft geen veld.
+          resolution: model
+          resolved_by: >-
+            Een declaratie waarmee een artikel het einde van een andere regeling vastlegt, zodat de valid_to van die
+            regeling uit dit artikel volgt en een check de twee tegen elkaar houdt.
+          target: []
+          legal_text_excerpt: De Verordening Langdurigheidstoeslag gemeente Groningen wordt ingetrokken.
+          accepted: true
+  - number: '7'
+    text: |-
+      **Inwerkingtreding en citeertitel**
+
+      1. Deze verordening treedt in werking op 1 mei 2015.
+
+      2. Deze verordening wordt aangehaald als: Verordening individuele inkomenstoeslag Participatiewet 2015.
+    url: https://lokaleregelgeving.overheid.nl/CVDR367471/3#artikel_7_Inwerkingtreding_en_citeertitel
+    machine_readable:
+      # Eerste lid: de verordening is in werking getreden op 1 mei 2015. De valid_from in de kop is de
+      # inwerkingtreding van deze geconsolideerde versie (21 maart 2023), niet van de verordening zelf.
+      declares:
+        - property: valid_from
+          value: '2015-05-01'
+        - property: name
+          value: Verordening individuele inkomenstoeslag Participatiewet 2015

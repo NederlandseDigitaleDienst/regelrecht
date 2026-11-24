@@ -1,0 +1,785 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: beleid_iit_gemeente_groningen
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. Geen bekendgemaakt beleid van de gemeente Groningen, maar een eigen
+# keuze in de modellering voor de casus individuele inkomenstoeslag van het
+# RegelHet. Het zegt hoe het college de aanvraag behandelt: welke
+# gegevens de behandelaar vastlegt (artikel 1), hoe het systeem daaruit de
+# gegevens per maand maakt die de verordening vraagt (artikel 2), en hoe het
+# college de verordening en de beleidsregels van Groningen toepast om de
+# begrippen van artikel 36 van de Participatiewet in te vullen (artikel 3).
+# De verordening en de beleidsregels zelf zijn wel bekendgemaakt en staan in
+# het corpus (dossier iit-groningen). Er is geen bekendmaking; de url wijst
+# naar artikel 36.
+url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+name: Behandeling individuele inkomenstoeslag in de gemeente Groningen (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Groningen
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Na
+      ontvangst van een aanvraag om een individuele inkomenstoeslag stelt de
+      behandelaar uit de administratie van de gemeente en de
+      basisregistraties de gegevens van de aanvrager vast die de verordening
+      en de beleidsregels vragen, en legt die vast: de geboortedatum, of de
+      aanvrager de pensioengerechtigde leeftijd heeft bereikt, de leefvorm,
+      het vermogen, het inkomen en de algemene bijstand per maand, de
+      maanden waarin die afweken, en de omstandigheden van de artikelen 3 tot
+      en met 5 van de beleidsregels.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      # Het feit dat de behandelaar vastlegt, in de werkvoorraad van de
+      # gemeente (knop "... vastleggen"). Het college stelt het vast; de
+      # reductie van de gemeente (reductie_iit_gegevens) leest het.
+      # Het inkomen en de bijstand staan als een vast bedrag per maand, met
+      # een tabel voor de maanden die afwijken: zo hoeft de behandelaar geen
+      # 24 regels in te vullen. Artikel 2 maakt er de regels per maand van.
+      requires:
+        - fact: gegevens_voor_iit_vastgesteld
+          description: >-
+            De gegevens van de aanvrager die het college voor de beslissing op
+            een aanvraag om individuele inkomenstoeslag vaststelt.
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_vastlegging
+            - geboortedatum
+            - heeft_pensioengerechtigde_leeftijd_bereikt
+            - leefvorm
+            - in_aanmerking_te_nemen_vermogen
+            - inkomen_artikel_32_per_maand
+            - bijstand_naar_de_norm
+            - algemene_bijstand_per_maand
+            - afwijkende_maanden
+            - artikel_3a_eerder_toegepast
+            - echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+            - rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+            - volgt_op_peildatum_opleiding_wtos
+            - volgt_op_peildatum_studie_wsf_2000
+            - laatste_dag_opleiding_wtos
+            - laatste_dag_studie_wsf_2000
+            - volledig_arbeidsongeschikt
+            - ontheffing_arbeidsverplichtingen
+            - duur_ontheffing_maanden
+            - ontheffing_arbeidsinschakeling
+            - medisch_urenbeperkt
+            - vrijlating_inkomsten_medisch_urenbeperkt
+            - aangewezen_op_ondersteuning
+            - duur_aangewezen_op_ondersteuning_maanden
+            - aangewezen_op_participatieplaats
+            - aangewezen_op_sociale_activering
+            - aangewezen_op_vrijwilligerswerk
+            - datum_maatregel_artikel_18_vierde_lid
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: datum_vastlegging
+            type: date
+            description: De dag waarop de behandelaar de gegevens vastlegt.
+          - name: geboortedatum
+            type: date
+            description: De geboortedatum van de aanvrager, uit de basisregistratie personen.
+          - name: heeft_pensioengerechtigde_leeftijd_bereikt
+            type: boolean
+            description: Of de aanvrager op de peildatum de pensioengerechtigde leeftijd heeft bereikt.
+          - name: leefvorm
+            type: string
+            description: >-
+              "alleenstaande", "alleenstaande ouder" of "gehuwden", in de betekenis van de
+              Participatiewet, op de peildatum.
+          - name: in_aanmerking_te_nemen_vermogen
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: Het vermogen van artikel 34 van de Participatiewet, zonder wat het tweede lid uitzondert.
+          - name: inkomen_artikel_32_per_maand
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: >-
+              Het inkomen, bedoeld in artikel 32 van de Participatiewet, per maand in de referteperiode,
+              zonder de algemene bijstand; voor de maanden die afweken staat het bedrag in de tabel.
+          - name: bijstand_naar_de_norm
+            type: boolean
+            description: >-
+              Of de aanvrager in de referteperiode algemene bijstand ontving die zijn inkomen aanvulde tot de
+              toepasselijke norm. Zo ja, dan rekent het systeem de bijstand per maand uit de norm van die maand, en
+              telt algemene_bijstand_per_maand niet.
+          - name: algemene_bijstand_per_maand
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: De algemene bijstand per maand in de referteperiode; voor de maanden die afweken in de tabel.
+          - name: afwijkende_maanden
+            type: array
+            columns:
+              - name: maand
+                type: date
+              - name: inkomen_artikel_32
+                type: amount
+              - name: algemene_bijstand
+                type: amount
+            description: >-
+              De maanden waarin het inkomen of de bijstand anders was, elk met de eerste dag van de maand
+              en de bedragen in die maand.
+          - name: artikel_3a_eerder_toegepast
+            type: boolean
+            description: Of artikel 3a van de verordening (tijdelijk hoger inkomen) eerder op de aanvrager is toegepast.
+          - name: echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+            type: boolean
+            description: Bij gehuwden, of een van beiden is uitgesloten ingevolge artikel 11 of 13 van de wet.
+          - name: rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+            type: boolean
+            description: Bij een uitgesloten echtgenoot, of voor de ander de hoogte van een alleenstaande ouder geldt.
+          - name: volgt_op_peildatum_opleiding_wtos
+            type: boolean
+            description: Of de aanvrager op de peildatum een opleiding volgt waarvoor hij een tegemoetkoming krijgt (WTOS).
+          - name: volgt_op_peildatum_studie_wsf_2000
+            type: boolean
+            description: Of de aanvrager op de peildatum studeert met studiefinanciering (WSF 2000).
+          - name: laatste_dag_opleiding_wtos
+            type: date
+            nullable: true
+            description: De laatste dag van een eerdere WTOS-opleiding; leeg als er geen was.
+          - name: laatste_dag_studie_wsf_2000
+            type: date
+            nullable: true
+            description: De laatste dag van een eerdere studie met WSF 2000; leeg als er geen was.
+          - name: volledig_arbeidsongeschikt
+            type: boolean
+            description: Of de aanvrager volledig arbeidsongeschikt is en daarvoor een uitkering ontvangt.
+          - name: ontheffing_arbeidsverplichtingen
+            type: boolean
+            description: Of de aanvrager ontheffing heeft van de arbeidsverplichtingen (artikel 9, eerste lid, behalve onderdeel c).
+          - name: duur_ontheffing_maanden
+            type: number
+            description: De duur van die ontheffing in maanden; 0 zonder ontheffing.
+          - name: ontheffing_arbeidsinschakeling
+            type: boolean
+            description: Of de aanvrager ontheffing heeft van de verplichtingen gericht op arbeidsinschakeling (artikel 9a).
+          - name: medisch_urenbeperkt
+            type: boolean
+            description: Of de aanvrager medisch urenbeperkt is (artikel 6b).
+          - name: vrijlating_inkomsten_medisch_urenbeperkt
+            type: boolean
+            description: >-
+              Of op de inkomsten van de medisch urenbeperkte aanvrager de vrijlating wordt toegepast die de
+              beleidsregels noemen (artikel 4, eerste lid, onder e: artikel 31, tweede lid, onderdeel z; dossier
+              iit-groningen, W1: bedoeld is onderdeel y).
+          - name: aangewezen_op_ondersteuning
+            type: boolean
+            description: Of de aanvrager is aangewezen op ondersteuning bij arbeidsinschakeling (artikel 7, eerste lid, onderdeel a).
+          - name: duur_aangewezen_op_ondersteuning_maanden
+            type: number
+            description: Hoe lang de aanvrager daarop is aangewezen, in maanden; 0 als hij dat niet is.
+          - name: aangewezen_op_participatieplaats
+            type: boolean
+            description: Of de aanvrager is aangewezen op een participatieplaats (artikel 10a).
+          - name: aangewezen_op_sociale_activering
+            type: boolean
+            description: Of de aanvrager is aangewezen op sociale activering.
+          - name: aangewezen_op_vrijwilligerswerk
+            type: boolean
+            description: Of de aanvrager is aangewezen op vrijwilligerswerk.
+          - name: datum_maatregel_artikel_18_vierde_lid
+            type: date
+            nullable: true
+            description: >-
+              De dag van de laatste maatregel wegens het niet nakomen van de arbeidsverplichtingen
+              (artikel 18, vierde lid); leeg als er geen was.
+
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      systeem van het college maakt uit de vastgelegde gegevens voor elke
+      maand van de referteperiode het inkomen, de algemene bijstand en de
+      toepasselijke bijstandsnorm van paragraaf 3.2 van de Participatiewet,
+      zonder de kostendelersnorm, zoals die in die maand gold.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel21
+    machine_readable:
+      # De verordening vraagt het inkomen en de norm per maand als gegeven
+      # (artikel 1 en 3, met hun geaccepteerde markeringen): een binding kan
+      # de norm niet per maand van een verstreken periode lezen. Dit artikel
+      # levert die gegevens. De maanden lopen van de maand van de peildatum
+      # 48 maanden terug: de referteperiode is twee jaar, en artikel 3a kijkt
+      # vanaf een onderbreking nog twee jaar terug. De verordening telt per
+      # toets alleen de maanden die zij nodig heeft.
+      # De normen zijn die van artikel 21, onder a en b, per half jaar, uit de
+      # toestanden van wetten.overheid.nl (wetsgeschiedenis.py artikel
+      # BWBR0015703 21 --op <datum>). Na 1 juli 2026 geldt hier de norm van 1
+      # juli 2026, ook in 2027: die van 2027 staat er nog niet in. Vóór juli
+      # 2022 geldt hier de norm van juli 2022; zo ver kijkt de casus niet terug.
+      definitions:
+        vanaf_2022_07:
+          value: '2022-07-01'
+          type: date
+        vanaf_2023_01:
+          value: '2023-01-01'
+          type: date
+        vanaf_2023_07:
+          value: '2023-07-01'
+          type: date
+        vanaf_2024_01:
+          value: '2024-01-01'
+          type: date
+        norm_a_2022_07:
+          value: 110182
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2023_01:
+          value: 119566
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2023_07:
+          value: 121662
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2022_07:
+          value: 157403
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2023_01:
+          value: 170808
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2023_07:
+          value: 173802
+          type: amount
+          type_spec: {unit: eurocent}
+        vanaf_2024_07:
+          value: '2024-07-01'
+          type: date
+        vanaf_2025_01:
+          value: '2025-01-01'
+          type: date
+        vanaf_2025_07:
+          value: '2025-07-01'
+          type: date
+        vanaf_2026_01:
+          value: '2026-01-01'
+          type: date
+        vanaf_2026_07:
+          value: '2026-07-01'
+          type: date
+        norm_a_2024_01:
+          value: 128383
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2024_07:
+          value: 130845
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2025_01:
+          value: 134545
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2025_07:
+          value: 136906
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2026_01:
+          value: 140150
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_a_2026_07:
+          value: 141946
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2024_01:
+          value: 183404
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2024_07:
+          value: 186921
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2025_01:
+          value: 192207
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2025_07:
+          value: 195580
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2026_01:
+          value: 200213
+          type: amount
+          type_spec: {unit: eurocent}
+        norm_b_2026_07:
+          value: 202779
+          type: amount
+          type_spec: {unit: eurocent}
+      execution:
+        parameters:
+          - name: peildatum
+            type: date
+            description: De peildatum van de verordening (de dagtekening van de aanvraag).
+          - name: leefvorm
+            type: string
+            description: '"alleenstaande", "alleenstaande ouder" of "gehuwden".'
+          - name: inkomen_artikel_32_per_maand
+            type: amount
+            type_spec: {unit: eurocent}
+          - name: bijstand_naar_de_norm
+            type: boolean
+          - name: algemene_bijstand_per_maand
+            type: amount
+            type_spec: {unit: eurocent}
+          - name: afwijkende_maanden
+            type: array
+            nullable: true
+            columns:
+              - name: maand
+                type: date
+              - name: inkomen_artikel_32
+                type: amount
+              - name: algemene_bijstand
+                type: amount
+        output:
+          - name: maanden
+            type: array
+            description: De eerste dag van elke maand, van de maand van de peildatum 48 maanden terug.
+          - name: maandgegevens
+            type: array
+            columns:
+              - name: maand
+                type: date
+              - name: inkomen_artikel_32
+                type: amount
+              - name: algemene_bijstand
+                type: amount
+          - name: toepasselijke_bijstandsnormen
+            type: array
+            columns:
+              - name: maand
+                type: date
+              - name: norm
+                type: amount
+        actions:
+          - output: maanden
+            value:
+              operation: FOREACH
+              collection:
+                operation: LIST
+                items: [0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16, -17, -18, -19, -20, -21, -22, -23, -24, -25, -26, -27, -28, -29, -30, -31, -32, -33, -34, -35, -36, -37, -38, -39, -40, -41, -42, -43, -44, -45, -46, -47, -48]
+              as: verschuiving
+              body:
+                operation: START_OF
+                date:
+                  operation: DATE_ADD
+                  date: $peildatum
+                  months: $verschuiving
+                in: month
+          # Onder a geldt voor een alleenstaande en een alleenstaande ouder,
+          # onder b voor gehuwden.
+          - output: toepasselijke_bijstandsnormen
+            value:
+              operation: FOREACH
+              collection: $maanden
+              as: maand
+              body:
+                operation: RECORD
+                fields:
+                  maand: $maand
+                  norm:
+                    operation: IF
+                    cases:
+                      - when:
+                          operation: EQUALS
+                          subject: $leefvorm
+                          value: gehuwden
+                        then:
+                          operation: IF
+                          cases:
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2026_07}
+                              then: $norm_b_2026_07
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2026_01}
+                              then: $norm_b_2026_01
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2025_07}
+                              then: $norm_b_2025_07
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2025_01}
+                              then: $norm_b_2025_01
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2024_07}
+                              then: $norm_b_2024_07
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2024_01}
+                              then: $norm_b_2024_01
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2023_07}
+                              then: $norm_b_2023_07
+                            - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2023_01}
+                              then: $norm_b_2023_01
+                          default: $norm_b_2022_07
+                    default:
+                      operation: IF
+                      cases:
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2026_07}
+                          then: $norm_a_2026_07
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2026_01}
+                          then: $norm_a_2026_01
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2025_07}
+                          then: $norm_a_2025_07
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2025_01}
+                          then: $norm_a_2025_01
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2024_07}
+                          then: $norm_a_2024_07
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2024_01}
+                          then: $norm_a_2024_01
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2023_07}
+                          then: $norm_a_2023_07
+                        - when: {operation: GREATER_THAN_OR_EQUAL, subject: $maand, value: $vanaf_2023_01}
+                          then: $norm_a_2023_01
+                      default: $norm_a_2022_07
+
+          # Een maand uit de tabel neemt beide bedragen daaruit. Anders het vaste
+          # inkomen, en bijstand naar de norm (aanvullend tot de norm van die
+          # maand) of het vaste bijstandsbedrag.
+          - output: maandgegevens
+            value:
+              operation: FOREACH
+              collection: $maanden
+              as: maand
+              body:
+                operation: RECORD
+                fields:
+                  maand: $maand
+                  inkomen_artikel_32:
+                    operation: IF
+                    cases:
+                      - when:
+                          operation: FOREACH
+                          collection: $afwijkende_maanden
+                          as: afwijking
+                          filter:
+                            operation: EQUALS
+                            subject: $afwijking.maand
+                            value: $maand
+                          body: true
+                          combine: OR
+                        then:
+                          operation: FOREACH
+                          collection: $afwijkende_maanden
+                          as: afwijking
+                          filter:
+                            operation: EQUALS
+                            subject: $afwijking.maand
+                            value: $maand
+                          body: $afwijking.inkomen_artikel_32
+                          combine: ONLY
+                    default: $inkomen_artikel_32_per_maand
+                  algemene_bijstand:
+                    operation: IF
+                    cases:
+                      - when:
+                          operation: FOREACH
+                          collection: $afwijkende_maanden
+                          as: afwijking
+                          filter:
+                            operation: EQUALS
+                            subject: $afwijking.maand
+                            value: $maand
+                          body: true
+                          combine: OR
+                        then:
+                          operation: FOREACH
+                          collection: $afwijkende_maanden
+                          as: afwijking
+                          filter:
+                            operation: EQUALS
+                            subject: $afwijking.maand
+                            value: $maand
+                          body: $afwijking.algemene_bijstand
+                          combine: ONLY
+                    default:
+                      operation: IF
+                      cases:
+                        - when: $bijstand_naar_de_norm
+                          then:
+                            operation: MAX
+                            values:
+                              - 0
+                              - operation: SUBTRACT
+                                values:
+                                  - operation: FOREACH
+                                    collection: $toepasselijke_bijstandsnormen
+                                    as: norm
+                                    filter:
+                                      operation: EQUALS
+                                      subject: $norm.maand
+                                      value: $maand
+                                    body: $norm.norm
+                                    combine: ONLY
+                                  - $inkomen_artikel_32_per_maand
+                      default: $algemene_bijstand_per_maand
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      college beoordeelt een aanvraag om individuele inkomenstoeslag op de
+      gegevens die de behandelaar het laatst vóór het besluit vastlegde. Het
+      past daarop de verordening en de beleidsregels toe: langdurig laag
+      inkomen en de hoogte volgens de verordening, uitzicht op
+      inkomensverbetering volgens de beleidsregels. Of het de aanvrager in de
+      twaalf maanden voor de aanvraag al een toeslag verleende, ontleent het
+      aan zijn eigen besluiten.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      # Vult de begrippen van artikel 36 van de Participatiewet in, zoals het
+      # beleid van Wilgendaal die van artikel 49 van het BABW. De gegevens komen
+      # van de cel van de gemeente: het laatste feit van artikel 1 over de
+      # aanvrager (reductie_iit_gegevens), en haar eigen besluiten
+      # (reductie_verleende_iit).
+      # Artikel 2 wordt bij naam van dit regelwerk aangeroepen: een binding
+      # binnen hetzelfde regelwerk gaf de parameters niet door ("Variable not
+      # found: peildatum"), een binding met regulation wel.
+      # Geen letterlijke waarde in de parameters van een binding: de engine
+      # geeft die niet als boolean of getal door (getest met de
+      # evaluate-binary). Daarom de definities hieronder.
+      implements:
+        - law: participatiewet
+          article: '36'
+          open_term: persoon_van_21_tot_pensioengerechtigde_leeftijd
+        - law: participatiewet
+          article: '36'
+          open_term: heeft_langdurig_laag_inkomen_volgens_verordening
+        - law: participatiewet
+          article: '36'
+          open_term: leefvorm
+        - law: participatiewet
+          article: '36'
+          open_term: in_aanmerking_te_nemen_vermogen
+        - law: participatiewet
+          article: '36'
+          open_term: heeft_geen_uitzicht_op_inkomensverbetering
+        - law: participatiewet
+          article: '36'
+          open_term: in_twaalf_maanden_voor_aanvraag_verleend
+        - law: participatiewet
+          article: '36'
+          open_term: hoogte_volgens_verordening
+      definitions:
+        waar:
+          value: true
+          type: boolean
+        onwaar:
+          value: false
+          type: boolean
+        nul:
+          value: 0
+          type: number
+        minimumleeftijd:
+          value: 21
+          type: number
+          type_spec: {unit: years}
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag; de peildatum van de verordening en de beleidsregels.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: gegevens
+            type: object
+            nullable: true
+            source:
+              reduction: iit_gegevens_aanvrager
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                besluit_datum: $besluit_datum
+          - name: maandgegevens
+            type: array
+            nullable: true
+            source:
+              regulation: beleid_iit_gemeente_groningen
+              output: maandgegevens
+              parameters:
+                peildatum: $dagtekening
+                leefvorm: $gegevens.leefvorm
+                inkomen_artikel_32_per_maand: $gegevens.inkomen_artikel_32_per_maand
+                bijstand_naar_de_norm: $gegevens.bijstand_naar_de_norm
+                algemene_bijstand_per_maand: $gegevens.algemene_bijstand_per_maand
+                afwijkende_maanden: $gegevens.afwijkende_maanden
+          - name: toepasselijke_bijstandsnormen
+            type: array
+            nullable: true
+            source:
+              regulation: beleid_iit_gemeente_groningen
+              output: toepasselijke_bijstandsnormen
+              parameters:
+                peildatum: $dagtekening
+                leefvorm: $gegevens.leefvorm
+                inkomen_artikel_32_per_maand: $gegevens.inkomen_artikel_32_per_maand
+                bijstand_naar_de_norm: $gegevens.bijstand_naar_de_norm
+                algemene_bijstand_per_maand: $gegevens.algemene_bijstand_per_maand
+                afwijkende_maanden: $gegevens.afwijkende_maanden
+          - name: langdurig_laag_inkomen
+            type: boolean
+            nullable: true
+            source:
+              regulation: verordening_individuele_inkomenstoeslag_participatiewet_groningen
+              output: heeft_langdurig_laag_inkomen
+              parameters:
+                datum_verzoek: $dagtekening
+                maandgegevens: $maandgegevens
+                toepasselijke_bijstandsnormen: $toepasselijke_bijstandsnormen
+                artikel_3a_eerder_toegepast: $gegevens.artikel_3a_eerder_toegepast
+          - name: hoogte
+            type: amount
+            nullable: true
+            type_spec: {unit: eurocent}
+            source:
+              regulation: verordening_individuele_inkomenstoeslag_participatiewet_groningen
+              output: hoogte_individuele_inkomenstoeslag
+              parameters:
+                leefvorm_op_peildatum: $gegevens.leefvorm
+                echtgenoot_uitgesloten_ingevolge_artikel_11_of_13: $gegevens.echtgenoot_uitgesloten_ingevolge_artikel_11_of_13
+                rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn: $gegevens.rechthebbende_echtgenoot_zou_alleenstaande_ouder_zijn
+          # De beleidsregels kennen voor elke regeling (Participatiewet, IOAW,
+          # IOAZ) een eigen gegeven. Deze casus behandelt alleen de
+          # Participatiewet; de gegevens over IOAW en IOAZ zijn onwaar.
+          - name: recht_volgens_beleidsregels
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleidsregels_individuele_inkomenstoeslag_participatiewet_groningen
+              output: recht_op_iit_volgens_beleidsregels
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $waar
+                datum_aanvraag: $dagtekening
+                volgt_op_peildatum_opleiding_wtos: $gegevens.volgt_op_peildatum_opleiding_wtos
+                volgt_op_peildatum_studie_wsf_2000: $gegevens.volgt_op_peildatum_studie_wsf_2000
+                laatste_dag_opleiding_wtos: $gegevens.laatste_dag_opleiding_wtos
+                laatste_dag_studie_wsf_2000: $gegevens.laatste_dag_studie_wsf_2000
+                ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt: $gegevens.volledig_arbeidsongeschikt
+                volledig_arbeidsongeschikt_artikel_9_vijfde_lid: $onwaar
+                ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c: $gegevens.ontheffing_arbeidsverplichtingen
+                ontheffing_artikel_9_tweede_lid: $onwaar
+                ontheffing_artikel_37a_ioaw: $onwaar
+                ontheffing_artikel_37a_ioaz: $onwaar
+                duur_ontheffing_maanden: $gegevens.duur_ontheffing_maanden
+                ontheffing_arbeidsinschakeling_artikel_9a: $gegevens.ontheffing_arbeidsinschakeling
+                ontheffing_arbeidsinschakeling_artikel_38_ioaw: $onwaar
+                ontheffing_arbeidsinschakeling_artikel_38_ioaz: $onwaar
+                medisch_urenbeperkt_artikel_6b: $gegevens.medisch_urenbeperkt
+                medisch_urenbeperkt_artikel_4b_ioaw: $onwaar
+                medisch_urenbeperkt_artikel_4b_ioaz: $onwaar
+                vrijlating_artikel_31_tweede_lid_onderdeel_z: $gegevens.vrijlating_inkomsten_medisch_urenbeperkt
+                vrijlating_artikel_8_zevende_lid_ioaw: $onwaar
+                vrijlating_artikel_8_elfde_lid_ioaz: $onwaar
+                aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a: $gegevens.aangewezen_op_ondersteuning
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw: $onwaar
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz: $onwaar
+                duur_aangewezen_op_ondersteuning_maanden: $gegevens.duur_aangewezen_op_ondersteuning_maanden
+                aangewezen_op_participatieplaats_artikel_10a: $gegevens.aangewezen_op_participatieplaats
+                aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7: $gegevens.aangewezen_op_sociale_activering
+                aangewezen_op_artikel_4a_ioaw: $onwaar
+                aangewezen_op_artikel_4a_ioaz: $onwaar
+                aangewezen_op_vrijwilligerswerk: $gegevens.aangewezen_op_vrijwilligerswerk
+                datum_maatregel_artikel_18_vierde_lid: $gegevens.datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $gegevens.datum_maatregel_artikel_18_vierde_lid
+          - name: eerder_verleend
+            type: boolean
+            source:
+              reduction: in_twaalf_maanden_voor_aanvraag_verleend
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening: $dagtekening
+        output:
+          - name: persoon_van_21_tot_pensioengerechtigde_leeftijd
+            type: boolean
+            nullable: true
+          - name: heeft_langdurig_laag_inkomen_volgens_verordening
+            type: boolean
+            nullable: true
+          - name: leefvorm
+            type: string
+            nullable: true
+          - name: in_aanmerking_te_nemen_vermogen
+            type: amount
+            nullable: true
+            type_spec: {unit: eurocent}
+          - name: heeft_geen_uitzicht_op_inkomensverbetering
+            type: boolean
+            nullable: true
+          - name: in_twaalf_maanden_voor_aanvraag_verleend
+            type: boolean
+          - name: hoogte_volgens_verordening
+            type: amount
+            nullable: true
+            type_spec: {unit: eurocent}
+        actions:
+          # Zonder vastgelegde gegevens of dagtekening is er geen uitkomst.
+          - output: persoon_van_21_tot_pensioengerechtigde_leeftijd
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $gegevens.geboortedatum, value: null}
+                  then: null
+                - when: {operation: EQUALS, subject: $dagtekening, value: null}
+                  then: null
+                - when: {operation: EQUALS, subject: $gegevens.heeft_pensioengerechtigde_leeftijd_bereikt, value: null}
+                  then: null
+              default:
+                operation: AND
+                conditions:
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: AGE
+                      date_of_birth: $gegevens.geboortedatum
+                      reference_date: $dagtekening
+                    value: $minimumleeftijd
+                  - operation: NOT
+                    value: $gegevens.heeft_pensioengerechtigde_leeftijd_bereikt
+          - output: heeft_langdurig_laag_inkomen_volgens_verordening
+            value: $langdurig_laag_inkomen
+          - output: leefvorm
+            value: $gegevens.leefvorm
+          - output: in_aanmerking_te_nemen_vermogen
+            value: $gegevens.in_aanmerking_te_nemen_vermogen
+          - output: heeft_geen_uitzicht_op_inkomensverbetering
+            value: $recht_volgens_beleidsregels
+          - output: in_twaalf_maanden_voor_aanvraag_verleend
+            value: $eerder_verleend
+          - output: hoogte_volgens_verordening
+            value: $hoogte
+
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      aanvraag om een individuele inkomenstoeslag die de aanvrager
+      elektronisch indient nadat hij zich met DigiD heeft aangemeld, geldt als
+      ondertekend. Het college acht die methode van ondertekening voldoende
+      betrouwbaar.
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel2:16
+    machine_readable:
+      # Zoals artikel 8 van het fictieve beleid van Wilgendaal: het systeem
+      # waarmee de aanvrager indient, voert dit artikel uit met het middel
+      # waarmee hij zich aanmeldde, en zet de uitkomst in het veld
+      # aanvraag_ondertekend van de aanvraag (Awb 4:2).
+      execution:
+        parameters:
+          - name: inlogmiddel
+            type: string
+            nullable: true
+            description: Het middel waarmee de aanvrager zich aanmeldde; leeg als hij zich niet aanmeldde.
+        output:
+          - name: aanvraag_geldt_als_ondertekend
+            type: boolean
+            description: Of de elektronisch ingediende aanvraag als ondertekend geldt.
+        actions:
+          - output: aanvraag_geldt_als_ondertekend
+            value:
+              operation: EQUALS
+              subject: $inlogmiddel
+              value: DigiD

@@ -95,16 +95,26 @@ pub enum Channel {
     /// No account asked for it: the account beside the record is that
     /// article, `<regelwerk>#<article>`.
     Policy,
+    /// A link with the server of another cell of the case: the record is
+    /// one that cell's own server made and sent ([`crate::link`]). The
+    /// account beside it names that cell.
+    Link,
+    /// A session or a call handed over by the front of the organisation the
+    /// process belongs to ([`crate::organisatie`]), which logged the account
+    /// in. The account beside the record is `<organisation id>:<sub>`.
+    Organisation,
 }
 
 impl Channel {
     /// Every channel.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Keycloak,
         Self::TestLogin,
         Self::Fsc4b,
         Self::AdminPanel,
         Self::Policy,
+        Self::Link,
+        Self::Organisation,
     ];
 
     /// The name the store keeps.
@@ -115,6 +125,8 @@ impl Channel {
             Self::Fsc4b => "fsc4b",
             Self::AdminPanel => "beheerpaneel",
             Self::Policy => "beleid",
+            Self::Link => "koppeling",
+            Self::Organisation => "organisatie",
         }
     }
 
@@ -361,4 +373,20 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     /// [`StoreError::Backend`] when the store fails, or refuses a reset
     /// because a server in stable mode used it; nothing is emptied then.
     async fn reset(&self, begin: Vec<CellAppend>) -> Result<(), StoreError>;
+
+    /// The ids of the records this server delivered to the server of the
+    /// cell `to` over a link ([`crate::link`]).
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails.
+    async fn delivered(&self, to: &str) -> Result<BTreeSet<String>, StoreError>;
+
+    /// Keep that the record `gram` reached the server of the cell `to`. A
+    /// second call for the same record changes nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails.
+    async fn mark_delivered(&self, gram: &str, to: &str) -> Result<(), StoreError>;
 }

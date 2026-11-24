@@ -36,10 +36,10 @@ try {
   const items = await listAll();
   if (items.length === 0) {
     content.innerHTML = `
-      <nldd-banner variant="neutral" text="Er is nog geen RegelHet-omgeving in dit project."
-                   supporting-text="Met Nieuw RegelHet kies je een casus, een versie en een adres."></nldd-banner>`;
+      <nldd-banner variant="neutral" text="Er is nog geen procedure in dit project."
+                   supporting-text="Met Nieuwe procedure kies je een casus, een versie en een adres."></nldd-banner>`;
   } else {
-    content.innerHTML = `<nldd-list appearance="box-base" accessible-label="RegelHet">${items
+    content.innerHTML = `<nldd-list appearance="box-base" accessible-label="Procedures">${items
       .map((item) => rowHtml(item, ctx.namespaceDisplayNames))
       .join('')}</nldd-list>`;
     content.querySelectorAll('nldd-list-item').forEach((row) => {
@@ -49,6 +49,6 @@ try {
 } catch (err) {
   const banner = document.createElement('nldd-banner');
   banner.setAttribute('variant', 'critical');
-  banner.setAttribute('text', `De RegelHet-omgevingen zijn niet te lezen: ${err?.message ?? err}`);
+  banner.setAttribute('text', `De procedures zijn niet te lezen: ${err?.message ?? err}`);
   content.replaceChildren(banner);
 }

@@ -112,8 +112,10 @@ repos:
         files: ^(script/require-security-approval(\.test)?\.sh|\.github/workflows/(security-update-gate|claude-dependabot)\.yml)$
 
       - id: fundament-plugin-console-tests
-        name: De wizard van de Fundament-plugin bouwt wat de CRD aanneemt
-        entry: node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+        name: De wizards van de Fundament-plugin bouwen wat de CRDs aannemen
+        entry: >-
+          node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+          packages/fundament-plugin/console-test/organisaties-body.test.js
         language: system
         pass_filenames: false
         files: ^packages/fundament-plugin/(console|console-test|crds)/

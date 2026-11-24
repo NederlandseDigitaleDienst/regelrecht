@@ -71,12 +71,19 @@
 //! instead opens the channel on a demo Stelsel the server makes at start,
 //! with a test Activatiedienst; test mode only, and with none of the above.
 //! The channel is for citizens: the back office refuses either.
+//!
+//! The role ([`Role`], [`crate::organisatie::settings`]): `REGELHET_ROL`
+//! is `proces` (the default), a server that runs one legal process, or
+//! `organisatie`, the front of an organisation before its processes. The
+//! variables of each role, and of a process that belongs to an organisation,
+//! are listed there.
 
 use std::path::PathBuf;
 
 use regelrecht_auth::OidcConfig;
 
 use crate::access::{CITIZEN, Level, ROLE_PREFIX};
+pub use crate::organisatie::settings::{FrontSettings, Membership, OrganisationKey, Role};
 use crate::store::postgres::PoolSize;
 use crate::surface::Surface;
 use crate::theme::AccentColor;
@@ -306,6 +313,57 @@ pub struct Config {
     pub fsc4b: Fsc4bChoice,
     /// The accent colour of the screens; none keeps the design system's.
     pub accent: Option<AccentColor>,
+    /// A process, on its own or in an organisation, or an organisation's
+    /// front.
+    pub role: Role,
+    /// The link with the servers of other cells of the case.
+    pub link: LinkSettings,
+}
+
+/// The server of another cell of the case, as `REGELHET_LINK_PEERS` names
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PeerSetting {
+    /// The cell that server works for.
+    #[serde(rename = "cel")]
+    pub cell: String,
+    /// Where it is reached, without a trailing slash.
+    pub url: String,
+    /// Its public key, a JWK as JSON text; none reads it from the server
+    /// itself, in test mode only.
+    #[serde(default, rename = "sleutel", deserialize_with = "jwk_text")]
+    pub key: Option<String>,
+}
+
+/// A JWK in the configuration, kept as text until the link opens.
+fn jwk_text<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let value: Option<serde_json::Value> = serde::Deserialize::deserialize(d)?;
+    Ok(value.map(|v| v.to_string()))
+}
+
+/// The link with the servers of other cells of the case
+/// ([`crate::link`]).
+#[derive(Clone, Default)]
+pub struct LinkSettings {
+    /// The external party this server works for, when it is not the
+    /// executor's own server.
+    pub party: Option<String>,
+    pub peers: Vec<PeerSetting>,
+    /// This server's private ES256 key; none makes one at every start, in
+    /// test mode only.
+    pub key: Option<KeySource>,
+}
+
+impl std::fmt::Debug for LinkSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never the key.
+        f.debug_struct("LinkSettings")
+            .field("party", &self.party)
+            .field("peers", &self.peers)
+            .field("key", &self.key.is_some())
+            .finish()
+    }
 }
 
 /// Why the environment gives no configuration.
@@ -332,6 +390,23 @@ pub enum ConfigError {
          belongs on REGELHET_SURFACE=burger"
     )]
     Fsc4bOnBackoffice,
+    #[error(
+        "REGELHET_LINK_PEERS is not a JSON list of `{{\"cel\", \"url\", \"sleutel\"}}`, each cell \
+         once and each url an http(s) address: {0}"
+    )]
+    BadLinkPeers(String),
+    #[error("set REGELHET_LINK_KEY or REGELHET_LINK_KEY_FILE, not both")]
+    LinkTwoKeys,
+    #[error(
+        "REGELHET_LINK_PARTY makes this the server of an external party, whose staff work in \
+         a back office: set REGELHET_SURFACE to `backoffice`"
+    )]
+    LinkPartyNeedsBackoffice,
+    #[error(
+        "a link in stable mode needs a key of its own (REGELHET_LINK_KEY or _KEY_FILE), and \
+         for every peer an https address and its public key (`sleutel`): {0}"
+    )]
+    StableLinkNeedsKeys(String),
     #[error("REGELHET_LOGIN is `{0}`: it is `testlogin` or `oidc`")]
     UnknownLogin(String),
     #[error(
@@ -409,6 +484,41 @@ pub enum ConfigError {
     Fsc4bNeedsBsn(String),
     #[error("FSC voor Burgers needs REGELHET_FSC4B_PUBLIC_URL or BASE_URL")]
     Fsc4bNeedsPublicUrl,
+    #[error("REGELHET_ROL is `{0}`: it is `proces` or `organisatie`")]
+    UnknownRole(String),
+    #[error(
+        "the front of an organisation runs in test mode for now; stable mode follows with its \
+         own Keycloak"
+    )]
+    StableFront,
+    #[error("the front of an organisation needs {0}")]
+    FrontNeeds(&'static str),
+    #[error("the front of an organisation keeps nothing; REGELHET_STORE is `postgres`")]
+    FrontKeepsNoStore,
+    #[error("the front of an organisation offers no FSC voor Burgers; its processes do")]
+    Fsc4bOnFront,
+    #[error("the front of an organisation links with no cell (REGELHET_LINK_*); its processes do")]
+    LinkOnFront,
+    #[error("REGELHET_PROCES_ID is set on the front of an organisation, which runs no process")]
+    ProcessIdOnFront,
+    #[error("{0} is for the front of an organisation, and REGELHET_ROL is not `organisatie`")]
+    FrontVariableOnProcess(&'static str),
+    #[error("REGELHET_ORGANISATIE_LOGO is `{0}`: it is an https URL")]
+    BadLogo(String),
+    #[error(
+        "{0} is set but REGELHET_PROCES_ID is not: a process belongs to an organisation with \
+         all of its variables or none"
+    )]
+    PartialMembership(&'static str),
+    #[error("a process that belongs to an organisation needs {0}")]
+    MembershipNeeds(&'static str),
+    #[error(
+        "stable mode fetches no key: pin the organisation's key with \
+         REGELHET_ORGANISATIE_SLEUTEL_JWK instead of REGELHET_ORGANISATIE_SLEUTEL_URL"
+    )]
+    StableFetchesNoKey,
+    #[error("an address of the organisation is `{0}`: it is an http(s) URL")]
+    BadOrganisationUrl(String),
     #[error("REGELHET_FSC4B_PUBLIC_URL: {0}")]
     BadFsc4bPublicUrl(String),
     #[error(
@@ -457,6 +567,19 @@ impl Config {
         if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
             return Err(ConfigError::Fsc4bOnBackoffice);
         }
+        let link = link_settings(mode, surface, &set)?;
+        let role = crate::organisatie::settings::role(mode, surface, &set)?;
+        if let Role::Organisation(_) = role {
+            if store != StoreChoice::Memory {
+                return Err(ConfigError::FrontKeepsNoStore);
+            }
+            if !matches!(fsc4b, Fsc4bChoice::Off) {
+                return Err(ConfigError::Fsc4bOnFront);
+            }
+            if link.party.is_some() || !link.peers.is_empty() || link.key.is_some() {
+                return Err(ConfigError::LinkOnFront);
+            }
+        }
         Ok(Self {
             mode,
             surface,
@@ -468,6 +591,8 @@ impl Config {
             subject_claim,
             fsc4b,
             accent,
+            link,
+            role,
         })
     }
 }
@@ -534,6 +659,64 @@ fn login_choice(
         return Err(ConfigError::StableNeedsBaseUrl);
     }
     Ok(LoginChoice::Oidc { oidc, base_url })
+}
+
+/// The link the environment `set` configures for `mode` on `surface`.
+fn link_settings(
+    mode: Mode,
+    surface: Surface,
+    set: &impl Fn(&str) -> Option<String>,
+) -> Result<LinkSettings, ConfigError> {
+    let party = set("REGELHET_LINK_PARTY").map(|p| p.trim().to_string());
+    if party.is_some() && surface != Surface::Backoffice {
+        return Err(ConfigError::LinkPartyNeedsBackoffice);
+    }
+    let mut peers: Vec<PeerSetting> = match set("REGELHET_LINK_PEERS") {
+        Some(text) => {
+            serde_json::from_str(&text).map_err(|e| ConfigError::BadLinkPeers(e.to_string()))?
+        }
+        None => Vec::new(),
+    };
+    for peer in &mut peers {
+        peer.url = peer.url.trim().trim_end_matches('/').to_string();
+        if !(peer.url.starts_with("https://") || peer.url.starts_with("http://")) {
+            return Err(ConfigError::BadLinkPeers(format!(
+                "`{}` is no http(s) address",
+                peer.url
+            )));
+        }
+    }
+    let mut cells: Vec<&str> = peers.iter().map(|p| p.cell.as_str()).collect();
+    cells.sort_unstable();
+    if let Some(twice) = cells.windows(2).find(|w| w[0] == w[1]) {
+        return Err(ConfigError::BadLinkPeers(format!(
+            "'{}' is named twice",
+            twice[0]
+        )));
+    }
+    let key = match (set("REGELHET_LINK_KEY"), set("REGELHET_LINK_KEY_FILE")) {
+        (Some(pem), None) => Some(KeySource::Pem(pem)),
+        (None, Some(path)) => Some(KeySource::File(PathBuf::from(path.trim()))),
+        (Some(_), Some(_)) => return Err(ConfigError::LinkTwoKeys),
+        (None, None) => None,
+    };
+    if mode == Mode::Stable && !peers.is_empty() {
+        if key.is_none() {
+            return Err(ConfigError::StableLinkNeedsKeys(
+                "this server has no key".into(),
+            ));
+        }
+        if let Some(peer) = peers
+            .iter()
+            .find(|p| p.key.is_none() || !p.url.starts_with("https://"))
+        {
+            return Err(ConfigError::StableLinkNeedsKeys(format!(
+                "the peer '{}'",
+                peer.cell
+            )));
+        }
+    }
+    Ok(LinkSettings { party, peers, key })
 }
 
 /// The FSC voor Burgers channel the environment `set` configures for

@@ -9,7 +9,7 @@
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
 //!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in,
 //!   when it was stored and who asked for it (`recorded_by`, migration 0002)
-//!   by which channel (`recorded_via`, migrations 0003, 0006 and 0009). A trigger refuses every `UPDATE`, `DELETE` and
+//!   by which channel (`recorded_via`, migrations 0003, 0006, 0009, 0010 and 0011). A trigger refuses every `UPDATE`, `DELETE` and
 //!   `TRUNCATE`: a chronicle only grows, except that a reset of test mode
 //!   may empty it (migrations 0007 and 0008);
 //! - `heads`: per cell its head, the number of records in it. A commit locks
@@ -28,7 +28,7 @@
 //! so two commits never wait for each other in a circle; then it checks
 //! every head and the generation, appends the records and moves the heads.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -372,7 +372,8 @@ impl ChronicleStore for PostgresStore {
         // reset; one after it names the old generation and is refused.
         sqlx::query(
             "LOCK TABLE regelhet.receipts, regelhet.heads, regelhet.generation, \
-             regelhet.grams, regelhet.test_clock IN ACCESS EXCLUSIVE MODE",
+             regelhet.grams, regelhet.test_clock, regelhet.link_deliveries \
+             IN ACCESS EXCLUSIVE MODE",
         )
         .execute(&mut *tx)
         .await
@@ -385,7 +386,7 @@ impl ChronicleStore for PostgresStore {
             .map_err(backend("opening the chronicles for a reset"))?;
         sqlx::query(
             "TRUNCATE regelhet.grams, regelhet.heads, regelhet.receipts, \
-             regelhet.test_clock",
+             regelhet.test_clock, regelhet.link_deliveries",
         )
         .execute(&mut *tx)
         .await
@@ -401,6 +402,29 @@ impl ChronicleStore for PostgresStore {
         let heads = lock_heads(&mut tx, &begin).await?;
         write_appends(&mut tx, heads, &begin, |_| None).await?;
         tx.commit().await.map_err(backend("committing a reset"))?;
+        Ok(())
+    }
+
+    async fn delivered(&self, to: &str) -> Result<BTreeSet<String>, StoreError> {
+        let ids: Vec<String> =
+            sqlx::query_scalar("SELECT gram_id FROM regelhet.link_deliveries WHERE to_cell = $1")
+                .bind(to)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(backend("reading the deliveries over a link"))?;
+        Ok(ids.into_iter().collect())
+    }
+
+    async fn mark_delivered(&self, gram: &str, to: &str) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO regelhet.link_deliveries (gram_id, to_cell) VALUES ($1, $2) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(gram)
+        .bind(to)
+        .execute(&self.pool)
+        .await
+        .map_err(backend("keeping a delivery over a link"))?;
         Ok(())
     }
 }
@@ -654,6 +678,7 @@ mod tests {
                 "generation",
                 "grams",
                 "heads",
+                "link_deliveries",
                 "receipts",
                 "stable",
                 "test_clock"

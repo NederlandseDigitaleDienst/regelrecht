@@ -1,0 +1,418 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: participatiewet
+regulatory_layer: WET
+publication_date: '2025-12-15'
+valid_from: '2026-01-01'
+# Een uittreksel van de Participatiewet voor de casus individuele
+# inkomenstoeslag van RegelHet, zoals de casus van de
+# gehandicaptenparkeerkaart een eigen BABW en Awb draagt. Niet het corpus:
+# alleen de artikelen die de casus leest (8, 21, 34 en 36), elk in de tekst
+# die op 2026-01-01 geldt volgens wetten.overheid.nl (gehaald met
+# `wetsgeschiedenis.py artikel BWBR0015703 <nr> --op 2026-01-01`). Het corpus
+# van fieldlab heeft de wet alleen in de versie van 2022 en in schema v0.5.7,
+# waarin een aanvraag en een besluit niet zijn uit te drukken (dossier
+# iit-groningen, M8).
+name: Participatiewet
+bwb_id: BWBR0015703
+url: https://wetten.overheid.nl/BWBR0015703/2026-01-01
+articles:
+  - number: '8'
+    text: |-
+      **Verordeningen uitkeringen**
+
+      1. De gemeenteraad stelt bij verordening regels met betrekking tot:
+
+         a. het verlagen van de bijstand, bedoeld in artikel 18, tweede lid en de periode van de verlaging van de bijstand, bedoeld in artikel 18, vijfde en zesde lid;
+
+         b. het verlenen van een individuele inkomenstoeslag als bedoeld in artikel 36;
+
+         c. het verlagen van de bijstand, bedoeld in artikel 9a, twaalfde lid.
+
+      2. De regels, bedoeld in het eerste lid, hebben voor zover het gaat om het eerste lid, onderdeel b, in ieder geval betrekking op de hoogte van de individuele inkomenstoeslag en de wijze waarop invulling wordt gegeven aan de begrippen langdurig en laag inkomen.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel8
+    machine_readable:
+      # Alleen onderdeel b en het tweede lid, zoals in het corpus van fieldlab
+      # (dossier iit-groningen): de twee begrippen die de verordening van
+      # Groningen invult (artikel 3a en 4). De casus leest ze rechtstreeks uit
+      # de verordening, met de gegevens per maand die dit artikel niet
+      # doorgeeft; deze open begrippen staan hier zodat de verwijzing van de
+      # verordening (implements) een doel heeft.
+      open_terms:
+        - id: heeft_langdurig_laag_inkomen
+          type: boolean
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 8 lid 1 onderdeel b en lid 2 Participatiewet
+        - id: hoogte_individuele_inkomenstoeslag
+          type: amount
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 8 lid 1 onderdeel b en lid 2 Participatiewet
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+            description: CBS-gemeentecode van de gemeente.
+        output:
+          - name: heeft_langdurig_laag_inkomen
+            type: boolean
+            nullable: true
+            description: Of de persoon een langdurig laag inkomen heeft, zoals de verordening dat invult.
+          - name: hoogte_individuele_inkomenstoeslag
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            description: De hoogte van de individuele inkomenstoeslag volgens de verordening.
+        actions:
+          - output: heeft_langdurig_laag_inkomen
+            value: $heeft_langdurig_laag_inkomen
+          - output: hoogte_individuele_inkomenstoeslag
+            value: $hoogte_individuele_inkomenstoeslag
+
+  - number: '21'
+    text: |-
+      **Normen 21–pensioengerechtigde leeftijd**
+
+      Voor belanghebbenden van 21 jaar of ouder doch jonger dan de pensioengerechtigde leeftijd is de norm per kalendermaand, indien het betreft:
+
+      a. een alleenstaande of een alleenstaande ouder zonder kostendelende medebewoners: € 1.401,50;
+
+      b. gehuwden waarvan beide echtgenoten jonger zijn dan de pensioengerechtigde leeftijd, zonder kostendelende medebewoners: € 2.002,13.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel21
+    machine_readable:
+      # Alleen wat de verordening van Groningen leest: "de gehuwdennorm als
+      # bedoeld in artikel 21 onderdeel b" (artikel 4), los van de leefvorm.
+      # De bedragen zijn die van 1 januari 2026 (Stcrt. 2025, 43553); op 1 juli
+      # 2026 gelden nieuwe, die in deze casus niet als versie staan. Artikel 4
+      # van de verordening vraagt de norm van 1 januari, dus dat volstaat daar.
+      definitions:
+        norm_alleenstaande:
+          value: 140150
+          type: amount
+          type_spec:
+            unit: eurocent
+        norm_gehuwden:
+          value: 200213
+          type: amount
+          type_spec:
+            unit: eurocent
+      execution:
+        produces:
+          legal_character: WAARDEBEPALING
+        output:
+          - name: norm_alleenstaande_artikel_21
+            type: amount
+            type_spec:
+              unit: eurocent
+          - name: norm_gehuwden_artikel_21
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: norm_alleenstaande_artikel_21
+            value: $norm_alleenstaande
+          - output: norm_gehuwden_artikel_21
+            value: $norm_gehuwden
+
+  - number: '34'
+    text: |-
+      **Vermogen**
+
+      1. Onder vermogen wordt verstaan:
+
+         a. de waarde van de bezittingen waarover de alleenstaande of het gezin beschikt of redelijkerwijs kan beschikken, verminderd met de aanwezige schulden. De waarde van de bezittingen wordt vastgesteld op de waarde in het economische verkeer bij vrije oplevering;
+
+         b. middelen die worden ontvangen in de periode waarover algemene bijstand is toegekend, voorzover deze geen inkomen betreffen als bedoeld in de artikelen 32 en 33.
+
+      2. Niet als vermogen wordt in aanmerking genomen:
+
+         a. bezittingen in natura die naar hun aard en waarde algemeen gebruikelijk zijn dan wel, gelet op de omstandigheden van persoon en gezin, noodzakelijk zijn;
+
+         b. het aanwezige vermogen voorzover dit minder bedraagt dan de van toepassing zijnde vermogensgrens, genoemd in het derde lid;
+
+         c. spaargelden opgebouwd tijdens de periode waarin bijstand wordt ontvangen;
+
+         d. het vermogen gebonden in de woning met bijbehorend erf, bedoeld in artikel 50, eerste lid, voorzover dit minder bedraagt dan € 67.500,00;
+
+         e. vergoedingen voor immateriële schade als bedoeld in artikel 31, tweede lid, onderdelen l en m.
+
+      3. De in het tweede lid, onderdeel b, bedoelde vermogensgrens is:
+
+         a. voor een alleenstaande: € 8.000,00;
+
+         b. voor een alleenstaande ouder: € 16.000,00;
+
+         c. voor de gehuwden tezamen: € 16.000,00.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel34
+    machine_readable:
+      # Alleen het derde lid: de vermogensgrens per leefvorm. Wat als vermogen
+      # telt (lid 1 en 2), stelt het college vast; de casus krijgt het bedrag
+      # als gegeven.
+      definitions:
+        grens_alleenstaande:
+          value: 800000
+          type: amount
+          type_spec:
+            unit: eurocent
+        grens_alleenstaande_ouder:
+          value: 1600000
+          type: amount
+          type_spec:
+            unit: eurocent
+        grens_gehuwden:
+          value: 1600000
+          type: amount
+          type_spec:
+            unit: eurocent
+      execution:
+        produces:
+          legal_character: WAARDEBEPALING
+        parameters:
+          - name: leefvorm
+            type: string
+            required: true
+            description: >-
+              "alleenstaande", "alleenstaande ouder" of "gehuwden", in de betekenis van de wet.
+        output:
+          - name: vermogensgrens
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: De vermogensgrens van het derde lid voor deze leefvorm.
+        actions:
+          - output: vermogensgrens
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $leefvorm
+                    value: gehuwden
+                  then: $grens_gehuwden
+                - when:
+                    operation: EQUALS
+                    subject: $leefvorm
+                    value: alleenstaande ouder
+                  then: $grens_alleenstaande_ouder
+              default: $grens_alleenstaande
+
+  - number: '36'
+    text: |-
+      **Individuele inkomenstoeslag**
+
+      1. Op aanvraag van een persoon van 21 jaar of ouder doch jonger dan de pensioengerechtigde leeftijd, die langdurig een laag inkomen en geen in aanmerking te nemen vermogen als bedoeld in artikel 34 heeft en geen uitzicht heeft op inkomensverbetering, kan het college, gelet op de omstandigheden van die persoon, een individuele inkomenstoeslag verlenen.
+
+      2. Tot de omstandigheden, bedoeld in het eerste lid, worden in ieder geval gerekend:
+
+         a. de krachten en bekwaamheden van de persoon; en
+
+         b. de inspanningen die de persoon heeft verricht om tot inkomensverbetering te komen.
+
+      3. Indien aan de persoon, bedoeld in het eerste lid, in de periode van 12 maanden onmiddellijk voorafgaande aan de aanvraag, een individuele inkomenstoeslag is verleend, wordt de aanvraag afgewezen.
+
+      4. De artikelen 43, 49 en 52 zijn niet van toepassing.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      # Bevoegd gezag: het college (lid 1), als categorie, zoals artikel 49
+      # van het BABW in de casus van de parkeerkaart.
+      competent_authority:
+        name: college van burgemeester en wethouders
+        type: CATEGORY
+      # Geen begrip is verplicht: zolang het college een gegeven niet heeft
+      # vastgesteld, is de voorwaarde niet vervuld en verleent het niet, zoals
+      # de parkeerkaart zonder geneeskundig onderzoek wordt geweigerd.
+      # De voorwaarden van lid 1 en lid 3 zijn open begrippen. Wat het college
+      # erover vaststelt en hoe het de verordening en de beleidsregels toepast,
+      # staat in het fictieve uitvoeringsbeleid van de gemeente
+      # (beleid_iit_gemeente_groningen, artikel 2), dat ze invult. Zo werkt
+      # ook de parkeerkaart: het BABW noemt de begrippen, het beleid van de
+      # gemeente vult ze.
+      open_terms:
+        - id: persoon_van_21_tot_pensioengerechtigde_leeftijd
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, eerste lid)
+          description: Of de aanvrager 21 jaar of ouder is en jonger dan de pensioengerechtigde leeftijd (lid 1).
+        - id: heeft_langdurig_laag_inkomen_volgens_verordening
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, eerste lid, met artikel 8)
+          description: >-
+            Of de aanvrager langdurig een laag inkomen heeft, zoals de verordening van artikel 8 die begrippen
+            invult (lid 1).
+        - id: leefvorm
+          type: string
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, eerste lid)
+          description: >-
+            "alleenstaande", "alleenstaande ouder" of "gehuwden": de leefvorm die bepaalt welke vermogensgrens van
+            artikel 34, derde lid, geldt.
+        - id: in_aanmerking_te_nemen_vermogen
+          type: amount
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, eerste lid, met artikel 34)
+          description: Het vermogen van artikel 34, eerste lid, zonder wat het tweede lid, onder a, c, d en e, uitzondert.
+        - id: heeft_geen_uitzicht_op_inkomensverbetering
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, eerste en tweede lid)
+          description: >-
+            Of de aanvrager geen uitzicht heeft op inkomensverbetering, gelet op zijn omstandigheden, waaronder zijn
+            krachten en bekwaamheden en zijn inspanningen (lid 1 en 2). Afwezig als het college er geen uitkomst
+            over heeft.
+        - id: in_twaalf_maanden_voor_aanvraag_verleend
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, derde lid)
+          description: >-
+            Of aan de aanvrager in de periode van 12 maanden onmiddellijk voorafgaande aan de aanvraag een
+            individuele inkomenstoeslag is verleend (lid 3).
+        - id: hoogte_volgens_verordening
+          type: amount
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 36, met artikel 8, tweede lid)
+          description: De hoogte van de toeslag, zoals de verordening van artikel 8 die regelt.
+        # De oordelen die de beleidsregels van Groningen aan het college laten
+        # (artikel 2, eerste lid, en de derde leden van artikel 3, 4 en 5),
+        # met dezelfde id als daar, zodat het antwoord van de beslisser de
+        # beleidsregels bereikt. Ze staan hier en niet alleen bij de
+        # beleidsregels om dezelfde reden als de oordelen bij artikel 49 van
+        # het BABW in de casus van de parkeerkaart: de cel leidt de vragen van
+        # een besluit alleen af uit het beslissende artikel
+        # (poc-chronolexografie/src/kern.rs, eigen_oordelen). Het eerste is
+        # het oordeel "gelet op de omstandigheden" van dit artikel zelf (lid 1
+        # en 2); de andere drie zijn eigen keuzes van Groningen. Dit artikel
+        # rekent er niet zelf mee.
+        - id: oordeel_college_recht_op_iit
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 2, eerste lid; artikel 36 Participatiewet)
+          description: >-
+            Het oordeel van het college in het individuele geval: of belanghebbende uitzicht op inkomensverbetering
+            heeft en recht heeft op een individuele inkomenstoeslag. Het college neemt daarin in ieder geval de krachten
+            en bekwaamheden van belanghebbende mee, en de inspanningen die hij heeft verricht om tot
+            inkomensverbetering te komen (tweede lid, onder a en b).
+        - id: afwijzing_op_grond_van_artikel_3_derde_lid
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 3, derde lid)
+          description: >-
+            Of het college, in een andere situatie dan die van het eerste lid, vaststelt dat sprake is van uitzicht
+            op inkomensverbetering en de aanvraag daarom afwijst.
+        - id: toekenning_op_grond_van_artikel_4_derde_lid
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 4, derde lid)
+          description: >-
+            Of het college, in een andere situatie dan die van het eerste lid, vaststelt dat geen sprake is van uitzicht
+            op inkomensverbetering en de aanvraag daarom toekent.
+        - id: afwijzing_op_grond_van_artikel_5_derde_lid
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 5, derde lid)
+          description: >-
+            Of het college, in een andere situatie dan die van het eerste lid, vaststelt dat geen of onvoldoende
+            inspanningen zijn verricht om tot inkomensverbetering te komen en de aanvraag daarom afwijst.
+      execution:
+        # Lid 1: de toeslag wordt verleend op aanvraag. Het artikel brengt de
+        # aanvraag voort en het besluit erop, zoals artikel 49 van het BABW.
+        produces:
+          - type: AANVRAAG
+            requests: participatiewet#36
+            parameters:
+              - bsn_aanvrager
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - individuele_inkomenstoeslag_verleend
+              - hoogte_individuele_inkomenstoeslag
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          # De dagtekening van de aanvraag (Awb 4:2, eerste lid, onder b). De
+          # verordening en de beleidsregels nemen haar als peildatum.
+          - name: dagtekening
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+        input:
+          - name: vermogensgrens
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            source:
+              regulation: participatiewet
+              output: vermogensgrens
+              parameters:
+                leefvorm: $leefvorm
+        output:
+          - name: heeft_geen_vermogen_boven_vermogensgrens
+            type: boolean
+            description: >-
+              Of het in aanmerking te nemen vermogen niet boven de vermogensgrens van artikel 34, derde lid, uitkomt.
+              Daaronder telt het niet als vermogen (artikel 34, tweede lid, onder b).
+          - name: individuele_inkomenstoeslag_verleend
+            type: boolean
+            description: Of het college de individuele inkomenstoeslag verleent.
+          - name: hoogte_individuele_inkomenstoeslag
+            type: amount
+            type_spec:
+              unit: eurocent
+            description: De hoogte van de verleende toeslag; nul bij een afwijzing.
+        actions:
+          - output: heeft_geen_vermogen_boven_vermogensgrens
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $in_aanmerking_te_nemen_vermogen, value: null}
+                  then: false
+                - when: {operation: EQUALS, subject: $vermogensgrens, value: null}
+                  then: false
+              default:
+                operation: LESS_THAN_OR_EQUAL
+                subject: $in_aanmerking_te_nemen_vermogen
+                value: $vermogensgrens
+          # Lid 1 en 3. "Kan ... verlenen": hoe het college die bevoegdheid
+          # gebruikt, zeggen de beleidsregels van Groningen, en die zitten in
+          # heeft_geen_uitzicht_op_inkomensverbetering (artikel 2 van de
+          # beleidsregels: uitzicht en inspanningen). Zonder uitkomst daarover
+          # wordt niet verleend.
+          - output: individuele_inkomenstoeslag_verleend
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $persoon_van_21_tot_pensioengerechtigde_leeftijd
+                  value: true
+                - operation: EQUALS
+                  subject: $heeft_langdurig_laag_inkomen_volgens_verordening
+                  value: true
+                - $heeft_geen_vermogen_boven_vermogensgrens
+                - operation: EQUALS
+                  subject: $heeft_geen_uitzicht_op_inkomensverbetering
+                  value: true
+                - operation: EQUALS
+                  subject: $in_twaalf_maanden_voor_aanvraag_verleend
+                  value: false
+          - output: hoogte_individuele_inkomenstoeslag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $hoogte_volgens_verordening
+                    value: null
+                  then: 0
+                - when: $individuele_inkomenstoeslag_verleend
+                  then: $hoogte_volgens_verordening
+              default: 0

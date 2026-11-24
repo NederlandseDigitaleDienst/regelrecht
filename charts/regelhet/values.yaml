@@ -14,11 +14,14 @@ image:
   # release that leaves image.ref out of its values follows main that way. The
   # screens come from the image and the case from case.ref; with case.ref main
   # the two stay close.
-  ref: code.digitaledienst.overheid.nl/regelrecht/regelhet:acc9156372cec437e65daf2fe14e339eee3cbd3a
+  ref: code.digitaledienst.overheid.nl/regelrecht/regelhet:737890adc1c8c01fbf038225aa39a1a9f5c438c8
   pullPolicy: IfNotPresent
 
-# The case: a public git repository with a source manifest (bron.yaml). An init
-# container clones it, shallow, into /case before the server starts.
+# The case: a git repository with a source manifest (bron.yaml). With
+# case.snapshot.configMaps an init container unpacks the case from those
+# ConfigMaps into /case, and the pods fetch nothing; the Fundament plugin
+# makes them. Without, an init container clones repoUrl, shallow, into /case
+# at every start of a pod.
 case:
   # HTTPS URL of the public repository.
   repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
@@ -26,7 +29,7 @@ case:
   # it to the commit of each new image while repoUrl is this repository, so
   # the case and the code that reads it always come from the same commit: a
   # case from a later commit may need a parser the image does not have yet.
-  ref: acc9156372cec437e65daf2fe14e339eee3cbd3a
+  ref: 737890adc1c8c01fbf038225aa39a1a9f5c438c8
   # Path of the manifest inside the repository. The manifest's `repo_root` is
   # resolved from there, so ../.. points at /case for the default path.
   path: packages/regelhet/bron.yaml
@@ -35,20 +38,119 @@ case:
   # hands them to git as the credentials of repoUrl, and they stay out of the
   # pod's arguments.
   credentialsSecret: ''
+  snapshot:
+    # ConfigMaps in the release's namespace that hold the case, as a tar.gz
+    # of paths under the repository root, under the key `part`, split over
+    # them in this order. The init container joins and unpacks them; then
+    # repoUrl, ref and credentialsSecret are not used, and no pod reads a
+    # Secret or reaches git. path still names the manifest in it.
+    configMaps: []
 
-# The image that clones the case.
+# The image that clones or unpacks the case.
 gitImage:
   ref: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
   pullPolicy: IfNotPresent
 
-# Test mode with the test login. Stable mode needs Keycloak and is not
-# supported by this chart yet. Where the chronicles live follows from
-# `database`, which side an instance serves from `surfaces`.
+# Test mode with the test login by default. Where the chronicles live follows
+# from `database`, which side an instance serves from `surfaces`.
+#
+# `mode: stable` runs on the real date and logs in through Keycloak only. It
+# needs `database.enabled`, no instance with the surface `all` (so
+# `surfaces.split`, as a rule) and `login: oidc` with the `oidc` block below;
+# the chart refuses anything else.
 regelhet:
+  # `test` or `stable`.
   mode: test
   # The surface of the single instance; ignored with surfaces.split.
   surface: all
+  # `testlogin` or `oidc`. Test mode takes either; stable mode only `oidc`.
   login: testlogin
+
+# The login through Keycloak, read with `login: oidc`. Each side has a client
+# of its own, whose redirect URI is https://<host of that side>/auth/callback;
+# the chart sets BASE_URL to that host. An instance with the surface `all`
+# uses the citizens' client.
+oidc:
+  # The realm's issuer, https://<keycloak host>/realms/<realm>; with
+  # keycloak.enabled empty means the Keycloak of this release. The server reads
+  # the rest from its discovery document, so the certificate of the Keycloak
+  # host must be one the server trusts: Let's Encrypt staging is not.
+  issuerUrl: ''
+  # The role every account needs to log in at all. Another value than a role
+  # of this server would let in every account of the realm.
+  requiredRole: regelhet-toegang
+  # The Secret, in the release's namespace, that holds the client secrets
+  # under the keys below. The chart only refers to it: a secret never goes in
+  # these values. With keycloak.enabled empty means the generated Secret.
+  existingSecret: ''
+  clients:
+    burger:
+      clientId: regelhet
+      secretKey: burger-client-secret
+    backoffice:
+      clientId: regelhet-backoffice
+      secretKey: backoffice-client-secret
+
+# The Keycloak the login goes through, and the realm it needs as data: the
+# roles, a client per instance with its host, and optionally test accounts.
+keycloak:
+  # A Keycloak of this release, in its namespace: one pod, a CloudNativePG
+  # database of its own, and a host on the Gateway above. It imports the realm
+  # at its first start; with it, `oidc.issuerUrl` and `oidc.existingSecret`
+  # default to this Keycloak and the Secret the chart generates for it.
+  enabled: false
+  # Empty means <first label of host>-login beside host behind the shared
+  # Gateway (one label under the wildcard), and login.<host> with mode own.
+  host: ''
+  image:
+    ref: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+    pullPolicy: IfNotPresent
+  realm: regelhet
+  # Test accounts of the case: two citizens with a made-up name and a number
+  # of the test range, a decider and an admin, all with the one password
+  # under `testPasswordKey`. For a test setup only.
+  testUsers: false
+  testPasswordKey: test-password
+  # The database of this Keycloak, apart from the chronicles.
+  database:
+    instances: 1
+    storage:
+      size: 1Gi
+      storageClass: ''
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 768Mi
+    limits:
+      memory: 1536Mi
+  # The Job that generates the Secret <release>-keycloak once, in the cluster:
+  # the admin password, the client secrets under the keys of `oidc.clients`
+  # and the test password. Nothing of it is in these values or in an image.
+  secretsJob:
+    image:
+      ref: alpine/k8s:1.37.1@sha256:712dc5385d1c1a3f83b747fa9e40f64d433a97f72ff42f9755ff7dd1f62846e4
+      pullPolicy: IfNotPresent
+  # The same realm as a KeycloakRealmImport, for a Keycloak run by the
+  # Keycloak operator elsewhere, which imports a realm once, when it does not
+  # exist yet, and changes nothing after.
+  realmImport:
+    enabled: false
+    # The Keycloak CR to import into. The operator requires the import in the
+    # namespace of that CR, which is often not the release's namespace;
+    # `namespace` places it there, for a release or a rendered file
+    # (`helm template --show-only templates/keycloak-realm.yaml`).
+    keycloakCRName: keycloak
+    namespace: ''
+    # The Secret, in the namespace of the import, that the operator reads the
+    # placeholders from: the client secrets under the keys of `oidc.clients`,
+    # and with `testUsers` the password of the test accounts.
+    secretName: ''
 
 # PostgreSQL for the chronicles, the test clock and the sessions, as a
 # CloudNativePG Cluster of this release. Off, the chronicles live in memory and
@@ -89,6 +191,103 @@ surfaces:
   backoffice:
     # Empty means medewerkers.<host>.
     host: ''
+
+# A link with the servers of other cells of the case, for a party that runs
+# on a release of its own: the municipality's release names the GGD's as a
+# peer, and the GGD's the municipality's. Each sends the records of its own
+# cell that the other records a receipt of, as signed messages over HTTPS,
+# and takes over what the other sends. Without peers there is no link, and an
+# admin enters what an external party did in the admin panel.
+koppeling:
+  # The external party this release works for, by its cell in the case file
+  # (such as ggd_wilgendaal); its own staff then log in here and see what the
+  # executor asks of it. Empty for the executor's own release. A release for
+  # a party is one instance for employees: set surfaces.split false and
+  # regelhet.surface backoffice. It needs peers to do anything.
+  partij: ''
+  # The releases of the other cells: per peer its cell, the https address of
+  # its server and, pinned,
+  # its public key as a JWK (`sleutel`). Without `sleutel` the key is read
+  # from the peer itself, which test mode allows and stable mode refuses.
+  # Of a release with two instances the one for employees holds the link, so
+  # that is the address a peer names; the citizens' instance has none.
+  #   - cel: ggd_wilgendaal
+  #     url: https://ggd.example.org
+  peers: []
+  # A Secret in the release's namespace whose key `key.pem` holds this
+  # release's private ES256 key (PKCS#8 PEM). Empty lets the instance that
+  # holds the link make a key when it starts, in test mode only; a peer that
+  # reads the key from the server reads it again when a signature stops
+  # verifying.
+  keySecret: ''
+
+# FSC voor Burgers: the citizens' instance also offers its routes to an app
+# that proves who the citizen is with a credential, after the standard's
+# werkversie (docs: components/regelhet-fsc4b). Test mode only: the server
+# opens the channel on its demo Stelsel, whose Stelselbeheerder, test
+# Activatiedienst and organization key it generates in memory at every start,
+# so no key or document comes from these values or a Secret. The test
+# Activatiedienst hands a credential for any BSN of the test range (99999xxxx)
+# to whoever asks; apps read the trust from /fsc4b/demo/ again after a restart.
+# The discovery configuration is at https://<citizens' host>/fsc4b/discovery.
+fsc4b:
+  enabled: false
+
+# This release is the front of an organisation (docs:
+# components/regelhet-organisatie): the server in the role `organisatie`,
+# one front for citizens and employees over the processes registered below.
+# It always runs an instance per side, citizens on `host` and employees on
+# <first label of host>-medewerkers beside it, one label under the wildcard
+# as the plugin names a RegelHet; surfaces.*.host override them. With
+# `host` empty the base is <release>.<domain>. The front clones no case and
+# keeps no chronicles: `case` and `database` are ignored, and its sessions
+# live in memory. Test mode only for now.
+#
+# The chart generates its signing key once, a P-256 key in the Secret
+# <release>-organisatie, with the Job that makes the Secret of Keycloak.
+voorkant:
+  enabled: false
+  # <namespace>/<name> of the Organisatie object: the issuer of every
+  # statement the front signs.
+  id: ''
+  # The name the front shows, such as `Gemeente Wilgendaal`.
+  naam: ''
+  # An https URL of the logo; optional.
+  logo: ''
+  # The registered processes. The ConfigMap <release>-organisatie holds them
+  # as the file the server reads, and a change restarts the front. Each item:
+  #   id:   <namespace>/<name> of the RegelHet
+  #   naam: its name
+  #   burger:     {intern: <address in the cluster>, publiek: https://<host>}
+  #   backoffice: {intern: <address in the cluster>, publiek: https://<host>}
+  # `intern` is where the front calls the process, such as
+  # http://<name>-backoffice.<namespace>.svc.cluster.local:8000; `publiek` is
+  # where it sends the browser to open an item.
+  processen: []
+  # The image that generates the signing key, in the Job.
+  keyImage:
+    ref: alpine/openssl:3.5.9@sha256:9698e7956c08e713265da24c4587205beba3eaa6af2b319d73575d30a6ff033e
+    pullPolicy: IfNotPresent
+
+# This release is a process that belongs to an organisation: it accepts the
+# statements of that organisation's front, signed with its key, and lets a
+# hand-off at /auth/organisatie log someone in. Set `id` to turn it on; the
+# process keeps its own hosts and works on its own as well.
+organisatie:
+  # <namespace>/<name> of the Organisatie: the issuer the process accepts.
+  id: ''
+  # The organisation's name, shown in the header with a link back; optional.
+  naam: ''
+  # The front for citizens and the one for employees, https://<host>: the
+  # link back from the citizens' and from the employees' instance.
+  url: ''
+  medewerkersUrl: ''
+  # Where the process fetches the front's public key, such as
+  # http://<org>-backoffice.<namespace>.svc.cluster.local:8000/organisatie/v1/sleutel.
+  # Test mode only: stable mode takes the pinned key below.
+  sleutelUrl: ''
+  # The front's public key as a JWK (JSON), pinned; for stable mode.
+  sleutelJwk: ''
 
 # How the screens look.
 theme:

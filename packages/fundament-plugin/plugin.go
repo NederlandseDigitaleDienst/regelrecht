@@ -6,11 +6,14 @@ import (
 	"sync"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -103,7 +106,7 @@ func (p *RegelHetPlugin) Start(ctx context.Context, host pluginruntime.Host) err
 		host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseFailed, Message: err.Error()})
 		return err
 	}
-	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseInstalling, Message: "installing the RegelHet CRD"})
+	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseInstalling, Message: "installing the CRDs"})
 	// Retry here rather than return: the runtime ends the process on an
 	// error from Start, and a pod in a crash loop reports nothing.
 	for {
@@ -142,9 +145,9 @@ func (p *RegelHetPlugin) setUpOnce(ctx context.Context) error {
 	return setUp(ctx, p.kube)
 }
 
-// newManager builds the controller manager with the RegelHet controller.
-// Its cache holds the RegelHet objects and only the Flux objects the plugin
-// made, by their label.
+// newManager builds the controller manager with the RegelHet and the
+// Organisatie controller. Its cache holds the objects of both kinds and only
+// the Flux objects the plugin made, by their label.
 func (p *RegelHetPlugin) newManager() (ctrl.Manager, error) {
 	mine := cache.ByObject{Label: labels.SelectorFromSet(labels.Set{managedByLabel: fieldOwner})}
 	byObject := map[client.Object]cache.ByObject{}
@@ -153,6 +156,10 @@ func (p *RegelHetPlugin) newManager() (ctrl.Manager, error) {
 		obj.SetGroupVersionKind(gvk)
 		byObject[obj] = mine
 	}
+	// Only the pods of RegelHet releases, which the chart labels, and of
+	// the snapshot Jobs, which the plugin labels the same.
+	byObject[&corev1.Pod{}] = cache.ByObject{Label: labels.SelectorFromSet(labels.Set{appLabel: appName})}
+	byObject[&batchv1.Job{}] = mine
 	mgr, err := crhelper.SetupManager(p.scheme, &ctrl.Options{
 		// The plugin host owns the lifecycle; no listeners of our own.
 		Metrics:                metricsserver.Options{BindAddress: "0"},
@@ -163,15 +170,44 @@ func (p *RegelHetPlugin) newManager() (ctrl.Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("set up the controller manager: %w", err)
 	}
+	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, fmt.Errorf("create the client for pod logs: %w", err)
+	}
 	r := &RegelHetReconciler{
-		Client: mgr.GetClient(),
-		Scheme: p.scheme,
-		Config: p.cfg,
+		Client:     mgr.GetClient(),
+		Uncached:   mgr.GetAPIReader(),
+		Namespaces: mgr.GetAPIReader(),
+		Logs:       podLogs(clientset),
+		Scheme:     p.scheme,
+		Config:     p.cfg,
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
+	o := &OrganisatieReconciler{
+		Client:     mgr.GetClient(),
+		Namespaces: mgr.GetAPIReader(),
+		Secrets:    mgr.GetAPIReader(),
+		Scheme:     p.scheme,
+		Config:     p.cfg,
+	}
+	if err := o.SetupWithManager(mgr); err != nil {
+		return nil, err
+	}
 	return mgr, nil
+}
+
+// podLogs reads the log of a container through the API server, which needs
+// get on pods/log.
+func podLogs(clientset kubernetes.Interface) logReader {
+	return func(ctx context.Context, namespace, pod, container string) ([]byte, error) {
+		raw, err := clientset.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{Container: container}).DoRaw(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read the log of %s/%s: %w", namespace, pod, err)
+		}
+		return raw, nil
+	}
 }
 
 // Shutdown performs graceful cleanup. It must not uninstall anything: shutdown

@@ -53,14 +53,20 @@ async fn the_appearance_is_open_and_names_the_accent_colour() {
     let plain = server().await;
     assert_eq!(
         anonymous(&plain).get("/api/uiterlijk").await,
-        (StatusCode::OK, json!({ "accentkleur": null }))
+        (
+            StatusCode::OK,
+            json!({ "accentkleur": null, "organisatie": null })
+        )
     );
     let mut config = config(Mode::Test);
     config.accent = Some("paars".parse().unwrap());
     let themed = app::build_with(&config, Login::TestLogin).await.unwrap();
     assert_eq!(
         anonymous(&themed).get("/api/uiterlijk").await,
-        (StatusCode::OK, json!({ "accentkleur": "paars" }))
+        (
+            StatusCode::OK,
+            json!({ "accentkleur": "paars", "organisatie": null })
+        )
     );
 }
 
@@ -1043,6 +1049,7 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
         panel,
         json!({
             "uitvoerder": { "cel": GEMEENTE, "cel_naam": "gemeente Wilgendaal" },
+            "gekoppeld": [],
             "partijen": [
                 {
                     "cel": GGD, "cel_naam": "GGD Wilgendaal", "open": [], "toe_te_zenden": [],

@@ -121,7 +121,9 @@ jobs:
       - run: npm test -w frontend-regelhet -- --maxWorkers=2
       - run: npm run typecheck -w frontend-regelhet
       # The console pages of the Fundament plugin: plain modules, no build.
-      - run: node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+      - run: >-
+          node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+          packages/fundament-plugin/console-test/organisaties-body.test.js
       - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
       - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
 
@@ -151,7 +153,11 @@ jobs:
           git checkout -q FETCH_HEAD
       - name: go vet and go test
         working-directory: ${{ forgejo.workspace }}/packages/fundament-plugin
+        # yq for the test of the snapshot Job's script (snapshot_test.go),
+        # which is skipped without it.
         run: |
+          go install github.com/mikefarah/yq/v4@v4.47.1
+          export PATH="$PATH:$GOPATH/bin"
           go vet ./...
           go test ./...
 
@@ -204,7 +210,128 @@ jobs:
             esac
           }
           contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
+          # A snapshot of the case, as the Fundament plugin sets it: the
+          # parts unpack in order, and no pod clones or reads a Secret.
+          SNAP="--set case.snapshot.configMaps={a-case-1-0,a-case-1-1} --set case.credentialsSecret=repo"
+          contains "cat /snapshot/0/part /snapshot/1/part | tar -xzf - -C /case" $CNPG $SNAP
+          contains "name: a-case-1-1" $CNPG $SNAP
+          out="$(helm template regelhet "$C" --set domain=example.org $CNPG $SNAP)"
+          case "$out" in *clone-case* | *GIT_TOKEN*) echo "a snapshot still clones"; exit 1 ;; esac
+          # The front of an organisation loads no case: no snapshot either.
+          out="$(helm template regelhet "$C" --set domain=example.org $CNPG $SNAP -f "$C/ci/voorkant-values.yaml")"
+          case "$out" in *unpack-case* | *snapshot-0*) echo "the front unpacks a case"; exit 1 ;; esac
           contains REGELHET_ACCENT_COLOR $SMALL --set theme.accentColor=paars
+          # A release for an external party, linked with the executor's.
+          contains REGELHET_LINK_PARTY $CNPG --set surfaces.split=false \
+            --set regelhet.surface=backoffice --set koppeling.partij=ggd_wilgendaal \
+            --set 'koppeling.peers[0].cel=gemeente_wilgendaal' \
+            --set 'koppeling.peers[0].url=https://gemeente.example.org'
+          contains REGELHET_LINK_KEY_FILE $CNPG --set koppeling.keySecret=sleutel \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
+            --set 'koppeling.peers[0].url=https://ggd.example.org'
+          # Of two instances only the one for employees holds the link, so a
+          # release signs with one key.
+          n=$(helm template regelhet "$C" --set domain=example.org $CNPG \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
+            --set 'koppeling.peers[0].url=https://ggd.example.org' \
+            | grep -c "name: REGELHET_LINK_PEERS")
+          [ "$n" = 1 ] || { echo "expected the link on one instance, got $n"; exit 1; }
+          # FSC voor Burgers on the demo Stelsel: on the citizens' instance,
+          # with that instance's host as the address apps use; off by default.
+          contains "value: \"https://a.example.org\"" $CNPG --set fsc4b.enabled=true \
+            --set surfaces.burger.host=a.example.org --set surfaces.backoffice.host=a-medewerkers.example.org
+          n=$(helm template regelhet "$C" --set domain=example.org $CNPG --set fsc4b.enabled=true \
+            | grep -c "name: REGELHET_FSC4B_DEMO")
+          [ "$n" = 1 ] || { echo "expected FSC voor Burgers on one instance, got $n"; exit 1; }
+          out="$(helm template regelhet "$C" --set domain=example.org $CNPG)"
+          case "$out" in *REGELHET_FSC4B*) echo "FSC voor Burgers is on by default"; exit 1 ;; esac
+          # Keycloak's host follows the others: one label under the wildcard
+          # behind the shared Gateway, login.<host> with a Gateway of its own.
+          KC="--set regelhet.mode=stable --set regelhet.login=oidc --set keycloak.enabled=true"
+          contains "hostname: regelhet-login.example.org" $CNPG $KC
+          contains "hostname: regelhet-login.example.org" $CNPG $KC --set gateway.mode=shared
+          contains "hostname: login.regelhet.example.org" $CNPG $KC --set gateway.mode=own
+          OIDC="--set regelhet.login=oidc --set oidc.existingSecret=regelhet-oidc
+            --set oidc.issuerUrl=https://keycloak.example.org/realms/regelhet"
+          helm lint "$C" --strict --set domain=example.org $SMALL $OIDC
+          helm template regelhet "$C" --set domain=example.org $CNPG $OIDC \
+            --set regelhet.mode=stable > /dev/null
+          helm template regelhet "$C" --set domain=example.org $CNPG \
+            --set keycloak.realmImport.enabled=true \
+            --set keycloak.realmImport.secretName=regelhet-realm \
+            --set keycloak.testUsers=true \
+            --show-only templates/keycloak-realm.yaml > realm.yaml
+          # The employees' ladder is lezer, beslisser, admin: no behandelaar.
+          grep -q 'name: regelhet-beslisser' realm.yaml
+          if grep -q behandelaar realm.yaml; then
+            echo "the realm still has a behandelaar"; exit 1
+          fi
+          helm template regelhet "$C" --set domain=example.org $CNPG \
+            --set regelhet.mode=stable --set regelhet.login=oidc \
+            --set keycloak.enabled=true --set keycloak.testUsers=true > /dev/null
+          helm template regelhet "$C" --set domain=example.org $CNPG \
+            --set regelhet.mode=stable --set regelhet.login=oidc \
+            --set keycloak.enabled=true --set gateway.mode=own > /dev/null
+          # Stable mode as the Fundament plugin renders it: flat hosts, one
+          # label under the wildcard, and the Keycloak on <name>-login. All
+          # three must be listeners of the release's ListenerSet.
+          n=$(helm template a "$C" --set domain=example.org $CNPG \
+            --set surfaces.burger.host=a.example.org \
+            --set surfaces.backoffice.host=a-medewerkers.example.org \
+            --set regelhet.mode=stable --set regelhet.login=oidc \
+            --set keycloak.enabled=true --set keycloak.host=a-login.example.org \
+            | grep -cE "hostname: a(-medewerkers|-login)?\.example\.org")
+          [ "$n" = 3 ] || { echo "expected 3 listeners for the plugin's stable mode, got $n"; exit 1; }
+          # The front of an organisation and a process of one, from the
+          # example values in the chart's ci/ (the values contract of the
+          # plugin). The front needs no CloudNativePG: it keeps no chronicles.
+          FRONT="-f $C/ci/voorkant-values.yaml"
+          PROC="-f $C/ci/organisatie-values.yaml"
+          lacks() {
+            unwanted="$1"; shift
+            out="$(helm template regelhet "$C" --set domain=example.org "$@")"
+            case "$out" in
+              *"$unwanted"*) echo "the render has '$unwanted': $*"; exit 1 ;;
+            esac
+          }
+          helm lint "$C" --strict $FRONT
+          helm lint "$C" --strict $PROC $SMALL
+          front="$(helm template wilgendaal "$C" -n org $FRONT)"
+          n=$(printf '%s\n' "$front" | grep -c "^kind: Deployment")
+          [ "$n" = 2 ] || { echo "expected a Deployment per side for the front, got $n"; exit 1; }
+          n=$(printf '%s\n' "$front" | grep -cE "hostname: wilgendaal(-medewerkers)?\.cluster-a\.fieldlab2026\.nl")
+          [ "$n" = 2 ] || { echo "expected 2 listeners for the front, got $n"; exit 1; }
+          n=$(printf '%s\n' "$front" | grep -c "value: organisatie$")
+          [ "$n" = 2 ] || { echo "expected REGELHET_ROL organisatie on both instances, got $n"; exit 1; }
+          case "$front" in *clone-case*|*REGELHET_MANIFEST*|*"kind: Cluster"*)
+            echo "the front clones a case or has a database"; exit 1 ;; esac
+          case "$front" in *"id: tnt-rr-voorbeeld--parkeerkaart/parkeerkaart"*) ;;
+            *) echo "the ConfigMap of the front lacks its processes"; exit 1 ;; esac
+          case "$front" in *"checksum/processen:"*) ;;
+            *) echo "the front does not restart on a new process"; exit 1 ;; esac
+          case "$front" in *"ec_paramgen_curve:P-256"*) ;;
+            *) echo "the Job makes no signing key for the front"; exit 1 ;; esac
+          # Without hosts the front sits on <release> and <release>-medewerkers
+          # (here the release is called regelhet).
+          contains "hostname: regelhet-medewerkers.example.org" --set voorkant.enabled=true \
+            --set voorkant.id=org/w --set voorkant.naam=W --show-only templates/exposure.yaml
+          proc="$(helm template parkeerkaart "$C" -n pk $CNPG $PROC)"
+          n=$(printf '%s\n' "$proc" | grep -c 'value: "pk/parkeerkaart"')
+          [ "$n" = 2 ] || { echo "expected REGELHET_PROCES_ID on both instances, got $n"; exit 1; }
+          case "$proc" in *'value: "https://wilgendaal-medewerkers.cluster-a.fieldlab2026.nl"'*) ;;
+            *) echo "the employees' instance does not link back to the employees' front"; exit 1 ;; esac
+          case "$proc" in *REGELHET_ORGANISATIE_SLEUTEL_URL*) ;;
+            *) echo "the process does not know where the key is"; exit 1 ;; esac
+          # Both blocks are off by default: a release that sets neither
+          # renders as it did before them.
+          case "$front" in *REGELHET_LINK_*|*REGELHET_FSC4B*)
+            echo "the front links or serves FSC voor Burgers"; exit 1 ;; esac
+          for unwanted in REGELHET_ROL REGELHET_ORGANISATIE REGELHET_PROCES_ID \
+            organisatie regelhet-secrets; do
+            lacks "$unwanted" $CNPG
+            lacks "$unwanted" $SMALL
+            lacks "$unwanted" $CNPG --set fsc4b.enabled=true
+          done
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work
@@ -237,3 +364,46 @@ jobs:
             --set surfaces.burger.host=Not_A_Host
           refuse "accentColor" --set domain=example.org $CNPG \
             --set theme.accentColor=purple
+          refuse "release of an external party" --set domain=example.org $CNPG \
+            --set koppeling.partij=ggd_wilgendaal
+          refuse "does not match pattern" --set domain=example.org $CNPG \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' --set 'koppeling.peers[0].url=ggd.example.org'
+          OIDC="--set regelhet.login=oidc --set oidc.existingSecret=regelhet-oidc
+            --set oidc.issuerUrl=https://keycloak.example.org/realms/regelhet"
+          STABLE="--set domain=example.org $CNPG --set regelhet.mode=stable"
+          refuse "logs in through Keycloak only" $STABLE
+          refuse "keeps the chronicles in PostgreSQL" $STABLE $OIDC \
+            --set database.enabled=false --set surfaces.split=false
+          refuse "an instance of its own" $STABLE $OIDC --set surfaces.split=false
+          refuse "requiredRole" $STABLE $OIDC --set oidc.requiredRole=editor-reader
+          refuse "needs oidc.existingSecret" $STABLE $OIDC --set oidc.existingSecret=
+          refuse "needs oidc.issuerUrl" $STABLE $OIDC --set oidc.issuerUrl=
+          refuse "secretName is required" --set domain=example.org $CNPG \
+            --set keycloak.realmImport.enabled=true
+          refuse "keycloak.host must differ" $STABLE --set regelhet.login=oidc \
+            --set keycloak.enabled=true --set keycloak.host=burger.regelhet.example.org
+          refuse "for the database of Keycloak" --set domain=example.org \
+            --set database.enabled=false --set surfaces.split=false --set keycloak.enabled=true
+          refuse "fsc4b.enabled opens FSC voor Burgers on the demo Stelsel" $STABLE \
+            --set regelhet.login=oidc --set keycloak.enabled=true --set fsc4b.enabled=true
+          refuse "fsc4b.enabled is for citizens" --set domain=example.org \
+            --set database.enabled=false --set surfaces.split=false \
+            --set regelhet.surface=backoffice --set fsc4b.enabled=true
+          FRONT="-f $C/ci/voorkant-values.yaml"
+          PROC="-f $C/ci/organisatie-values.yaml $CNPG"
+          refuse "exclude each other" $FRONT --set organisatie.id=a/b
+          refuse "needs voorkant.id" $FRONT --set voorkant.id=
+          refuse "needs voorkant.naam" $FRONT --set voorkant.naam=
+          refuse "test mode only for now" $FRONT --set regelhet.mode=stable
+          refuse "an organisation's front serves no FSC voor Burgers" $FRONT --set fsc4b.enabled=true
+          refuse "an organisation's front has no cell" $FRONT \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' --set 'koppeling.peers[0].url=https://ggd.example.org'
+          refuse "names a/b twice" $FRONT --set-json \
+            'voorkant.processen=[{"id":"a/b","naam":"b","burger":{"intern":"http://b","publiek":"https://b"},"backoffice":{"intern":"http://c","publiek":"https://c"}},{"id":"a/b","naam":"b","burger":{"intern":"http://b","publiek":"https://b"},"backoffice":{"intern":"http://c","publiek":"https://c"}}]'
+          refuse "missing property 'backoffice'" $FRONT --set-json \
+            'voorkant.processen=[{"id":"a/b","naam":"b","burger":{"intern":"http://b","publiek":"https://b"}}]'
+          refuse "/voorkant/id" $FRONT --set voorkant.id=wilgendaal
+          refuse "organisatie.id needs organisatie.url" $PROC --set organisatie.medewerkersUrl=
+          refuse "needs organisatie.sleutelUrl or organisatie.sleutelJwk" $PROC --set organisatie.sleutelUrl=
+          refuse "needs organisatie.sleutelJwk" $PROC --set regelhet.mode=stable --set regelhet.login=oidc \
+            --set keycloak.enabled=true

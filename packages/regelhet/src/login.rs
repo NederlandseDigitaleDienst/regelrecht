@@ -23,13 +23,26 @@
 //! Each instance logs in with its own OIDC client, since each is a
 //! deployment of its own with its own `BASE_URL`: the redirect after a
 //! login goes back to the instance that sent the browser out.
+//!
+//! A process that belongs to an organisation has a third way in:
+//! `GET /auth/organisatie?token=<statement>&naar=<path>` ([`organisation_handoff`]).
+//! The front of the organisation logged the account in and sends the
+//! browser here with a statement it signed for this process
+//! ([`crate::organisatie::statement`]); the route checks it and writes a
+//! session as a login does, marked as handed over ([`OrganisationMark`]), so
+//! what the account records is kept as through the organisation.
+//!
+//! Both the process ([`AppState`]) and the front of an organisation
+//! ([`crate::organisatie::FrontState`]) log in this way; [`Host`] is what
+//! each gives the login and the principal of a request.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::future::Future;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect};
 use axum::routing::{get, post};
@@ -40,15 +53,104 @@ use regelrecht_auth::{
 };
 // The made-up citizen numbers of the BSN test range, shared with the app.
 use regelrecht_fsc4b::wire::TEST_CITIZENS;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tower_sessions::session::{Id, Record};
 use tower_sessions::{Session, SessionStore, session_store};
 
-use crate::access::{CITIZEN, Level};
+use crate::access::{CITIZEN, Level, Principal};
 use crate::api::{ApiError, AppState};
 use crate::config::LoginChoice;
+use crate::organisatie::statement::Acceptor;
+use crate::store::Channel;
 use crate::surface::Surface;
+
+/// What a server's state gives the login and the principal of a request:
+/// the state of a process ([`AppState`]) or of an organisation's front.
+pub trait Host: Clone + Send + Sync + 'static {
+    /// The side the instance serves.
+    fn surface(&self) -> Surface;
+    /// The claim of a citizen's account that identifies them.
+    fn subject_claim(&self) -> &str;
+    /// The login the server runs.
+    fn login(&self) -> &Login;
+    fn http_client(&self) -> &reqwest::Client;
+    /// The check of the organisation's statements, on a process that belongs
+    /// to one.
+    fn acceptor(&self) -> Option<&Acceptor> {
+        None
+    }
+    /// The accounts the test login offers, as `GET /auth/testpersonen`
+    /// gives them.
+    fn test_personas(&self) -> impl Future<Output = Vec<Value>> + Send;
+    /// The OIDC login, when the server logs in through Keycloak.
+    fn oidc(&self) -> Option<&OidcLogin> {
+        match self.login() {
+            Login::Oidc(o) => Some(o),
+            Login::TestLogin => None,
+        }
+    }
+    /// The channel of a browser session: the login this server runs.
+    fn session_channel(&self) -> Channel {
+        match self.login() {
+            Login::Oidc(_) => Channel::Keycloak,
+            Login::TestLogin => Channel::TestLogin,
+        }
+    }
+}
+
+/// `regelrecht_auth::OidcAppState` for a [`Host`]: the trait is foreign,
+/// so each state implements it, all in the same way.
+macro_rules! oidc_app_state {
+    ($state:ty) => {
+        impl regelrecht_auth::OidcAppState for $state {
+            fn oidc_client(&self) -> Option<&std::sync::Arc<regelrecht_auth::ConfiguredClient>> {
+                $crate::login::Host::oidc(self).map(|o| &o.client)
+            }
+            fn end_session_url(&self) -> Option<&str> {
+                $crate::login::Host::oidc(self).and_then(|o| o.end_session_url.as_deref())
+            }
+            fn oidc_config(&self) -> Option<&regelrecht_auth::OidcConfig> {
+                $crate::login::Host::oidc(self).map(|o| &o.config)
+            }
+            fn is_auth_enabled(&self) -> bool {
+                $crate::login::Host::oidc(self).is_some()
+            }
+            fn base_url(&self) -> Option<&str> {
+                $crate::login::Host::oidc(self).and_then(|o| o.base_url.as_deref())
+            }
+            fn http_client(&self) -> &reqwest::Client {
+                <$state as $crate::login::Host>::http_client(self)
+            }
+        }
+    };
+}
+pub(crate) use oidc_app_state;
+
+/// The key in a session's data that marks it as handed over by the
+/// organisation ([`OrganisationMark`]).
+pub const SESSION_KEY_ORGANISATION: &str = "regelhet.organisatie";
+
+/// The mark of a session the organisation handed over: for which account,
+/// and how the front logged it in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OrganisationMark {
+    /// The account of the session, `<organisation id>:<sub>`; the mark
+    /// counts only while the session holds that account.
+    pub sub: String,
+    /// `testlogin` or `keycloak`.
+    pub inlog: String,
+}
+
+impl OrganisationMark {
+    /// How the front logged the account in.
+    pub fn login(&self) -> Channel {
+        match self.inlog.as_str() {
+            "keycloak" => Channel::Keycloak,
+            _ => Channel::TestLogin,
+        }
+    }
+}
 
 /// The screen of `surface`'s build that logs in, where a failed login is
 /// told: the citizen's build has its own (`/toegang`), every other build
@@ -155,20 +257,15 @@ impl Login {
     /// screen that logs in, with `?fout=rol` or `?fout=inloggen`, so the app
     /// says what went wrong instead of the browser showing a bare status
     /// ([`login_failed_to_screen`]).
-    pub fn routes(&self, surface: Surface) -> Router<AppState> {
+    pub fn routes<S: Host + regelrecht_auth::OidcAppState>(&self, surface: Surface) -> Router<S> {
         match self {
-            Self::Oidc(_) => {
-                regelrecht_auth::auth_routes::<AppState>().layer(axum::middleware::from_fn(
-                    move |request, next| login_failed_to_screen(surface, request, next),
-                ))
-            }
+            Self::Oidc(_) => regelrecht_auth::auth_routes::<S>().layer(axum::middleware::from_fn(
+                move |request, next| login_failed_to_screen(surface, request, next),
+            )),
             Self::TestLogin => Router::new()
-                .route("/auth/testlogin", post(test_login))
-                .route("/auth/testpersonen", get(test_personas))
-                .route(
-                    "/auth/status",
-                    get(regelrecht_auth::handlers::status::<AppState>),
-                )
+                .route("/auth/testlogin", post(test_login::<S>))
+                .route("/auth/testpersonen", get(test_personas::<S>))
+                .route("/auth/status", get(regelrecht_auth::handlers::status::<S>))
                 .route("/auth/logout", get(test_logout)),
         }
     }
@@ -280,8 +377,8 @@ pub struct TestLogin {
 /// OIDC callback would have made it, or for a citizen of the simulated
 /// DigiD. There only in test mode without OIDC configuration
 /// ([`Login::routes`]).
-async fn test_login(
-    State(state): State<AppState>,
+async fn test_login<S: Host>(
+    State(state): State<S>,
     session: Session,
     Json(request): Json<TestLoginRequest>,
 ) -> Result<Json<Value>, ApiError> {
@@ -295,14 +392,24 @@ async fn test_login(
             "a test login needs a `sub`",
         ));
     }
-    write_session(&session, &login).await?;
+    write_session(
+        &session,
+        &SessionAccount {
+            sub: &login.sub,
+            roles: &login.rollen,
+            claims: &login.claims,
+            name: login.naam.as_deref().unwrap_or(&login.sub),
+        },
+        None,
+    )
+    .await?;
     tracing::info!(sub = %login.sub, roles = ?login.rollen, "test login");
     Ok(Json(json!({ "sub": login.sub, "rollen": login.rollen })))
 }
 
 /// The account of a citizen of the simulated DigiD: the citizen's role and
 /// nothing else, their number under the subject claim, and their name.
-fn simulated_citizen(state: &AppState, digid: &SimulatedDigid) -> Result<TestLogin, ApiError> {
+fn simulated_citizen(state: &impl Host, digid: &SimulatedDigid) -> Result<TestLogin, ApiError> {
     if !state.surface().serves_citizens() {
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
@@ -332,39 +439,135 @@ fn simulated_citizen(state: &AppState, digid: &SimulatedDigid) -> Result<TestLog
     })
 }
 
-/// Write `login` into `session` under the keys the OIDC callback uses.
-async fn write_session(session: &Session, login: &TestLogin) -> Result<(), ApiError> {
+/// An account as a session holds it.
+struct SessionAccount<'a> {
+    sub: &'a str,
+    roles: &'a BTreeSet<String>,
+    claims: &'a BTreeMap<String, Value>,
+    name: &'a str,
+}
+
+/// Write `account` into `session` under the keys the OIDC callback uses,
+/// with the organisation's `mark` when the organisation handed it over, and
+/// without one otherwise. What the session held before goes first: a
+/// refresh token of an earlier login through Keycloak would otherwise renew
+/// that account's roles into this one.
+async fn write_session(
+    session: &Session,
+    account: &SessionAccount<'_>,
+    mark: Option<&OrganisationMark>,
+) -> Result<(), ApiError> {
     let failed = |e: tower_sessions::session::Error| {
-        tracing::error!(error = %e, "writing the session of a test login");
+        tracing::error!(error = %e, "writing the session of a login");
         ApiError::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             "the server failed on this request; the cause is in its log",
         )
     };
+    session.clear().await;
     session.cycle_id().await.map_err(failed)?;
     session
         .insert(SESSION_KEY_AUTHENTICATED, true)
         .await
         .map_err(failed)?;
     session
-        .insert(SESSION_KEY_SUB, &login.sub)
+        .insert(SESSION_KEY_SUB, account.sub)
         .await
         .map_err(failed)?;
     session
-        .insert(SESSION_KEY_ROLES, &login.rollen)
+        .insert(SESSION_KEY_ROLES, account.roles)
         .await
         .map_err(failed)?;
     session
-        .insert(SESSION_KEY_CLAIMS, &login.claims)
+        .insert(SESSION_KEY_CLAIMS, account.claims)
         .await
         .map_err(failed)?;
     session
-        .insert(
-            SESSION_KEY_NAME,
-            login.naam.as_deref().unwrap_or(&login.sub),
-        )
+        .insert(SESSION_KEY_NAME, account.name)
         .await
-        .map_err(failed)
+        .map_err(failed)?;
+    match mark {
+        Some(mark) => session
+            .insert(SESSION_KEY_ORGANISATION, mark)
+            .await
+            .map_err(failed),
+        None => Ok(()),
+    }
+}
+
+/// What `GET /auth/organisatie` takes: the statement, and where to go.
+#[derive(Debug, Deserialize)]
+pub struct Handoff {
+    token: String,
+    naar: Option<String>,
+}
+
+/// `GET /auth/organisatie?token=<statement>&naar=<path>`: a session for the
+/// account the organisation's statement names, then on to `naar` on this
+/// server (`/` without it). There only on a process that belongs to an
+/// organisation ([`crate::api::router`]).
+///
+/// # Errors
+///
+/// 400 when `naar` is no path of this server, 401 when the statement is
+/// refused ([`Acceptor::accept`]), 403 when it gives no role here.
+pub async fn organisation_handoff(
+    State(state): State<AppState>,
+    session: Session,
+    Query(handoff): Query<Handoff>,
+) -> Result<Redirect, ApiError> {
+    let Some(acceptor) = Host::acceptor(&state) else {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "there is no such route",
+        ));
+    };
+    let target = match handoff.naar.as_deref() {
+        None | Some("") => "/",
+        Some(path) => local_path(path).ok_or_else(|| {
+            ApiError::new(StatusCode::BAD_REQUEST, "`naar` is a path on this server")
+        })?,
+    };
+    let accepted = acceptor
+        .accept(&handoff.token, crate::fsc4b::now_unix())
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "a hand-off of the organisation refused");
+            ApiError::new(
+                StatusCode::UNAUTHORIZED,
+                "the organisation's statement is not valid; log in again at the organisation",
+            )
+        })?;
+    let inlog = accepted.statement.login.as_str().to_string();
+    let principal = Principal::of_organisation(accepted, Host::surface(&state));
+    if !principal.is_user() {
+        return Err(crate::access::forbidden());
+    }
+    let mark = OrganisationMark {
+        sub: principal.sub().to_string(),
+        inlog,
+    };
+    write_session(
+        &session,
+        &SessionAccount {
+            sub: principal.sub(),
+            roles: principal.roles(),
+            claims: principal.claims(),
+            name: principal.name().unwrap_or(principal.sub()),
+        },
+        Some(&mark),
+    )
+    .await?;
+    tracing::info!(sub = %principal.sub(), naar = target, "handed over by the organisation");
+    Ok(Redirect::to(target))
+}
+
+/// `path` when it is a path on this server: it starts with one `/`, and no
+/// browser reads it as another host (`//host`, `/\host`).
+pub(crate) fn local_path(path: &str) -> Option<&str> {
+    let rest = path.strip_prefix('/')?;
+    (!rest.starts_with('/') && !rest.starts_with('\\') && !path.chars().any(char::is_control))
+        .then_some(path)
 }
 
 /// `GET /auth/logout` beside the test login: end the session and go back to
@@ -392,31 +595,39 @@ async fn test_logout(session: Session) -> Result<Redirect, ApiError> {
 /// the sides the
 /// surface serves: the citizens on the instance for citizens, the employees
 /// and the admin on the back office. There only beside the test login.
-async fn test_personas(State(state): State<AppState>) -> Json<Value> {
+async fn test_personas<S: Host>(State(state): State<S>) -> Json<Value> {
+    Json(Value::Array(state.test_personas().await))
+}
+
+/// The accounts of the test login of a process: see [`test_personas`].
+pub fn process_personas(state: &AppState) -> Vec<Value> {
     let surface = state.surface();
     let mut personas = Vec::new();
     if surface.serves_citizens() {
-        let claim = state.subject_claim();
-        personas.extend(
-            TEST_CITIZENS
-                .iter()
-                .zip(TEST_CITIZEN_NAMES)
-                .map(|(bsn, name)| {
-                    json!({
-                        "soort": "burger",
-                        "sub": format!("burger-{bsn}"),
-                        "rollen": [CITIZEN],
-                        "claims": { claim: bsn },
-                        "identiteit": bsn,
-                        "naam": name,
-                    })
-                }),
-        );
+        personas.extend(citizen_personas(state.subject_claim()));
     }
     if surface.serves_employees() {
-        personas.extend(employee_personas(&state));
+        personas.extend(employee_personas(state));
     }
-    Json(Value::Array(personas))
+    personas
+}
+
+/// The citizens of the test login, with a made-up name and a made-up number
+/// of the test range under the claim `claim`.
+pub fn citizen_personas(claim: &str) -> impl Iterator<Item = Value> + '_ {
+    TEST_CITIZENS
+        .iter()
+        .zip(TEST_CITIZEN_NAMES)
+        .map(move |(bsn, name)| {
+            json!({
+                "soort": "burger",
+                "sub": format!("burger-{bsn}"),
+                "rollen": [CITIZEN],
+                "claims": { claim: bsn },
+                "identiteit": bsn,
+                "naam": name,
+            })
+        })
 }
 
 /// The employees of the test login: a decider of the executor, with that
@@ -527,26 +738,7 @@ impl<S: SessionStore + Clone> SessionStore for SurfaceSessions<S> {
     }
 }
 
-impl regelrecht_auth::OidcAppState for AppState {
-    fn oidc_client(&self) -> Option<&Arc<ConfiguredClient>> {
-        self.oidc().map(|o| &o.client)
-    }
-    fn end_session_url(&self) -> Option<&str> {
-        self.oidc().and_then(|o| o.end_session_url.as_deref())
-    }
-    fn oidc_config(&self) -> Option<&OidcConfig> {
-        self.oidc().map(|o| &o.config)
-    }
-    fn is_auth_enabled(&self) -> bool {
-        self.oidc().is_some()
-    }
-    fn base_url(&self) -> Option<&str> {
-        self.oidc().and_then(|o| o.base_url.as_deref())
-    }
-    fn http_client(&self) -> &reqwest::Client {
-        self.http_client()
-    }
-}
+oidc_app_state!(AppState);
 
 #[cfg(test)]
 pub(crate) mod tests {
@@ -597,6 +789,66 @@ pub(crate) mod tests {
         // Passes the eleven test, but is outside the test range.
         assert!(passes_eleven_test("123456782"));
         assert!(Bsn::parse("123456782").unwrap_err().contains("testreeks"));
+    }
+
+    #[tokio::test]
+    async fn a_login_leaves_nothing_of_the_session_before_it() {
+        let store = Arc::new(tower_sessions_memory_store::MemoryStore::default());
+        let session = Session::new(None, store, None);
+        // An earlier login through Keycloak, and an earlier hand-off.
+        session
+            .insert(
+                regelrecht_auth::handlers::SESSION_KEY_REFRESH_TOKEN,
+                "old-refresh",
+            )
+            .await
+            .unwrap();
+        session
+            .insert(
+                SESSION_KEY_ORGANISATION,
+                OrganisationMark {
+                    sub: "tnt-o/wilgendaal:x".into(),
+                    inlog: "keycloak".into(),
+                },
+            )
+            .await
+            .unwrap();
+        let roles = BTreeSet::from(["regelhet-lezer".to_string()]);
+        let claims = BTreeMap::new();
+        let account = SessionAccount {
+            sub: "lezer-1",
+            roles: &roles,
+            claims: &claims,
+            name: "Lezer",
+        };
+        write_session(&session, &account, None).await.unwrap();
+        let refresh: Option<String> = session
+            .get(regelrecht_auth::handlers::SESSION_KEY_REFRESH_TOKEN)
+            .await
+            .unwrap();
+        assert_eq!(refresh, None);
+        let mark: Option<OrganisationMark> = session.get(SESSION_KEY_ORGANISATION).await.unwrap();
+        assert_eq!(mark, None);
+        let sub: Option<String> = session.get(SESSION_KEY_SUB).await.unwrap();
+        assert_eq!(sub.as_deref(), Some("lezer-1"));
+    }
+
+    #[test]
+    fn a_local_path_stays_on_this_server() {
+        assert_eq!(local_path("/backoffice"), Some("/backoffice"));
+        assert_eq!(
+            local_path("/burger#nieuwe-aanvraag"),
+            Some("/burger#nieuwe-aanvraag")
+        );
+        for elsewhere in [
+            "//evil.example.org",
+            "/\\evil",
+            "https://evil",
+            "backoffice",
+            "/a\nb",
+        ] {
+            assert_eq!(local_path(elsewhere), None, "{elsewhere}");
+        }
     }
 
     #[test]

@@ -1,5 +1,6 @@
 // Package v1alpha1 holds the API of the RegelHet plugin: the RegelHet
-// resource, one RegelHet per object.
+// resource, one RegelHet per object, and the Organisatie resource,
+// one front for several of them.
 // +kubebuilder:object:generate=true
 // +groupName=regelhet.regelrecht.nl
 package v1alpha1
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	// GroupVersion is the group and version of the RegelHet resource.
+	// GroupVersion is the group and version of the resources of the plugin.
 	GroupVersion = schema.GroupVersion{Group: "regelhet.regelrecht.nl", Version: "v1alpha1"}
 
 	// SchemeBuilder adds the types of this group-version to a scheme. The

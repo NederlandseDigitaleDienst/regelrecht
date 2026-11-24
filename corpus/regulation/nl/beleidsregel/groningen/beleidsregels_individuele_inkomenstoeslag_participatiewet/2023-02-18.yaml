@@ -1,0 +1,1241 @@
+---
+# Bron: CVDR390767 versie 3 op lokaleregelgeving.overheid.nl, de consolidatie die geldt
+# sinds 18 februari 2023. Vastgesteld door het college op 8 december 2015 (Gemeenteblad
+# 2015, 124380), gewijzigd op 25 oktober 2022 (Gemeenteblad 2022, 495903: referteperiode
+# van vijf naar twee jaar) en op 17 januari 2023 (Gemeenteblad 2023, 70999: artikel 5a).
+# Het wijzigingsbesluit van 2023 werkt terug tot en met 1 januari 2023; valid_from is de
+# dag van inwerkingtreding, zoals het schema voorschrijft.
+#
+# De tekst volgt de consolidatie letterlijk, inclusief de fouten die erin staan: die zijn
+# wetgevingsfouten van de regeling en staan in dossiers/iit-groningen/wetgevingsfouten-analyse.md.
+# De machine_readable volgt die tekst ook waar zij fout verwijst (W1, W2) of botst (W9).
+# name is de citeertitel van artikel 7. De toelichting is niet opgenomen;
+# de CVDR-versie ervan wijkt af van de authentieke bekendmaking (zelfde analyse).
+# De lidnummering volgt de consolidatie (artikel 1: leden 1-2, artikelen 2 en 4: leden 1-3).
+# De authentieke bekendmaking van 2015 nummert de leden na een opsomming opnieuw vanaf 1;
+# de woorden zijn verder gelijk (drift-rapport in hetzelfde dossier).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: beleidsregels_individuele_inkomenstoeslag_participatiewet_groningen
+regulatory_layer: BELEIDSREGEL
+publication_date: '2023-02-17'
+valid_from: '2023-02-18'
+gemeente_code: GM0014
+officiele_titel: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+url: https://lokaleregelgeving.overheid.nl/CVDR390767/3
+name: Beleidsregels IIT
+competent_authority:
+  name: college van burgemeester en wethouders van de gemeente Groningen
+legal_basis:
+  - law_id: algemene_wet_bestuursrecht
+    article: 4:81
+    description: Beleidsregel over de bevoegdheid die het college heeft op grond van artikel 36 Participatiewet
+  - law_id: participatiewet
+    article: '36'
+    description: >-
+      De bevoegdheid tot het verlenen van een individuele inkomenstoeslag; de aanhef noemt daarnaast de Verordening
+      individuele inkomenstoeslag Participatiewet 2015
+preamble:
+  text: |-
+    Burgemeester en wethouders van de gemeente Groningen;
+
+    Gelet op artikel 4:81 van de Algemene wet bestuursrecht, artikel 36 van de Participatiewet en de Verordening individuele
+    inkomenstoeslag Participatiewet 2015;
+
+    overwegende dat het gewenst is beleidsregels vast te stellen betreffende het recht op individuele inkomenstoeslag als
+    bedoeld in artikel 36 van de Participatiewet;
+
+    BESLUITEN:
+
+    vast te stellen de Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT).
+  url: https://lokaleregelgeving.overheid.nl/CVDR390767/3
+articles:
+  - number: '1'
+    text: |-
+      **Begripsbepalingen**
+
+      1. In deze beleidsregels wordt verstaan onder:
+
+         a. wet : Participatiewet;
+
+         b. IOAW : Wet inkomensvoorziening oudere en gedeeltelijk arbeidsongeschikte werkloze werknemers;
+
+         c. IOAZ : Wet inkomensvoorziening oudere en gedeeltelijk arbeidsongeschikte gewezen zelfstandigen
+
+         d. college : het college van burgemeester en wethouders van de gemeente Groningen;
+
+         e. belanghebbende : een persoon die een aanvraag om een individuele inkomenstoeslag indient;
+
+         f. peildatum : datum van aanvraag;
+
+         g. peiljaar : periode van twaalf maanden voorafgaand aan de peildatum;
+
+         h. referteperiode : periode van twee jaar voorafgaand aan de peildatum.
+
+      2. Voor zover niet anders is bepaald, worden begrippen in deze beleidsregels gebruikt in dezelfde betekenis als in de
+      wet.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_1_Begripsbepalingen
+    machine_readable:
+      markings:
+        - about: de betekenis die de begrippen van de wet in deze beleidsregels hebben
+          reason: >-
+            Het tweede lid geeft elk begrip dat deze beleidsregels niet zelf omschrijven de betekenis die het in de
+            Participatiewet heeft. Het model kent alleen een binding per begrip: een input met een source naar het
+            artikel dat het begrip bepaalt. Een verklaring dat alle overige begrippen uit een andere regeling komen,
+            heeft geen veld, dus elk artikel dat zo'n begrip gebruikt, moet het zelf binden of als gegeven vragen.
+          resolution: model
+          resolved_by: >-
+            Een vorm waarin een regeling verklaart dat de begrippen van een andere regeling in haar bereik komen,
+            waarna de binding per begrip uit die verklaring volgt in plaats van per artikel te worden geschreven.
+          target: []
+          legal_text_excerpt: >-
+            Voor zover niet anders is bepaald, worden begrippen in deze beleidsregels gebruikt in dezelfde betekenis
+            als in de wet.
+          accepted: true
+      definitions:
+        # Eerste lid, onder a.
+        wet:
+          value: Participatiewet
+          type: string
+        # Eerste lid, onder b.
+        ioaw:
+          value: Wet inkomensvoorziening oudere en gedeeltelijk arbeidsongeschikte werkloze werknemers
+          type: string
+        # Eerste lid, onder c.
+        ioaz:
+          value: Wet inkomensvoorziening oudere en gedeeltelijk arbeidsongeschikte gewezen zelfstandigen
+          type: string
+        # Eerste lid, onder d.
+        college:
+          value: het college van burgemeester en wethouders van de gemeente Groningen
+          type: string
+      execution:
+        produces:
+          legal_character: INFORMATIEF
+        parameters:
+          - name: heeft_aanvraag_om_iit_ingediend
+            type: boolean
+            required: true
+            description: Of de persoon een aanvraag om een individuele inkomenstoeslag heeft ingediend (onder e).
+          - name: datum_aanvraag
+            type: date
+            required: true
+            description: De datum van de aanvraag (onder f).
+        output:
+          - name: is_belanghebbende
+            type: boolean
+          - name: peildatum
+            type: date
+          - name: peiljaar_begin
+            type: date
+            description: De eerste dag van het peiljaar; het peiljaar loopt tot de peildatum.
+          - name: referteperiode_begin
+            type: date
+            description: De eerste dag van de referteperiode; de referteperiode loopt tot de peildatum.
+        actions:
+          - output: is_belanghebbende
+            value:
+              operation: EQUALS
+              subject: $heeft_aanvraag_om_iit_ingediend
+              value: true
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '1'
+              paragraph: '1'
+              explanation: >-
+                Onder e: belanghebbende is wie een aanvraag indient. Wie ambtshalve een toeslag krijgt (artikel 5a),
+                heeft geen aanvraag ingediend en is dus geen belanghebbende in de zin van deze beleidsregels (W8).
+          - output: peildatum
+            value: $datum_aanvraag
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '1'
+              paragraph: '1'
+              explanation: >-
+                Onder f: "datum van aanvraag". De verordening legt de peildatum bij het verzoek; dat is een tweede
+                omschrijving van hetzelfde begrip (W11). Bij ambtshalve toekenning is er geen peildatum (W8).
+          - output: peiljaar_begin
+            value:
+              operation: DATE_ADD
+              date: $peildatum
+              months: -12
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '1'
+              paragraph: '1'
+              explanation: 'Onder g: "periode van twaalf maanden voorafgaand aan de peildatum".'
+          - output: referteperiode_begin
+            value:
+              operation: DATE_ADD
+              date: $peildatum
+              years: -2
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '1'
+              paragraph: '1'
+              explanation: 'Onder h: "periode van twee jaar voorafgaand aan de peildatum".'
+  - number: '2'
+    text: |-
+      **Beoordeling**
+
+      1. Het college moet in het individuele geval beoordelen of belanghebbende, naar het oordeel van het college, al dan
+      niet uitzicht op inkomensverbetering heeft en recht heeft op een individuele inkomenstoeslag.
+
+      2. Het college dient volgens artikel 36, tweede lid van de wet in ieder geval in de beoordeling mee te nemen:
+
+         a. de krachten en bekwaamheden van belanghebbende; en
+
+         b. de inspanningen die belanghebbende heeft verricht om tot inkomensverbetering te komen.
+
+      3. Het college stelt het recht op individuele inkomenstoeslag vast met inachtneming van deze beleidsregels.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_2_Beoordeling
+    machine_readable:
+      open_terms:
+        - id: oordeel_college_recht_op_iit
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 2, eerste lid; artikel 36 Participatiewet)
+          description: >-
+            Het oordeel van het college in het individuele geval: of belanghebbende uitzicht op inkomensverbetering
+            heeft en recht heeft op een individuele inkomenstoeslag. Het college neemt daarin in ieder geval de krachten
+            en bekwaamheden van belanghebbende mee, en de inspanningen die hij heeft verricht om tot
+            inkomensverbetering te komen (tweede lid, onder a en b).
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          - name: heeft_aanvraag_om_iit_ingediend
+            type: boolean
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_aanvraag
+            type: date
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+          - name: volgt_op_peildatum_opleiding_wtos
+            type: boolean
+            required: false
+            description: Zie artikel 3; doorgegeven aan de bindingen van dit artikel.
+          - name: volgt_op_peildatum_studie_wsf_2000
+            type: boolean
+            required: false
+            description: Zie artikel 3; doorgegeven aan de bindingen van dit artikel.
+          - name: laatste_dag_opleiding_wtos
+            type: date
+            required: false
+            nullable: true
+            description: Zie artikel 3; doorgegeven aan de bindingen van dit artikel.
+          - name: laatste_dag_studie_wsf_2000
+            type: date
+            required: false
+            nullable: true
+            description: Zie artikel 3; doorgegeven aan de bindingen van dit artikel.
+          - name: ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: volledig_arbeidsongeschikt_artikel_9_vijfde_lid
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_artikel_9_tweede_lid
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_artikel_37a_ioaw
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_artikel_37a_ioaz
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: duur_ontheffing_maanden
+            type: number
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_arbeidsinschakeling_artikel_9a
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_arbeidsinschakeling_artikel_38_ioaw
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: ontheffing_arbeidsinschakeling_artikel_38_ioaz
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: medisch_urenbeperkt_artikel_6b
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: medisch_urenbeperkt_artikel_4b_ioaw
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: medisch_urenbeperkt_artikel_4b_ioaz
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: vrijlating_artikel_31_tweede_lid_onderdeel_z
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: vrijlating_artikel_8_zevende_lid_ioaw
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: vrijlating_artikel_8_elfde_lid_ioaz
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: duur_aangewezen_op_ondersteuning_maanden
+            type: number
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_participatieplaats_artikel_10a
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_artikel_4a_ioaw
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_artikel_4a_ioaz
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: aangewezen_op_vrijwilligerswerk
+            type: boolean
+            required: false
+            description: Zie artikel 4; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_maatregel_artikel_18_vierde_lid
+            type: date
+            required: false
+            nullable: true
+            description: Zie artikel 5; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_maatregel_afstemmingsverordening_artikel_6_of_7
+            type: date
+            required: false
+            nullable: true
+            description: Zie artikel 5; doorgegeven aan de bindingen van dit artikel.
+        input:
+          - name: geen_recht_artikel_3
+            type: boolean
+            source:
+              output: geen_recht_artikel_3
+              parameters:
+                volgt_op_peildatum_opleiding_wtos: $volgt_op_peildatum_opleiding_wtos
+                volgt_op_peildatum_studie_wsf_2000: $volgt_op_peildatum_studie_wsf_2000
+                laatste_dag_opleiding_wtos: $laatste_dag_opleiding_wtos
+                laatste_dag_studie_wsf_2000: $laatste_dag_studie_wsf_2000
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: afwijzing_artikel_3_derde_lid
+            type: boolean
+            source:
+              output: afwijzing_artikel_3_derde_lid
+              parameters:
+                volgt_op_peildatum_opleiding_wtos: $volgt_op_peildatum_opleiding_wtos
+                volgt_op_peildatum_studie_wsf_2000: $volgt_op_peildatum_studie_wsf_2000
+                laatste_dag_opleiding_wtos: $laatste_dag_opleiding_wtos
+                laatste_dag_studie_wsf_2000: $laatste_dag_studie_wsf_2000
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: geen_uitzicht_op_inkomensverbetering_artikel_4
+            type: boolean
+            source:
+              output: geen_uitzicht_op_inkomensverbetering_artikel_4
+              parameters:
+                ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt: $ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt
+                volledig_arbeidsongeschikt_artikel_9_vijfde_lid: $volledig_arbeidsongeschikt_artikel_9_vijfde_lid
+                ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c: $ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c
+                ontheffing_artikel_9_tweede_lid: $ontheffing_artikel_9_tweede_lid
+                ontheffing_artikel_37a_ioaw: $ontheffing_artikel_37a_ioaw
+                ontheffing_artikel_37a_ioaz: $ontheffing_artikel_37a_ioaz
+                duur_ontheffing_maanden: $duur_ontheffing_maanden
+                ontheffing_arbeidsinschakeling_artikel_9a: $ontheffing_arbeidsinschakeling_artikel_9a
+                ontheffing_arbeidsinschakeling_artikel_38_ioaw: $ontheffing_arbeidsinschakeling_artikel_38_ioaw
+                ontheffing_arbeidsinschakeling_artikel_38_ioaz: $ontheffing_arbeidsinschakeling_artikel_38_ioaz
+                medisch_urenbeperkt_artikel_6b: $medisch_urenbeperkt_artikel_6b
+                medisch_urenbeperkt_artikel_4b_ioaw: $medisch_urenbeperkt_artikel_4b_ioaw
+                medisch_urenbeperkt_artikel_4b_ioaz: $medisch_urenbeperkt_artikel_4b_ioaz
+                vrijlating_artikel_31_tweede_lid_onderdeel_z: $vrijlating_artikel_31_tweede_lid_onderdeel_z
+                vrijlating_artikel_8_zevende_lid_ioaw: $vrijlating_artikel_8_zevende_lid_ioaw
+                vrijlating_artikel_8_elfde_lid_ioaz: $vrijlating_artikel_8_elfde_lid_ioaz
+                aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a: $aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw: $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz: $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz
+                duur_aangewezen_op_ondersteuning_maanden: $duur_aangewezen_op_ondersteuning_maanden
+                aangewezen_op_participatieplaats_artikel_10a: $aangewezen_op_participatieplaats_artikel_10a
+                aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7: $aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7
+                aangewezen_op_artikel_4a_ioaw: $aangewezen_op_artikel_4a_ioaw
+                aangewezen_op_artikel_4a_ioaz: $aangewezen_op_artikel_4a_ioaz
+                aangewezen_op_vrijwilligerswerk: $aangewezen_op_vrijwilligerswerk
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+                datum_maatregel_artikel_18_vierde_lid: $datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+          - name: recht_artikel_4_tweede_lid
+            type: boolean
+            source:
+              output: recht_artikel_4_tweede_lid
+              parameters:
+                ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt: $ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt
+                volledig_arbeidsongeschikt_artikel_9_vijfde_lid: $volledig_arbeidsongeschikt_artikel_9_vijfde_lid
+                ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c: $ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c
+                ontheffing_artikel_9_tweede_lid: $ontheffing_artikel_9_tweede_lid
+                ontheffing_artikel_37a_ioaw: $ontheffing_artikel_37a_ioaw
+                ontheffing_artikel_37a_ioaz: $ontheffing_artikel_37a_ioaz
+                duur_ontheffing_maanden: $duur_ontheffing_maanden
+                ontheffing_arbeidsinschakeling_artikel_9a: $ontheffing_arbeidsinschakeling_artikel_9a
+                ontheffing_arbeidsinschakeling_artikel_38_ioaw: $ontheffing_arbeidsinschakeling_artikel_38_ioaw
+                ontheffing_arbeidsinschakeling_artikel_38_ioaz: $ontheffing_arbeidsinschakeling_artikel_38_ioaz
+                medisch_urenbeperkt_artikel_6b: $medisch_urenbeperkt_artikel_6b
+                medisch_urenbeperkt_artikel_4b_ioaw: $medisch_urenbeperkt_artikel_4b_ioaw
+                medisch_urenbeperkt_artikel_4b_ioaz: $medisch_urenbeperkt_artikel_4b_ioaz
+                vrijlating_artikel_31_tweede_lid_onderdeel_z: $vrijlating_artikel_31_tweede_lid_onderdeel_z
+                vrijlating_artikel_8_zevende_lid_ioaw: $vrijlating_artikel_8_zevende_lid_ioaw
+                vrijlating_artikel_8_elfde_lid_ioaz: $vrijlating_artikel_8_elfde_lid_ioaz
+                aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a: $aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw: $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz: $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz
+                duur_aangewezen_op_ondersteuning_maanden: $duur_aangewezen_op_ondersteuning_maanden
+                aangewezen_op_participatieplaats_artikel_10a: $aangewezen_op_participatieplaats_artikel_10a
+                aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7: $aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7
+                aangewezen_op_artikel_4a_ioaw: $aangewezen_op_artikel_4a_ioaw
+                aangewezen_op_artikel_4a_ioaz: $aangewezen_op_artikel_4a_ioaz
+                aangewezen_op_vrijwilligerswerk: $aangewezen_op_vrijwilligerswerk
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+                datum_maatregel_artikel_18_vierde_lid: $datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+          - name: toekenning_artikel_4_derde_lid
+            type: boolean
+            source:
+              output: toekenning_artikel_4_derde_lid
+              parameters:
+                ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt: $ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt
+                volledig_arbeidsongeschikt_artikel_9_vijfde_lid: $volledig_arbeidsongeschikt_artikel_9_vijfde_lid
+                ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c: $ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c
+                ontheffing_artikel_9_tweede_lid: $ontheffing_artikel_9_tweede_lid
+                ontheffing_artikel_37a_ioaw: $ontheffing_artikel_37a_ioaw
+                ontheffing_artikel_37a_ioaz: $ontheffing_artikel_37a_ioaz
+                duur_ontheffing_maanden: $duur_ontheffing_maanden
+                ontheffing_arbeidsinschakeling_artikel_9a: $ontheffing_arbeidsinschakeling_artikel_9a
+                ontheffing_arbeidsinschakeling_artikel_38_ioaw: $ontheffing_arbeidsinschakeling_artikel_38_ioaw
+                ontheffing_arbeidsinschakeling_artikel_38_ioaz: $ontheffing_arbeidsinschakeling_artikel_38_ioaz
+                medisch_urenbeperkt_artikel_6b: $medisch_urenbeperkt_artikel_6b
+                medisch_urenbeperkt_artikel_4b_ioaw: $medisch_urenbeperkt_artikel_4b_ioaw
+                medisch_urenbeperkt_artikel_4b_ioaz: $medisch_urenbeperkt_artikel_4b_ioaz
+                vrijlating_artikel_31_tweede_lid_onderdeel_z: $vrijlating_artikel_31_tweede_lid_onderdeel_z
+                vrijlating_artikel_8_zevende_lid_ioaw: $vrijlating_artikel_8_zevende_lid_ioaw
+                vrijlating_artikel_8_elfde_lid_ioaz: $vrijlating_artikel_8_elfde_lid_ioaz
+                aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a: $aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw: $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw
+                aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz: $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz
+                duur_aangewezen_op_ondersteuning_maanden: $duur_aangewezen_op_ondersteuning_maanden
+                aangewezen_op_participatieplaats_artikel_10a: $aangewezen_op_participatieplaats_artikel_10a
+                aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7: $aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7
+                aangewezen_op_artikel_4a_ioaw: $aangewezen_op_artikel_4a_ioaw
+                aangewezen_op_artikel_4a_ioaz: $aangewezen_op_artikel_4a_ioaz
+                aangewezen_op_vrijwilligerswerk: $aangewezen_op_vrijwilligerswerk
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+                datum_maatregel_artikel_18_vierde_lid: $datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+          - name: geen_recht_artikel_5
+            type: boolean
+            source:
+              output: geen_recht_artikel_5
+              parameters:
+                datum_maatregel_artikel_18_vierde_lid: $datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: afwijzing_artikel_5_derde_lid
+            type: boolean
+            source:
+              output: afwijzing_artikel_5_derde_lid
+              parameters:
+                datum_maatregel_artikel_18_vierde_lid: $datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+        output:
+          - name: artikel_3_en_artikel_4_botsen
+            type: boolean
+            description: >-
+              Of belanghebbende zowel onder artikel 3, eerste lid, als onder artikel 4, eerste lid, valt. Dan zegt
+              artikel 3 "geen recht" en artikel 4 "recht"; de beleidsregels geven geen voorrang (W9).
+          - name: recht_op_iit_volgens_beleidsregels
+            type: boolean
+            nullable: true
+            description: >-
+              Of belanghebbende recht heeft op een individuele inkomenstoeslag zoals deze beleidsregels dat vaststellen.
+              Afwezig als artikel 3 en artikel 4 botsen. Dit is alleen de beoordeling van het uitzicht op
+              inkomensverbetering en de inspanningen; de andere voorwaarden van artikel 36 Participatiewet en de
+              verordening staan hier niet in.
+        actions:
+          - output: artikel_3_en_artikel_4_botsen
+            value:
+              operation: AND
+              conditions:
+                - $geen_recht_artikel_3
+                - $geen_uitzicht_op_inkomensverbetering_artikel_4
+          - output: recht_op_iit_volgens_beleidsregels
+            value:
+              operation: IF
+              cases:
+                - when: $geen_recht_artikel_5
+                  then: false
+                - when: $artikel_3_en_artikel_4_botsen
+                  then: null
+                - when: $geen_recht_artikel_3
+                  then: false
+                - when: $recht_artikel_4_tweede_lid
+                  then: true
+                - when: $afwijzing_artikel_3_derde_lid
+                  then: false
+                - when: $afwijzing_artikel_5_derde_lid
+                  then: false
+                - when: $toekenning_artikel_4_derde_lid
+                  then: true
+              default: $oordeel_college_recht_op_iit
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '2'
+              paragraph: '3'
+              explanation: >-
+                "Het college stelt het recht ... vast met inachtneming van deze beleidsregels." Artikel 5 gaat voor
+                artikel 4, omdat artikel 4 zelf "tenzij artikel 5" zegt; artikel 3 en artikel 5 wijzen dezelfde kant
+                op. Tussen artikel 3 en artikel 4 bestaat geen voorrangsregel (W9): dan geen uitkomst. De derde leden
+                gelden elk alleen buiten het eigen eerste lid. Geldt geen van de regels, dan beslist het college zelf
+                in het individuele geval (eerste lid).
+  - number: '3'
+    text: |-
+      **Uitzicht op inkomensverbetering**
+
+      1. Uitzicht op inkomensverbetering heeft de belanghebbende die op de peildatum een opleiding volgt als genoemd in de
+      Wet tegemoetkoming onderwijsbijdrage en schoolkosten (WTOS) dan wel een studie genoemd in de Wet studiefinanciering
+      (WSF 2000) volgt of deze opleiding of studie op enig moment tijdens de referteperiode heeft gevolgd.
+
+      2. Belanghebbende als genoemd in het voorgaande lid heeft geen recht op individuele inkomenstoeslag.
+
+      3. Wanneer in een andere situatie dan genoemd in het eerste lid door het college kan worden vastgesteld dat sprake is
+      van uitzicht op inkomensverbetering, dan kan het college eveneens de aanvraag om individuele inkomenstoeslag afwijzen.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_3_Uitzicht_op_inkomensverbetering
+    machine_readable:
+      open_terms:
+        - id: afwijzing_op_grond_van_artikel_3_derde_lid
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 3, derde lid)
+          description: >-
+            Of het college, in een andere situatie dan die van het eerste lid, vaststelt dat sprake is van uitzicht
+            op inkomensverbetering en de aanvraag daarom afwijst.
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          - name: volgt_op_peildatum_opleiding_wtos
+            type: boolean
+            required: false
+            description: Of belanghebbende op de peildatum een opleiding volgt als genoemd in de WTOS.
+          - name: volgt_op_peildatum_studie_wsf_2000
+            type: boolean
+            required: false
+            description: Of belanghebbende op de peildatum een studie volgt als genoemd in de WSF 2000.
+          - name: laatste_dag_opleiding_wtos
+            type: date
+            required: false
+            nullable: true
+            description: >-
+              De laatste dag waarop belanghebbende een opleiding als genoemd in de WTOS volgde; leeg als hij die nooit
+              volgde.
+          - name: laatste_dag_studie_wsf_2000
+            type: date
+            required: false
+            nullable: true
+            description: >-
+              De laatste dag waarop belanghebbende een studie als genoemd in de WSF 2000 volgde; leeg als hij die nooit
+              volgde.
+          - name: heeft_aanvraag_om_iit_ingediend
+            type: boolean
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_aanvraag
+            type: date
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+        input:
+          - name: is_belanghebbende
+            type: boolean
+            source:
+              output: is_belanghebbende
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: referteperiode_begin
+            type: date
+            source:
+              output: referteperiode_begin
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+        output:
+          - name: heeft_uitzicht_op_inkomensverbetering_artikel_3
+            type: boolean
+          - name: geen_recht_artikel_3
+            type: boolean
+          - name: afwijzing_artikel_3_derde_lid
+            type: boolean
+        actions:
+          - output: heeft_uitzicht_op_inkomensverbetering_artikel_3
+            value:
+              operation: AND
+              conditions:
+                - $is_belanghebbende
+                - operation: OR
+                  conditions:
+                    - $volgt_op_peildatum_opleiding_wtos
+                    - $volgt_op_peildatum_studie_wsf_2000
+                    - operation: IF
+                      cases:
+                        - when:
+                            operation: EQUALS
+                            subject: $laatste_dag_opleiding_wtos
+                            value: null
+                          then: false
+                      default:
+                        operation: GREATER_THAN_OR_EQUAL
+                        subject: $laatste_dag_opleiding_wtos
+                        value: $referteperiode_begin
+                    - operation: IF
+                      cases:
+                        - when:
+                            operation: EQUALS
+                            subject: $laatste_dag_studie_wsf_2000
+                            value: null
+                          then: false
+                      default:
+                        operation: GREATER_THAN_OR_EQUAL
+                        subject: $laatste_dag_studie_wsf_2000
+                        value: $referteperiode_begin
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '3'
+              paragraph: '1'
+              explanation: >-
+                Uitzicht op inkomensverbetering heeft wie op de peildatum een WTOS-opleiding of WSF-studie volgt, of
+                die "op enig moment tijdens de referteperiode heeft gevolgd": de laatste dag van de opleiding of studie
+                valt op of na het begin van de referteperiode. Welke opleidingen de WTOS en de WSF 2000 noemen, bepalen
+                die wetten; ze staan niet in het corpus, dus belanghebbende geeft het als feit.
+          - output: geen_recht_artikel_3
+            value: $heeft_uitzicht_op_inkomensverbetering_artikel_3
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '3'
+              paragraph: '2'
+              explanation: >-
+                "heeft geen recht op individuele inkomenstoeslag". De uitsluiting is categorisch, zonder de
+                individuele afweging die artikel 36 Participatiewet vraagt (W7).
+          - output: afwijzing_artikel_3_derde_lid
+            value:
+              operation: IF
+              cases:
+                - when: $heeft_uitzicht_op_inkomensverbetering_artikel_3
+                  then: false
+                - when:
+                    operation: EQUALS
+                    subject: $afwijzing_op_grond_van_artikel_3_derde_lid
+                    value: null
+                  then: false
+              default: $afwijzing_op_grond_van_artikel_3_derde_lid
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '3'
+              paragraph: '3'
+              explanation: >-
+                Alleen "in een andere situatie dan genoemd in het eerste lid": waar het eerste lid geldt, is er niets
+                af te wegen. Anders "kan" het college afwijzen; die beslissing is per geval. Geeft het college geen
+                oordeel (leeg), dan heeft het de bevoegdheid niet gebruikt.
+  - number: '4'
+    text: |-
+      **Geen uitzicht op inkomensverbetering**
+
+      1. Geen uitzicht op inkomensverbetering heeft de belanghebbende die op de peildatum:
+
+         a. een arbeidsongeschiktheidsuitkering ontvangt op basis van volledige arbeidsongeschiktheid;
+
+         b. volledig arbeidsongeschikt is als bedoeld in artikel 9, vijfde lid van de wet;
+
+         c. een ontheffing heeft van de arbeidsverplichtingen genoemd in artikel 9, eerste lid met uitzondering van onderdeel
+         c, of tweede lid van de wet dan wel artikel 37a van de IOAW of IOAZ, voor meer dan zes maanden;
+
+         d. op grond van artikel 9a van de wet dan wel artikel 38 IOAW of IOAZ een ontheffing van de plicht tot
+         arbeidsinschakeling heeft;
+
+         e. op grond van artikel 6b van de wet dan wel 4b van de IOAW of IOAZ medisch urenbeperkt is, waarbij een vrijlating
+         van inkomsten zoals bedoeld in artikel 31, tweede lid, onderdeel z van de wet dan wel artikel 8, zevende lid van de
+         IOAW of artikel 8, elfde lid van de IOAZ van toepassing is;
+
+         f. voor zijn arbeidsinschakeling gedurende een periode van meer dan 12 maanden aangewezen is op ondersteuning bij
+         re-integratie als bedoeld in artikel 7, eerste lid, onderdeel a van de wet dan wel artikel 36, eerste lid van de
+         IOAW of IOAZ;
+
+         g. voor de eerste stap om tot arbeidsinschakeling te komen is aangewezen op een participatieplaats als bedoeld in
+         artikel 10a van de wet of sociale activering als bedoeld in artikel 6, eerste lid, onderdeel a, sub 7 van de wet dan
+         wel artikel 4a van de IOAW of IOAZ, of voor zijn maatschappelijke participatie is aangewezen op vrijwilligerswerk.
+
+      2. Belanghebbende als genoemd in voorgaande lid heeft recht op individuele inkomenstoeslag tenzij artikel 5 van
+      toepassing is. .
+
+      3. Wanneer in een andere situatie dan genoemd in het eerste lid door het college kan worden vastgesteld dat geen sprake
+      is van uitzicht op inkomensverbetering en artikel 5 is niet van toepassing, dan kan het college eveneens de aanvraag om
+      individuele inkomenstoeslag toekennen.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_4_Geen_uitzicht_op_inkomensverbetering
+    machine_readable:
+      open_terms:
+        - id: toekenning_op_grond_van_artikel_4_derde_lid
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 4, derde lid)
+          description: >-
+            Of het college, in een andere situatie dan die van het eerste lid, vaststelt dat geen sprake is van uitzicht
+            op inkomensverbetering en de aanvraag daarom toekent.
+      definitions:
+        # Onder c: "voor meer dan zes maanden"
+        duur_ontheffing:
+          value: 6
+          type: number
+          type_spec:
+            unit: months
+        # Onder f: "gedurende een periode van meer dan 12 maanden"
+        duur_ondersteuning_reintegratie:
+          value: 12
+          type: number
+          type_spec:
+            unit: months
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          # Onder a en b.
+          - name: ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt
+            type: boolean
+            required: false
+            description: >-
+              Onder a: of belanghebbende op de peildatum een arbeidsongeschiktheidsuitkering ontvangt op basis van
+              volledige arbeidsongeschiktheid. Welke uitkeringen dat zijn, zeggen de beleidsregels niet (W13).
+          - name: volledig_arbeidsongeschikt_artikel_9_vijfde_lid
+            type: boolean
+            required: false
+            description: 'Onder b: volledig arbeidsongeschikt als bedoeld in artikel 9, vijfde lid, van de wet.'
+          # Onder c.
+          - name: ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c
+            type: boolean
+            required: false
+            description: >-
+              Onder c: een ontheffing van de arbeidsverplichtingen van artikel 9, eerste lid, van de wet, met
+              uitzondering van onderdeel c.
+          - name: ontheffing_artikel_9_tweede_lid
+            type: boolean
+            required: false
+            description: 'Onder c: een ontheffing op grond van artikel 9, tweede lid, van de wet.'
+          - name: ontheffing_artikel_37a_ioaw
+            type: boolean
+            required: false
+            description: 'Onder c: een ontheffing op grond van artikel 37a van de IOAW.'
+          - name: ontheffing_artikel_37a_ioaz
+            type: boolean
+            required: false
+            description: 'Onder c: een ontheffing op grond van artikel 37a van de IOAZ.'
+          - name: duur_ontheffing_maanden
+            type: number
+            required: false
+            description: >-
+              Onder c: de duur van de ontheffing in maanden. Of het om de totale of de resterende duur op de peildatum
+              gaat, zegt de tekst niet (vraag U6).
+          # Onder d.
+          - name: ontheffing_arbeidsinschakeling_artikel_9a
+            type: boolean
+            required: false
+            description: 'Onder d: een ontheffing van de plicht tot arbeidsinschakeling op grond van artikel 9a van de wet.'
+          - name: ontheffing_arbeidsinschakeling_artikel_38_ioaw
+            type: boolean
+            required: false
+            description: 'Onder d: een ontheffing op grond van artikel 38 van de IOAW.'
+          - name: ontheffing_arbeidsinschakeling_artikel_38_ioaz
+            type: boolean
+            required: false
+            description: 'Onder d: een ontheffing op grond van artikel 38 van de IOAZ.'
+          # Onder e.
+          - name: medisch_urenbeperkt_artikel_6b
+            type: boolean
+            required: false
+            description: 'Onder e: medisch urenbeperkt op grond van artikel 6b van de wet.'
+          - name: medisch_urenbeperkt_artikel_4b_ioaw
+            type: boolean
+            required: false
+            description: 'Onder e: medisch urenbeperkt op grond van artikel 4b van de IOAW.'
+          - name: medisch_urenbeperkt_artikel_4b_ioaz
+            type: boolean
+            required: false
+            description: 'Onder e: medisch urenbeperkt op grond van artikel 4b van de IOAZ.'
+          - name: vrijlating_artikel_31_tweede_lid_onderdeel_z
+            type: boolean
+            required: false
+            description: >-
+              Onder e: een vrijlating van inkomsten als bedoeld in artikel 31, tweede lid, onderdeel z, van de wet is van
+              toepassing. Sinds 1 januari 2016 is onderdeel z de vrijlating bij loonkostensubsidie, niet die bij een
+              medische urenbeperking (onderdeel y); het model volgt de tekst (W1).
+          - name: vrijlating_artikel_8_zevende_lid_ioaw
+            type: boolean
+            required: false
+            description: 'Onder e: een vrijlating als bedoeld in artikel 8, zevende lid, van de IOAW is van toepassing.'
+          - name: vrijlating_artikel_8_elfde_lid_ioaz
+            type: boolean
+            required: false
+            description: 'Onder e: een vrijlating als bedoeld in artikel 8, elfde lid, van de IOAZ is van toepassing.'
+          # Onder f.
+          - name: aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a
+            type: boolean
+            required: false
+            description: >-
+              Onder f: aangewezen op ondersteuning bij re-integratie als bedoeld in artikel 7, eerste lid, onderdeel a, van
+              de wet.
+          - name: aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw
+            type: boolean
+            required: false
+            description: 'Onder f: aangewezen op ondersteuning als bedoeld in artikel 36, eerste lid, van de IOAW.'
+          - name: aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz
+            type: boolean
+            required: false
+            description: 'Onder f: aangewezen op ondersteuning als bedoeld in artikel 36, eerste lid, van de IOAZ.'
+          - name: duur_aangewezen_op_ondersteuning_maanden
+            type: number
+            required: false
+            description: >-
+              Onder f: de periode in maanden waarin belanghebbende voor zijn arbeidsinschakeling op die ondersteuning is
+              aangewezen. Of dat een verwachting of een terugblik is, zegt de tekst niet (vraag U5).
+          # Onder g.
+          - name: aangewezen_op_participatieplaats_artikel_10a
+            type: boolean
+            required: false
+            description: >-
+              Onder g: voor de eerste stap aangewezen op een participatieplaats als bedoeld in artikel 10a van de wet.
+          - name: aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7
+            type: boolean
+            required: false
+            description: >-
+              Onder g: aangewezen op sociale activering als bedoeld in artikel 6, eerste lid, onderdeel a, sub 7, van de
+              wet. Dat onderdeel heeft nooit bestaan; sociale activering staat in artikel 6, eerste lid, onderdeel c
+              (W2). Het model volgt de tekst.
+          - name: aangewezen_op_artikel_4a_ioaw
+            type: boolean
+            required: false
+            description: 'Onder g: aangewezen op sociale activering als bedoeld in artikel 4a van de IOAW.'
+          - name: aangewezen_op_artikel_4a_ioaz
+            type: boolean
+            required: false
+            description: 'Onder g: aangewezen op sociale activering als bedoeld in artikel 4a van de IOAZ.'
+          - name: aangewezen_op_vrijwilligerswerk
+            type: boolean
+            required: false
+            description: >-
+              Onder g: voor zijn maatschappelijke participatie aangewezen op vrijwilligerswerk. Welk besluit dat
+              vastlegt, zegt de tekst niet (vraag U7).
+          - name: heeft_aanvraag_om_iit_ingediend
+            type: boolean
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_aanvraag
+            type: date
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_maatregel_artikel_18_vierde_lid
+            type: date
+            required: false
+            nullable: true
+            description: Zie artikel 5; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_maatregel_afstemmingsverordening_artikel_6_of_7
+            type: date
+            required: false
+            nullable: true
+            description: Zie artikel 5; doorgegeven aan de bindingen van dit artikel.
+        input:
+          - name: is_belanghebbende
+            type: boolean
+            source:
+              output: is_belanghebbende
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: artikel_5_van_toepassing
+            type: boolean
+            source:
+              output: artikel_5_van_toepassing
+              parameters:
+                datum_maatregel_artikel_18_vierde_lid: $datum_maatregel_artikel_18_vierde_lid
+                datum_maatregel_afstemmingsverordening_artikel_6_of_7: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+        output:
+          - name: geen_uitzicht_op_inkomensverbetering_artikel_4
+            type: boolean
+          - name: recht_artikel_4_tweede_lid
+            type: boolean
+          - name: toekenning_artikel_4_derde_lid
+            type: boolean
+        actions:
+          - output: geen_uitzicht_op_inkomensverbetering_artikel_4
+            value:
+              operation: AND
+              conditions:
+                - $is_belanghebbende
+                - operation: OR
+                  conditions:
+                    - $ontvangt_arbeidsongeschiktheidsuitkering_volledig_arbeidsongeschikt
+                    - $volledig_arbeidsongeschikt_artikel_9_vijfde_lid
+                    - operation: AND
+                      conditions:
+                        - operation: OR
+                          conditions:
+                            - $ontheffing_artikel_9_eerste_lid_behalve_onderdeel_c
+                            - $ontheffing_artikel_9_tweede_lid
+                            - $ontheffing_artikel_37a_ioaw
+                            - $ontheffing_artikel_37a_ioaz
+                        - operation: GREATER_THAN
+                          subject: $duur_ontheffing_maanden
+                          value: $duur_ontheffing
+                    - operation: OR
+                      conditions:
+                        - $ontheffing_arbeidsinschakeling_artikel_9a
+                        - $ontheffing_arbeidsinschakeling_artikel_38_ioaw
+                        - $ontheffing_arbeidsinschakeling_artikel_38_ioaz
+                    - operation: AND
+                      conditions:
+                        - operation: OR
+                          conditions:
+                            - $medisch_urenbeperkt_artikel_6b
+                            - $medisch_urenbeperkt_artikel_4b_ioaw
+                            - $medisch_urenbeperkt_artikel_4b_ioaz
+                        - operation: OR
+                          conditions:
+                            - $vrijlating_artikel_31_tweede_lid_onderdeel_z
+                            - $vrijlating_artikel_8_zevende_lid_ioaw
+                            - $vrijlating_artikel_8_elfde_lid_ioaz
+                    - operation: AND
+                      conditions:
+                        - operation: OR
+                          conditions:
+                            - $aangewezen_op_ondersteuning_artikel_7_eerste_lid_onderdeel_a
+                            - $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaw
+                            - $aangewezen_op_ondersteuning_artikel_36_eerste_lid_ioaz
+                        - operation: GREATER_THAN
+                          subject: $duur_aangewezen_op_ondersteuning_maanden
+                          value: $duur_ondersteuning_reintegratie
+                    - operation: OR
+                      conditions:
+                        - $aangewezen_op_participatieplaats_artikel_10a
+                        - $aangewezen_op_sociale_activering_artikel_6_eerste_lid_onderdeel_a_sub_7
+                        - $aangewezen_op_artikel_4a_ioaw
+                        - $aangewezen_op_artikel_4a_ioaz
+                        - $aangewezen_op_vrijwilligerswerk
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '4'
+              paragraph: '1'
+              explanation: >-
+                Onder a tot en met g, elk op de peildatum; "dan wel" en "of" geven per grondslag een eigen gegeven. De
+                verwijzingen onder e (onderdeel z) en onder g (sub 7) zijn gevolgd zoals ze er staan (W1, W2).
+          - output: recht_artikel_4_tweede_lid
+            value:
+              operation: AND
+              conditions:
+                - $geen_uitzicht_op_inkomensverbetering_artikel_4
+                - operation: NOT
+                  value: $artikel_5_van_toepassing
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '4'
+              paragraph: '2'
+              explanation: >-
+                "heeft recht op individuele inkomenstoeslag tenzij artikel 5 van toepassing is". Het recht hangt hier
+                alleen af van het uitzicht en de inspanningen; de wettelijke voorwaarden van artikel 36 (leeftijd,
+                langdurig laag inkomen, vermogen) noemt het lid niet (W6). Het lid botst met artikel 3, tweede lid, als
+                beide gelden (W9); artikel 2 laat die botsing zien.
+          - output: toekenning_artikel_4_derde_lid
+            value:
+              operation: IF
+              cases:
+                - when: $geen_uitzicht_op_inkomensverbetering_artikel_4
+                  then: false
+                - when: $artikel_5_van_toepassing
+                  then: false
+                - when:
+                    operation: EQUALS
+                    subject: $toekenning_op_grond_van_artikel_4_derde_lid
+                    value: null
+                  then: false
+              default: $toekenning_op_grond_van_artikel_4_derde_lid
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '4'
+              paragraph: '3'
+              explanation: >-
+                Alleen in een andere situatie dan die van het eerste lid, en alleen als "artikel 5 ... niet van
+                toepassing" is. Dan "kan" het college toekennen; die beslissing is per geval.
+  - number: '5'
+    text: |-
+      **Niet voldoende inspanningen verricht**
+
+      1. Geen of onvoldoende inspanningen om tot inkomensverbetering te komen heeft de belanghebbende verricht die in het
+      peiljaar een maatregel opgelegd heeft gekregen wegens het niet voldoen aan de arbeidsverplichtingen als bedoeld in
+      artikel 18, vierde lid van de wet of de artikelen 6 en 7 van de Afstemmingsverordening Participatiewet, IOAW en IOAZ
+      2015.
+
+      2. Belanghebbende als genoemd in het voorgaande lid heeft geen recht op individuele inkomenstoeslag.
+
+      3. Wanneer in een andere situatie dan genoemd in het eerste lid door het college kan worden vastgesteld geen of
+      onvoldoende inspanningen zijn verricht om tot inkomensverbetering te komen, dan kan het college eveneens de aanvraag om
+      individuele inkomenstoeslag afwijzen.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_5_Niet_voldoende_inspanningen_verricht
+    machine_readable:
+      open_terms:
+        - id: afwijzing_op_grond_van_artikel_5_derde_lid
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 5, derde lid)
+          description: >-
+            Of het college, in een andere situatie dan die van het eerste lid, vaststelt dat geen of onvoldoende
+            inspanningen zijn verricht om tot inkomensverbetering te komen en de aanvraag daarom afwijst.
+      execution:
+        produces:
+          legal_character: TOETS
+        parameters:
+          - name: datum_maatregel_artikel_18_vierde_lid
+            type: date
+            required: false
+            nullable: true
+            description: >-
+              De datum waarop belanghebbende het laatst een maatregel opgelegd kreeg wegens het niet voldoen aan de
+              arbeidsverplichtingen als bedoeld in artikel 18, vierde lid, van de wet; leeg als dat niet gebeurde.
+              Welke datum telt (gedraging, besluit of verlaging), zegt de tekst niet (vraag U9); het model neemt de
+              dag van het opleggen.
+          - name: datum_maatregel_afstemmingsverordening_artikel_6_of_7
+            type: date
+            required: false
+            nullable: true
+            description: >-
+              Idem, voor een maatregel op grond van de artikelen 6 en 7 van de Afstemmingsverordening Participatiewet,
+              IOAW en IOAZ 2015 van Groningen.
+          - name: heeft_aanvraag_om_iit_ingediend
+            type: boolean
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+          - name: datum_aanvraag
+            type: date
+            required: true
+            description: Zie artikel 1; doorgegeven aan de bindingen van dit artikel.
+        input:
+          - name: is_belanghebbende
+            type: boolean
+            source:
+              output: is_belanghebbende
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: peildatum
+            type: date
+            source:
+              output: peildatum
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+          - name: peiljaar_begin
+            type: date
+            source:
+              output: peiljaar_begin
+              parameters:
+                heeft_aanvraag_om_iit_ingediend: $heeft_aanvraag_om_iit_ingediend
+                datum_aanvraag: $datum_aanvraag
+        output:
+          - name: onvoldoende_inspanningen_artikel_5
+            type: boolean
+          - name: geen_recht_artikel_5
+            type: boolean
+          - name: afwijzing_artikel_5_derde_lid
+            type: boolean
+          - name: artikel_5_van_toepassing
+            type: boolean
+        actions:
+          - output: onvoldoende_inspanningen_artikel_5
+            value:
+              operation: AND
+              conditions:
+                - $is_belanghebbende
+                - operation: OR
+                  conditions:
+                    - operation: IF
+                      cases:
+                        - when:
+                            operation: EQUALS
+                            subject: $datum_maatregel_artikel_18_vierde_lid
+                            value: null
+                          then: false
+                      default:
+                        operation: AND
+                        conditions:
+                          - operation: GREATER_THAN_OR_EQUAL
+                            subject: $datum_maatregel_artikel_18_vierde_lid
+                            value: $peiljaar_begin
+                          - operation: LESS_THAN
+                            subject: $datum_maatregel_artikel_18_vierde_lid
+                            value: $peildatum
+                    - operation: IF
+                      cases:
+                        - when:
+                            operation: EQUALS
+                            subject: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+                            value: null
+                          then: false
+                      default:
+                        operation: AND
+                        conditions:
+                          - operation: GREATER_THAN_OR_EQUAL
+                            subject: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+                            value: $peiljaar_begin
+                          - operation: LESS_THAN
+                            subject: $datum_maatregel_afstemmingsverordening_artikel_6_of_7
+                            value: $peildatum
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '5'
+              paragraph: '1'
+              explanation: >-
+                "in het peiljaar een maatregel opgelegd heeft gekregen": de dag van het opleggen valt in de twaalf
+                maanden voor de peildatum. Artikel 18, vierde lid, van de wet vervalt met Stb. 2025, 312 (onderdeel L,
+                op een nog te bepalen datum); dan verwijst dit lid naar iets anders (W4). De afstemmingsverordening van
+                Groningen staat niet in het corpus, dus het gegeven komt van belanghebbende.
+          - output: geen_recht_artikel_5
+            value: $onvoldoende_inspanningen_artikel_5
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '5'
+              paragraph: '2'
+              explanation: >-
+                "heeft geen recht op individuele inkomenstoeslag"; categorisch, zoals artikel 3, tweede lid (W7).
+          - output: afwijzing_artikel_5_derde_lid
+            value:
+              operation: IF
+              cases:
+                - when: $onvoldoende_inspanningen_artikel_5
+                  then: false
+                - when:
+                    operation: EQUALS
+                    subject: $afwijzing_op_grond_van_artikel_5_derde_lid
+                    value: null
+                  then: false
+              default: $afwijzing_op_grond_van_artikel_5_derde_lid
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '5'
+              paragraph: '3'
+              explanation: >-
+                Alleen in een andere situatie dan die van het eerste lid; dan "kan" het college afwijzen, per geval.
+          - output: artikel_5_van_toepassing
+            value:
+              operation: OR
+              conditions:
+                - $onvoldoende_inspanningen_artikel_5
+                - $afwijzing_artikel_5_derde_lid
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: '5'
+              explanation: >-
+                Artikel 4 vraagt of "artikel 5 van toepassing is". Dat is zo als het eerste lid geldt, of als het
+                college op grond van het derde lid afwijst.
+  - number: 5a
+    text: |-
+      **Ambtshalve toekenning**
+
+      De individuele inkomenstoeslag kan ambtshalve worden verstrekt indien het college beschikt over de daarvoor benodigde
+      informatie.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_5a
+    machine_readable:
+      open_terms:
+        - id: college_beschikt_over_benodigde_informatie
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 5a)
+          description: Of het college beschikt over de informatie die nodig is om de toeslag ambtshalve te verstrekken.
+      execution:
+        produces:
+          legal_character: TOETS
+        output:
+          - name: kan_ambtshalve_worden_verstrekt
+            type: boolean
+        actions:
+          - output: kan_ambtshalve_worden_verstrekt
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $college_beschikt_over_benodigde_informatie
+                    value: null
+                  then: false
+              default: $college_beschikt_over_benodigde_informatie
+            legal_basis:
+              law: Beleidsregels individuele inkomenstoeslag Participatiewet (Beleidsregels IIT)
+              article: 5a
+              explanation: >-
+                De toeslag "kan ambtshalve worden verstrekt indien het college beschikt over de daarvoor benodigde
+                informatie". De tekst zegt niet "in afwijking van"; alleen de toelichting doet dat (Gmb 2023, 70999).
+                Daarom geen override. Tot 1 januari 2027 vraagt artikel 36 Participatiewet een aanvraag, en de
+                verordening een verzoek op een formulier (W5). Zonder aanvraag is er bovendien geen peildatum en geen
+                belanghebbende (W8), dus de toetsen van de artikelen 3 tot en met 5 lopen niet.
+  - number: '6'
+    text: |-
+      **Inwerkingtreding**
+
+      Deze beleidsregels treden in werking op 1 januari 2016.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_6_Inwerkingtreding
+    machine_readable:
+      # De beleidsregels zijn in werking getreden op 1 januari 2016. De valid_from in de kop is de
+      # inwerkingtreding van deze geconsolideerde versie (18 februari 2023), niet van de beleidsregels zelf.
+      declares:
+        - property: valid_from
+          value: '2016-01-01'
+  - number: '7'
+    text: |-
+      **Citeertitel**
+
+      Deze beleidsregels worden aangehaald als: Beleidsregels IIT.
+    url: https://lokaleregelgeving.overheid.nl/CVDR390767/3#artikel_7_Citeertitel
+    machine_readable:
+      declares:
+        - property: name
+          value: Beleidsregels IIT

@@ -131,6 +131,38 @@ pub(crate) fn opvolgen(
     Ok(Some(feit))
 }
 
+/// The other cells of the case that the case's cell asks something of by its
+/// own policy when an application comes in: for each article of
+/// `bij_aanvraag` in force on `on`, the cells that record a receipt of the
+/// fact it has the case's cell record, in the order of the case and each
+/// once. For the parking card that is the GGD, which receives the request
+/// for an examination, and not the court, which the municipality asks
+/// nothing. A deployment reads from this which parties do work of their own
+/// in the process and so may run on a server of their own.
+///
+/// # Errors
+///
+/// When an article of `bij_aanvraag` is set up wrongly ([`feit_van`]), or
+/// the article of its fact cannot be read.
+pub fn gevraagde_cellen(corpus: &Corpus, cellen: &Cellen, on: NaiveDate) -> Result<Vec<String>> {
+    let service = corpus.service()?;
+    let mut asked: Vec<String> = Vec::new();
+    for opvolging in &corpus.casus.bij_aanvraag {
+        let Some(feit) = feit_van(&service, opvolging, cellen.eigen.authority(), on)? else {
+            continue;
+        };
+        for cell in &cellen.andere {
+            let name = cell.recording_actor();
+            if shape::receipt_of(&service, &feit, on, cell.authority())?.is_some()
+                && !asked.iter().any(|c| c == name)
+            {
+                asked.push(name.to_string());
+            }
+        }
+    }
+    Ok(asked)
+}
+
 /// The fact the case's cell records by the article of `opvolging` on `on`,
 /// if that article is in force ([`vorm`]).
 ///

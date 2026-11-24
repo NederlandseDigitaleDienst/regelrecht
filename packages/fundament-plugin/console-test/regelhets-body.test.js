@@ -1,6 +1,6 @@
 // What the wizard builds: the RegelHet and the Secret of a private
 // repository, and the checks that say what is wrong before the API server
-// refuses it. Run with `node --test packages/fundament-plugin/console-test/`.
+// refuses it. Run with `node --test packages/fundament-plugin/console-test/*.test.js`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,6 +9,8 @@ import {
   addresses,
   buildSecret,
   buildRegelHet,
+  fsc4bDiscoveryUrl,
+  keycloakSecretName,
   commitError,
   hostnameError,
   pathError,
@@ -35,7 +37,7 @@ test('a public casus on the latest version leaves out what the plugin defaults',
     kind: 'RegelHet',
     metadata: { name: 'zorgtoeslag', namespace: 'tnt-voorbeeld--regelhet' },
     spec: {
-      manifest: { repoUrl: 'https://git.example.org/casus/a.git', ref: 'main', path: 'packages/regelhet/bron.yaml' },
+      manifest: { repoUrl: 'https://git.example.org/casus/a.git', ref: 'main', path: 'bron.yaml' },
       hostname: 'zorgtoeslag',
     },
   });
@@ -55,15 +57,22 @@ test('a private casus names its Secret, and the Secret is owned by the RegelHet'
     { apiVersion: 'regelhet.regelrecht.nl/v1alpha1', kind: 'RegelHet', name: 'zorgtoeslag', uid: 'uid-1' },
   ]);
   assert.deepEqual(secret.stringData, { username: 'lezer', token: 't0k3n' });
+  // The token is for the one copy of the casus: the plugin deletes it after.
+  assert.deepEqual(secret.metadata.annotations, { 'regelhet.regelrecht.nl/delete-after-snapshot': 'true' });
 });
 
 test('an own domain names the object after its first label', () => {
   const w = buildRegelHet({ ...base, hostname: 'zorg.example.nl' });
   assert.equal(w.metadata.name, 'zorg');
-  assert.deepEqual(addresses('zorg.example.nl'), { burger: 'zorg.example.nl', medewerkers: 'medewerkers.zorg.example.nl' });
+  assert.deepEqual(addresses('zorg.example.nl'), {
+    burger: 'zorg.example.nl',
+    medewerkers: 'medewerkers.zorg.example.nl',
+    login: 'zorg-login.example.nl',
+  });
   assert.deepEqual(addresses('zorgtoeslag', 'c.example.org'), {
     burger: 'zorgtoeslag.c.example.org',
     medewerkers: 'zorgtoeslag-medewerkers.c.example.org',
+    login: 'zorgtoeslag-login.c.example.org',
   });
 });
 
@@ -96,4 +105,29 @@ test('the badge follows the phase', () => {
   assert.equal(phaseBadge({ status: { phase: 'Ready' } }).color, 'success');
   assert.equal(phaseBadge({ status: { phase: 'Failed' } }).color, 'critical');
   assert.equal(phaseBadge({}).text, 'Bezig');
+});
+
+test('stable mode asks for the Keycloak of the chart; test mode says nothing', () => {
+  assert.equal(buildRegelHet(base).spec.auth, undefined);
+  const w = buildRegelHet({ ...base, stable: true, testAccounts: true });
+  assert.deepEqual(w.spec.auth, { mode: 'stable', testAccounts: true });
+  assert.deepEqual(buildRegelHet({ ...base, stable: true }).spec.auth, { mode: 'stable', testAccounts: false });
+  assert.equal(keycloakSecretName('zorgtoeslag'), 'zorgtoeslag-keycloak');
+});
+
+test('FSC voor Burgers is in the spec only when chosen, and never in stable mode', () => {
+  assert.equal(buildRegelHet(base).spec.fsc4b, undefined);
+  assert.deepEqual(buildRegelHet({ ...base, fsc4b: true }).spec.fsc4b, { enabled: true });
+  assert.equal(buildRegelHet({ ...base, fsc4b: true, stable: true }).spec.fsc4b, undefined);
+});
+
+test('the discovery URL of FSC voor Burgers is on the citizens\' host', () => {
+  assert.equal(fsc4bDiscoveryUrl('a', 'cluster.example.org'), 'https://a.cluster.example.org/fsc4b/discovery');
+  assert.equal(fsc4bDiscoveryUrl('zorg.example.nl'), 'https://zorg.example.nl/fsc4b/discovery');
+});
+
+test('parties get an environment of their own only when chosen, and never in stable mode', () => {
+  assert.equal(buildRegelHet(base).spec.parties, undefined);
+  assert.deepEqual(buildRegelHet({ ...base, ownParties: true }).spec.parties, { ownInstances: true });
+  assert.equal(buildRegelHet({ ...base, ownParties: true, stable: true }).spec.parties, undefined);
 });

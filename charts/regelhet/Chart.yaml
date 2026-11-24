@@ -2,13 +2,15 @@
 apiVersion: v2
 name: regelhet
 description: >-
-  The regelrecht RegelHet for one case: the server in test mode, an
-  instance per side on one PostgreSQL database, the case cloned from a public
-  git repository at start.
+  The regelrecht RegelHet for one case: the server in test mode or,
+  logging in through a Keycloak of its own, in stable mode, an instance per
+  side on one PostgreSQL database, the case cloned from a public git
+  repository at start; or, with voorkant, the front of an organisation over
+  several such processes.
 type: application
-version: 0.3.0
+version: 0.8.0
 # The commit of the RegelHet image the chart was tested with.
-appVersion: acc91563
+appVersion: 737890ad
 home: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026
 sources:
   - https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026

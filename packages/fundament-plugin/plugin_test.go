@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,7 +118,9 @@ func TestValidateSpec(t *testing.T) {
 		"plain http":             func(w *v1alpha1.RegelHet) { w.Spec.Manifest.RepoURL = "http://git.example.org/a.git" },
 		"a full ref":             func(w *v1alpha1.RegelHet) { w.Spec.Manifest.Ref = "refs/heads/main" },
 		"a path out of the repo": func(w *v1alpha1.RegelHet) { w.Spec.Manifest.Path = "../etc/passwd" },
-		"a label too long":       func(w *v1alpha1.RegelHet) { w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345" },
+		"a label too long": func(w *v1alpha1.RegelHet) {
+			w.Spec.Hostname = "a234567890123456789012345678901234567890123456789012345"
+		},
 	} {
 		w := newRegelHet("a", "a")
 		mutate(w)
@@ -126,14 +131,15 @@ func TestValidateSpec(t *testing.T) {
 func TestChartValuesFollowTheSpec(t *testing.T) {
 	t.Parallel()
 	w := newRegelHet("zorgtoeslag", "zorgtoeslag")
-	values := chartValues(w, validConfig())
+	values := chartValues(w, validConfig(), testSnapshot)
 	_, pinned := values["image"]
 	assert.False(t, pinned, "without a version the chart's own image.ref, the latest build of main, must count")
 	assert.Equal(t, map[string]any{
-		"repoUrl": "https://git.example.org/casus/a.git",
-		"ref":     "main",
-		"path":    "packages/regelhet/bron.yaml",
-	}, values["case"])
+		"repoUrl":  "https://git.example.org/casus/a.git",
+		"ref":      "main",
+		"path":     "bron.yaml",
+		"snapshot": map[string]any{"configMaps": []any{"zorgtoeslag-case-0123456789-0"}},
+	}, values["case"], "the pods get the snapshot")
 	assert.Equal(t, "zorgtoeslag.cluster.example.org", values["host"])
 	assert.Equal(t, map[string]any{
 		"burger":     map[string]any{"host": "zorgtoeslag.cluster.example.org"},
@@ -143,9 +149,11 @@ func TestChartValuesFollowTheSpec(t *testing.T) {
 	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
 	w.Spec.Theme.AccentColor = "paars"
 	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "zorgtoeslag-repo"}
-	values = chartValues(w, validConfig())
+	values = chartValues(w, validConfig(), testSnapshot)
 	assert.Equal(t, map[string]any{"ref": "registry.example.org/regelrecht/regelhet:0123456789abcdef0123456789abcdef01234567"}, values["image"])
 	assert.Equal(t, map[string]any{"accentColor": "paars"}, values["theme"])
+	// Named for the chart of an older version only: with a snapshot the
+	// chart mounts no Secret (CI checks the render).
 	assert.Equal(t, "zorgtoeslag-repo", values["case"].(map[string]any)["credentialsSecret"])
 }
 
@@ -173,20 +181,66 @@ func TestChartValuesExistInChart(t *testing.T) {
 	w := newRegelHet("a", "a")
 	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
 	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "a-repo"}
-	check("", chartValues(w, validConfig()), chart)
+	check("", chartValues(w, validConfig(), testSnapshot), chart)
+	w.Spec.Auth = v1alpha1.Auth{Mode: v1alpha1.AuthStable, TestAccounts: true}
+	check("", chartValues(w, validConfig(), testSnapshot), chart)
+	w.Spec.Auth = v1alpha1.Auth{}
+	w.Spec.Fsc4b.Enabled = true
+	check("", chartValues(w, validConfig(), testSnapshot), chart)
+	// With a party on a release of its own: both releases' values.
+	w.Spec.Parties.OwnInstances = true
+	party := v1alpha1.PartyStatus{Cell: "ggd_voorbeeld", URL: "https://a-ggd-voorbeeld.cluster.example.org/"}
+	w.Status.Parties, w.Status.ExecutorCell = []v1alpha1.PartyStatus{party}, "gemeente_voorbeeld"
+	check("", chartValues(w, validConfig(), testSnapshot), chart)
+	check("", partyValues(w, validConfig(), party), chart)
 }
 
+// testSnapshot is a snapshot for chartValues.
+var testSnapshot = &snapshot{commit: strings.Repeat("c", 40), configMaps: []string{"zorgtoeslag-case-0123456789-0"}}
+
+// newReconciler is a reconciler on a fake cluster with objs, where each
+// RegelHet among them has its snapshot already, so a reconcile goes on to
+// the release.
 func newReconciler(t *testing.T, objs ...client.Object) *RegelHetReconciler {
+	t.Helper()
+	for _, obj := range objs {
+		if w, ok := obj.(*v1alpha1.RegelHet); ok {
+			objs = append(objs, snapshotConfigMap(w, snapshotSource(w), "0123456789", 0, 1))
+		}
+	}
+	return newBareReconciler(t, objs...)
+}
+
+// snapshotConfigMap is part i of n of a snapshot of w as storeSnapshot makes it.
+func snapshotConfigMap(w *v1alpha1.RegelHet, source, hash string, i, n int) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-case-%s-%d", w.Name, hash, i),
+			Namespace: w.Namespace,
+			Labels: map[string]string{
+				managedByLabel: fieldOwner, nameLabel: w.Name, componentLabel: snapshotComponent, sourceLabel: source,
+			},
+			Annotations: map[string]string{commitAnnotation: strings.Repeat("c", 40), partsAnnotation: fmt.Sprint(n)},
+		},
+		BinaryData: map[string][]byte{snapshotKey: []byte("x")},
+	}
+}
+
+// newBareReconciler is a reconciler on a fake cluster with objs only.
+func newBareReconciler(t *testing.T, objs ...client.Object) *RegelHetReconciler {
 	t.Helper()
 	scheme, err := buildScheme()
 	require.NoError(t, err)
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(objs...).
-		WithStatusSubresource(&v1alpha1.RegelHet{}).
+		WithStatusSubresource(&v1alpha1.RegelHet{}, &v1alpha1.Organisatie{}).
 		Build()
-	return &RegelHetReconciler{Client: c, Scheme: scheme, Config: validConfig()}
+	return &RegelHetReconciler{Client: c, Uncached: c, Namespaces: c, Scheme: scheme, Config: validConfig(), Now: func() time.Time { return testNow }}
 }
+
+// testNow is the clock of the tests; a pod from releasePod is ten seconds old.
+var testNow = time.Date(2026, 11, 24, 9, 0, 0, 0, time.UTC)
 
 func reconcileOnce(t *testing.T, r *RegelHetReconciler, w *v1alpha1.RegelHet) *v1alpha1.RegelHet {
 	t.Helper()
@@ -339,9 +393,13 @@ func TestTheEmbeddedCRDIsTheOneTheDefinitionNames(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"metadata"`
 	}
-	require.NoError(t, yaml.Unmarshal(regelhetCRD, &crd))
-	assert.Equal(t, crdName, crd.Metadata.Name)
-	assert.Equal(t, []string{crdName}, loadSourceDefinition(t).Spec.CRDs)
+	names := make([]string, 0, len(pluginCRDs))
+	for _, c := range pluginCRDs {
+		require.NoError(t, yaml.Unmarshal(c.yaml, &crd))
+		assert.Equal(t, c.name, crd.Metadata.Name)
+		names = append(names, c.name)
+	}
+	assert.Equal(t, names, loadSourceDefinition(t).Spec.CRDs)
 }
 
 func TestSummary(t *testing.T) {

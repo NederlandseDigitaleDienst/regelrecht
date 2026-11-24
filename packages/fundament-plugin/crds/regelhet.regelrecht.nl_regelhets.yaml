@@ -18,8 +18,15 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
+    - jsonPath: .spec.auth.mode
+      name: Auth
+      type: string
     - jsonPath: .status.url
       name: URL
+      type: string
+    - jsonPath: .status.snapshot.commit
+      name: Commit
+      priority: 1
       type: string
     - jsonPath: .status.backofficeUrl
       name: Medewerkers
@@ -55,6 +62,35 @@ spec:
           spec:
             description: RegelHetSpec is one RegelHet.
             properties:
+              auth:
+                description: Auth is how people log in. Empty is the test login.
+                properties:
+                  mode:
+                    default: test
+                    description: |-
+                      Mode is test (the test login) or stable (a Keycloak of its own on
+                      <hostname>-login, beside the other addresses).
+                    enum:
+                    - test
+                    - stable
+                    type: string
+                  testAccounts:
+                    description: |-
+                      TestAccounts gives the Keycloak of stable mode the test accounts of the
+                      case, all with one password the chart generates. For a test setup
+                      only; without them, accounts are made in Keycloak itself.
+                    type: boolean
+                type: object
+              fsc4b:
+                description: Fsc4b is FSC voor Burgers. Empty is off.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled offers the citizens' routes to an app that proves who the
+                      citizen is with a credential, on the demo Stelsel with a test
+                      Activatiedienst that checks no identity. Test mode only.
+                    type: boolean
+                type: object
               hostname:
                 description: |-
                   Hostname is the address: a name under the plugin's base domain
@@ -72,6 +108,11 @@ spec:
                     description: |-
                       CredentialsSecretRef names a Secret with the keys `username` and
                       `token`, for a private repository. The token needs read access only.
+                      Only the Job that copies the case reads it, at install and after a
+                      change of the manifest; the pods of the release never do. With the
+                      annotation regelhet.regelrecht.nl/delete-after-snapshot: "true" the
+                      plugin deletes the Secret after that copy, and a later change of the
+                      manifest needs a new one.
                     properties:
                       name:
                         description: Name of the Secret.
@@ -82,8 +123,10 @@ spec:
                     - name
                     type: object
                   path:
-                    default: packages/regelhet/bron.yaml
-                    description: Path of the manifest inside the repository.
+                    default: bron.yaml
+                    description: |-
+                      Path of the manifest inside the repository: bron.yaml at the root of a
+                      manifest repository, packages/regelhet/bron.yaml in regelrecht itself.
                     pattern: ^[^/\s]\S*$
                     type: string
                   ref:
@@ -98,6 +141,41 @@ spec:
                     type: string
                 required:
                 - repoUrl
+                type: object
+              organisatie:
+                description: |-
+                  Organisatie puts this regelhet on the list of an Organisatie in the
+                  same Fundament project, behind its front. The regelhet keeps its own
+                  addresses. Empty runs it on its own.
+                properties:
+                  name:
+                    description: Name of the Organisatie.
+                    maxLength: 40
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace of the Organisatie; empty is the namespace of the
+                      RegelHet. It must be a namespace of the same Fundament project.
+                    maxLength: 63
+                    type: string
+                required:
+                - name
+                type: object
+              parties:
+                description: |-
+                  Parties says where the external parties of the case work. Empty
+                  leaves them to the admin panel.
+                properties:
+                  ownInstances:
+                    description: |-
+                      OwnInstances gives each external party that the executor asks
+                      something of by its own policy a release of its own, where its staff
+                      log in, linked with the executor's. Which parties those are follows
+                      from the regelwerken of the case: the running server names them, and
+                      a case that asks no party for anything gets none. Off, an admin
+                      enters what every external party did. Test mode only.
+                    type: boolean
                 type: object
               theme:
                 description: Theme is how the screens look.
@@ -130,13 +208,23 @@ spec:
               version:
                 description: |-
                   Version is the regelrecht commit whose regelhet image runs, the full
-                  40-character hash. Empty follows the latest build of main.
+                  40-character hash, and whose chart installs it. Empty follows main: the
+                  chart on main and the latest build it names.
                 pattern: ^([0-9a-f]{40})?$
                 type: string
             required:
             - hostname
             - manifest
             type: object
+            x-kubernetes-validations:
+            - message: 'parties.ownInstances links the releases with keys made at
+                start: test mode only'
+              rule: '!(has(self.parties) && has(self.parties.ownInstances) && self.parties.ownInstances
+                && has(self.auth) && has(self.auth.mode) && self.auth.mode == ''stable'')'
+            - message: 'fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst
+                checks no identity: test mode only'
+              rule: '!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled
+                && has(self.auth) && has(self.auth.mode) && self.auth.mode == ''stable'')'
           status:
             description: RegelHetStatus is what the plugin last saw.
             properties:
@@ -144,7 +232,9 @@ spec:
                 description: BackofficeURL is where employees do.
                 type: string
               conditions:
-                description: Conditions are Ready and ReleaseReady.
+                description: |-
+                  Conditions are Ready, SnapshotReady and ReleaseReady, and
+                  OrganisatieGevonden with spec.organisatie.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -203,6 +293,27 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              executorCell:
+                description: |-
+                  ExecutorCell is the cell of the case the executor's release works
+                  for, which a party's release names as its peer; set with Parties.
+                type: string
+              fsc4bDiscoveryUrl:
+                description: |-
+                  Fsc4bDiscoveryURL is the discovery configuration of FSC voor Burgers,
+                  where an app finds the services; empty when it is off.
+                type: string
+              keycloakSecret:
+                description: |-
+                  KeycloakSecret names the Secret in the namespace of this RegelHet
+                  that the chart generates for stable mode: the Keycloak admin password
+                  (user admin) under admin-password, and the password of the test
+                  accounts under test-password. Only the name, never a value.
+                type: string
+              loginUrl:
+                description: LoginURL is the Keycloak of stable mode; empty in test
+                  mode.
+                type: string
               message:
                 description: Message says why the phase is what it is.
                 type: string
@@ -211,8 +322,56 @@ spec:
                   status is about.
                 format: int64
                 type: integer
+              parties:
+                description: |-
+                  Parties are the external parties that run on a release of their own,
+                  as the running server last named them; empty when none does.
+                items:
+                  description: PartyStatus is an external party that runs on a release
+                    of its own.
+                  properties:
+                    cell:
+                      description: Cell is the party as the case names it.
+                      type: string
+                    name:
+                      description: Name is what a screen calls it.
+                      type: string
+                    url:
+                      description: URL is where its staff log in.
+                      type: string
+                  required:
+                  - cell
+                  - url
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - cell
+                x-kubernetes-list-type: map
               phase:
                 description: Phase is Pending, Ready or Failed.
+                type: string
+              snapshot:
+                description: |-
+                  Snapshot is the copy of the case that the release runs: the commit it
+                  was taken from and the ConfigMaps that hold it.
+                properties:
+                  commit:
+                    description: |-
+                      Commit is the full hash of the commit of manifest.ref the copy was
+                      taken from.
+                    type: string
+                  configMaps:
+                    description: |-
+                      ConfigMaps hold the copy, a tar.gz of the manifest and the files it
+                      names, in parts of at most 900 KiB, in this order.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              token:
+                description: |-
+                  Token says whether the Secret in credentialsSecretRef is still in the
+                  namespace: Present or Absent; empty without credentialsSecretRef.
                 type: string
               url:
                 description: URL is where citizens use the RegelHet.

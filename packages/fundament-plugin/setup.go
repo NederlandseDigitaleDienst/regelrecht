@@ -25,8 +25,24 @@ import (
 //go:embed crds/regelhet.regelrecht.nl_regelhets.yaml
 var regelhetCRD []byte
 
-// crdName is the name of that CRD, as definition.yaml lists it in spec.crds.
+// organisatieCRD is the CRD of the Organisatie resource, generated the same
+// way.
+//
+//go:embed crds/regelhet.regelrecht.nl_organisaties.yaml
+var organisatieCRD []byte
+
+// crdName is the name of the RegelHet CRD, as definition.yaml lists it in
+// spec.crds.
 const crdName = "regelhets.regelhet.regelrecht.nl"
+
+// organisatieCRDName is the name of the Organisatie CRD.
+const organisatieCRDName = "organisaties.regelhet.regelrecht.nl"
+
+// pluginCRDs are the CRDs the plugin installs, with their names.
+var pluginCRDs = []struct {
+	name string
+	yaml []byte
+}{{crdName, regelhetCRD}, {organisatieCRDName, organisatieCRD}}
 
 // fluxCRDs are the CRDs the plugin's objects need: Flux does the installing.
 var fluxCRDs = []string{"gitrepositories.source.toolkit.fluxcd.io", "helmreleases.helm.toolkit.fluxcd.io"}
@@ -38,11 +54,15 @@ func setUp(ctx context.Context, kube client.Client) error {
 	if err := crd.VerifyAll(ctx, kube, fluxCRDs); err != nil {
 		return fmt.Errorf("the plugin needs Flux on the cluster: %w", err)
 	}
-	if err := applyCRD(ctx, kube); err != nil {
-		return err
+	names := make([]string, 0, len(pluginCRDs))
+	for _, c := range pluginCRDs {
+		if err := applyCRD(ctx, kube, c.name, c.yaml); err != nil {
+			return err
+		}
+		names = append(names, c.name)
 	}
-	if err := crd.WaitEstablished(ctx, kube, []string{crdName}); err != nil {
-		return fmt.Errorf("wait for the RegelHet CRD: %w", err)
+	if err := crd.WaitEstablished(ctx, kube, names); err != nil {
+		return fmt.Errorf("wait for the CRDs: %w", err)
 	}
 	if err := applyUserRoles(ctx, kube); err != nil {
 		return fmt.Errorf("apply user roles: %w", err)
@@ -50,20 +70,21 @@ func setUp(ctx context.Context, kube client.Client) error {
 	return nil
 }
 
-// applyCRD server-side applies the embedded CRD.
-func applyCRD(ctx context.Context, kube client.Client) error {
+// applyCRD server-side applies an embedded CRD.
+func applyCRD(ctx context.Context, kube client.Client, name string, raw []byte) error {
 	obj := &unstructured.Unstructured{}
-	if err := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(regelhetCRD), 4096).Decode(&obj.Object); err != nil {
-		return fmt.Errorf("decode the RegelHet CRD: %w", err)
+	if err := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(raw), 4096).Decode(&obj.Object); err != nil {
+		return fmt.Errorf("decode the CRD %s: %w", name, err)
 	}
 	//nolint:staticcheck // client.Apply with an unstructured object is the simplest SSA path here.
 	if err := kube.Patch(ctx, obj, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
-		return fmt.Errorf("apply the RegelHet CRD: %w", err)
+		return fmt.Errorf("apply the CRD %s: %w", name, err)
 	}
 	return nil
 }
 
-// userRoles are the rights project members get on RegelHet instances. Fundament
+// userRoles are the rights project members get on RegelHet instances and
+// organisaties. Fundament
 // binds project admins to ClusterRole/admin and viewers to view in their
 // namespaces; these roles aggregate into both. A console page acts with the
 // rights the user and the plugin share, so without them nobody could create a
@@ -73,7 +94,7 @@ func userRoles() []*rbacv1.ClusterRole {
 	rules := func(verbs ...string) []rbacv1.PolicyRule {
 		return []rbacv1.PolicyRule{{
 			APIGroups: []string{v1alpha1.GroupVersion.Group},
-			Resources: []string{"regelhets"},
+			Resources: []string{"regelhets", "organisaties"},
 			Verbs:     verbs,
 		}}
 	}

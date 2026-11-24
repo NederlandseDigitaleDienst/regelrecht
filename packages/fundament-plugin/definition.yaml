@@ -4,11 +4,12 @@ kind: PluginDefinition
 metadata:
   name: regelhet
   displayName: RegelHet
-  version: v0.2.0
+  version: v0.6.0
   description: >-
     Offers the regelrecht RegelHet to the projects of a cluster.
     Installed once per cluster; project members then create a regelhet per
-    case from the console, each on its own address with its own database.
+    case from the console, each on its own address with its own database, and
+    an organisatie that puts several of them behind one front.
   author: regelrecht
   license: EUPL-1.2
   icon: document
@@ -62,7 +63,7 @@ spec:
 
   permissions:
     rbac:
-      # Install time: the plugin's own CRD. get for the establishment wait;
+      # Install time: the plugin's own CRDs. get for the establishment wait;
       # patch for the server-side apply. create cannot be kept to one name.
       - apiGroups: [apiextensions.k8s.io]
         resources: [customresourcedefinitions]
@@ -71,12 +72,13 @@ spec:
         resources: [customresourcedefinitions]
         resourceNames:
           - regelhets.regelhet.regelrecht.nl
+          - organisaties.regelhet.regelrecht.nl
           # The check that Flux is there.
           - gitrepositories.source.toolkit.fluxcd.io
           - helmreleases.helm.toolkit.fluxcd.io
         verbs: [get, patch]
-      # The roles that let project admins and viewers use RegelHet instances
-      # (setup.go). They grant nothing the plugin does not hold itself.
+      # The roles that let project admins and viewers use RegelHet instances and
+      # organisaties (setup.go). They grant nothing the plugin does not hold itself.
       - apiGroups: [rbac.authorization.k8s.io]
         resources: [clusterroles]
         verbs: [create]
@@ -87,16 +89,27 @@ spec:
       # The controller and the console pages: the pages act with the rights
       # the user and the plugin share, so the plugin holds what the wizard and
       # the detail page do (create, delete).
+      # An organisatie is one front for several RegelHet instances, with the same
+      # rights as a RegelHet.
       - apiGroups: [regelhet.regelrecht.nl]
-        resources: [regelhets]
+        resources: [regelhets, organisaties]
         verbs: [get, list, watch, create, update, patch, delete]
       - apiGroups: [regelhet.regelrecht.nl]
-        resources: [regelhets/status]
+        resources: [regelhets/status, organisaties/status]
         verbs: [get, update, patch]
       # Owner references with blockOwnerDeletion need update on finalizers.
       - apiGroups: [regelhet.regelrecht.nl]
-        resources: [regelhets/finalizers]
+        resources: [regelhets/finalizers, organisaties/finalizers]
         verbs: [update]
+      # Namespaces, get only: a RegelHet may join an organisatie in another
+      # namespace only when both namespaces carry the same
+      # fundament.io/project-id label, so no project puts a RegelHet behind
+      # the front of another (organisatie.go, sameProject). Without list or
+      # watch the plugin reads only the two namespaces it names; the names
+      # are not known in advance, so resourceNames cannot narrow this.
+      - apiGroups: ['']
+        resources: [namespaces]
+        verbs: [get]
       # Flux, which the cluster already runs, does the rest: helm-controller
       # installs the chart with its own service account.
       - apiGroups: [source.toolkit.fluxcd.io]
@@ -105,13 +118,49 @@ spec:
       - apiGroups: [helm.toolkit.fluxcd.io]
         resources: [helmreleases]
         verbs: [get, list, watch, create, patch, update, delete]
-      # The wizard makes the Secret with the token of a private case
-      # repository. Create only: neither the plugin nor its pages read one.
+      # The pods of each release, read only: a container that keeps failing
+      # turns the RegelHet Failed with its reason, long before Helm's
+      # install timeout.
+      - apiGroups: ['']
+        resources: [pods]
+        verbs: [get, list, watch]
+      # Secrets, without list or watch, so the plugin can see no Secret it
+      # does not name. create: the wizard makes the Secret with the token of
+      # a private case repository. get and delete: after a RegelHet is
+      # deleted, the plugin reads <name>-keycloak, the Secret the chart's Job
+      # generated for its Keycloak, and deletes it when it carries the
+      # chart's labels for that release (controller.go,
+      # deleteKeycloakSecret). The same for <name>-organisatie, the signing
+      # key of the front of a deleted Organisatie (organisatie.go). After a
+      # snapshot of the case it reads the token Secret of
+      # credentialsSecretRef, and deletes it when it is annotated
+      # regelhet.regelrecht.nl/delete-after-snapshot: "true" (snapshot.go,
+      # deleteToken). The names are not known in advance, so resourceNames
+      # cannot narrow this, and Fundament grants a ClusterRole.
+      # The console pages only create; they never read a Secret.
       - apiGroups: ['']
         resources: [secrets]
-        verbs: [create]
+        verbs: [create, get, delete]
+      # The snapshot of the case (snapshot.go): a Job per RegelHet and
+      # manifest clones the case repository once, with the token, and writes
+      # a tar.gz of the files the manifest names to its log. The plugin
+      # watches its own Jobs by label, reads that log (pods/log), stores the
+      # tar.gz in ConfigMaps the chart unpacks, and deletes the Job and the
+      # ConfigMaps of an older snapshot. ConfigMaps are listed by label past
+      # the cache, so no watch on them; the pods of the release then need no
+      # Secret and no network to git.
+      - apiGroups: [batch]
+        resources: [jobs]
+        verbs: [create, get, list, watch, delete]
+      - apiGroups: ['']
+        resources: [configmaps]
+        verbs: [create, get, list, delete]
+      - apiGroups: ['']
+        resources: [pods/log]
+        verbs: [get]
   crds:
     - regelhets.regelhet.regelrecht.nl
+    - organisaties.regelhet.regelrecht.nl
 
   menu:
     project:
@@ -119,19 +168,33 @@ spec:
         list: true
         detail: true
         icon: document
-        label: RegelHet
-        singularLabel: RegelHet
+        label: Procedures
+        singularLabel: Procedure
+      - crd: organisaties.regelhet.regelrecht.nl
+        list: true
+        detail: true
+        icon: building
+        label: Organisaties
+        singularLabel: Organisatie
 
   customComponents:
     RegelHet:
       list: regelhets-list.html
       detail: regelhets-detail.html
       create: regelhets-create.html
+    Organisatie:
+      list: organisaties-list.html
+      detail: organisaties-detail.html
+      create: organisaties-create.html
 
   allowedResources:
     - group: regelhet.regelrecht.nl
       version: v1alpha1
       resource: regelhets
+      verbs: [list, get, create, delete]
+    - group: regelhet.regelrecht.nl
+      version: v1alpha1
+      resource: organisaties
       verbs: [list, get, create, delete]
     - group: ''
       version: v1
@@ -140,6 +203,19 @@ spec:
 
   uiHints:
     regelhets.regelhet.regelrecht.nl:
+      statusMapping:
+        jsonPath: .status.phase
+        values:
+          Ready:
+            badge: success
+            label: Draait
+          Failed:
+            badge: danger
+            label: Mislukt
+        default:
+          badge: warning
+          label: Bezig
+    organisaties.regelhet.regelrecht.nl:
       statusMapping:
         jsonPath: .status.phase
         values:

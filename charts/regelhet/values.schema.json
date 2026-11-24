@@ -61,6 +61,19 @@
         "credentialsSecret": {
           "type": "string",
           "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+        },
+        "snapshot": {
+          "type": "object",
+          "properties": {
+            "configMaps": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+              }
+            }
+          }
         }
       }
     },
@@ -68,7 +81,10 @@
       "type": "object",
       "properties": {
         "mode": {
-          "const": "test"
+          "enum": [
+            "test",
+            "stable"
+          ]
         },
         "surface": {
           "enum": [
@@ -78,7 +94,10 @@
           ]
         },
         "login": {
-          "const": "testlogin"
+          "enum": [
+            "testlogin",
+            "oidc"
+          ]
         }
       },
       "not": {
@@ -256,6 +275,104 @@
         }
       }
     },
+    "fsc4b": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "voorkant": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/definitions/objectIdOrEmpty"
+        },
+        "naam": {
+          "type": "string"
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^$|^https://[^\\s]+$"
+        },
+        "processen": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "naam",
+              "burger",
+              "backoffice"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/objectId"
+              },
+              "naam": {
+                "type": "string",
+                "minLength": 1
+              },
+              "burger": {
+                "$ref": "#/definitions/procesSide"
+              },
+              "backoffice": {
+                "$ref": "#/definitions/procesSide"
+              }
+            }
+          }
+        },
+        "keyImage": {
+          "type": "object",
+          "required": [
+            "ref"
+          ],
+          "properties": {
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "organisatie": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/objectIdOrEmpty"
+        },
+        "naam": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^$|^https://[^\\s/]+/?$"
+        },
+        "medewerkersUrl": {
+          "type": "string",
+          "pattern": "^$|^https://[^\\s/]+/?$"
+        },
+        "sleutelUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://[^\\s]+$"
+        },
+        "sleutelJwk": {
+          "type": "string"
+        }
+      }
+    },
     "theme": {
       "type": "object",
       "properties": {
@@ -280,6 +397,246 @@
             "roze",
             "violet"
           ]
+        }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "properties": {
+        "issuerUrl": {
+          "type": "string",
+          "pattern": "^(https://[^\\s]+/realms/[^/\\s]+)?$"
+        },
+        "requiredRole": {
+          "type": "string",
+          "pattern": "^regelhet-"
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "clients": {
+          "type": "object",
+          "required": [
+            "burger",
+            "backoffice"
+          ],
+          "properties": {
+            "burger": {
+              "type": "object",
+              "required": [
+                "clientId",
+                "secretKey"
+              ],
+              "properties": {
+                "clientId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "secretKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[-._a-zA-Z0-9]+$"
+                }
+              }
+            },
+            "backoffice": {
+              "type": "object",
+              "required": [
+                "clientId",
+                "secretKey"
+              ],
+              "properties": {
+                "clientId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "secretKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[-._a-zA-Z0-9]+$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "keycloak": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+        },
+        "image": {
+          "type": "object",
+          "required": [
+            "ref"
+          ],
+          "properties": {
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        },
+        "realm": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "testUsers": {
+          "type": "boolean"
+        },
+        "testPasswordKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[-._a-zA-Z0-9]+$"
+        },
+        "database": {
+          "type": "object",
+          "properties": {
+            "instances": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "storage": {
+              "type": "object",
+              "required": [
+                "size"
+              ],
+              "properties": {
+                "size": {
+                  "type": "string",
+                  "pattern": "^[0-9]+(Mi|Gi|Ti)$"
+                },
+                "storageClass": {
+                  "type": "string"
+                }
+              }
+            },
+            "resources": {
+              "type": "object"
+            }
+          }
+        },
+        "resources": {
+          "type": "object"
+        },
+        "secretsJob": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "object",
+              "required": [
+                "ref"
+              ],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pullPolicy": {
+                  "enum": [
+                    "Always",
+                    "IfNotPresent",
+                    "Never"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "realmImport": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "keycloakCRName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "secretName": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "koppeling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "partij": {
+          "type": "string"
+        },
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cel",
+              "url"
+            ],
+            "properties": {
+              "cel": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https?://"
+              },
+              "sleutel": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "keySecret": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "objectId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?/[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "objectIdOrEmpty": {
+      "type": "string",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?/[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "procesSide": {
+      "type": "object",
+      "required": [
+        "intern",
+        "publiek"
+      ],
+      "properties": {
+        "intern": {
+          "type": "string",
+          "pattern": "^https?://[^\\s/]+(:[0-9]+)?/?$"
+        },
+        "publiek": {
+          "type": "string",
+          "pattern": "^https://[^\\s/]+/?$"
         }
       }
     }

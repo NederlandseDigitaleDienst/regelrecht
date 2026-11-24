@@ -24,7 +24,7 @@ metadata:
     {{- include "regelhet.labels" . | nindent 4 }}
 spec:
   endpoints:
-    {{- range include "regelhet.instances" . | fromJsonArray }}
+    {{- range include "regelhet.routes" . | fromJsonArray }}
     - dnsName: {{ .host }}
       recordType: A
       recordTTL: {{ $.Values.dns.ttl }}

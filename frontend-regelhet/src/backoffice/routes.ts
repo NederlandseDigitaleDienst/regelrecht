@@ -13,8 +13,11 @@ export const backofficeRoutes: RouteRecordRaw[] = [
     meta: {
       kant: 'backoffice',
       tabs: [
-        { naam: 'werkvoorraad', tekst: 'Aanvragen', pad: '/backoffice', icoon: 'inbox', ook: ['behandelen'] },
-        { naam: 'kroniek', tekst: 'Kroniek', pad: '/backoffice/kroniek', icoon: 'history' },
+        { naam: 'werkvoorraad', tekst: 'Aanvragen', pad: '/backoffice', icoon: 'inbox', ook: ['behandelen'], recht: 'uitvoerder' },
+        { naam: 'kroniek', tekst: 'Kroniek', pad: '/backoffice/kroniek', icoon: 'history', recht: 'uitvoerder' },
+        // On the server of an external party, the same screen under the name
+        // its own staff know it by.
+        { naam: 'beheer', tekst: 'Verzoeken', pad: '/backoffice/beheer', icoon: 'inbox', ook: ['beheer-behandelen'], recht: 'partij' },
         {
           naam: 'beheer',
           tekst: 'Beheerpaneel',

@@ -1094,6 +1094,54 @@ poc: poc-build
 regelhet:
     REGELHET_MODE=test REGELHET_PORT="${REGELHET_PORT:-7180}" \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+
+# The individuele inkomenstoeslag of Groningen as a second case of the
+# RegelHet, beside the parking card, on http://localhost:7181. The
+# case, its profiles and the demo route are in
+# packages/regelhet/iit-groningen/README.md.
+regelhet-iit:
+    REGELHET_MODE=test REGELHET_PORT="${REGELHET_PORT:-7181}" \
+    REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml \
+    cargo run --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+# An organisation in front of two processes, in test mode: the parking card
+# on http://localhost:7184, the IIT of Groningen on :7185, and the front of the
+# organisation (REGELHET_ROL=organisatie) on both sides at
+# http://localhost:7186. The processes fetch the front's key from it. Log in
+# at the front and a tile opens a process without a second login. A browser
+# keeps cookies per host, not per port, so the tiles lead to 127.0.0.1: the
+# front's session on localhost stays apart from the processes'. Stop all
+# three with Ctrl-C. Build the screens first (`npm run build -w
+# frontend-regelhet`) to see them.
+regelhet-organisatie:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+    dir="$(mktemp -d)"
+    cat > "$dir/processen.yaml" <<YAML
+    processen:
+      - id: lokaal/parkeerkaart
+        naam: parkeerkaart
+        burger: { intern: 'http://localhost:7184', publiek: 'http://127.0.0.1:7184' }
+        backoffice: { intern: 'http://localhost:7184', publiek: 'http://127.0.0.1:7184' }
+      - id: lokaal/iit-groningen
+        naam: iit-groningen
+        burger: { intern: 'http://localhost:7185', publiek: 'http://127.0.0.1:7185' }
+        backoffice: { intern: 'http://localhost:7185', publiek: 'http://127.0.0.1:7185' }
+    YAML
+    trap 'kill 0' EXIT
+    run=(cargo run -q --manifest-path packages/Cargo.toml --package regelrecht-regelhet)
+    member=(REGELHET_MODE=test REGELHET_ORGANISATIE_ID=lokaal/wilgendaal \
+      "REGELHET_ORGANISATIE_NAAM=Gemeente Wilgendaal" \
+      REGELHET_ORGANISATIE_URL=http://localhost:7186 \
+      REGELHET_ORGANISATIE_SLEUTEL_URL=http://localhost:7186/organisatie/v1/sleutel)
+    env "${member[@]}" REGELHET_PORT=7184 REGELHET_PROCES_ID=lokaal/parkeerkaart "${run[@]}" &
+    env "${member[@]}" REGELHET_PORT=7185 REGELHET_PROCES_ID=lokaal/iit-groningen \
+      REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml "${run[@]}" &
+    env REGELHET_MODE=test REGELHET_ROL=organisatie REGELHET_PORT=7186 \
+      REGELHET_ORGANISATIE_ID=lokaal/wilgendaal "REGELHET_ORGANISATIE_NAAM=Gemeente Wilgendaal" \
+      REGELHET_PROCESSEN="$dir/processen.yaml" "${run[@]}" &
+    wait
+
 # Start de wetsgeschiedenis los, op http://localhost:8420/wetsgeschiedenis/
 #
 # Bouwt de frontend met hetzelfde voorvoegsel als achter het portaal, zodat

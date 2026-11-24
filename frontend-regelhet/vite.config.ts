@@ -20,6 +20,8 @@ const api = process.env.REGELHET_API ?? 'http://localhost:7180';
 //   session cookie, for the environment of citizens;
 // - `--mode backoffice`: the back office's entry (backoffice.html), for the
 //   environment of employees;
+// - `--mode organisatie`: the front of an organisation (organisatie.html),
+//   for a server in the role `organisatie`, on either side;
 // - `--mode app`: the citizen's entry with the transport of the Tauri app,
 //   into dist-app/, which the shell in src-tauri/ embeds as burger.html.
 // The citizen's entry chooses its transport through the import `#vervoer`
@@ -35,6 +37,7 @@ const builds: Record<string, Build> = {
   all: { entry: 'index.html', outDir: 'dist/all', index: false },
   burger: { entry: 'burger.html', outDir: 'dist/burger', vervoer: 'cookie', index: true },
   backoffice: { entry: 'backoffice.html', outDir: 'dist/backoffice', index: true },
+  organisatie: { entry: 'organisatie.html', outDir: 'dist/organisatie', index: true },
   app: { entry: 'burger.html', outDir: 'dist-app', vervoer: 'tauri', index: false },
 };
 

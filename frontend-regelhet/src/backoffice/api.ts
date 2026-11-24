@@ -64,6 +64,8 @@ export interface Partij {
 export interface Partijen {
   uitvoerder: { cel: string; cel_naam: string };
   partijen: Partij[];
+  /** The parties with a server of their own, linked with this one: nothing is entered for them here. */
+  gekoppeld?: { cel: string; cel_naam: string }[];
   /** The facts by which a party answers a request, such as the GGD's advice: with a request open, it records them from that request. */
   antwoord_op_verzoek: string[];
 }

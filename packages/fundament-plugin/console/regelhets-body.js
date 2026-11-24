@@ -11,9 +11,9 @@ export const REGELHET_RESOURCE = {
 
 export const SECRET_RESOURCE = { group: '', version: 'v1', resource: 'secrets' };
 
-export const DEFAULT_REPO_URL = 'https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git';
 export const DEFAULT_REF = 'main';
-export const DEFAULT_PATH = 'packages/regelhet/bron.yaml';
+// A manifest repository has its bron.yaml at the root.
+export const DEFAULT_PATH = 'bron.yaml';
 
 // The themes of the NLDD design system, which the server takes as its
 // accent colour (packages/regelhet/src/theme.rs). The CRD lists the same.
@@ -71,7 +71,7 @@ export function refError(value) {
 export function pathError(value) {
   if (!value) return null;
   if (value.startsWith('/') || value.includes('..') || /\s/.test(value)) {
-    return 'Een pad binnen de repository, zoals packages/regelhet/bron.yaml.';
+    return 'Een pad binnen de repository, zoals bron.yaml.';
   }
   return null;
 }
@@ -112,8 +112,22 @@ export function nameFromHostname(hostname) {
 // `domain` standing for the base domain of the installation, which a page
 // cannot read.
 export function addresses(hostname, domain = '‹basisdomein›') {
-  if (hostname.includes('.')) return { burger: hostname, medewerkers: `medewerkers.${hostname}` };
-  return { burger: `${hostname}.${domain}`, medewerkers: `${hostname}-medewerkers.${domain}` };
+  if (hostname.includes('.')) {
+    const [first, ...rest] = hostname.split('.');
+    return { burger: hostname, medewerkers: `medewerkers.${hostname}`, login: `${first}-login.${rest.join('.')}` };
+  }
+  return {
+    burger: `${hostname}.${domain}`,
+    medewerkers: `${hostname}-medewerkers.${domain}`,
+    login: `${hostname}-login.${domain}`,
+  };
+}
+
+// The Secret the chart generates for the Keycloak of stable mode
+// (charts/regelhet, templates/keycloak.yaml): the admin password and the
+// password of the test accounts. The pages name it, and never read it.
+export function keycloakSecretName(name) {
+  return `${name}-keycloak`;
 }
 
 export function secretName(name) {
@@ -121,13 +135,38 @@ export function secretName(name) {
 }
 
 // The RegelHet object for the choices of the wizard.
-export function buildRegelHet({ namespace, hostname, repoUrl, ref, path, privateRepo, version, accentColor }) {
+export function buildRegelHet({
+  namespace,
+  hostname,
+  repoUrl,
+  ref,
+  path,
+  privateRepo,
+  version,
+  accentColor,
+  stable = false,
+  testAccounts = false,
+  fsc4b = false,
+  ownParties = false,
+  organisatie,
+}) {
   const name = nameFromHostname(hostname);
   const manifest = { repoUrl, ref: ref || DEFAULT_REF, path: path || DEFAULT_PATH };
   if (privateRepo) manifest.credentialsSecretRef = { name: secretName(name) };
   const spec = { manifest, hostname };
   if (version) spec.version = version;
   if (accentColor) spec.theme = { accentColor };
+  // Test mode is the CRD's default, so a test RegelHet says nothing.
+  if (stable) spec.auth = { mode: 'stable', testAccounts };
+  // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the
+  // CRD's default, so an object without it says nothing.
+  if (fsc4b && !stable) spec.fsc4b = { enabled: true };
+  // A release of their own for the parties the case's regelwerken ask
+  // something of; the link signs with keys made at start, test mode only.
+  if (ownParties && !stable) spec.parties = { ownInstances: true };
+  // The Organisatie whose front lists it (organisaties-body.js,
+  // organisatieReference); without one it runs on its own.
+  if (organisatie) spec.organisatie = organisatie;
   return {
     apiVersion: `${REGELHET_RESOURCE.group}/${REGELHET_RESOURCE.version}`,
     kind: 'RegelHet',
@@ -138,6 +177,11 @@ export function buildRegelHet({ namespace, hostname, repoUrl, ref, path, private
 
 // The Secret with the credentials of a private repository, owned by the
 // RegelHet `owner` so it goes when the RegelHet goes.
+// The annotation that lets the plugin delete the Secret once it has copied
+// the case (api/v1alpha1, DeleteAfterSnapshotAnnotation): the token is needed
+// for that one copy only.
+export const DELETE_AFTER_SNAPSHOT = 'regelhet.regelrecht.nl/delete-after-snapshot';
+
 export function buildSecret(owner, { username, token }) {
   return {
     apiVersion: 'v1',
@@ -146,6 +190,7 @@ export function buildSecret(owner, { username, token }) {
       name: secretName(owner.metadata.name),
       namespace: owner.metadata.namespace,
       labels: { 'regelhet.regelrecht.nl/name': owner.metadata.name },
+      annotations: { [DELETE_AFTER_SNAPSHOT]: 'true' },
       ownerReferences: [
         {
           apiVersion: owner.apiVersion,
@@ -170,4 +215,10 @@ export function phaseBadge(item) {
     default:
       return { color: 'warning', text: 'Bezig' };
   }
+}
+
+// Where an app finds the services of FSC voor Burgers: the discovery
+// configuration on the citizens' host (resources.go, fsc4bDiscoveryPath).
+export function fsc4bDiscoveryUrl(hostname, domain) {
+  return `https://${addresses(hostname, domain).burger}/fsc4b/discovery`;
 }

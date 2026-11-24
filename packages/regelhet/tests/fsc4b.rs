@@ -56,6 +56,8 @@ fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
         fsc4b,
         accent: None,
+        link: Default::default(),
+        role: regelrecht_regelhet::config::Role::Process(None),
     }
 }
 

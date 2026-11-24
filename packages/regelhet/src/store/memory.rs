@@ -23,6 +23,8 @@ struct State {
     test_day: Option<NaiveDate>,
     /// How often the store was reset.
     generation: u64,
+    /// Per cell a link leads to, the records delivered to its server.
+    delivered: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl State {
@@ -151,6 +153,19 @@ impl ChronicleStore for InMemoryStore {
         };
         state.write(begin, |_| None);
         drop(state);
+        Ok(())
+    }
+
+    async fn delivered(&self, to: &str) -> Result<BTreeSet<String>, StoreError> {
+        Ok(self.state()?.delivered.get(to).cloned().unwrap_or_default())
+    }
+
+    async fn mark_delivered(&self, gram: &str, to: &str) -> Result<(), StoreError> {
+        self.state()?
+            .delivered
+            .entry(to.to_string())
+            .or_default()
+            .insert(gram.to_string());
         Ok(())
     }
 }

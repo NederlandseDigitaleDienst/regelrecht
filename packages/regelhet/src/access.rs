@@ -21,10 +21,15 @@
 //! The rules on top of them live in the API ([`crate::api`]): which route
 //! asks which level, and which records it reaches.
 //!
-//! A principal comes from one of three channels ([`Channel`]): a browser
+//! A principal comes from one of four channels ([`Channel`]): a browser
 //! session after the login through Keycloak or the test login, read here
-//! from the session, or a session of FSC voor Burgers, which
-//! [`crate::fsc4b`] turns into a principal with the citizen's role only.
+//! from the session; a session of FSC voor Burgers, which
+//! [`crate::fsc4b`] turns into a principal with the citizen's role only; or
+//! the front of the organisation the process belongs to, which hands over a
+//! browser with a signed statement (a session marked as such, written by
+//! [`crate::login`]) or calls the API with one in the header
+//! `Authorization: Organisatie <statement>`, for a `GET` only
+//! ([`crate::organisatie::statement`]).
 //! What follows the principal does not ask which channel it was; the store
 //! keeps the channel beside each record ([`Principal::actor`]).
 //!
@@ -38,8 +43,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use axum::extract::FromRequestParts;
-use axum::http::StatusCode;
 use axum::http::request::Parts;
+use axum::http::{Method, StatusCode, header};
 use regelrecht_auth::{
     SESSION_KEY_AUTHENTICATED, SESSION_KEY_CLAIMS, SESSION_KEY_NAME, SESSION_KEY_ROLES,
     SESSION_KEY_SUB,
@@ -47,8 +52,15 @@ use regelrecht_auth::{
 use serde_json::Value;
 use tower_sessions::Session;
 
-use crate::api::{ApiError, AppState};
+use crate::api::ApiError;
+use crate::login::{Host, OrganisationMark, SESSION_KEY_ORGANISATION};
+use crate::organisatie::statement::Accepted;
 use crate::store::{Actor, Channel};
+use crate::surface::Surface;
+
+/// The scheme of the header `Authorization` with a statement of the
+/// organisation.
+pub const ORGANISATION_SCHEME: &str = "Organisatie";
 
 /// What every role of this server starts with.
 pub const ROLE_PREFIX: &str = "regelhet-";
@@ -99,6 +111,9 @@ pub struct Principal {
     roles: BTreeSet<String>,
     claims: BTreeMap<String, Value>,
     channel: Channel,
+    /// How the account was logged in: the channel itself, except through the
+    /// organisation, which says how it logged the account in.
+    login: Channel,
     /// The name the login gave, if it gave one.
     name: Option<String>,
 }
@@ -114,7 +129,7 @@ pub fn login_method(channel: Channel) -> Option<&'static str> {
         Channel::TestLogin => Some("DigiD"),
         Channel::Keycloak => Some("Keycloak"),
         Channel::Fsc4b => Some("FSC voor Burgers"),
-        Channel::AdminPanel | Channel::Policy => None,
+        Channel::AdminPanel | Channel::Policy | Channel::Link | Channel::Organisation => None,
     }
 }
 
@@ -131,8 +146,48 @@ impl Principal {
             roles,
             claims,
             channel,
+            login: channel,
             name: None,
         }
+    }
+
+    /// The principal of a statement of the organisation, on an instance of
+    /// `surface`: the account `<organisation id>:<sub>`, with only the roles
+    /// both the side the statement is for and the instance admit. One role
+    /// ladder holds for the whole organisation, so a decider at the front is
+    /// a decider here.
+    pub fn of_organisation(accepted: Accepted, surface: Surface) -> Self {
+        let Accepted {
+            statement,
+            side,
+            issuer,
+        } = accepted;
+        let roles = surface.admitted_roles(side.surface().admitted_roles(statement.roles));
+        let mut principal = Self::new(
+            format!("{issuer}:{}", statement.sub),
+            roles,
+            statement.claims,
+            Channel::Organisation,
+        )
+        .with_name(statement.name);
+        principal.login = statement.login;
+        principal
+    }
+
+    /// How the account was logged in, for the means an application states
+    /// ([`login_method`]).
+    pub fn login_channel(&self) -> Channel {
+        self.login
+    }
+
+    /// The realm roles the principal holds here.
+    pub fn roles(&self) -> &BTreeSet<String> {
+        &self.roles
+    }
+
+    /// The claims the login kept.
+    pub fn claims(&self) -> &BTreeMap<String, Value> {
+        &self.claims
     }
 
     /// The principal with the name the login gave.
@@ -275,56 +330,107 @@ pub fn forbidden() -> ApiError {
     ApiError::new(StatusCode::FORBIDDEN, "you may not do this")
 }
 
-impl FromRequestParts<AppState> for Principal {
+impl<S: Host> FromRequestParts<S> for Principal {
     type Rejection = ApiError;
 
     /// The principal of the request's browser session, with the roles the
-    /// instance's surface admits; the channel is the server's login, the
-    /// only one that writes a session.
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
+    /// instance's surface admits; the channel is the server's login, or the
+    /// organisation for a session it handed over. Without a session, the
+    /// statement of the organisation in the header, for a `GET`.
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let session = Session::from_request_parts(parts, state)
             .await
             .map_err(|(status, message)| ApiError::new(status, message))?;
-        let unauthenticated = || ApiError::new(StatusCode::UNAUTHORIZED, "log in first");
-        let read_error = |e: tower_sessions::session::Error| {
-            tracing::error!(error = %e, "reading the session");
-            ApiError::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "the server failed on this request; the cause is in its log",
-            )
-        };
-        let authenticated: Option<bool> = session
-            .get(SESSION_KEY_AUTHENTICATED)
-            .await
-            .map_err(read_error)?;
-        if authenticated != Some(true) {
-            return Err(unauthenticated());
+        if let Some(principal) = of_session(&session, state).await? {
+            return Ok(principal);
         }
-        let sub: Option<String> = session.get(SESSION_KEY_SUB).await.map_err(read_error)?;
-        let Some(sub) = sub.filter(|s| !s.is_empty()) else {
+        let Some(token) = statement_header(parts) else {
             return Err(unauthenticated());
         };
-        let roles: Option<BTreeSet<String>> =
-            session.get(SESSION_KEY_ROLES).await.map_err(read_error)?;
-        let claims: Option<BTreeMap<String, Value>> =
-            session.get(SESSION_KEY_CLAIMS).await.map_err(read_error)?;
-        // The name only fills a field the system shows; a session that does
-        // not give it leaves that field empty, as `GET /api/ik` does.
-        let name: Option<String> = session.get(SESSION_KEY_NAME).await.unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "reading the name from the session");
-            None
-        });
-        Ok(Self::new(
-            sub,
-            state.surface().admitted_roles(roles.unwrap_or_default()),
-            claims.unwrap_or_default(),
-            state.session_channel(),
-        )
-        .with_name(name))
+        let Some(acceptor) = state.acceptor() else {
+            return Err(unauthenticated());
+        };
+        if parts.method != Method::GET {
+            tracing::warn!(method = %parts.method, "a statement of the organisation that acts");
+            return Err(ApiError::new(
+                StatusCode::FORBIDDEN,
+                "a statement of the organisation only reads",
+            ));
+        }
+        match acceptor.accept(token, crate::fsc4b::now_unix()).await {
+            Ok(accepted) => Ok(Self::of_organisation(accepted, state.surface())),
+            Err(e) => {
+                tracing::warn!(error = %e, "a statement of the organisation refused");
+                Err(unauthenticated())
+            }
+        }
     }
+}
+
+fn unauthenticated() -> ApiError {
+    ApiError::new(StatusCode::UNAUTHORIZED, "log in first")
+}
+
+/// The statement in `Authorization: Organisatie <statement>`, if any.
+fn statement_header(parts: &Parts) -> Option<&str> {
+    let value = parts.headers.get(header::AUTHORIZATION)?.to_str().ok()?;
+    let (scheme, token) = value.split_once(' ')?;
+    (scheme == ORGANISATION_SCHEME).then(|| token.trim())
+}
+
+/// The principal a browser session holds, or none when it holds no login.
+async fn of_session<S: Host>(session: &Session, state: &S) -> Result<Option<Principal>, ApiError> {
+    let read_error = |e: tower_sessions::session::Error| {
+        tracing::error!(error = %e, "reading the session");
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the server failed on this request; the cause is in its log",
+        )
+    };
+    let authenticated: Option<bool> = session
+        .get(SESSION_KEY_AUTHENTICATED)
+        .await
+        .map_err(read_error)?;
+    if authenticated != Some(true) {
+        return Ok(None);
+    }
+    let sub: Option<String> = session.get(SESSION_KEY_SUB).await.map_err(read_error)?;
+    let Some(sub) = sub.filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let roles: Option<BTreeSet<String>> =
+        session.get(SESSION_KEY_ROLES).await.map_err(read_error)?;
+    let claims: Option<BTreeMap<String, Value>> =
+        session.get(SESSION_KEY_CLAIMS).await.map_err(read_error)?;
+    // The name only fills a field the system shows; a session that does
+    // not give it leaves that field empty, as `GET /api/ik` does.
+    let name: Option<String> = session.get(SESSION_KEY_NAME).await.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "reading the name from the session");
+        None
+    });
+    // A session the organisation handed over carries its mark, for the
+    // account it handed over; a later login on the same session writes
+    // another account, and the mark no longer counts.
+    let mark: Option<OrganisationMark> = session
+        .get(SESSION_KEY_ORGANISATION)
+        .await
+        .map_err(read_error)?;
+    let mark = mark.filter(|m| m.sub == sub);
+    let mut principal = Principal::new(
+        sub,
+        state.surface().admitted_roles(roles.unwrap_or_default()),
+        claims.unwrap_or_default(),
+        if mark.is_some() {
+            Channel::Organisation
+        } else {
+            state.session_channel()
+        },
+    )
+    .with_name(name);
+    if let Some(mark) = mark {
+        principal.login = mark.login();
+    }
+    Ok(Some(principal))
 }
 
 #[cfg(test)]

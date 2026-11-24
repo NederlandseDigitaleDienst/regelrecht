@@ -111,6 +111,22 @@ pub struct SendCopy {
     pub decision: String,
 }
 
+/// The cell `cel` records the fact `feit` as its own server recorded it and
+/// sent it over a link (`kern::overnemen`, [`Service::take_over`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TakeOver {
+    #[serde(rename = "cel")]
+    pub cell: String,
+    #[serde(rename = "feit")]
+    pub fact: String,
+    #[serde(default, rename = "velden")]
+    pub fields: Map<String, Value>,
+    /// The day that cell's server recorded it on.
+    #[serde(rename = "datum")]
+    pub on: NaiveDate,
+}
+
 /// A step that records. Its JSON form, tagged with `stap`, is the request a
 /// [`Receipt`] keeps.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -124,6 +140,8 @@ pub enum Step {
     Record(Record),
     #[serde(rename = "toezenden")]
     SendCopy(SendCopy),
+    #[serde(rename = "overnemen")]
+    TakeOver(TakeOver),
 }
 
 /// What a step came to in the kern: its answer, and the records the
@@ -268,6 +286,12 @@ impl Step {
             Self::SendCopy(s) => {
                 to_value(&kern::toezenden(corpus, cellen, &s.decision, on)?).map(Applied::only)
             }
+            // On the sender's day, not this server's: the record says when
+            // its own cell recorded it.
+            Self::TakeOver(t) => to_value(&kern::overnemen(
+                corpus, cellen, &t.cell, &t.fact, &t.fields, t.on,
+            )?)
+            .map(Applied::only),
         }
     }
 }
@@ -398,6 +422,26 @@ pub struct Service {
     login_field: String,
     store: Arc<dyn ChronicleStore>,
     clock: Arc<dyn Clock>,
+    link: LinkRole,
+}
+
+/// What a link with the servers of other cells makes of this one
+/// ([`Service::with_link`]).
+#[derive(Debug, Clone, Default)]
+struct LinkRole {
+    /// The external party this server works for, when it is not the
+    /// executor's: its staff log in here and record its acts themselves.
+    party: Option<String>,
+    /// The cells whose own servers this one exchanges records with.
+    linked: BTreeSet<String>,
+}
+
+/// A record of the cell this server works for that the server of the cell
+/// `to` has not received yet ([`Service::outbound`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Outbound {
+    pub to: String,
+    pub gram: Gram,
 }
 
 /// The field of the case's application that the login fills: the case's
@@ -554,6 +598,7 @@ impl Service {
             login_field,
             store,
             clock,
+            link: LinkRole::default(),
         };
         service.begin().await?;
         Ok(service)
@@ -730,6 +775,199 @@ impl Service {
         cell != self.executor() && self.cells.iter().any(|c| c == cell)
     }
 
+    /// This service linked with the servers of the cells `linked`, working
+    /// for the external party `party` when given and else for the executor.
+    ///
+    /// # Errors
+    ///
+    /// [`ServiceError::UnknownCell`] when `party` is no external party of
+    /// the case, or a linked cell is no cell of the case or is the cell
+    /// this server works for itself.
+    pub fn with_link(
+        mut self,
+        party: Option<&str>,
+        linked: impl IntoIterator<Item = String>,
+    ) -> Result<Self, ServiceError> {
+        if let Some(party) = party.filter(|p| !self.is_external(p)) {
+            return Err(ServiceError::UnknownCell(party.to_string()));
+        }
+        let own = party.unwrap_or(self.executor()).to_string();
+        let linked: BTreeSet<String> = linked.into_iter().collect();
+        if let Some(cell) = linked
+            .iter()
+            .find(|c| **c == own || !self.cells.contains(*c))
+        {
+            return Err(ServiceError::UnknownCell(cell.clone()));
+        }
+        self.link = LinkRole {
+            party: party.map(str::to_string),
+            linked,
+        };
+        Ok(self)
+    }
+
+    /// The external party this server works for, when it is not the
+    /// executor's own server ([`Service::with_link`]).
+    pub fn party(&self) -> Option<&str> {
+        self.link.party.as_deref()
+    }
+
+    /// The cell whose records this server makes itself and sends over its
+    /// links: the party it works for, or else the executor.
+    pub fn own_cell(&self) -> &str {
+        self.party().unwrap_or(self.executor())
+    }
+
+    /// Whether the cell `cell` has a server of its own this one is linked
+    /// with.
+    pub fn is_linked(&self, cell: &str) -> bool {
+        self.link.linked.contains(cell)
+    }
+
+    /// The external parties the executor asks something of by its own
+    /// policy (`verzoek::gevraagde_cellen`), today: the parties that do work
+    /// of their own in the process, which a deployment may give a server of
+    /// their own.
+    ///
+    /// # Errors
+    ///
+    /// When the clock fails or the kern cannot read an article of the policy.
+    pub async fn asked_parties(&self) -> Result<Vec<String>, ServiceError> {
+        let corpus = Arc::clone(&self.corpus);
+        let today = self.today().await?;
+        blocking(move || {
+            let cellen = corpus.cell()?;
+            Ok(verzoek::gevraagde_cellen(&corpus, &cellen, today)?)
+        })
+        .await
+    }
+
+    /// The cells this server is linked with, in their own order.
+    pub fn linked_cells(&self) -> impl Iterator<Item = &str> {
+        self.link.linked.iter().map(String::as_str)
+    }
+
+    /// Whether a person on this server enters what the external party
+    /// `cell` did: on the party's own server only that party, and on the
+    /// executor's every party without a server of its own.
+    pub fn enters_for(&self, cell: &str) -> bool {
+        match self.party() {
+            Some(party) => party == cell,
+            None => self.is_external(cell) && !self.is_linked(cell),
+        }
+    }
+
+    /// The records of this server's own cell that a linked cell records a
+    /// receipt of (`kern::ontvangers`) and whose server has not confirmed
+    /// them yet, in the order of the chronicle. The chronicle is the
+    /// outbox: nothing else is kept of a record still to send.
+    ///
+    /// A record that came about over a link is never sent: the receipt this
+    /// cell made of a linked cell's fact is the other half of that same
+    /// message, and sending it would bring the fact back to its sender.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails or the kern cannot read a record's article.
+    pub async fn outbound(&self) -> Result<Vec<Outbound>, ServiceError> {
+        if self.link.linked.is_empty() {
+            return Ok(Vec::new());
+        }
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let own = self.own_cell().to_string();
+        let linked = self.link.linked.clone();
+        let over_a_link: BTreeSet<String> = read
+            .chronicles
+            .iter()
+            .flat_map(|c| &c.grams)
+            .filter(|g| g.recorded_via == Some(crate::store::Channel::Link))
+            .map(|g| g.gram.id.clone())
+            .collect();
+        let candidates = blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            let engine = corpus.service()?;
+            let (cell, _) = cellen.voor(&own)?;
+            let mut out = Vec::new();
+            let sent_from_here = cell
+                .grams()
+                .iter()
+                .filter(|g| g.recording_actor == own && !over_a_link.contains(&g.id));
+            for gram in sent_from_here {
+                for to in kern::ontvangers(&engine, &cellen, gram)? {
+                    if linked.contains(&to) {
+                        out.push(Outbound {
+                            to,
+                            gram: gram.clone(),
+                        });
+                    }
+                }
+            }
+            Ok(out)
+        })
+        .await?;
+        let mut delivered: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for to in &self.link.linked {
+            delivered.insert(to.clone(), self.store.delivered(to).await?);
+        }
+        Ok(candidates
+            .into_iter()
+            .filter(|o| !delivered.get(&o.to).is_some_and(|d| d.contains(&o.gram.id)))
+            .collect())
+    }
+
+    /// Keep that the server of the cell `to` confirmed the record `gram`.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn confirm_delivery(&self, gram: &str, to: &str) -> Result<(), ServiceError> {
+        Ok(self.store.mark_delivered(gram, to).await?)
+    }
+
+    /// Take over the record `id` that the server of the linked cell `from`
+    /// made and sent: that cell records the fact here too, on the day it
+    /// recorded it there, and what the fact sends this server's own cell
+    /// arrives in the same commit. A record taken over before is answered
+    /// as it was then and recorded once, under a key made of the cell and
+    /// the record's id.
+    ///
+    /// With `follow_clock`, in test mode, the test clock then moves on to
+    /// the record's day when the sender's clock is ahead: each server of a
+    /// test setup has a clock of its own, and the next step here must not
+    /// fall before the record just taken over.
+    ///
+    /// # Errors
+    ///
+    /// [`ServiceError::UnknownCell`] when `from` is no linked cell, and
+    /// what [`Service::perform`] refuses.
+    pub async fn take_over(
+        &self,
+        from: &str,
+        id: &str,
+        step: TakeOver,
+        follow_clock: bool,
+    ) -> Result<Value, ServiceError> {
+        if !self.is_linked(from) || step.cell != from {
+            return Err(ServiceError::UnknownCell(from.to_string()));
+        }
+        let key: IdempotencyKey = format!("koppeling:{from}:{id}")
+            .parse()
+            .map_err(ServiceError::Refused)?;
+        let on = step.on;
+        let actor = Actor {
+            account: from.to_string(),
+            channel: crate::store::Channel::Link,
+        };
+        let answer = self
+            .perform(Some(key), Step::TakeOver(step), &actor)
+            .await?;
+        if follow_clock && on > self.today().await? {
+            self.store.set_test_day(on).await?;
+        }
+        Ok(answer)
+    }
+
     /// Per external party, in the order of the case, what the admin panel
     /// needs to enter its acts: the submissions that wait for its decision
     /// and its decisions of which no copy was received yet. Not its
@@ -752,7 +990,7 @@ impl Service {
             .collect();
         let parties = chronicles
             .iter()
-            .filter(|(cell, _, _)| *cell != self.executor())
+            .filter(|(cell, _, _)| self.enters_for(cell))
             .map(|(cell, grams, stand)| {
                 let elsewhere: Vec<&Gram> = chronicles
                     .iter()
@@ -1413,6 +1651,12 @@ pub(crate) mod tests {
         async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
             self.inner.set_test_day(day).await
         }
+        async fn delivered(&self, to: &str) -> Result<BTreeSet<String>, StoreError> {
+            self.inner.delivered(to).await
+        }
+        async fn mark_delivered(&self, gram: &str, to: &str) -> Result<(), StoreError> {
+            self.inner.mark_delivered(gram, to).await
+        }
         async fn reset(&self, begin: Vec<CellAppend>) -> Result<(), StoreError> {
             let cell = begin
                 .iter()
@@ -1468,6 +1712,153 @@ pub(crate) mod tests {
             .await
             .unwrap();
         (s, store)
+    }
+
+    const GEMEENTE: &str = "gemeente_wilgendaal";
+    const GGD: &str = "ggd_wilgendaal";
+    const ADVICE: &str =
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
+
+    /// A service on a store of its own, linked as [`Service::with_link`]
+    /// takes it.
+    async fn linked(party: Option<&str>, with: &str) -> Service {
+        let (s, _) = service(0).await;
+        s.with_link(party, [with.to_string()]).unwrap()
+    }
+
+    /// Carry every record `from` still has to send over to `to`, as the
+    /// link does, and confirm each.
+    async fn carry(from: &Service, to: &Service) -> usize {
+        let outbound = from.outbound().await.unwrap();
+        for o in &outbound {
+            let step = TakeOver {
+                cell: from.own_cell().into(),
+                fact: format!("{}#{}", o.gram.basis, o.gram.fact.as_deref().unwrap()),
+                fields: o.gram.fields.clone().into_iter().collect(),
+                on: o.gram.recorded_on,
+            };
+            to.take_over(from.own_cell(), &o.gram.id, step, true)
+                .await
+                .unwrap();
+            from.confirm_delivery(&o.gram.id, &o.to).await.unwrap();
+        }
+        outbound.len()
+    }
+
+    #[tokio::test]
+    async fn a_request_and_its_answer_cross_between_two_servers() {
+        let gemeente = linked(None, GGD).await;
+        let ggd = linked(Some(GGD), GEMEENTE).await;
+        // The application at the municipality brings the request about; its
+        // receipt at the GGD lands in the municipality's own copy of that
+        // cell, and the request waits to be sent.
+        gemeente
+            .perform(None, submission(), &actor())
+            .await
+            .unwrap();
+        assert!(gemeente.requests().await.unwrap()[0].open());
+        assert!(ggd.requests().await.unwrap().is_empty());
+        assert_eq!(carry(&gemeente, &ggd).await, 1);
+        assert_eq!(
+            carry(&gemeente, &ggd).await,
+            0,
+            "a confirmed record is sent once"
+        );
+
+        // The GGD's own server now holds the request, and only the GGD is
+        // entered for there.
+        let parties = ggd.external_parties().await.unwrap();
+        assert_eq!(parties.len(), 1);
+        assert_eq!(parties[0].cell, GGD);
+        let received = parties[0].requests[0].received.clone();
+        assert!(
+            gemeente
+                .external_parties()
+                .await
+                .unwrap()
+                .iter()
+                .all(|p| p.cell != GGD),
+            "the municipality's admin enters nothing for a linked party"
+        );
+
+        // The GGD answers on its own server; the advice crosses back and
+        // closes the request at the municipality.
+        let advice = Step::Record(Record {
+            cell: GGD.into(),
+            fact: ADVICE.into(),
+            fields: serde_json::from_value(json!({
+                "datum_onderzoek": "2026-10-16",
+                "langdurige_loopbeperking": true,
+                "continu_afhankelijk_van_hulp_bestuurder": false,
+                "permanent_rolstoelgebonden": false,
+                "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
+            }))
+            .unwrap(),
+            refers_to: None,
+            request: Some(received.id),
+        });
+        ggd.store
+            .set_test_day("2026-10-16".parse().unwrap())
+            .await
+            .unwrap();
+        ggd.perform(None, advice, &actor()).await.unwrap();
+        assert!(gemeente.requests().await.unwrap()[0].open());
+        assert_eq!(carry(&ggd, &gemeente).await, 1);
+        let request = &gemeente.requests().await.unwrap()[0];
+        assert!(!request.open());
+        assert!(request.antwoord_ontvangen.is_some());
+        // The advice stands at the municipality on the day the GGD recorded
+        // it, though the municipality's own clock was still behind.
+        let advice = gemeente.store.load(GGD).await.unwrap();
+        assert_eq!(
+            advice.grams.last().unwrap().gram.recorded_on,
+            "2026-10-16".parse::<NaiveDate>().unwrap()
+        );
+        // The municipality's clock followed the GGD's.
+        assert_eq!(
+            gemeente.today().await.unwrap(),
+            "2026-10-16".parse().unwrap()
+        );
+        // What came over the link says so beside the record.
+        let chronicle = gemeente.store.load(GGD).await.unwrap();
+        let last = chronicle.grams.last().unwrap();
+        assert_eq!(last.recorded_via, Some(crate::store::Channel::Link));
+        assert_eq!(last.recorded_by.as_deref(), Some(GGD));
+    }
+
+    #[tokio::test]
+    async fn a_record_taken_over_twice_is_recorded_once() {
+        let gemeente = linked(None, GGD).await;
+        let ggd = linked(Some(GGD), GEMEENTE).await;
+        gemeente
+            .perform(None, submission(), &actor())
+            .await
+            .unwrap();
+        let o = gemeente.outbound().await.unwrap().remove(0);
+        let step = TakeOver {
+            cell: GEMEENTE.into(),
+            fact: format!("{}#{}", o.gram.basis, o.gram.fact.as_deref().unwrap()),
+            fields: o.gram.fields.clone().into_iter().collect(),
+            on: o.gram.recorded_on,
+        };
+        ggd.take_over(GEMEENTE, &o.gram.id, step.clone(), true)
+            .await
+            .unwrap();
+        let head = ggd.store.load(GGD).await.unwrap().head();
+        ggd.take_over(GEMEENTE, &o.gram.id, step.clone(), true)
+            .await
+            .unwrap();
+        assert_eq!(ggd.store.load(GGD).await.unwrap().head(), head);
+        // A cell this server is not linked with sends nothing here.
+        let stranger = TakeOver {
+            cell: "rechtbank_wilgendaal".into(),
+            ..step
+        };
+        assert!(matches!(
+            ggd.take_over("rechtbank_wilgendaal", "x", stranger, true)
+                .await,
+            Err(ServiceError::UnknownCell(_))
+        ));
     }
 
     #[tokio::test]

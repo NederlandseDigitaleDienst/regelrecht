@@ -1,0 +1,11 @@
+---
+law_id: verordening_individuele_inkomenstoeslag_participatiewet_groningen
+related_legislation:
+  - name: Participatiewet
+    relation: legal_basis
+    bwb_id: BWBR0015703
+    slug: participatiewet
+  - name: Participatiewet
+    relation: source_regulation
+    bwb_id: BWBR0015703
+    slug: participatiewet

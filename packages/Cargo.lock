@@ -4333,6 +4333,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "sha2",
  "sqlx",
  "subtle",
@@ -4345,6 +4346,7 @@ dependencies = [
  "tower-sessions-memory-store",
  "tower-sessions-sqlx-store",
  "tracing",
+ "url",
 ]
 
 [[package]]

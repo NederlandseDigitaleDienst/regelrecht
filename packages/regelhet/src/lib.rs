@@ -23,6 +23,8 @@
 //!   login, and the sessions;
 //! - [`fsc4b`]: the citizen's routes for an app, after FSC voor Burgers,
 //!   when configured;
+//! - [`link`]: the exchange of records with the server of another cell of
+//!   the case, when that cell runs on a server of its own;
 //! - [`clock`]: the clock trait, with a clock the API can set and the real
 //!   date in the Netherlands;
 //! - [`store`]: the chronicle store trait, with the store in memory and the
@@ -30,6 +32,9 @@
 //! - [`dossier`]: which records are about one person;
 //! - [`external`]: what the admin panel shows of an external party;
 //! - [`timeline`]: what happened about one application, and what comes next;
+//! - [`organisatie`]: the front of an organisation before several
+//!   processes (`REGELHET_ROL=organisatie`), and the statements it signs
+//!   for them;
 //! - [`case`]: the one case, from the manifest;
 //! - [`service`]: the steps, against a store and a clock;
 //! - [`api`]: the HTTP API over the service;
@@ -44,7 +49,9 @@ pub mod config;
 pub mod dossier;
 pub mod external;
 pub mod fsc4b;
+pub mod link;
 pub mod login;
+pub mod organisatie;
 pub mod service;
 pub mod store;
 pub mod surface;

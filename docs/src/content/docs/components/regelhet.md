@@ -15,7 +15,7 @@ RegelHet is a server that runs one legal process, from application to decision a
 
 ## What it runs
 
-The server loads exactly one source manifest at startup, the same `bron.yaml` format the [PoC portal](/components/poc-portal) serves sources from, read by the same code (`packages/corpus/src/source_manifest.rs`). The manifest ships with the image; it is never fetched from GitHub. It must make exactly one case, and the server refuses to start when it makes none, several, or one that does not load.
+The server loads exactly one source manifest at startup, the same `bron.yaml` format the [PoC portal](/components/poc-portal) serves sources from, read by the same code (`packages/corpus/src/source_manifest.rs`). The server reads it from a local path (`REGELHET_MANIFEST`) and fetches nothing itself. In the image that is the manifest the image ships with; a deployment can put another case at that path, as the Helm chart does: it unpacks a copy of the case into `/case`, or clones the case repository there before the server starts. That repository may be on GitHub or elsewhere. The manifest must make exactly one case, and the server refuses to start when it makes none, several, or one that does not load.
 
 The first case is the disabled parking card (BABW, article 49). It runs three cells: the municipality that decides, the GGD that examines the applicant and advises, and the administrative court that decides on an appeal. The regelwerken and cells come from the PoC's corpus; only the case file in `packages/regelhet/casussen/` and the UI spec `packages/regelhet/ui_spec.yaml` belong to this component. The server takes the case's own login field (`inloggen.veld`) as the field that identifies a citizen, or else the one field its UI spec has the login fill (`fill: {by: system}` without a source). Here that is `bsn_aanvrager`, marked in the UI spec. The server refuses to start when it finds no such field or more than one.
 
@@ -27,7 +27,7 @@ The other cells of the case stay in the process, because the steps need their ch
 
 What the executor sees of an external party follows the process. The municipality reads what the GGD sends it, which lands in the municipality's own chronicle, and not the GGD's chronicle. The admin panel shows of a party only what an input needs: the submissions that wait for its decision, and its decisions of which no other cell has received a copy. Neither the panel nor any route of the back office returns a party's chronicle.
 
-The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. That link is an open point: an exchange with the GGD's or the court's own system would replace the panel for that party, and it is not built. So is a panel of its own for an external party that executes part of the process itself, such as the GGD: its staff would log in and see their own requests, where now an admin enters what they did. It may follow later.
+The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. A party can also run on a server of its own, linked with this one: its staff log in there and see their own requests, and the two servers exchange what each has to know as signed messages. The panel then no longer takes input for that party. [A link between servers](/components/regelhet-koppeling) describes it; it carries facts, so a party that decides, such as the court, stays in the panel.
 
 ## A request to an external party and the answer back
 
@@ -79,7 +79,7 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 
 | Table | Holds |
 |---|---|
-| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, `beheerpaneel` for what an admin entered for an external party, or `beleid` for what the server recorded by the executor's policy |
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, `beheerpaneel` for what an admin entered for an external party, `beleid` for what the server recorded by the executor's policy, or `koppeling` for what the server of another cell sent (migration `0010_link.sql`) |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request, with the account that sent it, and the answer |
 | `sessions` | The login sessions of both surfaces, made by the session store (`tower-sessions`) at startup; each carries the surface it was made on |
@@ -115,6 +115,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
 | `REGELHET_SUBJECT_CLAIM` | `bsn` | The claim that identifies a citizen |
 | `REGELHET_ACCENT_COLOR` | none | The accent colour of the screens: the name of an NLDD design-system theme, such as `paars` or `donkergroen`. The server hands it to the screens on `GET /api/uiterlijk`, a route without a login, and they set it as `data-nldd-theme`. A name that is not a theme stops the server at startup. Without it the screens keep the design system's own accent |
+| `REGELHET_LINK_PEERS`, `REGELHET_LINK_PARTY`, `REGELHET_LINK_KEY_FILE` or `REGELHET_LINK_KEY` | none | The link with the server of another cell of the case; see [A link between servers](/components/regelhet-koppeling) |
 
 When the PostgreSQL store is chosen and the database cannot be reached or migrated, the server stops with that error. It does not fall back to memory.
 
@@ -169,6 +170,8 @@ The server makes that account itself: the role `regelhet-burger` and no other, t
 `REGELHET_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the RegelHet roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface, the store and its pool size (`db_max_connections`), so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a decider of the executor and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/regelhet-fsc4b), when that channel is configured. [The app](/components/regelhet-app) does so with the citizen's screens in a webview.
+
+A process can also belong to an [organisation](/components/regelhet-organisatie): a front with one login before several processes, which hands a person over to this server with a signed statement at `GET /auth/organisatie`.
 
 ## API
 
@@ -382,7 +385,7 @@ REGELHET_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432
 
 ## Deployment
 
-CI builds the image `regelrecht-regelhet` (`packages/regelhet/Dockerfile`) when the crate or what it depends on changes. The image holds the three builds of the screens under `/app/frontend`, so one image runs as either surface. Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no RegelHet component. See [Deployment](/operations/deployment).
+CI builds the image `regelrecht-regelhet` (`packages/regelhet/Dockerfile`) when the crate or what it depends on changes. The image holds the builds of the screens under `/app/frontend`, so one image runs as either surface, and as the front of an [organisation](/components/regelhet-organisatie). Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no RegelHet component. See [Deployment](/operations/deployment).
 
 Until then the server runs as a test setup in a ZAD deployment of its own, `fieldlab`, apart from the previews and with a database of its own:
 
@@ -393,7 +396,7 @@ Until then the server runs as a test setup in a ZAD deployment of its own, `fiel
 
 Both run in test mode on PostgreSQL. A push to the pull request of the integration branch builds the image; nothing rolls it out on its own. Putting a build into `fieldlab` takes `zad deployment update-image fieldlab --component <component> --image ghcr.io/nederlandsedigitaledienst/regelrecht-regelhet:sha-<tag>` for each component, and `zad logs fieldlab --component <component>` shows the startup line of the new container.
 
-On a Fundament cluster with Flux, such as one with Haven+, the plugin in `packages/fundament-plugin` lets project members create RegelHet instances from the console: each is a `RegelHet` object in a namespace Fundament made, and runs one case, cloned from a git repository at start, in test mode. Like `fieldlab` on ZAD, each runs an instance per surface on a PostgreSQL database of its own, here a CloudNativePG `Cluster`; both surfaces use the test login. The plugin installs the Helm chart `charts/regelhet` through a Flux `HelmRelease` per RegelHet. The resource, the addresses and how the hosts are reached are in `packages/fundament-plugin/README.md`.
+On a Fundament cluster with Flux, such as one with Haven+, the plugin in `packages/fundament-plugin` lets project members create RegelHet instances from the console: each is a `RegelHet` object in a namespace Fundament made, and runs one case from a git repository. The plugin copies the case into the namespace once, with a Job, at install and after a change of the manifest, and the pods unpack that copy at every start. They need no token and no network access to git, and the plugin can delete the token after the copy. Like `fieldlab` on ZAD, each runs an instance per surface on a PostgreSQL database of its own, here a CloudNativePG `Cluster`. In test mode, the default, both surfaces use the test login. In stable mode (`spec.auth.mode: stable`, a choice in the console's wizard) they log in through a Keycloak of the release itself, on a third address `<name>-login`, with a client per surface, a database of its own and the realm imported at its first start. The plugin installs the Helm chart `charts/regelhet` through a Flux `HelmRelease` per RegelHet, from `main` or, with a `version`, from that commit. The resource, the addresses and how the hosts are reached are in `packages/fundament-plugin/README.md`.
 
 Rolling it out takes two components in the `regelrecht` deployment, from the same image and on the deployment's database (`DATABASE_SERVER_FULL`):
 

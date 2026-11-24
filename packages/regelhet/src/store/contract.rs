@@ -384,6 +384,24 @@ pub async fn a_commit_read_before_a_reset_is_refused_though_its_heads_match(
     assert_eq!(ids(&store.load("a").await.unwrap()), ["begin-a"]);
 }
 
+pub async fn deliveries_over_a_link_are_kept_per_cell_until_a_reset(store: &dyn ChronicleStore) {
+    assert!(store.delivered("ggd").await.unwrap().is_empty());
+    store.mark_delivered("1", "ggd").await.unwrap();
+    // A second confirmation of the same record changes nothing.
+    store.mark_delivered("1", "ggd").await.unwrap();
+    store.mark_delivered("2", "rechtbank").await.unwrap();
+    assert_eq!(
+        store.delivered("ggd").await.unwrap(),
+        BTreeSet::from(["1".to_string()])
+    );
+    assert_eq!(
+        store.delivered("rechtbank").await.unwrap(),
+        BTreeSet::from(["2".to_string()])
+    );
+    store.reset(Vec::new()).await.unwrap();
+    assert!(store.delivered("ggd").await.unwrap().is_empty());
+}
+
 /// One `#[tokio::test]` per contract test, each on a fresh store from
 /// `$fixture`, an async expression whose value has a `store()` method.
 macro_rules! contract_tests {
@@ -402,6 +420,7 @@ macro_rules! contract_tests {
             a_reset_empties_the_chronicles_the_answers_and_the_clock,
             a_reset_records_the_beginning_it_is_given,
             a_commit_read_before_a_reset_is_refused_though_its_heads_match,
+            deliveries_over_a_link_are_kept_per_cell_until_a_reset,
         );
     };
     (@each $fixture:expr; $($name:ident,)*) => {
