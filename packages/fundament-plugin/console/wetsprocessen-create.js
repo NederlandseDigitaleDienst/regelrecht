@@ -132,7 +132,7 @@ const steps = [
       <div id="credentials"${state.privateRepo ? '' : ' hidden'}>
         <nldd-spacer size="16"></nldd-spacer>
         ${field('Gebruikersnaam', textField('username', state.username, 'autocomplete="off"'), { errorId: 'e-user' })}
-        ${field('Token', `<nldd-password-field name="token" value="${escapeHtml(state.token)}" autocomplete="off"></nldd-password-field>`, { errorId: 'e-token', hint: 'Een token dat de repository alleen mag lezen. Het komt in een Secret in de namespace van de procedure.' })}
+        ${field('Token', `<nldd-password-field name="token" value="${escapeHtml(state.token)}" autocomplete="off"></nldd-password-field>`, { errorId: 'e-token', hint: 'Een token dat de repository alleen mag lezen. Het cluster gebruikt het één keer, om een kopie van de casus te maken, en verwijdert het daarna. Een nieuwe versie van de casus vraagt een nieuw token.' })}
       </div>
       <nldd-spacer size="24"></nldd-spacer>
       <nldd-title size="5" heading-level="3" text="Inloggen"></nldd-title>
@@ -301,7 +301,7 @@ const steps = [
             ['Repository', state.repoUrl],
             ['Branch of tag', state.ref || DEFAULT_REF],
             ['Manifest', state.path || DEFAULT_PATH],
-            ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}` : 'openbaar'],
+            ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}, verwijderd na de kopie` : 'openbaar'],
             ['Versie', state.version || 'laatste versie (main)'],
             ['Accentkleur', state.accentColor || 'standaard'],
             [
@@ -396,7 +396,7 @@ async function create() {
         buildSecret(made, { username: state.username, token: state.token }),
       );
     } catch (err) {
-      // Without its Secret the wetsproces cannot clone the casus; take it
+      // Without its Secret the wetsproces cannot copy the casus; take it
       // away again rather than leave one behind that waits forever.
       await fundament.k8s
         .delete({ ...WETSPROCES_RESOURCE, name: made.metadata.name, namespace })

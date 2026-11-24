@@ -153,7 +153,11 @@ jobs:
           git checkout -q FETCH_HEAD
       - name: go vet and go test
         working-directory: ${{ forgejo.workspace }}/packages/fundament-plugin
+        # yq for the test of the snapshot Job's script (snapshot_test.go),
+        # which is skipped without it.
         run: |
+          go install github.com/mikefarah/yq/v4@v4.47.1
+          export PATH="$PATH:$GOPATH/bin"
           go vet ./...
           go test ./...
 
@@ -206,6 +210,16 @@ jobs:
             esac
           }
           contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
+          # A snapshot of the case, as the Fundament plugin sets it: the
+          # parts unpack in order, and no pod clones or reads a Secret.
+          SNAP="--set case.snapshot.configMaps={a-case-1-0,a-case-1-1} --set case.credentialsSecret=repo"
+          contains "cat /snapshot/0/part /snapshot/1/part | tar -xzf - -C /case" $CNPG $SNAP
+          contains "name: a-case-1-1" $CNPG $SNAP
+          out="$(helm template wetsproces "$C" --set domain=example.org $CNPG $SNAP)"
+          case "$out" in *clone-case* | *GIT_TOKEN*) echo "a snapshot still clones"; exit 1 ;; esac
+          # The front of an organisation loads no case: no snapshot either.
+          out="$(helm template wetsproces "$C" --set domain=example.org $CNPG $SNAP -f "$C/ci/voorkant-values.yaml")"
+          case "$out" in *unpack-case* | *snapshot-0*) echo "the front unpacks a case"; exit 1 ;; esac
           contains WETSPROCES_ACCENT_COLOR $SMALL --set theme.accentColor=paars
           # A release for an external party, linked with the executor's.
           contains WETSPROCES_LINK_PARTY $CNPG --set surfaces.split=false \

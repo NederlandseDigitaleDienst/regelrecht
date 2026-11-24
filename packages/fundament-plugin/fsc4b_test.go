@@ -13,10 +13,10 @@ import (
 func TestFsc4bIsOffUnlessTheSpecTurnsItOn(t *testing.T) {
 	t.Parallel()
 	w := newWetsproces("a", "a")
-	assert.NotContains(t, chartValues(w, validConfig()), "fsc4b", "an existing Wetsproces keeps the chart's default")
+	assert.NotContains(t, chartValues(w, validConfig(), testSnapshot), "fsc4b", "an existing Wetsproces keeps the chart's default")
 
 	w.Spec.Fsc4b.Enabled = true
-	assert.Equal(t, map[string]any{"enabled": true}, chartValues(w, validConfig())["fsc4b"])
+	assert.Equal(t, map[string]any{"enabled": true}, chartValues(w, validConfig(), testSnapshot)["fsc4b"])
 }
 
 func TestFsc4bIsRefusedInStableMode(t *testing.T) {

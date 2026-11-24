@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -56,9 +57,13 @@ type WetsprocesReconciler struct {
 	// Client reads the Wetsproces objects and the Flux objects from the
 	// manager's cache.
 	Client client.Client
-	// Secrets reads one Secret past the cache, so the plugin needs get on
-	// Secrets and no informer over every Secret of the cluster (list, watch).
-	Secrets client.Reader
+	// Uncached reads past the cache: one Secret by name, so the plugin needs
+	// get on Secrets and no informer over every Secret of the cluster, and
+	// the ConfigMaps of a snapshot by label, so it needs no watch on those.
+	Uncached client.Reader
+	// Logs reads the log of the snapshot Job, where it writes the copy of
+	// the case (snapshot.go).
+	Logs logReader
 	// Namespaces reads one Namespace past the cache, for its project label,
 	// when a Wetsproces names an Organisatie in another namespace.
 	Namespaces client.Reader
@@ -79,7 +84,7 @@ func (r *WetsprocesReconciler) now() time.Time {
 }
 
 // SetupWithManager registers the reconciler: it runs for every change of a
-// Wetsproces and of a GitRepository or HelmRelease it owns.
+// Wetsproces and of a GitRepository, HelmRelease or snapshot Job it owns.
 func (r *WetsprocesReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	owned := func(gvk schema.GroupVersionKind) *unstructured.Unstructured {
 		obj := &unstructured.Unstructured{}
@@ -91,6 +96,7 @@ func (r *WetsprocesReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.Wetsproces{}).
 		Owns(owned(gitRepositoryGVK)).
 		Owns(owned(helmReleaseGVK)).
+		Owns(&batchv1.Job{}).
 		// The pods of the release are Helm's, not the plugin's, so they are
 		// watched by their labels rather than owned.
 		Watches(&corev1.Pod{}, podToWetsproces()).
@@ -191,10 +197,41 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 		}
 		organisatie = m.organisatie
 	}
+	token, err := r.tokenState(ctx, w)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	w.Status.Token = token
+	snap, err := r.reconcileSnapshot(ctx, w)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	apimeta.SetStatusCondition(&w.Status.Conditions, snap.condition)
+	// The release runs the snapshot of the spec as it is now, or, while a
+	// new one is taken or fails, the one it ran before.
+	running := snap.current
+	if running == nil {
+		running = statusSnapshot(w)
+	}
+	if running == nil {
+		// Nothing to install yet: the first snapshot is on its way, or failed.
+		c := snap.condition
+		apimeta.SetStatusCondition(&w.Status.Conditions, metav1.Condition{
+			Type: v1alpha1.ConditionReady, Status: metav1.ConditionFalse, Reason: c.Reason, Message: c.Message,
+		})
+		w.Status.Message = c.Message
+		w.Status.Phase = v1alpha1.PhasePending
+		if c.Reason != reasonSnapshotPending && c.Reason != reasonTokenMissing {
+			w.Status.Phase = v1alpha1.PhaseFailed
+		}
+		return ctrl.Result{RequeueAfter: snap.requeue}, nil
+	}
+	w.Status.Snapshot = &v1alpha1.SnapshotStatus{Commit: running.commit, ConfigMaps: running.configMaps}
+
 	// The values follow the status too (the peers of the parties), so the
 	// release is built again after the parties changed them.
 	release := func() *unstructured.Unstructured {
-		values := chartValues(w, r.Config)
+		values := chartValues(w, r.Config, running)
 		if organisatie != nil {
 			values["organisatie"] = organisatieValues(organisatie, r.Config)
 		}
@@ -216,9 +253,57 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 				return 0, err
 			}
 		}
-		return requeue, nil
+		// The old snapshot goes once every release of w runs the new one.
+		if snap.current != nil && r.releasesRun(ctx, w, snap.current) {
+			if err := r.deleteOldSnapshots(ctx, w, snap.current); err != nil {
+				return 0, err
+			}
+		}
+		return minRequeue(requeue, snap.requeue), nil
 	}
-	return runRelease(ctx, releaseDeps{Client: r.Client, Scheme: r.Scheme, Now: r.now()}, w, w.Spec.Version, objects, wetsprocesStatus(w), parties)
+	result, err := runRelease(ctx, releaseDeps{Client: r.Client, Scheme: r.Scheme, Now: r.now()}, w, w.Spec.Version, objects, wetsprocesStatus(w), parties)
+	if err == nil && snap.condition.Status != metav1.ConditionTrue && snap.condition.Reason != reasonSnapshotPending {
+		// A new snapshot failed; the release goes on with the old one.
+		refuse(w, snap.condition.Reason, fmt.Sprintf("%s; the wetsproces still runs the copy of commit %s", snap.condition.Message, running.commit))
+	}
+	return result, err
+}
+
+// releasesRun reports whether the HelmRelease of w and those of its
+// parties are ready on the values that name s: only then is an older
+// snapshot no longer needed.
+func (r *WetsprocesReconciler) releasesRun(ctx context.Context, w *v1alpha1.Wetsproces, s *snapshot) bool {
+	if !r.releaseRuns(ctx, w.Namespace, w.Name, s) {
+		return false
+	}
+	for _, p := range w.Status.Parties {
+		if !r.releaseRuns(ctx, w.Namespace, partyRelease(w, p.Cell), s) {
+			return false
+		}
+	}
+	return true
+}
+
+// releaseRuns reports whether the HelmRelease name is ready on the values
+// that name s.
+func (r *WetsprocesReconciler) releaseRuns(ctx context.Context, namespace, name string, s *snapshot) bool {
+	hr := &unstructured.Unstructured{}
+	hr.SetGroupVersionKind(helmReleaseGVK)
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, hr); err != nil {
+		return false
+	}
+	names, _, _ := unstructured.NestedSlice(hr.Object, "spec", "values", "case", "snapshot", "configMaps")
+	if len(names) != len(s.configMaps) {
+		return false
+	}
+	for i, n := range names {
+		if n != s.configMaps[i] {
+			return false
+		}
+	}
+	observed, _, _ := unstructured.NestedInt64(hr.Object, "status", "observedGeneration")
+	ready, _ := condition(hr, "Ready")
+	return ready && observed == hr.GetGeneration()
 }
 
 // apply server-side applies obj, owned by w.
@@ -310,7 +395,7 @@ const chartMissingMarker = "invalid chart reference"
 // outlives the plugin can no longer be deleted. A delete the plugin misses,
 // because its pod was down, leaves the Secret behind.
 func (r *WetsprocesReconciler) deleteKeycloakSecret(ctx context.Context, key client.ObjectKey) error {
-	if r.Secrets == nil {
+	if r.Uncached == nil {
 		return nil
 	}
 	// The pods of an Organisatie of this name map here too; its release is
@@ -321,7 +406,7 @@ func (r *WetsprocesReconciler) deleteKeycloakSecret(ctx context.Context, key cli
 	} else if !apierrors.IsNotFound(err) {
 		return fmt.Errorf("read Organisatie %s: %w", key, err)
 	}
-	return deleteChartSecret(ctx, r.Secrets, r.Client, key, "keycloak")
+	return deleteChartSecret(ctx, r.Uncached, r.Client, key, "keycloak")
 }
 
 // deleteChartSecret deletes the Secret <release>-<component> that the Job of

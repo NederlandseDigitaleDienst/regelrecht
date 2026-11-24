@@ -17,8 +17,11 @@ image:
   ref: code.digitaledienst.overheid.nl/regelrecht/wetsproces:6cc19977b82c039a6a8a07edd550d205b730ab9a
   pullPolicy: IfNotPresent
 
-# The case: a public git repository with a source manifest (bron.yaml). An init
-# container clones it, shallow, into /case before the server starts.
+# The case: a git repository with a source manifest (bron.yaml). With
+# case.snapshot.configMaps an init container unpacks the case from those
+# ConfigMaps into /case, and the pods fetch nothing; the Fundament plugin
+# makes them. Without, an init container clones repoUrl, shallow, into /case
+# at every start of a pod.
 case:
   # HTTPS URL of the public repository.
   repoUrl: https://code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026.git
@@ -35,8 +38,15 @@ case:
   # hands them to git as the credentials of repoUrl, and they stay out of the
   # pod's arguments.
   credentialsSecret: ''
+  snapshot:
+    # ConfigMaps in the release's namespace that hold the case, as a tar.gz
+    # of paths under the repository root, under the key `part`, split over
+    # them in this order. The init container joins and unpacks them; then
+    # repoUrl, ref and credentialsSecret are not used, and no pod reads a
+    # Secret or reaches git. path still names the manifest in it.
+    configMaps: []
 
-# The image that clones the case.
+# The image that clones or unpacks the case.
 gitImage:
   ref: alpine/git:2.54.0@sha256:6a1fdb962814ca11508ca8d1bab94375b5b7ac4e4a9a40981c29fc32c02f095d
   pullPolicy: IfNotPresent

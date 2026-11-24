@@ -24,6 +24,10 @@ spec:
     - jsonPath: .status.url
       name: URL
       type: string
+    - jsonPath: .status.snapshot.commit
+      name: Commit
+      priority: 1
+      type: string
     - jsonPath: .status.backofficeUrl
       name: Medewerkers
       priority: 1
@@ -104,6 +108,11 @@ spec:
                     description: |-
                       CredentialsSecretRef names a Secret with the keys `username` and
                       `token`, for a private repository. The token needs read access only.
+                      Only the Job that copies the case reads it, at install and after a
+                      change of the manifest; the pods of the release never do. With the
+                      annotation wetsproces.regelrecht.nl/delete-after-snapshot: "true" the
+                      plugin deletes the Secret after that copy, and a later change of the
+                      manifest needs a new one.
                     properties:
                       name:
                         description: Name of the Secret.
@@ -224,8 +233,8 @@ spec:
                 type: string
               conditions:
                 description: |-
-                  Conditions are Ready and ReleaseReady, and OrganisatieGevonden with
-                  spec.organisatie.
+                  Conditions are Ready, SnapshotReady and ReleaseReady, and
+                  OrganisatieGevonden with spec.organisatie.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -340,6 +349,29 @@ spec:
                 x-kubernetes-list-type: map
               phase:
                 description: Phase is Pending, Ready or Failed.
+                type: string
+              snapshot:
+                description: |-
+                  Snapshot is the copy of the case that the release runs: the commit it
+                  was taken from and the ConfigMaps that hold it.
+                properties:
+                  commit:
+                    description: |-
+                      Commit is the full hash of the commit of manifest.ref the copy was
+                      taken from.
+                    type: string
+                  configMaps:
+                    description: |-
+                      ConfigMaps hold the copy, a tar.gz of the manifest and the files it
+                      names, in parts of at most 900 KiB, in this order.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              token:
+                description: |-
+                  Token says whether the Secret in credentialsSecretRef is still in the
+                  namespace: Present or Absent; empty without credentialsSecretRef.
                 type: string
               url:
                 description: URL is where citizens use the wetsprocessysteem.

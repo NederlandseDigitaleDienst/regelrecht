@@ -30,7 +30,7 @@ func TestTestModeLeavesTheLoginToTheChartsDefaults(t *testing.T) {
 	for _, mode := range []string{"", v1alpha1.AuthTest} {
 		w := newWetsproces("a", "a")
 		w.Spec.Auth.Mode = mode
-		values := chartValues(w, validConfig())
+		values := chartValues(w, validConfig(), testSnapshot)
 		assert.NotContains(t, values, "wetsproces", "mode %q", mode)
 		assert.NotContains(t, values, "keycloak", "mode %q", mode)
 		assert.Empty(t, hostsOf(w, "cluster.example.org").login)
@@ -40,7 +40,7 @@ func TestTestModeLeavesTheLoginToTheChartsDefaults(t *testing.T) {
 func TestStableModeTurnsOnTheChartsKeycloak(t *testing.T) {
 	t.Parallel()
 	w := stable(newWetsproces("zorgtoeslag", "zorgtoeslag"), true)
-	values := chartValues(w, validConfig())
+	values := chartValues(w, validConfig(), testSnapshot)
 	assert.Equal(t, map[string]any{"mode": "stable", "login": "oidc"}, values["wetsproces"])
 	assert.Equal(t, map[string]any{
 		"enabled":   true,

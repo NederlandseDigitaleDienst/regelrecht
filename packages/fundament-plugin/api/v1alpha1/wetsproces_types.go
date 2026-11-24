@@ -24,7 +24,30 @@ const (
 	// asks something of run on releases of their own, when asked for.
 	ConditionPartiesLinked = "PartiesLinked"
 	ConditionReleaseReady  = "ReleaseReady"
+	// ConditionSnapshotReady: the copy of the case for the current
+	// spec.manifest is in the namespace.
+	ConditionSnapshotReady = "SnapshotReady"
 )
+
+// Token states, in status.token.
+const (
+	// TokenPresent: the Secret in credentialsSecretRef is in the namespace.
+	TokenPresent = "Present"
+	// TokenAbsent: it is not, for instance because the plugin deleted it
+	// after the snapshot. A new snapshot needs a new one.
+	TokenAbsent = "Absent"
+)
+
+// SnapshotAnnotation, on a Wetsproces, asks for a new snapshot of the same
+// repoUrl, ref and path: any new value takes one, for instance to pick up
+// the latest commit of a branch.
+const SnapshotAnnotation = "wetsproces.regelrecht.nl/snapshot"
+
+// DeleteAfterSnapshotAnnotation, set to "true" on the Secret in
+// credentialsSecretRef, lets the plugin delete that Secret once a snapshot
+// of the case is in the namespace. The wizard sets it on the Secret it makes;
+// the plugin never deletes a Secret without it.
+const DeleteAfterSnapshotAnnotation = "wetsproces.regelrecht.nl/delete-after-snapshot"
 
 // SecretReference names a Secret in the namespace of the Wetsproces.
 type SecretReference struct {
@@ -57,6 +80,11 @@ type Manifest struct {
 
 	// CredentialsSecretRef names a Secret with the keys `username` and
 	// `token`, for a private repository. The token needs read access only.
+	// Only the Job that copies the case reads it, at install and after a
+	// change of the manifest; the pods of the release never do. With the
+	// annotation wetsproces.regelrecht.nl/delete-after-snapshot: "true" the
+	// plugin deletes the Secret after that copy, and a later change of the
+	// manifest needs a new one.
 	// +optional
 	CredentialsSecretRef *SecretReference `json:"credentialsSecretRef,omitempty"`
 }
@@ -219,6 +247,16 @@ type WetsprocesStatus struct {
 	// +optional
 	KeycloakSecret string `json:"keycloakSecret,omitempty"`
 
+	// Snapshot is the copy of the case that the release runs: the commit it
+	// was taken from and the ConfigMaps that hold it.
+	// +optional
+	Snapshot *SnapshotStatus `json:"snapshot,omitempty"`
+
+	// Token says whether the Secret in credentialsSecretRef is still in the
+	// namespace: Present or Absent; empty without credentialsSecretRef.
+	// +optional
+	Token string `json:"token,omitempty"`
+
 	// Message says why the phase is what it is.
 	// +optional
 	Message string `json:"message,omitempty"`
@@ -227,12 +265,25 @@ type WetsprocesStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// Conditions are Ready and ReleaseReady, and OrganisatieGevonden with
-	// spec.organisatie.
+	// Conditions are Ready, SnapshotReady and ReleaseReady, and
+	// OrganisatieGevonden with spec.organisatie.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// SnapshotStatus is a copy of the case in the namespace of the Wetsproces.
+type SnapshotStatus struct {
+	// Commit is the full hash of the commit of manifest.ref the copy was
+	// taken from.
+	// +optional
+	Commit string `json:"commit,omitempty"`
+
+	// ConfigMaps hold the copy, a tar.gz of the manifest and the files it
+	// names, in parts of at most 900 KiB, in this order.
+	// +optional
+	ConfigMaps []string `json:"configMaps,omitempty"`
 }
 
 // Wetsproces is one wetsprocessysteem: a case from a git repository, run by
@@ -244,6 +295,7 @@ type WetsprocesStatus struct {
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Auth",type=string,JSONPath=`.spec.auth.mode`
 // +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
+// +kubebuilder:printcolumn:name="Commit",type=string,JSONPath=`.status.snapshot.commit`,priority=1
 // +kubebuilder:printcolumn:name="Medewerkers",type=string,JSONPath=`.status.backofficeUrl`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type Wetsproces struct {

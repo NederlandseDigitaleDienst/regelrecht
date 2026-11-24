@@ -36,6 +36,15 @@ function keycloakHtml(item) {
     </nldd-rich-text>`;
 }
 
+// Whether the token Secret is still there. The pods never need it: only a
+// new copy of the casus does, after a change of the repository, branch or
+// manifest.
+function tokenText(state) {
+  if (state === 'Present') return 'aanwezig';
+  if (state === 'Absent') return 'verwijderd; een nieuwe versie van de casus vraagt een nieuw Secret met een token';
+  return 'onbekend';
+}
+
 function show(item) {
   const badge = phaseBadge(item);
   const spec = item.spec ?? {};
@@ -64,6 +73,8 @@ function show(item) {
         ['Branch of tag', manifest.ref ?? 'main'],
         ['Manifest', manifest.path ?? ''],
         ['Toegang', manifest.credentialsSecretRef ? `privé, met Secret ${manifest.credentialsSecretRef.name}` : 'openbaar'],
+        ['Kopie van de casus', item.status?.snapshot?.commit ? `commit ${item.status.snapshot.commit}` : 'nog niet gemaakt'],
+        ...(manifest.credentialsSecretRef ? [['Token', tokenText(item.status?.token)]] : []),
         ['Versie', spec.version || 'laatste build van main'],
         ['Accentkleur', spec.theme?.accentColor || 'standaard'],
         [

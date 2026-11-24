@@ -207,7 +207,7 @@ func executorPeers(w *v1alpha1.Wetsproces) []any {
 // same case, image and look as the executor's release, as one instance for
 // employees, linked with the executor's employees' instance.
 func partyValues(w *v1alpha1.Wetsproces, cfg pluginConfig, p v1alpha1.PartyStatus) map[string]any {
-	values := chartValues(w, cfg)
+	values := chartValues(w, cfg, statusSnapshot(w))
 	host := strings.TrimSuffix(strings.TrimPrefix(p.URL, "https://"), "/")
 	values["host"] = host
 	values["surfaces"] = map[string]any{"split": false}

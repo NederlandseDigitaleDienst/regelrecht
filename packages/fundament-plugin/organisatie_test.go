@@ -133,7 +133,7 @@ func TestAWetsprocesWithoutOrganisatieIsUnchanged(t *testing.T) {
 	assert.Nil(t, apimeta.FindStatusCondition(got.Status.Conditions, v1alpha1.ConditionOrganisatieFound))
 	values := releaseValues(t, r.Client, testNamespace, "parkeerkaart")
 	assert.NotContains(t, values, "organisatie")
-	assert.Equal(t, chartValues(w, validConfig()), values)
+	assert.Equal(t, chartValues(w, validConfig(), statusSnapshot(got)), values)
 }
 
 // Two wetsprocessen of one project, each in a namespace of its own, behind
@@ -328,7 +328,7 @@ func TestOrganisatieValuesExistInChart(t *testing.T) {
 	o.Spec.Version = pinned
 	w := newWetsproces("parkeerkaart", "parkeerkaart")
 	voorkant := voorkantValues(o, []*v1alpha1.Wetsproces{w}, validConfig())
-	proces := chartValues(w, validConfig())
+	proces := chartValues(w, validConfig(), testSnapshot)
 	proces["organisatie"] = organisatieValues(o, validConfig())
 	for _, values := range []map[string]any{voorkant, proces} {
 		for key, value := range values {

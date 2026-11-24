@@ -209,7 +209,17 @@ func newGitRepository(owner client.Object, version string, cfg pluginConfig) *un
 	})
 }
 
-// chartValues maps the spec of w onto the values of charts/wetsproces. The
+// toAny is names as the []any an unstructured object holds.
+func toAny(names []string) []any {
+	out := make([]any, len(names))
+	for i, n := range names {
+		out[i] = n
+	}
+	return out
+}
+
+// chartValues maps the spec of w and its snapshot onto the values of
+// charts/wetsproces. The
 // chart's own defaults stand for the rest: a CloudNativePG database of the
 // release, an instance per side, and the cluster's shared Gateway.
 //
@@ -217,7 +227,11 @@ func newGitRepository(owner client.Object, version string, cfg pluginConfig) *un
 // image.ref counts: the build of main that the chart on main names, which CI
 // moves on after every build. With reconcileStrategy Revision, Flux then rolls
 // out each new build of main.
-func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
+func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig, snap *snapshot) map[string]any {
+	// The case comes from the snapshot: the chart unpacks it and its pods
+	// fetch nothing. The repository, the ref and the token stay in the
+	// values for the chart of a version from before chart 0.8.0, which knows
+	// no snapshot and clones at every start.
 	m := w.Spec.Manifest
 	caseValues := map[string]any{
 		"repoUrl": m.RepoURL,
@@ -226,6 +240,9 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 	}
 	if m.CredentialsSecretRef != nil {
 		caseValues["credentialsSecret"] = m.CredentialsSecretRef.Name
+	}
+	if snap != nil {
+		caseValues["snapshot"] = map[string]any{"configMaps": toAny(snap.configMaps)}
 	}
 	h := hostsOf(w, cfg.Domain)
 	values := baseValues(h, w.Spec.Theme.AccentColor, w.Spec.Version, cfg)

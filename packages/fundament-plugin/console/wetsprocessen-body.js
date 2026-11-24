@@ -177,6 +177,11 @@ export function buildWetsproces({
 
 // The Secret with the credentials of a private repository, owned by the
 // Wetsproces `owner` so it goes when the Wetsproces goes.
+// The annotation that lets the plugin delete the Secret once it has copied
+// the case (api/v1alpha1, DeleteAfterSnapshotAnnotation): the token is needed
+// for that one copy only.
+export const DELETE_AFTER_SNAPSHOT = 'wetsproces.regelrecht.nl/delete-after-snapshot';
+
 export function buildSecret(owner, { username, token }) {
   return {
     apiVersion: 'v1',
@@ -185,6 +190,7 @@ export function buildSecret(owner, { username, token }) {
       name: secretName(owner.metadata.name),
       namespace: owner.metadata.namespace,
       labels: { 'wetsproces.regelrecht.nl/name': owner.metadata.name },
+      annotations: { [DELETE_AFTER_SNAPSHOT]: 'true' },
       ownerReferences: [
         {
           apiVersion: owner.apiVersion,

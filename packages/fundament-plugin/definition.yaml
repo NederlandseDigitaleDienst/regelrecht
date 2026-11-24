@@ -4,7 +4,7 @@ kind: PluginDefinition
 metadata:
   name: wetsproces
   displayName: RegelHet
-  version: v0.5.0
+  version: v0.6.0
   description: >-
     Offers the regelrecht wetsprocessysteem to the projects of a cluster.
     Installed once per cluster; project members then create a wetsproces per
@@ -131,13 +131,33 @@ spec:
       # generated for its Keycloak, and deletes it when it carries the
       # chart's labels for that release (controller.go,
       # deleteKeycloakSecret). The same for <name>-organisatie, the signing
-      # key of the front of a deleted Organisatie (organisatie.go). The names
-      # are not known in advance, so resourceNames cannot narrow this, and
-      # Fundament grants a ClusterRole.
+      # key of the front of a deleted Organisatie (organisatie.go). After a
+      # snapshot of the case it reads the token Secret of
+      # credentialsSecretRef, and deletes it when it is annotated
+      # wetsproces.regelrecht.nl/delete-after-snapshot: "true" (snapshot.go,
+      # deleteToken). The names are not known in advance, so resourceNames
+      # cannot narrow this, and Fundament grants a ClusterRole.
       # The console pages only create; they never read a Secret.
       - apiGroups: ['']
         resources: [secrets]
         verbs: [create, get, delete]
+      # The snapshot of the case (snapshot.go): a Job per Wetsproces and
+      # manifest clones the case repository once, with the token, and writes
+      # a tar.gz of the files the manifest names to its log. The plugin
+      # watches its own Jobs by label, reads that log (pods/log), stores the
+      # tar.gz in ConfigMaps the chart unpacks, and deletes the Job and the
+      # ConfigMaps of an older snapshot. ConfigMaps are listed by label past
+      # the cache, so no watch on them; the pods of the release then need no
+      # Secret and no network to git.
+      - apiGroups: [batch]
+        resources: [jobs]
+        verbs: [create, get, list, watch, delete]
+      - apiGroups: ['']
+        resources: [configmaps]
+        verbs: [create, get, list, delete]
+      - apiGroups: ['']
+        resources: [pods/log]
+        verbs: [get]
   crds:
     - wetsprocessen.wetsproces.regelrecht.nl
     - organisaties.wetsproces.regelrecht.nl

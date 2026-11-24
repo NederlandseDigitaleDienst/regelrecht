@@ -57,6 +57,8 @@ test('a private casus names its Secret, and the Secret is owned by the Wetsproce
     { apiVersion: 'wetsproces.regelrecht.nl/v1alpha1', kind: 'Wetsproces', name: 'zorgtoeslag', uid: 'uid-1' },
   ]);
   assert.deepEqual(secret.stringData, { username: 'lezer', token: 't0k3n' });
+  // The token is for the one copy of the casus: the plugin deletes it after.
+  assert.deepEqual(secret.metadata.annotations, { 'wetsproces.regelrecht.nl/delete-after-snapshot': 'true' });
 });
 
 test('an own domain names the object after its first label', () => {

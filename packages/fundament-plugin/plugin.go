@@ -6,12 +6,14 @@ import (
 	"sync"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -154,8 +156,10 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 		obj.SetGroupVersionKind(gvk)
 		byObject[obj] = mine
 	}
-	// Only the pods of wetsproces releases, which the chart labels.
+	// Only the pods of wetsproces releases, which the chart labels, and of
+	// the snapshot Jobs, which the plugin labels the same.
 	byObject[&corev1.Pod{}] = cache.ByObject{Label: labels.SelectorFromSet(labels.Set{appLabel: appName})}
+	byObject[&batchv1.Job{}] = mine
 	mgr, err := crhelper.SetupManager(p.scheme, &ctrl.Options{
 		// The plugin host owns the lifecycle; no listeners of our own.
 		Metrics:                metricsserver.Options{BindAddress: "0"},
@@ -166,10 +170,15 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("set up the controller manager: %w", err)
 	}
+	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, fmt.Errorf("create the client for pod logs: %w", err)
+	}
 	r := &WetsprocesReconciler{
 		Client:     mgr.GetClient(),
-		Secrets:    mgr.GetAPIReader(),
+		Uncached:   mgr.GetAPIReader(),
 		Namespaces: mgr.GetAPIReader(),
+		Logs:       podLogs(clientset),
 		Scheme:     p.scheme,
 		Config:     p.cfg,
 	}
@@ -187,6 +196,18 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 		return nil, err
 	}
 	return mgr, nil
+}
+
+// podLogs reads the log of a container through the API server, which needs
+// get on pods/log.
+func podLogs(clientset kubernetes.Interface) logReader {
+	return func(ctx context.Context, namespace, pod, container string) ([]byte, error) {
+		raw, err := clientset.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{Container: container}).DoRaw(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read the log of %s/%s: %w", namespace, pod, err)
+		}
+		return raw, nil
+	}
 }
 
 // Shutdown performs graceful cleanup. It must not uninstall anything: shutdown

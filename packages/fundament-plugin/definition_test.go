@@ -112,5 +112,23 @@ func TestTheRBACOfOrganisaties(t *testing.T) {
 		}
 	}
 	assert.Contains(t, crds, organisatieCRDName)
-	assert.Equal(t, "v0.5.0", def.Metadata.Version)
+}
+
+// v0.6.0 adds the snapshot of the case and nothing more: its own Jobs, the
+// ConfigMaps of the copy without watch, and the log of a pod, read only.
+func TestTheRBACOfTheSnapshot(t *testing.T) {
+	t.Parallel()
+
+	def := loadSourceDefinition(t)
+	verbs := map[string][]string{}
+	for _, rule := range def.Spec.Permissions.RBAC {
+		for _, resource := range rule.Resources {
+			verbs[resource] = append(verbs[resource], rule.Verbs...)
+		}
+	}
+	assert.ElementsMatch(t, []string{"create", "get", "list", "watch", "delete"}, verbs["jobs"])
+	assert.ElementsMatch(t, []string{"create", "get", "list", "delete"}, verbs["configmaps"])
+	assert.Equal(t, []string{"get"}, verbs["pods/log"])
+	assert.ElementsMatch(t, []string{"create", "get", "delete"}, verbs["secrets"], "no list or watch on Secrets")
+	assert.Equal(t, "v0.6.0", def.Metadata.Version)
 }

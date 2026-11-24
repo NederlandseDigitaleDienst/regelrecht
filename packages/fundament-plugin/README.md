@@ -31,6 +31,7 @@ spec:
     ref: main
     path: bron.yaml
     # For a private repository: a Secret with the keys username and token.
+    # Read once, by the Job that copies the case (below).
     # credentialsSecretRef:
     #   name: parkeerkaart-repo
   # Empty runs the latest build of main; a full commit hash pins one.
@@ -42,6 +43,9 @@ status:
   phase: Ready
   url: https://parkeerkaart.cluster-a.fieldlab2026.nl/
   backofficeUrl: https://parkeerkaart-medewerkers.cluster-a.fieldlab2026.nl/
+  snapshot:
+    commit: 2a89a76fd0e08323cc1453a52506fc04db212eb9
+    configMaps: [parkeerkaart-case-3f9c1a07b2-0]
 ```
 
 | Field | What it is |
@@ -49,7 +53,7 @@ status:
 | `manifest.repoUrl` | HTTPS URL of the git repository with the case, without credentials |
 | `manifest.ref` | branch, tag or full commit, `main` by default; a commit pins the case to one version |
 | `manifest.path` | path of the source manifest in that repository, `bron.yaml` by default: a manifest repository such as `regelrecht/wetsproces-parkeerkaart` has it at the root, and this repository has it at `packages/wetsproces/bron.yaml`. The case file and the articles it runs are named there, so the wizard does not ask for them |
-| `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository |
+| `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository. Only the snapshot Job reads it; annotated `wetsproces.regelrecht.nl/delete-after-snapshot: "true"`, the plugin deletes it after the snapshot (below) |
 | `version` | the regelrecht commit whose wetsproces image runs and whose chart installs it, the full 40-character hash. Empty follows main |
 | `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
 | `hostname` | a name under the base domain, or a domain of your own with a dot in it |
@@ -80,18 +84,88 @@ its hostname changes or the other one is gone.
 
 ## What the plugin makes
 
-For each Wetsproces the plugin's controller makes two Flux objects in the
-namespace of the object, both owned by it:
+For each Wetsproces the plugin's controller first copies the case into the
+namespace (the snapshot, below), and then makes two Flux objects there, all
+owned by the Wetsproces:
 
 1. a `GitRepository` named `<name>-chart` for this repository, kept to
    `charts/wetsproces` at `CHART_REF`;
 2. a `HelmRelease` named `<name>` that installs that chart with values from the
-   spec.
+   spec, and the case from the snapshot.
 
 Flux installs the chart and keeps it running while the plugin pod is down. The
 plugin writes the HelmRelease's `Ready` condition back into the status: phase
 `Ready` once the release is ready, `Failed` once Flux has stalled on it or the
 spec is refused, `Pending` before that.
+
+### The snapshot of the case
+
+The pods of a release do not fetch the case. At install, and after every change
+of `manifest.repoUrl`, `ref` or `path`, the plugin runs a Job
+`<name>-snapshot-<hash>` that fetches that one commit, with the token of
+`credentialsSecretRef` if there is one, and packs only what the manifest needs:
+the manifest itself, its `ui_spec`, and the YAML files under each of its
+`directories`, by their path in the repository. The plugin reads the tar.gz from
+the Job's log and stores it in ConfigMaps `<name>-case-<hash>-<n>`, at most
+900 KiB each and 4.4 MiB in all. The chart unpacks those into `/case` with an
+init container (`case.snapshot.configMaps`). So a pod that restarts needs no
+network access to git and mounts no Secret, and runs the same commit every
+time; `status.snapshot.commit` names it.
+
+The Job uses `alpine/git` and `mikefarah/yq`, both pinned by digest, and runs
+under the same restricted security context as the chart's pods. The plugin
+deletes it once the copy is stored. While a new snapshot is taken, or when it
+fails, the release keeps running the previous one; the old ConfigMaps go once
+the release is ready on the new ones.
+
+A failed Job turns the Wetsproces `Failed` with the reason `SnapshotFailed`,
+and the message says why in one line:
+
+```
+copying the case failed: the git server refused access to https://...: check the token in the Secret of credentialsSecretRef, which needs read access (...)
+copying the case failed: the manifest bron.yaml is not in commit 2a89a76f... of main
+copying the case failed: the case is 5123456 bytes packed, more than the 4608000 a snapshot holds; ...
+```
+
+The Job stays for 5 minutes with its reason, and then the plugin tries again,
+so a corrected token takes effect without a change of the spec.
+
+A `version` from before chart 0.8.0 has a chart without the snapshot. Its pods
+clone the case at every start, as before, with the token. So the plugin never
+deletes the token of a Wetsproces with a `version`.
+
+A branch moves on without a change of the spec. For a new snapshot of the same
+`ref`, set or change the annotation `wetsproces.regelrecht.nl/snapshot` on the
+Wetsproces, to any value; a commit in `ref` pins the case instead.
+
+The copy is as readable as the namespace's ConfigMaps: whoever may read those,
+the role `view` included, can read the case, which a Secret would not allow. For
+a private repository that is the trade: no token in the namespace, the case
+itself in a ConfigMap.
+
+#### The token is for one copy
+
+After a successful snapshot the plugin deletes the Secret of
+`credentialsSecretRef`, but only when that Secret carries the annotation
+`wetsproces.regelrecht.nl/delete-after-snapshot: "true"`, and only the Secret it
+read (by UID). The wizard sets that annotation on the Secret it makes. A Secret
+you make yourself stays unless you add it. `status.token` says whether the
+Secret is still there (`Present` or `Absent`).
+
+So a new version of the case (another `ref`, `path` or a new snapshot
+annotation) needs a new Secret with a token first. Without it the Wetsproces
+goes to `Failed` with the reason `TokenMissing` and the release keeps the copy
+it has. Create the Secret under the same name, with the annotation if it may go
+again:
+
+```bash
+kubectl -n <namespace> create secret generic <name>-repo \
+  --from-literal=username=x-access-token --from-file=token=<file>
+kubectl -n <namespace> annotate secret <name>-repo \
+  wetsproces.regelrecht.nl/delete-after-snapshot=true
+```
+
+The plugin looks for the Secret again every 15 seconds.
 
 ### A wetsproces that does not start
 
@@ -116,19 +190,15 @@ is not in the repository therefore reads, after about two and a half minutes:
 container wetsproces: wetsproces: the case: the manifest does not read: ...
 ```
 
-A token for a private manifest repository that the git server refuses reads:
-
-```
-container clone-case: fatal: Authentication failed for 'https://...' (Error)
-```
+A token the git server refuses, a missing path or a case that is too large
+is reported by the snapshot instead, before any pod starts (above).
 
 Helm goes on trying. Its timeout is 3 minutes instead of the default 5, so a
 corrected spec, or a new Wetsproces in place of the failed one, takes over
 sooner. Once the pods run, the status follows the release again.
 
-The plugin does not check the path before it makes the release. That would
-need git and internet access in the plugin pod, and read access to the Secret
-of a private repository, for one kind of mistake; the pods report every kind.
+The snapshot Job checks that the manifest and the directories it names are in
+the commit. Whether the case itself reads, the server says when it starts.
 
 The chart then runs what it runs by default since PR #7: a CloudNativePG
 `Cluster` as the database of the release, one instance for citizens and one for
@@ -544,19 +614,26 @@ Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept
 to the namespaces of a project. The rules in `definition.yaml` say per group
 why the plugin needs them. In short: create and get the plugin's own CRDs,
 manage two ClusterRoles by name, manage Wetsproces and Organisatie objects and
-their status, manage Flux `GitRepository` and `HelmRelease` objects, read pods,
-get namespaces, and create, get and delete Secrets. Pods are read to report a
-wetsproces that does not start. A namespace is read, with `get` only, for its
-project label when a wetsproces names an organisatie in another namespace. On Secrets the plugin has no `list` or `watch`, so it sees only a
-Secret it asks for by name:
+their status, manage Flux `GitRepository` and `HelmRelease` objects, read pods
+and the log of a pod, get namespaces, manage Jobs and ConfigMaps, and create,
+get and delete Secrets. Pods are read to report a wetsproces that does not
+start. A namespace is read, with `get` only, for its project label when a
+wetsproces names an organisatie in another namespace. Jobs, ConfigMaps and
+`pods/log` are for the snapshot: the plugin creates, watches and deletes its
+own Jobs, reads the log of a finished one, and creates, lists and deletes the
+ConfigMaps that hold the copy; it lists ConfigMaps by label, past its cache,
+and does not watch them. On Secrets the plugin has no `list` or `watch`, so it
+sees only a Secret it asks for by name:
 
 - `create` is for the wizard, which makes the Secret with the token of a
   private repository. A console page acts with the rights the user and the
   plugin share, so the plugin must hold every right a page uses.
 - `get` and `delete` are for one Secret per deleted Wetsproces: the plugin
   reads `<name>-keycloak` and deletes it when it carries the chart's labels
-  for that release. The names are not known in advance, so `resourceNames`
-  cannot narrow this.
+  for that release. And for the token Secret after a snapshot: the plugin
+  reads it, and deletes it only with the annotation
+  `wetsproces.regelrecht.nl/delete-after-snapshot: "true"`. The names are not
+  known in advance, so `resourceNames` cannot narrow this.
 
 The pages never read a Secret.
 

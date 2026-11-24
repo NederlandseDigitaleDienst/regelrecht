@@ -65,6 +65,36 @@ spec:
           type: RuntimeDefault
       {{- if not $front }}
       initContainers:
+        {{- with .Values.case.snapshot.configMaps }}
+        # The case from the snapshot the Fundament plugin made: no network,
+        # no Secret. The parts join, in order, into one tar.gz.
+        - name: unpack-case
+          image: {{ $.Values.gitImage.ref }}
+          terminationMessagePolicy: FallbackToLogsOnError
+          imagePullPolicy: {{ $.Values.gitImage.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - cat {{ range $i, $_ := . }}/snapshot/{{ $i }}/part {{ end }}| tar -xzf - -C /case
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: case
+              mountPath: /case
+            {{- range $i, $_ := . }}
+            - name: snapshot-{{ $i }}
+              mountPath: /snapshot/{{ $i }}
+              readOnly: true
+            {{- end }}
+        {{- else }}
         - name: clone-case
           image: {{ .Values.gitImage.ref }}
           # A failed clone leaves its last lines in the container status, where
@@ -137,6 +167,7 @@ spec:
               mountPath: /case
             - name: tmp
               mountPath: /tmp
+        {{- end }}
       {{- end }}
       containers:
         - name: wetsproces
@@ -341,6 +372,11 @@ spec:
         - name: case
           emptyDir:
             sizeLimit: 2Gi
+        {{- range $i, $name := .Values.case.snapshot.configMaps }}
+        - name: snapshot-{{ $i }}
+          configMap:
+            name: {{ $name }}
+        {{- end }}
         {{- end }}
         - name: tmp
           emptyDir:

@@ -75,7 +75,7 @@ func TestPartiesStayInTheAdminPanelUnlessTheSpecAsks(t *testing.T) {
 
 	assert.Zero(t, server.asked, "a Wetsproces that does not ask is not looked into")
 	assert.Empty(t, got.Status.Parties)
-	assert.NotContains(t, chartValues(got, validConfig()), "koppeling")
+	assert.NotContains(t, chartValues(got, validConfig(), testSnapshot), "koppeling")
 	cond := apimeta.FindStatusCondition(got.Status.Conditions, v1alpha1.ConditionPartiesLinked)
 	require.NotNil(t, cond)
 	assert.Equal(t, reasonPartiesDisabled, cond.Reason)
