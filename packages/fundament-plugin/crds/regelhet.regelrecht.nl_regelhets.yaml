@@ -173,20 +173,46 @@ spec:
                 required:
                 - name
                 type: object
-              parties:
+              partij:
                 description: |-
-                  Parties says where the external parties of the case work. Empty
-                  leaves them to the admin panel.
+                  Partij runs this RegelHet as the server of one external party of the
+                  case of another RegelHet, the executor, linked with it. Such a
+                  RegelHet has one address, for the party's staff: its hostname
+                  itself. Empty runs it as an executor, whose external
+                  parties either run as a RegelHet of their own that names it here or
+                  are entered by an admin in the admin panel. Test mode only.
                 properties:
-                  ownInstances:
+                  cel:
                     description: |-
-                      OwnInstances gives each external party that the executor asks
-                      something of by its own policy a release of its own, where its staff
-                      log in, linked with the executor's. Which parties those are follows
-                      from the regelwerken of the case: the running server names them, and
-                      a case that asks no party for anything gets none. Off, an admin
-                      enters what every external party did. Test mode only.
-                    type: boolean
+                      Cel is the party as the case of the executor names it, such as
+                      ggd_wilgendaal. The executor's case must ask that party something by
+                      its policy.
+                    maxLength: 100
+                    minLength: 1
+                    pattern: ^[A-Za-z0-9_-]+$
+                    type: string
+                  uitvoerder:
+                    description: |-
+                      Uitvoerder is the RegelHet of the executor, in the same Fundament
+                      project.
+                    properties:
+                      name:
+                        description: Name of the RegelHet.
+                        maxLength: 40
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: |-
+                          Namespace of the RegelHet; empty is the namespace of the RegelHet
+                          that names it. It must be a namespace of the same Fundament project.
+                        maxLength: 63
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - cel
+                - uitvoerder
                 type: object
               theme:
                 description: Theme is how the screens look.
@@ -236,10 +262,17 @@ spec:
             - manifest
             type: object
             x-kubernetes-validations:
-            - message: 'parties.ownInstances links the releases with keys made at
-                start: test mode only'
-              rule: '!(has(self.parties) && has(self.parties.ownInstances) && self.parties.ownInstances
-                && has(self.auth) && has(self.auth.mode) && self.auth.mode == ''stable'')'
+            - message: 'partij links two servers with keys made at start: test mode
+                only'
+              rule: '!(has(self.partij) && has(self.auth) && has(self.auth.mode) &&
+                self.auth.mode == ''stable'')'
+            - message: partij runs a server for the staff of a party, without a citizens'
+                side for fsc4b
+              rule: '!(has(self.partij) && has(self.fsc4b) && has(self.fsc4b.enabled)
+                && self.fsc4b.enabled)'
+            - message: partij runs a server for the staff of a party, without a citizens'
+                side to put behind the front of an organisatie
+              rule: '!(has(self.partij) && has(self.organisatie))'
             - message: 'fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst
                 checks no identity: test mode only'
               rule: '!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled
@@ -247,13 +280,37 @@ spec:
           status:
             description: RegelHetStatus is what the plugin last saw.
             properties:
+              askedParties:
+                description: |-
+                  AskedParties are the external parties that the case asks something
+                  of by its policy, as the running server last named them: the cells a
+                  RegelHet with spec.partij may run as for this one. Empty for a
+                  RegelHet that is itself a party.
+                items:
+                  description: |-
+                    AskedParty is an external party that the case of an executor asks
+                    something of by its policy, as its running server names it.
+                  properties:
+                    cell:
+                      description: Cell is the party as the case names it.
+                      type: string
+                    name:
+                      description: Name is what a screen calls it.
+                      type: string
+                  required:
+                  - cell
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - cell
+                x-kubernetes-list-type: map
               backofficeUrl:
                 description: BackofficeURL is where employees do.
                 type: string
               conditions:
                 description: |-
-                  Conditions are Ready, SnapshotReady and ReleaseReady, and
-                  OrganisatieGevonden with spec.organisatie.
+                  Conditions are Ready, SnapshotReady, ReleaseReady and PartiesLinked,
+                  and OrganisatieGevonden with spec.organisatie.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -315,7 +372,8 @@ spec:
               executorCell:
                 description: |-
                   ExecutorCell is the cell of the case the executor's release works
-                  for, which a party's release names as its peer; set with Parties.
+                  for, which a party's release names as its peer; set with
+                  AskedParties.
                 type: string
               fsc4bDiscoveryUrl:
                 description: |-
@@ -343,11 +401,12 @@ spec:
                 type: integer
               parties:
                 description: |-
-                  Parties are the external parties that run on a release of their own,
-                  as the running server last named them; empty when none does.
+                  Parties are the external parties that run on a RegelHet of their
+                  own, linked with this one; empty when none does.
                 items:
-                  description: PartyStatus is an external party that runs on a release
-                    of its own.
+                  description: |-
+                    PartyStatus is an external party that runs on a RegelHet of its own,
+                    linked with this one.
                   properties:
                     cell:
                       description: Cell is the party as the case names it.
@@ -355,6 +414,23 @@ spec:
                     name:
                       description: Name is what a screen calls it.
                       type: string
+                    procedure:
+                      description: Procedure is the RegelHet the party runs on.
+                      properties:
+                        name:
+                          description: Name of the RegelHet.
+                          maxLength: 40
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace of the RegelHet; empty is the namespace of the RegelHet
+                            that names it. It must be a namespace of the same Fundament project.
+                          maxLength: 63
+                          type: string
+                      required:
+                      - name
+                      type: object
                     url:
                       description: URL is where its staff log in.
                       type: string

@@ -130,5 +130,6 @@ func TestTheRBACOfTheSnapshot(t *testing.T) {
 	assert.ElementsMatch(t, []string{"create", "get", "list", "delete"}, verbs["configmaps"])
 	assert.Equal(t, []string{"get"}, verbs["pods/log"])
 	assert.ElementsMatch(t, []string{"create", "get", "delete"}, verbs["secrets"], "no list or watch on Secrets")
-	assert.Equal(t, "v0.6.0", def.Metadata.Version)
+	// v0.7.0 (spec.partij) asks for no permission beyond these.
+	assert.Equal(t, "v0.7.0", def.Metadata.Version)
 }

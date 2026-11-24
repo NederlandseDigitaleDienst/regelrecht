@@ -60,13 +60,13 @@ status:
 | `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository. Only the snapshot Job reads it; annotated `regelhet.regelrecht.nl/delete-after-snapshot: "true"`, the plugin deletes it after the snapshot (below) |
 | `version` | the regelrecht commit whose RegelHet image runs and whose chart installs it, the full 40-character hash. Empty follows main |
 | `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
-| `casus` | the case to run when the manifest makes several, by the name of its case file under `casussen/` without `.yaml`, such as `bedrijfsparkeervergunning`. One manifest repository then holds several procedures, each a RegelHet of its own with its own `casus`. Empty runs the only case; a manifest with several and no choice, or a name it does not make, sets the RegelHet to `Failed` with `NotStarting`, and its message carries the server's error, which lists the cases the manifest makes. An external party on a release of its own runs the same case. A `version` from before this field ignores it |
+| `casus` | the case to run when the manifest makes several, by the name of its case file under `casussen/` without `.yaml`, such as `bedrijfsparkeervergunning`. One manifest repository then holds several procedures, each a RegelHet of its own with its own `casus`. Empty runs the only case; a manifest with several and no choice, or a name it does not make, sets the RegelHet to `Failed` with `NotStarting`, and its message carries the server's error, which lists the cases the manifest makes. A RegelHet that runs as an external party (`partij`) chooses its case like any other; give it the executor's. A `version` from before this field ignores it |
 | `title` | the title in the bar at the top of the screens, at most 80 characters on one line. Empty carries the `titel` of the case file. A `version` from before this field ignores it |
 | `hostname` | a name under the base domain, or a domain of your own with a dot in it |
 | `auth.mode` | `test` (the default: the test login and a clock the admin sets) or `stable` (a Keycloak of its own, and the real date) |
 | `auth.testAccounts` | in stable mode, give that Keycloak the test accounts of the case, with one generated password |
 | `fsc4b.enabled` | also offer the citizens' routes to an app through FSC voor Burgers, on the demo Stelsel with a test Activatiedienst that checks no identity. Test mode only: with `auth.mode: stable` the API server and the plugin refuse it. `status.fsc4bDiscoveryUrl` then names `https://<citizens' host>/fsc4b/discovery`. A `version` from before chart 0.5.0 ignores it |
-| `parties.ownInstances` | give each external party that the executor asks something of by its own policy a release of its own, where its staff log in, linked with the executor's release (see [External parties on a release of their own](#external-parties-on-a-release-of-their-own)). Test mode only |
+| `partij` | run as the server of one external party of another RegelHet's case, linked with it: `cel` is the party as that case names it, such as `ggd_wilgendaal`, and `uitvoerder` names the executor's RegelHet by `name` and, when another, `namespace` of the same Fundament project (see [External parties as a RegelHet of their own](#external-parties-as-a-regelhet-of-their-own)). Test mode only, and not with `fsc4b` or `organisatie` |
 
 The name of the object is at most 40 characters, because it names the Helm
 release and every object of the chart.
@@ -660,60 +660,124 @@ The two ClusterRoles aggregate into `admin` and `view`, the roles Fundament
 binds project admins and viewers to. Admins may create and delete
 RegelHet instances and organisaties; viewers may read them.
 
-## External parties on a release of their own
+## External parties as a RegelHet of their own
 
 A case names its external parties, and its regelwerken say which of them the
 executor asks something of by its own policy. For the parking card that is the
-GGD, which examines the applicant; the court is asked nothing. With
-`parties.ownInstances` each such party gets a release of its own, where its
-staff log in and see what the executor asks of it. The two releases exchange
-requests and answers as signed messages (the chart's `koppeling` values; the
-server's side is described on the docs page `components/regelhet-koppeling`).
+GGD, which examines the applicant; the court is asked nothing. Such a party can
+run as a RegelHet of its own, where its staff log in and see what the executor
+asks of it. The two releases exchange requests and answers as signed messages
+(the chart's `koppeling` values; the server's side is described on the docs
+page `components/regelhet-koppeling`).
 
-The plugin does not read the case. The server does, and names those parties on
-`GET /koppeling/v1/partijen`. So the plugin works in two steps:
+An admin installs the party like any other RegelHet, through the wizard or with
+kubectl, and names in `spec.partij` its cell and the executor's RegelHet:
 
-1. It installs the executor's release without a link.
-2. Once that release is ready, it asks the Service of the employees' instance
-   inside the cluster, writes the answer to `status.parties`, makes a
-   HelmRelease `<name>-<party>` per party and applies the executor's release
-   again with those parties as its peers.
+```yaml
+apiVersion: regelhet.regelrecht.nl/v1alpha1
+kind: RegelHet
+metadata:
+  name: ggd-wilgendaal
+  namespace: tnt-voorbeeld--ggd
+spec:
+  manifest:
+    repoUrl: https://git.example.org/voorbeeld/wilgendaal-casussen
+  casus: gehandicaptenparkeerkaart
+  title: GGD Wilgendaal
+  theme:
+    accentColor: rood
+  hostname: ggd-wilgendaal
+  partij:
+    cel: ggd_wilgendaal
+    uitvoerder:
+      name: parkeerkaart
+      namespace: tnt-voorbeeld--regelhet
+```
 
-A party's release wears the accent colour `rood` (or `robijnrood` when the
-executor's own is `rood`), so its screens are told apart from the executor's.
+The party keeps its own namespace, colour and title. Without a colour in its
+spec it wears `rood`, or `robijnrood` beside an executor that is `rood`, so
+its screens are told apart from the executor's; the wizard writes that colour
+into the spec. It has one instance, for
+its staff, on its hostname itself (`ggd-wilgendaal.<domain>` here, in
+`status.backofficeUrl`), and no citizens' side, so `status.url` stays empty and the CRD refuses `fsc4b` and `organisatie` beside
+`partij`. Its case comes from its own spec: give it the executor's case, since
+both servers must know the same cells and facts. The plugin does not check
+this.
 
-A party's address is `<hostname>-<party>.<domain>`, where the party is its cell
-with dashes: `ggd_wilgendaal` under the hostname `parkeerkaart` gives
-`parkeerkaart-ggd-wilgendaal.<domain>`. The condition `PartiesLinked` says how
-far this is and why not. A case whose regelwerken ask no party for anything
-gets no extra release, and the condition says so.
+The plugin does not read the case. The executor's server does, and names the
+parties it asks something of on `GET /koppeling/v1/partijen`. So the plugin
+works in steps:
 
-While the release is ready the plugin asks again at every reconcile, and at
-least every ten minutes, so a case that gains a party follows. A party the
-server no longer names keeps its release and its data, and the condition says
-so: the answer depends on the day the server runs on, which an admin sets in
-test mode, and removing a release removes its database. Turning
-`parties.ownInstances` off removes every party release. While the release is
-not ready, or the server does not answer, what runs is left alone and the
-plugin asks again after thirty seconds.
+1. It installs the executor's release. Once that is ready, it asks the Service
+   of the employees' instance inside the cluster and writes the answer to the
+   executor's `status.askedParties` and `status.executorCell`. The wizard
+   offers these parties.
+2. A RegelHet with `spec.partij` waits, `Pending` and without a release, until
+   its executor has that list. Then it installs its own release with the
+   executor's employees' address as its peer.
+3. The executor finds the RegelHet instances that name it, as an organisatie
+   finds its own (same namespace, or a namespace with the same
+   `fundament.io/project-id`), writes them to `status.parties` and applies its
+   release again with them as its peers.
 
-A party is left out, with the reason in the condition, when its name gives no
-valid address or release name, when it comes to the same name as another
-party or as a part of the executor's own release (`burger`, `backoffice`,
-`medewerkers`, `login`, `keycloak`, `db`, `chart`), or when a release or a
-RegelHet with that name or address exists already. The names come from the
-case, so the plugin never applies to or deletes a release it did not make for
-that party.
+The executor and the party apply the same rules to the link. A party is refused (`Failed`, with the
+reason in its condition `PartiesLinked` and its message) when the executor does
+not exist, is in another project, runs in stable mode, is a party itself or is
+refused by the plugin; when its cell is the executor's own or one the case asks
+nothing of (the message lists the ones it does ask); and when another RegelHet
+runs as that cell for the same executor. Of two that would both be linked, the
+one linked now keeps the link, and otherwise the older one gets it. The executor's condition
+`PartiesLinked` names the parties it links and, for each one it does not, why.
+
+While the executor's release is ready the plugin asks again at every reconcile,
+and at least every ten minutes, so a case that gains a party follows. A party
+the server no longer names stays linked, and keeps its name: the answer depends
+on the day the server runs on, which an admin sets in test mode. While the
+release is not ready, or the server does not answer, what the status holds
+stays and the plugin asks again after thirty seconds. A build of the server
+from before `/koppeling/v1/partijen` answers 404; without parties that leaves
+the condition `Unknown` and the RegelHet runs as before.
+
+Deleting a party, or changing its `spec.partij`, takes it off the executor's
+peers. Its own data goes with its own RegelHet only. A party that is refused
+after it ran keeps its release and its data, as any refused RegelHet does: it
+then runs with the peer it had, for instance an executor that was deleted.
+Delete the party, or correct its spec.
+
+### From `parties.ownInstances`
+
+Plugin v0.6.0 made the party releases under the executor, with
+`spec.parties.ownInstances: true`, as HelmReleases `<name>-<party>` labelled
+`regelhet.regelrecht.nl/partij`. From v0.7.0 that field is gone from the CRD,
+and the API server drops it from a stored object. After the upgrade the plugin
+deletes every such release it controls, and helm-controller uninstalls it with
+its database: the requests and advice on the old party server are lost.
+
+For a RegelHet that had the option on, make the party again as a RegelHet of
+its own, with the same case and `partij` naming its cell and the executor.
+With the hostname `<hostname>-<party>` (for `parkeerkaart` and
+`ggd_wilgendaal`, `parkeerkaart-ggd-wilgendaal`) it keeps the old address, and
+the certificate the cluster already has for it. Its name is then the old
+release's, so make it only once that release is gone: until then the plugin
+cannot take over a HelmRelease the executor controls. Reset both test
+environments afterwards: the executor's chronicles still hold the old
+exchange, and the new party server starts empty.
+
+Wetsproces objects of plugin v0.5.0 and older, such as the procedures on
+`cluster-a` with their party releases, are not migrated to RegelHet at all:
+they are made again on the new plugin, and a party among them as a RegelHet
+with `partij`.
 
 What this leans on:
 
 - The plugin's pod must reach a Service in a project namespace. The cluster
   does not separate namespaces on the network today; where it does, this call
   needs an allowance.
-- A build of the server from before this route answers 404, which the
-  condition reports as a version that is too old.
+- The executor's server must reach the party's address and back,
+  over the shared Gateway.
 - The link runs with keys made at start, which the server allows in test mode
-  only, so `auth.mode: stable` refuses `parties.ownInstances`.
+  only, so `auth.mode: stable` refuses `partij`, and an executor in stable mode
+  links no party.
 
 ## Develop
 

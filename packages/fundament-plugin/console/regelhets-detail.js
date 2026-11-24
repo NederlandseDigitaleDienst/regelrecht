@@ -8,7 +8,7 @@ import {
   deleteSectionHtml,
   wireDelete,
 } from './_shared.js';
-import { REGELHET_RESOURCE, phaseBadge } from './regelhets-body.js';
+import { REGELHET_RESOURCE, phaseBadge, partijText } from './regelhets-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
 const ctx = await fundament.init;
@@ -59,7 +59,7 @@ function show(item) {
     <nldd-spacer size="16"></nldd-spacer>
     <nldd-list appearance="simple" accessible-label="Adressen">
       ${linkRow('Burgers', item.status?.url)}
-      ${linkRow('Medewerkers', item.status?.backofficeUrl)}
+      ${linkRow(spec.partij ? 'Medewerkers van de partij' : 'Medewerkers', item.status?.backofficeUrl)}
       ${linkRow('Inloggen (Keycloak)', item.status?.loginUrl)}
       ${linkRow('FSC voor Burgers (discovery)', item.status?.fsc4bDiscoveryUrl)}
       ${(item.status?.parties ?? []).map((p) => linkRow(p.name || p.cell, p.url)).join('')}
@@ -85,9 +85,13 @@ function show(item) {
             ? `stabiel, via Keycloak${spec.auth.testAccounts ? ', met testaccounts' : ''}`
             : 'testomgeving',
         ],
-        ['FSC voor Burgers', spec.fsc4b?.enabled ? 'aan, met het demo-stelsel' : 'uit'],
-        ['Externe partijen', spec.parties?.ownInstances ? 'op een eigen omgeving, waar de casus een partij iets vraagt' : 'via het beheerpaneel'],
-        ['Organisatie', organisatieText(spec.organisatie, item)],
+        ...(spec.partij
+          ? [['Partij van', partijStatusText(spec.partij, item)]]
+          : [
+              ['FSC voor Burgers', spec.fsc4b?.enabled ? 'aan, met het demo-stelsel' : 'uit'],
+              ['Externe partijen', partiesText(item)],
+              ['Organisatie', organisatieText(spec.organisatie, item)],
+            ]),
         ['Hostnaam', spec.hostname ?? ''],
       ],
       'Instellingen',
@@ -100,6 +104,29 @@ function show(item) {
       'Procedure en data verwijderen',
     )}`;
   wireDelete(content, { resource: REGELHET_RESOURCE, name, namespace });
+}
+
+// The executor of spec.partij, and whether the plugin linked the procedure
+// with it (condition PartiesLinked).
+function partijStatusText(partij, item) {
+  const where = partijText(partij, namespace);
+  const linked = (item.status?.conditions ?? []).find((c) => c.type === 'PartiesLinked');
+  if (!linked) return where;
+  return linked.status === 'True' ? `${where}, gekoppeld` : `${where}, niet gekoppeld: ${linked.message}`;
+}
+
+// The parties of an executor: those that run as a procedure of their own,
+// and those its case asks something of that are entered in the admin panel.
+function partiesText(item) {
+  const linked = item.status?.parties ?? [];
+  const own = new Set(linked.map((p) => p.cell));
+  const rest = (item.status?.askedParties ?? []).filter((a) => !own.has(a.cell)).map((a) => a.name || a.cell);
+  const parts = linked.map((p) => {
+    const where = p.procedure ? ` (procedure ${p.procedure.namespace}/${p.procedure.name})` : '';
+    return `${p.name || p.cell} als eigen procedure${where}`;
+  });
+  if (rest.length) parts.push(`${rest.join(', ')} via het beheerpaneel`);
+  return parts.length ? parts.join('; ') : 'geen, of nog niet bekend';
 }
 
 // The organisatie of spec.organisatie, and whether the plugin put the

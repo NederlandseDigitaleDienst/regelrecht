@@ -2,7 +2,8 @@
 // "Volgende" (runWizard in _shared.js). The last step shows what will be made
 // and makes it: the RegelHet, for a private repository the Secret with its
 // token, owned by the RegelHet so both go together, and a new Organisatie
-// when one is asked for.
+// when one is asked for. A RegelHet may run as an external party of another
+// (spec.partij), chosen in the step Rol.
 import {
   loadSdk,
   loadNlddDesignSystem,
@@ -53,6 +54,11 @@ import {
   nameFromHostname,
   keycloakSecretName,
   fsc4bDiscoveryUrl,
+  ROLE_EXECUTOR,
+  ROLE_PARTY,
+  partyChoices,
+  partijReference,
+  partyAccentColor,
 } from './regelhets-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
@@ -69,7 +75,8 @@ const state = {
   stable: false,
   testAccounts: true,
   fsc4b: false,
-  ownParties: false,
+  role: ROLE_EXECUTOR,
+  partyChoice: '',
   username: '',
   token: '',
   pinned: false,
@@ -102,6 +109,35 @@ async function listOrganisaties() {
   }
 }
 const organisaties = await listOrganisaties();
+
+// The parties a new procedure can run as: those the cases of the procedures
+// in the namespaces of the project ask something of. The plugin refuses an
+// executor of another project, so the wizard offers none. Not readable
+// offers none either.
+async function listPartyChoices() {
+  const namespaces = Array.isArray(ctx.namespaces) && ctx.namespaces.length > 0 ? ctx.namespaces : [undefined];
+  try {
+    const lists = await Promise.all(
+      namespaces.map((namespace) => fundament.k8s.list({ ...REGELHET_RESOURCE, namespace })),
+    );
+    return partyChoices(lists.flatMap((l) => l.items ?? []));
+  } catch {
+    return [];
+  }
+}
+const choices = await listPartyChoices();
+state.partyChoice = choices[0]?.value ?? '';
+
+function partyLabel(value) {
+  return choices.find((c) => c.value === value)?.label ?? value;
+}
+
+// The accent colour the procedure gets: the chosen one, or for a party that
+// chose none a colour other than its executor's.
+function accentColor() {
+  if (state.accentColor || !isParty()) return state.accentColor;
+  return partyAccentColor(choices.find((c) => c.value === state.partyChoice)?.accentColor);
+}
 state.existingOrganisatie = organisaties[0] ? organisatieKey(organisaties[0]) : '';
 
 function organisatieLabel(key) {
@@ -154,10 +190,6 @@ const steps = [
       <div id="fsc4b"${state.stable ? ' hidden' : ''}>
         <nldd-spacer size="12"></nldd-spacer>
         <nldd-checkbox-field name="fsc4b" label="Ook FSC voor Burgers: een app mag namens een testburger aanvragen indienen en het dossier lezen, met een test-Activatiedienst die niemand controleert"${state.fsc4b ? ' checked' : ''}></nldd-checkbox-field>
-      </div>
-      <div id="ownParties"${state.stable ? ' hidden' : ''}>
-        <nldd-spacer size="12"></nldd-spacer>
-        <nldd-checkbox-field name="ownParties" label="Externe partijen op een eigen omgeving: een partij die volgens de regelgeving van de casus iets gevraagd wordt, zoals de GGD om een onderzoek, krijgt een eigen adres waar haar medewerkers inloggen. Vraagt de casus geen partij iets, dan komt er geen bij"${state.ownParties ? ' checked' : ''}></nldd-checkbox-field>
       </div>`,
     wire: (f) => {
       f.querySelector('nldd-radio-button-group[name="access"]').addEventListener('change', () => {
@@ -166,7 +198,6 @@ const steps = [
       f.querySelector('nldd-radio-button-group[name="login"]').addEventListener('change', () => {
         f.querySelector('#stable').hidden = chosenRadio(f, 'login') !== 'stable';
         f.querySelector('#fsc4b').hidden = chosenRadio(f, 'login') === 'stable';
-        f.querySelector('#ownParties').hidden = chosenRadio(f, 'login') === 'stable';
       });
     },
     checks: (f) => {
@@ -184,8 +215,6 @@ const steps = [
         stable: chosenRadio(f, 'login') === 'stable',
         testAccounts: Boolean(f.querySelector('nldd-checkbox-field[name="testAccounts"]')?.checked),
         fsc4b: chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked),
-        ownParties:
-          chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="ownParties"]')?.checked),
       }),
   },
   {
@@ -213,7 +242,7 @@ const steps = [
     intro: 'De titel bovenaan de schermen, en hun accentkleur, een van de kleuren van het NLDD-designsysteem.',
     fields: () => `
       ${field('Titel', textField('title', state.title, 'maxlength="80"'), { errorId: 'e-title', hint: 'Bovenaan elk scherm, zoals Parkeervergunningen. Leeg is de titel uit het casusbestand.' })}
-      ${field('Accentkleur', accentDropdown('accentColor', state.accentColor))}`,
+      ${field('Accentkleur', accentDropdown('accentColor', state.accentColor), { hint: 'Leeg is de kleur van het ontwerpsysteem. Een partij krijgt dan rood, naast een rode uitvoerder robijnrood.' })}`,
     checks: (f) => [[f.querySelector('[name="title"]'), titleError]],
     keep: (v) => Object.assign(state, { title: v('title'), accentColor: v('accentColor') }),
   },
@@ -236,10 +265,47 @@ const steps = [
     keep: (v) => Object.assign(state, { hostname: v('hostname'), namespace: v('namespace') }),
   },
   {
+    title: 'Rol',
+    // A party is linked with keys made at start, in test mode only.
+    skip: () => state.stable,
+    intro: 'Voert de procedure de casus zelf uit, of draait ze als partij voor een andere procedure? Een partij is bijvoorbeeld de GGD, die voor de gemeente een onderzoek doet. Haar medewerkers loggen in op het adres van deze procedure en zien daar wat de gemeente van haar vraagt; verzoeken en antwoorden gaan vanzelf heen en weer.',
+    fields: () => {
+      const options = [[ROLE_EXECUTOR, 'Een procedure die zelf uitvoert']];
+      if (choices.length) options.push([ROLE_PARTY, 'Deze procedure draait als partij voor een andere procedure']);
+      const chosen = choices.length ? state.role : ROLE_EXECUTOR;
+      const list = choices.map((c) => optionHtml(c.value, c.label, c.value === state.partyChoice)).join('');
+      const none = choices.length
+        ? ''
+        : `<nldd-spacer size="12"></nldd-spacer>
+           <nldd-rich-text><p>Geen procedure in dit project vraagt een partij iets die nog geen eigen procedure heeft. Een procedure noemt de partijen van haar casus pas als ze draait.</p></nldd-rich-text>`;
+      return `
+        ${radios('role', 'Rol', options, chosen)}
+        ${none}
+        <div id="party"${chosen === ROLE_PARTY ? '' : ' hidden'}>
+          <nldd-spacer size="16"></nldd-spacer>
+          ${field('Partij van', `<nldd-dropdown><select name="partyChoice">${list}</select></nldd-dropdown>`, { hint: 'De partij en de procedure die haar iets vraagt. De lijst noemt alleen partijen die de regelgeving van die casus iets vraagt.' })}
+          <nldd-spacer size="12"></nldd-spacer>
+          <nldd-rich-text><p>Een partij heeft één adres, de hostnaam zelf, voor haar medewerkers, en geen kant voor burgers. Ze staat daarom niet achter de voorkant van een organisatie, en FSC voor Burgers gaat uit. Kies in de eerste stap dezelfde casus als die van de uitvoerder: beide servers moeten dezelfde partijen en feiten kennen.</p></nldd-rich-text>
+        </div>`;
+    },
+    wire: (f) => {
+      f.querySelector('nldd-radio-button-group[name="role"]').addEventListener('change', () => {
+        f.querySelector('#party').hidden = chosenRadio(f, 'role') !== ROLE_PARTY;
+      });
+    },
+    checks: () => [],
+    keep: (v, f) =>
+      Object.assign(state, {
+        role: chosenRadio(f, 'role') === ROLE_PARTY ? ROLE_PARTY : ROLE_EXECUTOR,
+        partyChoice: v('partyChoice') || state.partyChoice,
+      }),
+  },
+  {
     title: 'Organisatie',
     // An organisatie runs in test mode only, and the plugin refuses a stable
-    // RegelHet behind a front in test mode.
-    skip: () => state.stable,
+    // RegelHet behind a front in test mode. A party has no citizens' side to
+    // put behind a front.
+    skip: () => state.stable || isParty(),
     intro: 'Staat de procedure achter de voorkant van een organisatie? Die geeft medewerkers en burgers één adres en één login voor al haar procedures. De procedure houdt ook haar eigen adressen.',
     fields: () => {
       const options = [
@@ -301,6 +367,7 @@ const steps = [
     intro: 'Dit wordt de procedure.',
     fields: () => {
       const a = addresses(state.hostname);
+      const party = isParty();
       return `
         ${renderKeyValueList(
           [
@@ -313,18 +380,22 @@ const steps = [
             ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}, verwijderd na de kopie` : 'openbaar'],
             ['Versie', state.version || 'laatste versie (main)'],
             ['Titel', state.title || 'uit het casusbestand'],
-            ['Accentkleur', state.accentColor || 'standaard'],
+            ['Accentkleur', accentColor() || 'standaard'],
             [
               'Inloggen',
               state.stable
                 ? `stabiel, via Keycloak${state.testAccounts ? ', met testaccounts' : ''}`
                 : 'testomgeving',
             ],
-            ['Organisatie', organisatieSummary()],
-            ['FSC voor Burgers', state.fsc4b ? `aan, met het demo-stelsel: ${fsc4bDiscoveryUrl(state.hostname)}` : 'uit'],
-            ['Externe partijen', state.ownParties ? 'op een eigen omgeving, waar de casus een partij iets vraagt' : 'via het beheerpaneel'],
-            ['Burgers', a.burger],
-            ['Medewerkers', a.medewerkers],
+            ['Rol', party ? `partij: ${partyLabel(state.partyChoice)}` : 'voert zelf uit'],
+            ...(party
+              ? [['Medewerkers van de partij', a.burger]]
+              : [
+                  ['Organisatie', organisatieSummary()],
+                  ['FSC voor Burgers', state.fsc4b ? `aan, met het demo-stelsel: ${fsc4bDiscoveryUrl(state.hostname)}` : 'uit'],
+                  ['Burgers', a.burger],
+                  ['Medewerkers', a.medewerkers],
+                ]),
             ...(state.stable
               ? [
                   ['Inloggen via', a.login],
@@ -343,6 +414,12 @@ const steps = [
   },
 ];
 
+// Whether the procedure runs as a party: chosen in the step Rol, which a
+// stable procedure skips.
+function isParty() {
+  return !state.stable && state.role === ROLE_PARTY && Boolean(state.partyChoice);
+}
+
 function organisatieSummary() {
   switch (state.organisatie) {
     case ORGANISATIE_NEW:
@@ -358,9 +435,9 @@ function organisatieSummary() {
 // the RegelHet is not made after all, it goes again.
 async function create() {
   const { namespace } = state;
-  // A stable RegelHet skips the step Organisatie; a choice made before it
-  // went back to stable does not count.
-  if (state.stable) state.organisatie = ORGANISATIE_NONE;
+  // A stable RegelHet and a party skip the step Organisatie; a choice made
+  // before that does not count.
+  if (state.stable || isParty()) state.organisatie = ORGANISATIE_NONE;
   let organisatie;
   if (state.organisatie === ORGANISATIE_NEW) {
     try {
@@ -386,6 +463,8 @@ async function create() {
 
   const regelhet = buildRegelHet({
     ...state,
+    accentColor: accentColor(),
+    partij: isParty() ? partijReference(state.partyChoice, namespace) : undefined,
     organisatie: organisatieReference(
       { choice: state.organisatie, existing: state.existingOrganisatie, newHostname: state.orgHostname },
       namespace,

@@ -196,12 +196,14 @@ func TestChartValuesExistInChart(t *testing.T) {
 	w.Spec.Auth = v1alpha1.Auth{}
 	w.Spec.Fsc4b.Enabled = true
 	check("", chartValues(w, validConfig(), testSnapshot), chart)
-	// With a party on a release of its own: both releases' values.
-	w.Spec.Parties.OwnInstances = true
-	party := v1alpha1.PartyStatus{Cell: "ggd_voorbeeld", URL: "https://a-ggd-voorbeeld.cluster.example.org/"}
-	w.Status.Parties, w.Status.ExecutorCell = []v1alpha1.PartyStatus{party}, "gemeente_voorbeeld"
+	// An executor with a party, and the party linked with it.
+	w.Spec.Fsc4b.Enabled = false
+	w.Status.Parties = []v1alpha1.PartyStatus{{Cell: "ggd_voorbeeld", URL: "https://ggd.cluster.example.org/"}}
+	w.Status.ExecutorCell = "gemeente_voorbeeld"
 	check("", chartValues(w, validConfig(), testSnapshot), chart)
-	check("", partyValues(w, validConfig(), party), chart)
+	party := newRegelHet("ggd", "ggd")
+	party.Spec.Partij = &v1alpha1.Partij{Cel: "ggd_voorbeeld", Uitvoerder: v1alpha1.RegelHetReference{Name: "a"}}
+	check("", partyValues(chartValues(party, validConfig(), testSnapshot), party, w, validConfig()), chart)
 }
 
 // testSnapshot is a snapshot for chartValues.

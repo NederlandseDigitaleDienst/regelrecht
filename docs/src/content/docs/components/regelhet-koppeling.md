@@ -24,7 +24,7 @@ The steps of the process do not change. The municipality's policy still records 
 
 A party's staff get a screen of their own (`frontend-regelhet/src/backoffice/PartijView.vue`), not the executor's admin panel. It lists the requests that wait for an answer, each with for whom it is and who asked, and under them the requests the party answered, with the day of the answer. An answer nobody asked for stays possible, below those. The bar names the party, and the test login offers the party's own accounts. `GET /api/backoffice/beheer/partijen` gives the answered requests under `beantwoord` on the party's own server only; the executor's admin panel never gets them.
 
-The Fundament plugin gives a party's release the accent colour `rood`, or `robijnrood` beside an executor that is red itself, so the two are told apart at a glance.
+On Fundament a party's RegelHet that names no accent colour of its own wears `rood`, or `robijnrood` beside an executor that is red itself, so the two are told apart at a glance. The wizard proposes the same colour.
 
 ## What is sent, and when
 
@@ -82,7 +82,9 @@ REGELHET_PORT=7181 REGELHET_SURFACE=backoffice \
 
 The regelwerken of a case say which external parties do work of their own in the process: the ones the executor asks something of by its own policy when an application comes in (`bij_aanvraag`). For the parking card that is the GGD, which receives the request for an examination. The court is asked nothing, so it is not among them.
 
-`GET /koppeling/v1/partijen` gives that list, with for each party whether this server is linked with it. The route exists on every instance for employees, with or without a link, and asks no login: it holds nothing the case itself does not say. A deployment reads it to decide which parties get a server. The Fundament plugin does so for a RegelHet with `parties.ownInstances` (`packages/fundament-plugin/README.md`), which is how a case without such a party ends up with one release and the parking card with two.
+`GET /koppeling/v1/partijen` gives that list, with for each party whether this server is linked with it. The route exists on every instance for employees, with or without a link, and asks no login: it holds nothing the case itself does not say. A deployment reads it to check that a server for a party serves one the case asks something of.
+
+On Fundament the party's server is a RegelHet of its own, installed through the wizard like the executor's, with its own address, namespace, colour and title. Its `spec.partij` names its cell and the executor's RegelHet. The plugin links the two once that cell is on the executor's list, and refuses a cell that is not (`packages/fundament-plugin/README.md`).
 
 ## The test clock
 

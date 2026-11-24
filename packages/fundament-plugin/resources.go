@@ -131,13 +131,33 @@ func validateSpec(w *v1alpha1.RegelHet, domain string) error {
 	if strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
 		return fmt.Errorf("manifest.path must be a relative path inside the repository, got %q", path)
 	}
-	if w.Spec.Parties.OwnInstances && isStable(w) {
-		return fmt.Errorf("parties.ownInstances links the releases with keys made at start: test mode only")
+	if err := validatePartij(w); err != nil {
+		return err
 	}
 	if w.Spec.Fsc4b.Enabled && isStable(w) {
 		return fmt.Errorf("fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only")
 	}
 	return validateHosts(w.Spec.Hostname, hostsOf(w, domain))
+}
+
+// validatePartij checks what spec.partij asks of the rest of the spec. The
+// CRD's schema checks the same for an object written through the API, apart
+// from a party that names itself, which a CEL rule cannot see.
+func validatePartij(w *v1alpha1.RegelHet) error {
+	if !isParty(w) {
+		return nil
+	}
+	switch {
+	case isStable(w):
+		return fmt.Errorf("partij links two servers with keys made at start: test mode only")
+	case w.Spec.Fsc4b.Enabled:
+		return fmt.Errorf("partij runs a server for the staff of a party, without a citizens' side for fsc4b")
+	case w.Spec.Organisatie != nil:
+		return fmt.Errorf("partij runs a server for the staff of a party, without a citizens' side to put behind the front of an organisatie")
+	case executorKey(w) == client.ObjectKeyFromObject(w):
+		return fmt.Errorf("partij.uitvoerder names this RegelHet itself; name the RegelHet of the executor")
+	}
+	return nil
 }
 
 // validateHosts checks that every address h gives the hostname is a domain
@@ -258,10 +278,10 @@ func chartValues(w *v1alpha1.RegelHet, cfg pluginConfig, snap *snapshot) map[str
 		// keys are made in memory at start, so there is no Secret to name.
 		values["fsc4b"] = map[string]any{"enabled": true}
 	}
-	if peers := executorPeers(w); w.Spec.Parties.OwnInstances && len(peers) > 0 {
-		// The parties the running server named, each on a release of its
-		// own (parties.go): the executor's release sends them what they are
-		// to receive, and no admin enters their acts here.
+	if peers := executorPeers(w); len(peers) > 0 {
+		// The RegelHet instances that run as its parties (parties.go): the
+		// executor's release sends them what they are to receive, and no
+		// admin enters their acts here.
 		values["koppeling"] = map[string]any{"peers": peers}
 	}
 	if isStable(w) {

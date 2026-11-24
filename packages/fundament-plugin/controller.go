@@ -106,6 +106,10 @@ func (r *RegelHetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// of every member, and resolveOrganisatie reads the spec alone.
 		Watches(&v1alpha1.Organisatie{}, handler.EnqueueRequestsFromMapFunc(r.namingRegelHets),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		// A party and its executor look at each other: the executor links
+		// the RegelHet instances that name it, and a party links once its
+		// executor named the parties of its case (parties.go).
+		Watches(&v1alpha1.RegelHet{}, handler.EnqueueRequestsFromMapFunc(r.linkedRegelHets)).
 		Complete(r)
 	if err != nil {
 		return fmt.Errorf("register the RegelHet controller: %w", err)
@@ -157,6 +161,12 @@ func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet
 	h := hostsOf(w, r.Config.Domain)
 	w.Status.URL = "https://" + h.burger + "/"
 	w.Status.BackofficeURL = "https://" + h.backoffice + "/"
+	if isParty(w) {
+		// A party has one instance, for its staff, on its hostname itself,
+		// and no citizens' side.
+		w.Status.URL = ""
+		w.Status.BackofficeURL = "https://" + partyHost(w, r.Config.Domain) + "/"
+	}
 	w.Status.LoginURL, w.Status.KeycloakSecret = "", ""
 	w.Status.Fsc4bDiscoveryURL = ""
 	if h.login != "" {
@@ -197,6 +207,29 @@ func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet
 		}
 		organisatie = m.organisatie
 	}
+	var executor *v1alpha1.RegelHet
+	if isParty(w) {
+		link, err := resolveExecutor(ctx, r.Client, r.Namespaces, r.Config, w)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		apimeta.SetStatusCondition(&w.Status.Conditions, link.condition)
+		if link.pending() {
+			// Without the executor's cell there is no peer, and a release
+			// with no peer would run every cell of the case on its own.
+			c := link.condition
+			apimeta.SetStatusCondition(&w.Status.Conditions, metav1.Condition{
+				Type: v1alpha1.ConditionReady, Status: metav1.ConditionFalse, Reason: c.Reason, Message: c.Message,
+			})
+			w.Status.Phase, w.Status.Message = v1alpha1.PhasePending, c.Message
+			return ctrl.Result{RequeueAfter: partiesRequeue}, nil
+		}
+		if link.executor == nil {
+			refuse(w, link.condition.Reason, link.condition.Message)
+			return ctrl.Result{RequeueAfter: retryRequeue}, nil
+		}
+		executor = link.executor
+	}
 	token, err := r.tokenState(ctx, w)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -235,14 +268,18 @@ func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet
 		if organisatie != nil {
 			values["organisatie"] = organisatieValues(organisatie, r.Config)
 		}
+		if executor != nil {
+			values = partyValues(values, w, executor, r.Config)
+		}
 		return newHelmRelease(w, values)
 	}
 
 	objects := []*unstructured.Unstructured{newGitRepository(w, w.Spec.Version, r.Config), release()}
-	// The parties follow the executor's release: its server names them.
-	// When that changes them, the executor's release is applied again with
-	// its new peers. Only a server that did not name its parties yet is
-	// asked again later.
+	// The executor's server names the parties its case asks something of,
+	// and the RegelHet instances that run as one of them are linked. When
+	// that changes them, the executor's release is applied again with its
+	// new peers. Only a server that did not name its parties yet is asked
+	// again soon.
 	parties := func(released metav1.Condition) (time.Duration, error) {
 		peersChanged, requeue, err := r.reconcileParties(ctx, w, released.Status == metav1.ConditionTrue)
 		if err != nil {
@@ -253,8 +290,8 @@ func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet
 				return 0, err
 			}
 		}
-		// The old snapshot goes once every release of w runs the new one.
-		if snap.current != nil && r.releasesRun(ctx, w, snap.current) {
+		// The old snapshot goes once the release of w runs the new one.
+		if snap.current != nil && r.releaseRuns(ctx, w.Namespace, w.Name, snap.current) {
 			if err := r.deleteOldSnapshots(ctx, w, snap.current); err != nil {
 				return 0, err
 			}
@@ -269,23 +306,8 @@ func (r *RegelHetReconciler) reconcile(ctx context.Context, w *v1alpha1.RegelHet
 	return result, err
 }
 
-// releasesRun reports whether the HelmRelease of w and those of its
-// parties are ready on the values that name s: only then is an older
-// snapshot no longer needed.
-func (r *RegelHetReconciler) releasesRun(ctx context.Context, w *v1alpha1.RegelHet, s *snapshot) bool {
-	if !r.releaseRuns(ctx, w.Namespace, w.Name, s) {
-		return false
-	}
-	for _, p := range w.Status.Parties {
-		if !r.releaseRuns(ctx, w.Namespace, partyRelease(w, p.Cell), s) {
-			return false
-		}
-	}
-	return true
-}
-
 // releaseRuns reports whether the HelmRelease name is ready on the values
-// that name s.
+// that name s: only then is an older snapshot no longer needed.
 func (r *RegelHetReconciler) releaseRuns(ctx context.Context, namespace, name string, s *snapshot) bool {
 	hr := &unstructured.Unstructured{}
 	hr.SetGroupVersionKind(helmReleaseGVK)

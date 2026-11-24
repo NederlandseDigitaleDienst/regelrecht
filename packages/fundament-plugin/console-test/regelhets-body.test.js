@@ -19,6 +19,10 @@ import {
   repoUrlError,
   titleError,
   casusError,
+  partyChoices,
+  partijReference,
+  partijText,
+  partyAccentColor,
 } from '../console/regelhets-body.js';
 
 const base = {
@@ -128,10 +132,88 @@ test('the discovery URL of FSC voor Burgers is on the citizens\' host', () => {
   assert.equal(fsc4bDiscoveryUrl('zorg.example.nl'), 'https://zorg.example.nl/fsc4b/discovery');
 });
 
-test('parties get an environment of their own only when chosen, and never in stable mode', () => {
-  assert.equal(buildRegelHet(base).spec.parties, undefined);
-  assert.deepEqual(buildRegelHet({ ...base, ownParties: true }).spec.parties, { ownInstances: true });
-  assert.equal(buildRegelHet({ ...base, ownParties: true, stable: true }).spec.parties, undefined);
+// Two procedures of one project: a municipality whose case asks the GGD
+// and the court something, the GGD already running for it as a procedure of
+// its own, and one that is a party itself.
+const procedures = [
+  {
+    metadata: { name: 'parkeerkaart', namespace: 'tnt-voorbeeld--regelhet' },
+    spec: { title: 'Gehandicaptenparkeerkaart' },
+    status: {
+      askedParties: [
+        { cell: 'ggd_wilgendaal', name: 'GGD Wilgendaal' },
+        { cell: 'rechtbank', name: 'Rechtbank' },
+      ],
+      parties: [{ cell: 'rechtbank', url: 'https://r-medewerkers.example.org/' }],
+    },
+  },
+  {
+    metadata: { name: 'ggd', namespace: 'tnt-voorbeeld--ggd' },
+    spec: { partij: { cel: 'lab', uitvoerder: { name: 'x' } } },
+    status: { askedParties: [{ cell: 'lab' }] },
+  },
+  {
+    metadata: { name: 'stabiel', namespace: 'tnt-voorbeeld--regelhet' },
+    spec: { auth: { mode: 'stable' } },
+    status: { askedParties: [{ cell: 'ggd_wilgendaal' }] },
+  },
+];
+
+test('a procedure can run as a party the case of another asks something of, and no other runs as', () => {
+  assert.deepEqual(partyChoices(procedures), [
+    {
+      value: 'tnt-voorbeeld--regelhet/parkeerkaart/ggd_wilgendaal',
+      label: 'GGD Wilgendaal voor Gehandicaptenparkeerkaart (tnt-voorbeeld--regelhet/parkeerkaart)',
+      accentColor: '',
+    },
+  ]);
+  assert.deepEqual(partyChoices(undefined), []);
+  // A procedure that names the cell already, linked or not, takes it.
+  const claiming = {
+    metadata: { name: 'ggd-wilgendaal', namespace: 'tnt-voorbeeld--ggd' },
+    spec: { partij: { cel: 'ggd_wilgendaal', uitvoerder: { name: 'parkeerkaart', namespace: 'tnt-voorbeeld--regelhet' } } },
+  };
+  assert.deepEqual(partyChoices([...procedures, claiming]), []);
+});
+
+test('a party that chose no colour is told apart from its executor', () => {
+  assert.equal(partyAccentColor(''), 'rood');
+  assert.equal(partyAccentColor('paars'), 'rood');
+  assert.equal(partyAccentColor('rood'), 'robijnrood');
+});
+
+test('a party names its executor, with its namespace only when it is another', () => {
+  const choice = 'tnt-voorbeeld--regelhet/parkeerkaart/ggd_wilgendaal';
+  assert.deepEqual(partijReference(choice, 'tnt-voorbeeld--regelhet'), {
+    cel: 'ggd_wilgendaal',
+    uitvoerder: { name: 'parkeerkaart' },
+  });
+  assert.deepEqual(partijReference(choice, 'tnt-voorbeeld--ggd'), {
+    cel: 'ggd_wilgendaal',
+    uitvoerder: { name: 'parkeerkaart', namespace: 'tnt-voorbeeld--regelhet' },
+  });
+  assert.equal(partijReference('', 'x'), undefined);
+  assert.equal(
+    partijText({ cel: 'ggd_wilgendaal', uitvoerder: { name: 'parkeerkaart' } }, 'tnt-voorbeeld--regelhet'),
+    'ggd_wilgendaal voor tnt-voorbeeld--regelhet/parkeerkaart',
+  );
+});
+
+test('a party is a test procedure for staff only: no FSC voor Burgers, no organisatie', () => {
+  const partij = { cel: 'ggd_wilgendaal', uitvoerder: { name: 'parkeerkaart' } };
+  const w = buildRegelHet({ ...base, hostname: 'ggd', fsc4b: true, organisatie: { name: 'o' }, partij });
+  assert.deepEqual(w.spec.partij, partij);
+  assert.equal(w.spec.fsc4b, undefined);
+  assert.equal(w.spec.organisatie, undefined);
+  assert.equal(buildRegelHet({ ...base, stable: true, partij }).spec.partij, undefined);
+  assert.equal(buildRegelHet(base).spec.partij, undefined);
+  assert.equal(buildRegelHet(base).spec.parties, undefined, 'ownInstances is gone');
+});
+
+test('the CRD knows spec.partij and no longer parties.ownInstances', () => {
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  assert.ok(crd.includes('              partij:'));
+  assert.ok(!crd.includes('ownInstances'));
 });
 
 test('a title is in the spec only when given, and the check refuses what the CRD refuses', () => {

@@ -20,10 +20,11 @@ const (
 	// ConditionReady sums the others up: RegelHet runs.
 	ConditionReady = "Ready"
 	// ConditionReleaseReady mirrors Ready of the HelmRelease.
-	// ConditionPartiesLinked says whether the external parties the case
-	// asks something of run on releases of their own, when asked for.
+	ConditionReleaseReady = "ReleaseReady"
+	// ConditionPartiesLinked says, for an executor, which RegelHet
+	// instances run as its external parties, and for a party, whether it is
+	// linked with its executor.
 	ConditionPartiesLinked = "PartiesLinked"
-	ConditionReleaseReady  = "ReleaseReady"
 	// ConditionSnapshotReady: the copy of the case for the current
 	// spec.manifest is in the namespace.
 	ConditionSnapshotReady = "SnapshotReady"
@@ -134,20 +135,51 @@ type Fsc4b struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
-// Parties are the external parties of the case, such as the GGD that
-// examines an applicant.
-type Parties struct {
-	// OwnInstances gives each external party that the executor asks
-	// something of by its own policy a release of its own, where its staff
-	// log in, linked with the executor's. Which parties those are follows
-	// from the regelwerken of the case: the running server names them, and
-	// a case that asks no party for anything gets none. Off, an admin
-	// enters what every external party did. Test mode only.
-	// +optional
-	OwnInstances bool `json:"ownInstances,omitempty"`
+// Partij makes a RegelHet the server of one external party of the case of
+// another RegelHet, the executor: the GGD that examines an applicant for the
+// municipality, say. Its staff log in on it and see what the executor asks
+// of that party; the two servers exchange requests and answers as signed
+// messages. The RegelHet keeps its own address, namespace, colour and title.
+type Partij struct {
+	// Cel is the party as the case of the executor names it, such as
+	// ggd_wilgendaal. The executor's case must ask that party something by
+	// its policy.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=100
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9_-]+$`
+	Cel string `json:"cel"`
+
+	// Uitvoerder is the RegelHet of the executor, in the same Fundament
+	// project.
+	Uitvoerder RegelHetReference `json:"uitvoerder"`
 }
 
-// PartyStatus is an external party that runs on a release of its own.
+// RegelHetReference names a RegelHet.
+type RegelHetReference struct {
+	// Name of the RegelHet.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=40
+	Name string `json:"name"`
+
+	// Namespace of the RegelHet; empty is the namespace of the RegelHet
+	// that names it. It must be a namespace of the same Fundament project.
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// AskedParty is an external party that the case of an executor asks
+// something of by its policy, as its running server names it.
+type AskedParty struct {
+	// Cell is the party as the case names it.
+	Cell string `json:"cell"`
+	// Name is what a screen calls it.
+	// +optional
+	Name string `json:"name,omitempty"`
+}
+
+// PartyStatus is an external party that runs on a RegelHet of its own,
+// linked with this one.
 type PartyStatus struct {
 	// Cell is the party as the case names it.
 	Cell string `json:"cell"`
@@ -156,10 +188,15 @@ type PartyStatus struct {
 	Name string `json:"name,omitempty"`
 	// URL is where its staff log in.
 	URL string `json:"url"`
+	// Procedure is the RegelHet the party runs on.
+	// +optional
+	Procedure *RegelHetReference `json:"procedure,omitempty"`
 }
 
 // RegelHetSpec is one RegelHet.
-// +kubebuilder:validation:XValidation:rule="!(has(self.parties) && has(self.parties.ownInstances) && self.parties.ownInstances && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="parties.ownInstances links the releases with keys made at start: test mode only"
+// +kubebuilder:validation:XValidation:rule="!(has(self.partij) && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="partij links two servers with keys made at start: test mode only"
+// +kubebuilder:validation:XValidation:rule="!(has(self.partij) && has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled)",message="partij runs a server for the staff of a party, without a citizens' side for fsc4b"
+// +kubebuilder:validation:XValidation:rule="!(has(self.partij) && has(self.organisatie))",message="partij runs a server for the staff of a party, without a citizens' side to put behind the front of an organisatie"
 // +kubebuilder:validation:XValidation:rule="!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only"
 type RegelHetSpec struct {
 	// Manifest is the case to run.
@@ -203,10 +240,14 @@ type RegelHetSpec struct {
 	// +optional
 	Fsc4b Fsc4b `json:"fsc4b,omitempty"`
 
-	// Parties says where the external parties of the case work. Empty
-	// leaves them to the admin panel.
+	// Partij runs this RegelHet as the server of one external party of the
+	// case of another RegelHet, the executor, linked with it. Such a
+	// RegelHet has one address, for the party's staff: its hostname
+	// itself. Empty runs it as an executor, whose external
+	// parties either run as a RegelHet of their own that names it here or
+	// are entered by an admin in the admin panel. Test mode only.
 	// +optional
-	Parties Parties `json:"parties,omitempty"`
+	Partij *Partij `json:"partij,omitempty"`
 
 	// Hostname is the address: a name under the plugin's base domain
 	// (`zorgtoeslag` gives zorgtoeslag.<domain> for citizens and
@@ -247,15 +288,25 @@ type RegelHetStatus struct {
 	// +optional
 	Fsc4bDiscoveryURL string `json:"fsc4bDiscoveryUrl,omitempty"`
 
-	// Parties are the external parties that run on a release of their own,
-	// as the running server last named them; empty when none does.
+	// AskedParties are the external parties that the case asks something
+	// of by its policy, as the running server last named them: the cells a
+	// RegelHet with spec.partij may run as for this one. Empty for a
+	// RegelHet that is itself a party.
+	// +optional
+	// +listType=map
+	// +listMapKey=cell
+	AskedParties []AskedParty `json:"askedParties,omitempty"`
+
+	// Parties are the external parties that run on a RegelHet of their
+	// own, linked with this one; empty when none does.
 	// +optional
 	// +listType=map
 	// +listMapKey=cell
 	Parties []PartyStatus `json:"parties,omitempty"`
 
 	// ExecutorCell is the cell of the case the executor's release works
-	// for, which a party's release names as its peer; set with Parties.
+	// for, which a party's release names as its peer; set with
+	// AskedParties.
 	// +optional
 	ExecutorCell string `json:"executorCell,omitempty"`
 
@@ -284,8 +335,8 @@ type RegelHetStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// Conditions are Ready, SnapshotReady and ReleaseReady, and
-	// OrganisatieGevonden with spec.organisatie.
+	// Conditions are Ready, SnapshotReady, ReleaseReady and PartiesLinked,
+	// and OrganisatieGevonden with spec.organisatie.
 	// +listType=map
 	// +listMapKey=type
 	// +optional

@@ -155,6 +155,67 @@ export function secretName(name) {
   return `${name}-repo`;
 }
 
+// The two answers to "does this procedure run as a party of another?" in the
+// wizard.
+export const ROLE_EXECUTOR = 'uitvoerder';
+export const ROLE_PARTY = 'partij';
+
+// The parties a new procedure can run as: per procedure in `items` that can
+// be an executor (no party itself, test mode), each party its case asks
+// something of (status.askedParties) that no procedure runs as or names in
+// its spec.partij yet. Its value is <namespace>/<name>/<cel>; the label
+// names the party and the procedure, and accentColor is the executor's.
+export function partyChoices(items) {
+  const list = items ?? [];
+  const claimed = new Set(
+    list
+      .filter((o) => o?.spec?.partij)
+      .map((o) => {
+        const u = o.spec.partij.uitvoerder ?? {};
+        return `${u.namespace || o.metadata.namespace}/${u.name}/${o.spec.partij.cel}`;
+      }),
+  );
+  const choices = [];
+  for (const item of list) {
+    if (item?.spec?.partij || item?.spec?.auth?.mode === 'stable') continue;
+    const procedure = `${item.metadata.namespace}/${item.metadata.name}`;
+    const taken = new Set((item.status?.parties ?? []).map((p) => p.cell));
+    for (const asked of item.status?.askedParties ?? []) {
+      const value = `${procedure}/${asked.cell}`;
+      if (taken.has(asked.cell) || claimed.has(value)) continue;
+      choices.push({
+        value,
+        label: `${asked.name || asked.cell} voor ${item.spec?.title || item.metadata.name} (${procedure})`,
+        accentColor: item.spec?.theme?.accentColor ?? '',
+      });
+    }
+  }
+  return choices.sort((a, b) => a.label.localeCompare(b.label, 'nl'));
+}
+
+// The accent colour of a party that chose none, beside an executor whose
+// accent is `executor`: red, or ruby red beside a red executor, so the two
+// are told apart at a glance. The plugin does the same (parties.go,
+// partyAccent).
+export function partyAccentColor(executor) {
+  return executor === 'rood' ? 'robijnrood' : 'rood';
+}
+
+// What spec.partij of a procedure in `namespace` says for a choice of
+// partyChoices: the cel and the executor, with its namespace only when it is
+// another than the procedure's own.
+export function partijReference(choice, namespace) {
+  const [ns, name, cel] = String(choice ?? '').split('/');
+  if (!ns || !name || !cel) return undefined;
+  return { cel, uitvoerder: ns === namespace ? { name } : { name, namespace: ns } };
+}
+
+// How a page names spec.partij of a procedure in `namespace`.
+export function partijText(partij, namespace) {
+  const u = partij.uitvoerder ?? {};
+  return `${partij.cel} voor ${u.namespace || namespace}/${u.name}`;
+}
+
 // The RegelHet object for the choices of the wizard.
 export function buildRegelHet({
   namespace,
@@ -170,7 +231,7 @@ export function buildRegelHet({
   stable = false,
   testAccounts = false,
   fsc4b = false,
-  ownParties = false,
+  partij,
   organisatie,
 }) {
   const name = nameFromHostname(hostname);
@@ -185,15 +246,19 @@ export function buildRegelHet({
   if (title.trim()) spec.title = title.trim();
   // Test mode is the CRD's default, so a test RegelHet says nothing.
   if (stable) spec.auth = { mode: 'stable', testAccounts };
-  // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the
-  // CRD's default, so an object without it says nothing.
-  if (fsc4b && !stable) spec.fsc4b = { enabled: true };
-  // A release of their own for the parties the case's regelwerken ask
-  // something of; the link signs with keys made at start, test mode only.
-  if (ownParties && !stable) spec.parties = { ownInstances: true };
-  // The Organisatie whose front lists it (organisaties-body.js,
-  // organisatieReference); without one it runs on its own.
-  if (organisatie) spec.organisatie = organisatie;
+  // A party (partijReference) runs one server for its staff, linked with
+  // its executor with keys made at start: test mode only, without a
+  // citizens' side for FSC voor Burgers or the front of an organisatie.
+  if (partij && !stable) {
+    spec.partij = partij;
+  } else {
+    // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the
+    // CRD's default, so an object without it says nothing.
+    if (fsc4b && !stable) spec.fsc4b = { enabled: true };
+    // The Organisatie whose front lists it (organisaties-body.js,
+    // organisatieReference); without one it runs on its own.
+    if (organisatie) spec.organisatie = organisatie;
+  }
   return {
     apiVersion: `${REGELHET_RESOURCE.group}/${REGELHET_RESOURCE.version}`,
     kind: 'RegelHet',

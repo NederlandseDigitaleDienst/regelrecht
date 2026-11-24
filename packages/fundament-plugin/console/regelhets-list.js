@@ -21,7 +21,7 @@ function rowHtml(item, displayNames) {
   const { name, namespace } = item.metadata;
   const badge = phaseBadge(item);
   const where = displayNames?.[namespace] ?? namespace;
-  const url = item.status?.url ?? '';
+  const url = item.status?.url || item.status?.backofficeUrl || '';
   return `
     <nldd-list-item button data-name="${escapeHtml(name)}" data-namespace="${escapeHtml(namespace)}"
                     accessible-label="${escapeHtml(`${name}, ${badge.text}`)}">

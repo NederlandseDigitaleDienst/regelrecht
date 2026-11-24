@@ -406,7 +406,7 @@ func organisatieValues(o *v1alpha1.Organisatie, cfg pluginConfig) map[string]any
 type claimant struct {
 	kind string
 	obj  client.Object
-	// addresses are its hosts, and for a RegelHet those of its parties.
+	// addresses are its hosts.
 	addresses []string
 }
 
@@ -439,9 +439,10 @@ func claimants(ctx context.Context, c client.Reader, domain string) ([]claimant,
 	return out, nil
 }
 
-// regelhetAddresses are the hosts of w and of its parties (parties.go).
+// regelhetAddresses are the hosts of w. A party (parties.go) serves only on
+// its hostname, but claims the employees' address too, as any RegelHet does.
 func regelhetAddresses(w *v1alpha1.RegelHet, domain string) []string {
-	return append(hostsOf(w, domain).all(), partyHosts(w)...)
+	return hostsOf(w, domain).all()
 }
 
 // addressTakenBy returns a reason and a message when another RegelHet or
