@@ -1,22 +1,22 @@
 ---
 title: "Wetsproces Screens"
-description: "The screens of the wetsproces server: a public side for citizens and a back office for employees, with forms that follow from the law and the case's UI spec."
+description: "The screens of the wetsproces server: a public side for citizens and a back office for employees, each built for an instance of its own, with forms that follow from the law and the case's UI spec."
 ---
 
-`frontend-wetsproces/` holds the screens of the [wetsproces](/components/wetsproces) server. The server builds them into its image and serves them beside its API on one origin, so the session cookie of the login goes along with every call.
+`frontend-wetsproces/` holds the screens of the [wetsproces](/components/wetsproces) server. The server builds them into its image and serves them beside its API on one origin, so the session cookie of the login goes along with every call. Each instance serves the build of its [surface](/components/wetsproces#surfaces): the citizens' screens, the back office, or both.
 
 ## Overview
 
 - **Language**: TypeScript, Vue 3, the NLDD design system
 - **Location**: `frontend-wetsproces/`
-- **Served by**: `packages/wetsproces`, from the directory in `WETSPROCES_FRONTEND`
+- **Served by**: `packages/wetsproces`, from `<WETSPROCES_FRONTEND>/<surface>`
 - **Tests**: `npm test -w frontend-wetsproces`; type check with `npm run typecheck -w frontend-wetsproces`
 
 ## Screens
 
 | Route | For | What it shows |
 |---|---|---|
-| `/inloggen` | anyone | The login through Keycloak. In test mode without OIDC, a list of test accounts instead |
+| `/inloggen` | anyone | The login through Keycloak. In test mode without OIDC, a list of test accounts instead. The citizens' build has it at `/toegang` |
 | `/burger` | citizen | The dossier, as chains of what answers to what: an application, the decision on it, an objection to that decision |
 | `/burger/aanvraag` | citizen | A new application under the case's own article |
 | `/burger/besluit/{id}` | citizen | One decision: what came out, why, and an objection against it |
@@ -61,15 +61,26 @@ Two parts of the UI spec have no effect here yet. A prefill from a source (`fill
 
 ## The public side and the back office
 
-`src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request reaches the server or proves who sends it: `src/gedeeld/sessie.ts` decides that, with the session cookie in the browser. A test (`src/scheiding.test.ts`) fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie.
+`src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request reaches the server or proves who sends it: `src/gedeeld/sessie.ts` decides that, with the session cookie in the browser.
 
-The split lets the public side be bundled on its own, from `burger.html`, with a transport chosen per build: the commands of [the app](/components/wetsproces-app)'s Rust core, or HTTP with the session cookie.
+Each side has an entry of its own, and one source gives four builds. The mode picks the entry in `vite.config.ts`, and each web build lands in `dist/<surface>/` with an `index.html`:
+
+| Build | Entry | Holds | Output |
+|---|---|---|---|
+| `npm run build:all` | `index.html`, `src/main.ts` | both sides, for `all` | `dist/all/` |
+| `npm run build:burger` | `burger.html`, `src/burgeromgeving/` | the citizens' screens, with the session cookie | `dist/burger/` |
+| `npm run build:backoffice` | `backoffice.html`, `src/backofficeomgeving/` | the back office and the login | `dist/backoffice/` |
+| `npm run build:app` | `burger.html` | the citizens' screens for [the app](/components/wetsproces-app) | `dist-app/` |
+
+`npm run build` makes the three web builds. The combined build and the back office share the shell (`App.vue`) and the router (`src/router.ts`), which each entry gives the routes of its own sides; neither imports a side itself.
+
+`src/scheiding.test.ts` holds the split. It fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie, and when a module of the back office imports the public side or names a citizen's route. It also follows every import from each entry: from the back office's it may reach no module of `src/burger/` or `src/burgeromgeving/`, and from the citizens' none of `src/backoffice/`.
 
 ## Running it locally
 
 ```bash
-npm run build -w frontend-wetsproces   # writes frontend-wetsproces/dist
-just wetsproces                        # serves it on http://localhost:7180
+npm run build -w frontend-wetsproces   # writes dist/all, dist/burger and dist/backoffice
+just wetsproces                        # serves dist/all on http://localhost:7180
 ```
 
 Without a build the server serves its API alone. To work on the screens, run `just wetsproces` and `npm run dev -w frontend-wetsproces` beside it; the dev server passes `/api` and `/auth` on to port 7180.

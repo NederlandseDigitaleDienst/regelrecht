@@ -35,6 +35,12 @@
 //! of the FSC voor Burgers channel ([`crate::fsc4b`]), when that channel is
 //! configured; the handlers below serve both.
 //!
+//! Which groups exist follows from the instance's surface
+//! ([`crate::surface::Surface`]): an instance for citizens registers the
+//! shared routes, the citizen's and those of FSC voor Burgers; one for the
+//! back office the shared routes and those of the back office. A route of
+//! the other side is not there, so it answers 404 like any unknown path.
+//!
 //! A `POST` takes an `Idempotency-Key` header: sent again by the same
 //! account with the same request it answers as the first time and records
 //! nothing; otherwise it is refused. Without the header every request
@@ -61,6 +67,7 @@ use crate::fsc4b::Fsc4b;
 use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
 use crate::store::{Channel, IdempotencyKey, StoreError};
+use crate::surface::Surface;
 
 /// The header that carries a request's [`IdempotencyKey`].
 pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -70,6 +77,8 @@ pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
 pub struct AppState {
     service: Arc<Service>,
     mode: Mode,
+    /// The side of the process this instance serves.
+    surface: Surface,
     /// The clock the API sets, in test mode; none when the clock is real.
     clock: Option<Arc<ControllableClock>>,
     login: Login,
@@ -84,6 +93,7 @@ impl AppState {
     pub fn new(
         service: Arc<Service>,
         mode: Mode,
+        surface: Surface,
         clock: Option<Arc<ControllableClock>>,
         login: Login,
         subject_claim: &str,
@@ -91,6 +101,7 @@ impl AppState {
         Self {
             service,
             mode,
+            surface,
             clock,
             login,
             subject_claim: subject_claim.into(),
@@ -108,6 +119,11 @@ impl AppState {
     /// The FSC voor Burgers channel, when it is configured.
     pub fn fsc4b(&self) -> Option<&Arc<Fsc4b>> {
         self.fsc4b.as_ref()
+    }
+
+    /// The side of the process this instance serves.
+    pub fn surface(&self) -> Surface {
+        self.surface
     }
 
     /// The claim of a citizen's account that identifies them.
@@ -213,8 +229,9 @@ type ApiResult = Result<Json<Value>, ApiError>;
 /// What a handler of the citizen's routes answers, before a channel wraps it.
 pub(crate) type CitizenResult = Result<Value, ApiError>;
 
-/// The routes of the API on `state`, with the login's routes; the session
-/// layer goes around them ([`crate::app`]).
+/// The routes of the API on `state`, with the login's routes, for the
+/// surface of `state`; the session layer goes around them
+/// ([`crate::app`]).
 pub fn router(state: AppState) -> Router {
     let shared = Router::new()
         .route("/api/casus", get(case))
@@ -240,14 +257,17 @@ pub fn router(state: AppState) -> Router {
         .fsc4b
         .as_ref()
         .map_or_else(Router::new, |f| crate::fsc4b::routes(f));
-    Router::new()
+    let mut routes = Router::new()
         .route("/health", get(|| async { "ok" }))
         .merge(state.login.routes())
-        .merge(shared)
-        .merge(citizen)
-        .merge(backoffice)
-        .merge(fsc4b)
-        .with_state(state)
+        .merge(shared);
+    if state.surface.serves_citizens() {
+        routes = routes.merge(citizen).merge(fsc4b);
+    }
+    if state.surface.serves_employees() {
+        routes = routes.merge(backoffice);
+    }
+    routes.with_state(state)
 }
 
 /// Let the request through when `allowed` holds for its principal, with
@@ -293,13 +313,13 @@ async fn gate_employee(
     gate(principal, |p| p.has(Level::Reader), request, next).await
 }
 
-async fn case(State(state): State<AppState>) -> Json<Value> {
-    Json(case_of(&state))
+async fn case(State(state): State<AppState>) -> ApiResult {
+    case_of(&state).await.map(Json)
 }
 
 /// The case, and today.
-pub(crate) fn case_of(state: &AppState) -> Value {
-    state.service.case()
+pub(crate) async fn case_of(state: &AppState) -> CitizenResult {
+    Ok(state.service.case().await?)
 }
 
 async fn forms(
@@ -610,16 +630,16 @@ async fn send_copy(
         .map(Json)
 }
 
-fn clock_state(state: &AppState) -> Value {
-    json!({
-        "datum": state.service.today(),
+async fn clock_state(state: &AppState) -> ApiResult {
+    Ok(Json(json!({
+        "datum": state.service.today().await?,
         "modus": state.mode.to_string(),
         "bestuurbaar": state.clock.is_some(),
-    })
+    })))
 }
 
-async fn clock(State(state): State<AppState>) -> Json<Value> {
-    Json(clock_state(&state))
+async fn clock(State(state): State<AppState>) -> ApiResult {
+    clock_state(&state).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -645,9 +665,12 @@ async fn set_clock(
             ),
         ));
     };
-    clock.set(body.datum);
+    clock
+        .set(body.datum)
+        .await
+        .map_err(|e| ApiError::from(ServiceError::from(e)))?;
     tracing::info!(sub = %principal.sub(), day = %body.datum, "clock set");
-    Ok(Json(clock_state(&state)))
+    clock_state(&state).await
 }
 
 #[cfg(test)]

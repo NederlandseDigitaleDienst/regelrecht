@@ -85,7 +85,10 @@ RUN find . -name '*.rs' -exec touch {} + && \
     cargo build --release --bin regelrecht-wetsproces
 
 # Stage 4: the screens (frontend-wetsproces), built in the npm workspace of
-# the repository; the server serves them beside its API.
+# the repository: one build per surface, in dist/burger, dist/backoffice and
+# dist/all. The server serves the build of its WETSPROCES_SURFACE beside its
+# API, so one image runs as the environment of citizens and as that of the
+# back office.
 FROM node:24-alpine@sha256:01743339035a5c3c11a373cd7c83aeab6ed1457b55da6a69e014a95ac4e4700b AS frontend
 WORKDIR /app
 # Workspace manifests first so `npm ci` is cached independently of source.
@@ -124,7 +127,9 @@ WORKDIR /app
 # DATABASE_SERVER_FULL) kiezen waar de kroniek staat; ook die zet de
 # deployment.
 # The login (OIDC_*, BASE_URL, WETSPROCES_SUBJECT_CLAIM) is set by the
-# deployment as well; stable mode refuses to start without it.
+# deployment as well; stable mode refuses to start without it. So is
+# WETSPROCES_SURFACE: stable mode refuses to start without `burger` or
+# `backoffice`, one deployment per side.
 ENV WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
     WETSPROCES_FRONTEND=/app/frontend \
     WETSPROCES_PORT=8000

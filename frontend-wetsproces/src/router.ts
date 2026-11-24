@@ -1,10 +1,11 @@
-// The routes of the app: the login, the public side and the back office.
+// The routes of a web build with the login: the login and the sides the
+// build carries, the public side and the back office in the combined build
+// (main.ts), the back office alone in its own (backofficeomgeving/). This
+// module imports neither side, so a build holds only the sides it passes.
 // Which side an account sees follows from what it may do (`GET /api/ik`);
 // the server checks every call itself.
 import { createRouter, createWebHistory } from 'vue-router';
-import type { RouteLocationNormalized } from 'vue-router';
-import { backofficeRoutes } from './backoffice/routes';
-import { burgerRoutes } from './burger/routes';
+import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { isMedewerker, laadIk, startpagina } from './gedeeld/ik';
 import type { Ik } from './gedeeld/types';
 
@@ -19,14 +20,14 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): string |
   return undefined;
 }
 
-export function maakRouter() {
+/** The router of a web build with the sides `kanten`. */
+export function maakRouter(kanten: RouteRecordRaw[]) {
   const router = createRouter({
     history: createWebHistory(),
     routes: [
       { path: '/', component: { render: () => null } },
       { path: '/inloggen', name: 'inloggen', component: () => import('./inloggen/InloggenView.vue') },
-      ...burgerRoutes,
-      ...backofficeRoutes,
+      ...kanten,
       { path: '/:pad(.*)*', redirect: '/' },
     ],
   });

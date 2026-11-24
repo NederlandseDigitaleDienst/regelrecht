@@ -9,7 +9,7 @@ The wetsproces component is a wetsprocessysteem: a server that runs one legal pr
 
 - **Language**: Rust (Axum)
 - **Location**: `packages/wetsproces/` (crate `regelrecht-wetsproces`)
-- **Intended URL**: `wetsproces.regelrecht.rijks.app` (not deployed yet)
+- **Intended URLs**: `wetsproces.regelrecht.rijks.app` for citizens and `wetsproces-backoffice.regelrecht.rijks.app` for employees (not deployed yet)
 - **Port**: 8000
 - **Process**: the disabled parking card of the fictitious municipality of Wilgendaal, from `packages/wetsproces/bron.yaml`
 
@@ -27,7 +27,7 @@ The store (`ChronicleStore` in `src/store.rs`) loads a chronicle per cell and ap
 
 A writing request may carry an `Idempotency-Key` header. Sent again by the same account with the same key and the same request, it gets the first answer and nothing is recorded twice. The same key with a different request, or from another account, is refused with `409`. Without the header, every request records anew and the store keeps no answer for it.
 
-What day it is comes from a clock (`Clock` in `src/clock.rs`). Every step runs on that day and the cell records it as the day of the record.
+What day it is comes from a clock (`Clock` in `src/clock.rs`). Every step runs on that day and the cell records it as the day of the record. In test mode the day an admin set lives in the store, beside the chronicles, so every instance on one database runs on the same day.
 
 ## Storage
 
@@ -38,7 +38,8 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 | `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request, with the account that sent it, and the answer |
-| `sessions` | The login sessions, made by the session store (`tower-sessions`) at startup |
+| `sessions` | The login sessions of both surfaces, made by the session store (`tower-sessions`) at startup; each carries the surface it was made on |
+| `test_clock` | In test mode, the day an admin set the clock to; no row until it is first set |
 | `fsc4b_challenges`, `fsc4b_sessions` | The challenges and sessions of [FSC voor Burgers](/components/wetsproces-fsc4b) |
 
 `recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It holds the Keycloak `sub`, or the account of an app (`fsc4b:` and a key thumbprint). `recorded_via` says which channel: `keycloak`, `testlogin` or `fsc4b`. Both are empty for what the server records itself, such as the case's beginning; `recorded_by` is also empty for records stored before the login existed (migration `0002_recorded_by.sql`), and `recorded_via` for those stored before migration `0003_recorded_via.sql`.
@@ -51,17 +52,19 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 
 `WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start. The mode sets the clock; where the chronicles live is chosen apart from it, with `WETSPROCES_STORE`.
 
-- `test` uses a clock an admin sets with `PUT /api/backoffice/klok`, starting on the case's `speeldatum`. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved. With the OIDC variables set it logs in through Keycloak; without them it offers the test login.
-- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, always the PostgreSQL store, and always the login through Keycloak. It refuses to start without the OIDC variables, `OIDC_REQUIRED_ROLE` or `BASE_URL`, and with `WETSPROCES_STORE=memory`. In either mode, an OIDC variable set without `OIDC_CLIENT_ID` stops the server, so a half-finished configuration never opens the test login.
+- `test` uses a clock an admin sets with `PUT /api/backoffice/klok`, starting on the case's `speeldatum`. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved. On PostgreSQL the day survives a restart, as the chronicles do. With the OIDC variables set it logs in through Keycloak; without them it offers the test login.
+- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, always the PostgreSQL store, and always the login through Keycloak. It refuses to start without the OIDC variables, `OIDC_REQUIRED_ROLE` or `BASE_URL`, and with `WETSPROCES_STORE=memory`. It also refuses to start without `WETSPROCES_SURFACE`, or with `all`. In either mode, an OIDC variable set without `OIDC_CLIENT_ID` stops the server, so a half-finished configuration never opens the test login.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `WETSPROCES_MODE` | none | `test` or `stable`. Required. |
+| `WETSPROCES_SURFACE` | `all` in test mode, none in stable mode | Which side the instance serves: `burger`, `backoffice` or `all` (see [Surfaces](#surfaces)) |
 | `WETSPROCES_STORE` | `memory` in test mode, `postgres` in stable mode | Where the chronicles live |
 | `DATABASE_URL` | none | The database for the `postgres` store; `DATABASE_SERVER_FULL` is read as fallback. Required with that store. |
 | `WETSPROCES_MANIFEST` | `packages/wetsproces/bron.yaml` | The source manifest |
 | `WETSPROCES_PORT` | 8000 | The port |
-| `WETSPROCES_FRONTEND` | `frontend-wetsproces/dist` of the checkout; `/app/frontend` in the image | The built screens. Without an `index.html` there the server serves its API alone |
+| `WETSPROCES_FRONTEND` | `frontend-wetsproces/dist` of the checkout; `/app/frontend` in the image | The built screens, one build per surface in a directory of its name. The server serves `<dir>/<surface>`, and its API alone when there is no `index.html` there |
+| `WETSPROCES_LOGIN` | none | `testlogin` or `oidc`. Without it the OIDC variables decide (see [Login](#login)) |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISCOVERY_URL` | none | The Keycloak client; `KEYCLOAK_BASE_URL` with `KEYCLOAK_REALM` may replace the discovery URL. Required in stable mode. |
 | `OIDC_REQUIRED_ROLE` | none | The role every account needs to log in, `wetsproces-toegang`. Required with OIDC; a role without the `wetsproces-` prefix is refused, because the realm is shared with the editor. |
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
@@ -69,11 +72,33 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 
 When the PostgreSQL store is chosen and the database cannot be reached or migrated, the server stops with that error. It does not fall back to memory.
 
+## Surfaces
+
+Citizens and employees each have their own deployment, with its own address and login. Both run the same image on the same database. `WETSPROCES_SURFACE` says which one an instance is. What differs between them is decided in one place, `src/surface.rs`.
+
+| | `burger` | `backoffice` | `all` |
+|---|---|---|---|
+| Routes | the shared routes, the citizen's routes, and FSC voor Burgers when configured | the shared routes and those under `/api/backoffice/` | all of them |
+| Roles a session keeps | `wetsproces-burger` only | every role but `wetsproces-burger` | all |
+| Session cookie | `wetsproces_burger_session` | `wetsproces_backoffice_session` | `wetsproces_session` |
+| Test accounts | the citizens | the employees and the admin | all |
+| Screens | `<WETSPROCES_FRONTEND>/burger` | `<WETSPROCES_FRONTEND>/backoffice` | `<WETSPROCES_FRONTEND>/all` |
+
+A route of the other side is not registered at all, so it answers `404` like any unknown path, also to a session that carries every role. The shared routes are `/health`, the login under `/auth/`, and `/api/casus`, `/api/formulier`, `/api/klok` and `/api/ik`.
+
+On the instance for citizens a request never acts with an employee's role, whatever the token carried. On the back office an account with only the citizen's role holds no role of this server and gets `403` on every route the back office has under `/api/`. The server drops the roles a surface does not admit when a request reads its session, and the session store drops them again each time it stores a session, after a login and after a refresh of the token. The test login and Keycloak go through the same filter.
+
+Both instances keep their sessions in `wetsproces.sessions`. Each session carries the surface it was made on, and an instance reads a session of another surface as no session: a cookie from the back office, sent to the instance for citizens under that instance's cookie name, gets `401`. A session from before the surfaces existed carries no surface and is read as none either.
+
+The chronicles and the test clock are shared. A citizen's application on the instance for citizens is in the municipality's chronicle on the back office straight away, and the day an admin sets on the back office is the day the next submission is recorded on.
+
+`all` serves both sides on one address, as one server did before the split. It exists so that `just wetsproces` stays one command, and stable mode refuses it. FSC voor Burgers serves citizens, so the configuration refuses that channel on `backoffice`.
+
 ## Login
 
 Every route except `/health` and `/auth/...` needs a session. With OIDC configured, `/auth/login` logs in through Keycloak with the shared `packages/auth` crate, as the editor does. The roles and their Keycloak setup are on [Authentication & Roles](/auth-and-roles#wetsproces-roles).
 
-Sessions live with the chronicles: in memory with the store in memory, in `wetsproces.sessions` with PostgreSQL. The cookie is `wetsproces_session`, so it never mixes with the editor's sessions.
+Sessions live with the chronicles: in memory with the store in memory, in `wetsproces.sessions` with PostgreSQL. The cookie has a name per surface (see [Surfaces](#surfaces)), so it never mixes with the editor's sessions or with the other instance's.
 
 In test mode without OIDC, `POST /auth/testlogin` gives a session with the roles and claims in its body, without Keycloak:
 
@@ -82,13 +107,15 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
   -d '{"sub": "burger-1", "rollen": ["wetsproces-burger"], "claims": {"bsn": "999990019"}}'
 ```
 
-The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case.
+The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`.
+
+`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface and the store, so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case: on `burger` the citizens, on `backoffice` the employees and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 
 ## API
 
-The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). An error answers `{ "fout": "<reason>" }`. For a `500` the reason is a fixed sentence and the cause goes to the server log only. A body that does not parse gets axum's own plain-text answer. Without a session the answer is `401`; with a session that lacks the role, `403`.
+The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). Which of the routes below an instance has depends on its surface. The routes under `/api/backoffice/` exist on `backoffice` and `all`, those under `/api/dossier` and `/api/indieningen` on `burger` and `all`, and the others everywhere. An error answers `{ "fout": "<reason>" }`. For a `500` the reason is a fixed sentence and the cause goes to the server log only. A body that does not parse gets axum's own plain-text answer. Without a session the answer is `401`; with a session that lacks the role, `403`.
 
 | Method and path | Who | What it does |
 |---|---|---|
@@ -112,7 +139,7 @@ A citizen's application gets `bsn_aanvrager` from the login; a request that send
 
 An employee names records by id. A record in a cell whose chronicle they may not read answers `404`, the same as an id that does not exist. The forms list the fields of a record only for the records the caller may see: their own dossier, or the cells they may read.
 
-The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides, and the `label` and `help` a screen shows for a field. The screens are on [Wetsproces Screens](/components/wetsproces-frontend); the server serves them from `WETSPROCES_FRONTEND`. A path under `/api/` or `/auth/` that is no route answers `404`; any other path gets the screens' `index.html`.
+The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides, and the `label` and `help` a screen shows for a field. The screens are on [Wetsproces Screens](/components/wetsproces-frontend); the server serves the build of its surface from `WETSPROCES_FRONTEND`. A path under `/api/`, `/auth/` or `/fsc4b/` that is no route answers `404`; any other path gets the screens' `index.html`.
 
 ## Running it locally
 
@@ -126,17 +153,45 @@ This starts the server in test mode on port 7180, bound to `0.0.0.0`, with the c
 WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht just wetsproces
 ```
 
+This serves both sides on one address. To run the two environments apart, start an instance per surface on the same database, each on its own port and in a terminal of its own:
+
+```bash
+# terminal 1, the citizens
+WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht \
+  WETSPROCES_SURFACE=burger WETSPROCES_PORT=7182 just wetsproces
+# terminal 2, the back office
+WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht \
+  WETSPROCES_SURFACE=backoffice WETSPROCES_PORT=7183 just wetsproces
+```
+
 ## Deployment
 
-CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) when the crate or what it depends on changes. Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no `wetsproces` component. See [Deployment](/operations/deployment).
+CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) when the crate or what it depends on changes. The image holds the three builds of the screens under `/app/frontend`, so one image runs as either surface. Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no wetsproces component. See [Deployment](/operations/deployment).
 
-Rolling it out takes:
+Rolling it out takes two components in the `regelrecht` deployment, from the same image and on the deployment's database (`DATABASE_SERVER_FULL`):
 
-1. The Keycloak roles, client and mappers of [Wetsproces roles](/auth-and-roles#wetsproces-roles).
-2. The component `wetsproces` in the `regelrecht` deployment, added by hand with `zad component add wetsproces --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:<tag> --deployment regelrecht --port 8000 --service publish-on-web`. It needs the domain `wetsproces.regelrecht.rijks.app`, the deployment's database (`DATABASE_SERVER_FULL`) and, as user env vars on the component, `WETSPROCES_MODE=stable`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISCOVERY_URL`, `OIDC_REQUIRED_ROLE=wetsproces-toegang` and `BASE_URL`.
+| Component | Domain | `WETSPROCES_SURFACE` | Keycloak client |
+|---|---|---|---|
+| `wetsproces` | `wetsproces.regelrecht.rijks.app` | `burger` | `wetsproces` |
+| `wetsproces-backoffice` | `wetsproces-backoffice.regelrecht.rijks.app` | `backoffice` | `wetsproces-backoffice` |
+
+1. The Keycloak roles, the two clients and their mappers of [Wetsproces roles](/auth-and-roles#wetsproces-roles).
+2. Each component added by hand, with `zad component add <component> --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:<tag> --deployment regelrecht --port 8000 --service publish-on-web`, its domain, and as user env vars:
+
+   | Variable | `wetsproces` | `wetsproces-backoffice` |
+   |---|---|---|
+   | `WETSPROCES_MODE` | `stable` | `stable` |
+   | `WETSPROCES_SURFACE` | `burger` | `backoffice` |
+   | `OIDC_CLIENT_ID` | `wetsproces` | `wetsproces-backoffice` |
+   | `OIDC_CLIENT_SECRET` | the secret of that client | the secret of that client |
+   | `OIDC_DISCOVERY_URL` | the realm's discovery URL | the same |
+   | `OIDC_REQUIRED_ROLE` | `wetsproces-toegang` | `wetsproces-toegang` |
+   | `BASE_URL` | `https://wetsproces.regelrecht.rijks.app` | `https://wetsproces-backoffice.regelrecht.rijks.app` |
+
+   FSC voor Burgers, when it is configured, goes on `wetsproces` only; its variables are on [FSC voor Burgers](/components/wetsproces-fsc4b).
 3. Changes in `deploy.yml`:
    - `build-wetsproces` in the `needs` and the conditions of `deploy-preview` and `deploy-production`;
    - its result in the check that refuses a half deploy;
-   - `add wetsproces regelrecht-wetsproces` in both component lists.
+   - `add wetsproces regelrecht-wetsproces` and `add wetsproces-backoffice regelrecht-wetsproces` in both component lists.
 
-Previews clone their components from `regelrecht`, so a preview can only include the server once the component exists there. A preview gets its own host, so its redirect URI must be allowed on the Keycloak client as well, and its `BASE_URL` differs from production's.
+Both components migrate the schema `wetsproces` and make the sessions table at startup, under one advisory lock, so they take turns. Previews clone their components from `regelrecht`, so a preview can only include the server once the components exist there. A preview gets its own hosts, so their redirect URIs must be allowed on the two Keycloak clients as well, and its `BASE_URL`s differ from production's.

@@ -1,9 +1,7 @@
-import '@nldd/design-system';
-import '@nldd/design-system/styles';
-import { createApp } from 'vue';
-import { useColorScheme } from '@regelrecht/frontend-shared';
-import App from './App.vue';
-import { maakRouter } from './router';
+// The combined web build (index.html): both sides on one address, for a
+// server on WETSPROCES_SURFACE=all in test mode.
+import { backofficeRoutes } from './backoffice/routes';
+import { burgerRoutes } from './burger/routes';
+import { start } from './start';
 
-useColorScheme();
-createApp(App).use(maakRouter()).mount('#app');
+start([...burgerRoutes, ...backofficeRoutes]);

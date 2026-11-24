@@ -16,6 +16,7 @@ use regelrecht_wetsproces::config::{
 };
 use regelrecht_wetsproces::fsc4b::testing::decide_as_municipality;
 use regelrecht_wetsproces::login::Login;
+use regelrecht_wetsproces::surface::Surface;
 use regelrecht_wetsproces_app::keystore::KeyStore;
 use regelrecht_wetsproces_app::{AppConfig, AppCore, CommandError, SoftwareKeyStore};
 use serde_json::{Value, json};
@@ -45,6 +46,7 @@ async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::Jo
     };
     let config = Config {
         mode: Mode::Test,
+        surface: Surface::All,
         store: StoreChoice::Memory,
         manifest: PathBuf::from(DEFAULT_MANIFEST),
         frontend: PathBuf::from("/nonexistent/frontend"),
