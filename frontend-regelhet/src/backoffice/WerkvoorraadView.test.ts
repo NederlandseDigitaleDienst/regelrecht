@@ -264,7 +264,7 @@ describe('the work queue', () => {
       const dialoog = w.find('nldd-inline-dialog');
       expect(dialoog.attributes('text')).toBe('U bent helemaal klaar');
       expect(dialoog.attributes('supporting-text')).toContain('Eén aanvraag wacht op een andere partij');
-      expect(dialoog.attributes('icon')).toBeUndefined();
+      expect(dialoog.attributes('icon')).toBe('done');
       expect(dialoog.attributes('heading-level')).toBe('3');
       // No title and no description above an empty list: the dialog says what matters.
       expect(w.find('#lijst-titel').exists()).toBe(false);

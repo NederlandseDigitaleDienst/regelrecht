@@ -343,7 +343,13 @@ async function klaar(naam: string) {
             </nldd-list-item>
           </template>
         </nldd-list>
-        <nldd-inline-dialog v-else heading-level="3" :text="leeg.tekst" :supporting-text="leeg.uitleg"></nldd-inline-dialog>
+        <nldd-inline-dialog
+          v-else
+          heading-level="3"
+          :icon="lijst === 'te-doen' ? 'done' : undefined"
+          :text="leeg.tekst"
+          :supporting-text="leeg.uitleg"
+        ></nldd-inline-dialog>
         <template v-if="!recht.beslissen && zichtbaar.some((r) => r.soort === 'indiening')">
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-text size="sm" color="secondary">
