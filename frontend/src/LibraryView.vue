@@ -27,6 +27,8 @@ import TasksListPane from './components/TasksListPane.vue';
 import RunsListPane from './components/RunsListPane.vue';
 import RunDetailSheet from './components/RunDetailSheet.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
+import HotspotsSidebarBlock from './components/HotspotsSidebarBlock.vue';
+import { useHotspots } from './composables/useHotspots';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
 import { useAuth, ensureAuthReady } from './composables/useAuth';
 import {
@@ -1073,6 +1075,14 @@ function openEnrichSheet(mode: 'article' | 'law', anchorEl: EventTarget | null =
 // The chain in the article mode's steps, and the hotspots in the sidebar
 // (flag `enrich.hotspots`, only together with the scope modes).
 const hotspotsEnabled = computed(() => scopedEnrich.value && featureFlags.isEnabled('enrich.hotspots'));
+// A row of "Kan verrijking gebruiken": open that article, with the enrich
+// sheet at its first step, the chain.
+function openHotspot(lawId: string, article: string) {
+  selectLawArticle(lawId, article);
+  if (!authenticated.value || !activeTrajectRef.value) return;
+  enrichSheetArticle.value = article;
+  enrichSheetMode.value = 'article';
+}
 // The stepped flow sends its own requests; a law it could not start for is
 // named in the sheet, and the pane says that not everything started.
 function onEnrichPlanSubmitted(outcome: PlanOutcome) {
@@ -2105,6 +2115,24 @@ const ARTICLE_FILTERS = [
   { key: 'machine', label: 'Met machine-versie' },
   { key: 'geen-machine', label: 'Zonder machine-versie' },
 ];
+// With the hotspots on, a fourth filter: the articles of this law that could
+// use enrichment, the same ones the sidebar block lists for the traject.
+const HOTSPOT_FILTER = { key: 'hotspot', label: 'Kan verrijking gebruiken' };
+const articleFilters = computed(() =>
+  hotspotsEnabled.value ? [...ARTICLE_FILTERS, HOTSPOT_FILTER] : ARTICLE_FILTERS,
+);
+
+// The hotspots of the open law, for the marks in its article list.
+const { hotspots: lawHotspots } = useHotspots({
+  trajectRef: activeTrajectRef,
+  lawId: selectedLawId,
+  enabled: hotspotsEnabled,
+  limit: 1,
+});
+function articleHotspot(number: string | number) {
+  if (!selectedLawId.value) return null;
+  return lawHotspots.value.per_article[`${selectedLawId.value}#${number}`] ?? null;
+}
 const articleTypeFilter = ref('alles');
 
 function setArticleTypeFilter(key: string) {
@@ -2131,7 +2159,7 @@ const articleEmptyText = computed(() => {
 const activeTypeFilterLabel = computed(() =>
   articleTypeFilter.value === 'alles'
     ? ''
-    : ARTICLE_FILTERS.find((f) => f.key === articleTypeFilter.value)?.label ?? ''
+    : articleFilters.value.find((f) => f.key === articleTypeFilter.value)?.label ?? ''
 );
 
 const articleFiltersActive = computed(
@@ -2150,6 +2178,7 @@ const filteredArticles = computed(() => {
   const byType = articles.value.filter((article) => {
     if (articleTypeFilter.value === 'machine') return isMachineReadable(article);
     if (articleTypeFilter.value === 'geen-machine') return !isMachineReadable(article);
+    if (articleTypeFilter.value === 'hotspot') return !!articleHotspot(article.number);
     return true;
   });
   if (!term) return byType;
@@ -2484,6 +2513,11 @@ watch(activeTrajectRef, () => {
                       <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
                     </nldd-list>
                     <nldd-spacer size="24"></nldd-spacer>
+                    <HotspotsSidebarBlock
+                      :traject-ref="activeTrajectRef"
+                      :enabled="hotspotsEnabled"
+                      @open="openHotspot"
+                    />
                   </template>
                   <template
                     v-for="(section, sectionIndex) in sidebarSections"
@@ -2745,7 +2779,7 @@ watch(activeTrajectRef, () => {
                     <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
                       <nldd-menu slot="popup">
                         <nldd-menu-item
-                          v-for="option in ARTICLE_FILTERS"
+                          v-for="option in articleFilters"
                           :key="option.key"
                           type="radio"
                           :text="option.label"
@@ -2756,7 +2790,7 @@ watch(activeTrajectRef, () => {
                     </nldd-icon-button>
                     <nldd-menu-group slot="overflow" text="Artikelen filteren">
                       <nldd-menu-item
-                        v-for="option in ARTICLE_FILTERS"
+                        v-for="option in articleFilters"
                         :key="option.key"
                         type="radio"
                         :text="option.label"
@@ -2890,6 +2924,14 @@ watch(activeTrajectRef, () => {
                     <nldd-text-cell :supporting-text="articleDescription(article)">
                       Artikel {{ article.number }}
                       <nldd-tag v-if="isMachineReadable(article)" size="sm" color="accent">Machine</nldd-tag>
+                      <nldd-badge
+                        v-if="articleHotspot(article.number)"
+                        size="sm"
+                        color="warning"
+                        icon="ai"
+                        :number="articleHotspot(article.number)?.count || undefined"
+                        :accessible-label="`Kan verrijking gebruiken, score ${articleHotspot(article.number)?.score}`"
+                      ></nldd-badge>
                     </nldd-text-cell>
                     <nldd-spacer-cell size="8"></nldd-spacer-cell>
                     <nldd-icon-cell size="20">
