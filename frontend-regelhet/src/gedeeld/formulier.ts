@@ -6,8 +6,8 @@
 // groups, names, fills or hides.
 import { hoofdletter, leesbaar, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { tegenBesluit } from '@regelrecht/frontend-shared/chronolex/voorinvulling';
-import { artikelNaam, waardeTekst } from './keten';
-import type { Indieningsvorm, Systeemvulling, Veld, Veldtekst, Vormen } from './types';
+import { artikelNaam, omschrijving, waardeTekst } from './keten';
+import type { Casus, Gram, Indieningsvorm, Systeemvulling, Veld, Veldtekst, Vormen } from './types';
 
 /** A field as a screen shows it. */
 export interface Schermveld {
@@ -62,6 +62,22 @@ export const doorInloggen = (vorm: Indieningsvorm): Set<string> =>
       .filter(([, hoe]) => (hoe.soort ? hoe.soort === 'inloggen' : !('waarde' in hoe) && !hoe.bron))
       .map(([naam]) => naam),
   );
+
+/** The field the login fills with the applicant's name (`inlog: naam`), if the form has one. */
+export const naamVeld = (vorm: Indieningsvorm | undefined): string | undefined =>
+  Object.entries(vorm?.systeem ?? {}).find(([, hoe]) => hoe.soort === 'inloggen' && hoe.inlog === 'naam')?.[0];
+
+/**
+ * What a submission is called on a list and on its own screen: its kind and
+ * the applicant's name, as its form has the login fill it. The kind alone
+ * when the form takes no name or the submission holds none.
+ */
+export function indieningTitel(g: Gram, casus: Casus, vorm: Indieningsvorm | undefined): string {
+  const soort = omschrijving(g, casus, 'indiening');
+  const veld = naamVeld(vorm);
+  const naam = veld ? g.fields?.[veld] : undefined;
+  return typeof naam === 'string' && naam.trim() ? `${soort} ${naam.trim()}` : soort;
+}
 
 /** `<regelwerk>#<article>#<name>` without its last part: the article of a rule or a fact. */
 export const artikelVan = (bron: string): string => bron.split('#').slice(0, 2).join('#');

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, inGroepen, kaalSchermveld, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
-import type { Indieningsvorm } from './types';
+import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, indieningTitel, inGroepen, kaalSchermveld, naamVeld, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
+import type { Casus, Gram, Indieningsvorm } from './types';
 
 // A made-up application, not of any case: the form follows from what the
 // server derives from the law and what the UI spec says of each field.
@@ -235,5 +235,27 @@ describe('schermveld', () => {
     // The label `record` does not give comes from the form; an empty help puts nothing under it.
     expect(schermveld(veld, teksten, true)).toMatchObject({ groep: 'Gevraagde kaart', label: 'Bestuurder', help: '' });
     expect(kaalSchermveld('kaart', teksten).groep).toBe('Gevraagde kaart');
+  });
+});
+
+describe('indieningTitel', () => {
+  const metNaam: Indieningsvorm = { ...vorm, systeem: { ...vorm.systeem, naam_aanvrager: { soort: 'inloggen', inlog: 'naam' } } };
+  // Only the cell is read, to tell an own decision from another's; a submission does not get that far.
+  const casus = { cel: 'voorbeeldcel' } as Casus;
+  const stuk = (fields: Record<string, unknown>): Gram => ({ id: 's', kind: 'AANVRAAG', basis: 'voorbeeldwet#3', fields, recorded_on: '2026-10-13', recording_actor: 'voorbeeldcel' });
+
+  it('finds the field the login fills with the name, not the one it fills with the identifier', () => {
+    expect(naamVeld(metNaam)).toBe('naam_aanvrager');
+    expect(naamVeld(vorm)).toBeUndefined();
+  });
+
+  it('names a submission by its kind and the applicant', () => {
+    expect(indieningTitel(stuk({ naam_aanvrager: 'P. Voorbeeld' }), casus, metNaam)).toBe('Aanvraag P. Voorbeeld');
+  });
+
+  it('keeps to the kind when the form takes no name or the submission holds none', () => {
+    expect(indieningTitel(stuk({ naam_aanvrager: 'P. Voorbeeld' }), casus, vorm)).toBe('Aanvraag');
+    expect(indieningTitel(stuk({ naam_aanvrager: ' ' }), casus, metNaam)).toBe('Aanvraag');
+    expect(indieningTitel(stuk({}), casus, undefined)).toBe('Aanvraag');
   });
 });

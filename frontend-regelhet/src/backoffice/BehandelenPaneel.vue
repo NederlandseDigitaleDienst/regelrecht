@@ -34,7 +34,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { herkomsten, kaalSchermveld, schermveld } from '../gedeeld/formulier';
+import { herkomsten, indieningTitel, kaalSchermveld, schermveld } from '../gedeeld/formulier';
 import type { Schermveld } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
@@ -100,7 +100,9 @@ const noemStuk = (id: string) => {
 /** A record in words with its day: `ontvangst van het afschrift van de uitspraak van 20 november 2026`. */
 const noem = (g: Gram, rol: Rol | undefined) =>
   `${omschrijving(g, props.casus, rol).toLowerCase()} van ${longDate(g.recorded_on)}`;
-const titel = computed(() => (indiening.value ? omschrijving(indiening.value, props.casus, 'indiening') : 'Indiening'));
+const titel = computed(() =>
+  indiening.value ? indieningTitel(indiening.value, props.casus, props.vormen?.indieningen[indiening.value.basis]) : 'Indiening',
+);
 
 /** The decision form of the article the submission asks a decision of. */
 const besluitvorm = computed(() => {

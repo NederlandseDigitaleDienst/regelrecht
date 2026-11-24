@@ -127,6 +127,18 @@ const verzoek: EigenVerzoek = {
 };
 
 describe('the work queue', () => {
+  it('names a submission by its kind and the applicant, as its form has the login fill the name', async () => {
+    vormen.indieningen['wet#1'] = { soort: 'AANVRAAG', basis: 'wet#1', besluit: 'wet#1', cel: 'gemeente', velden: [], systeem: { naam_aanvrager: { soort: 'inloggen', inlog: 'naam' } } };
+    werk.value = [{ stuk: { ...aanvraag, fields: { naam_aanvrager: 'P. Voorbeeld' } } }];
+    try {
+      const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
+      expect(rijenVan(w).map((r) => r.find('nldd-text-cell').attributes('text'))).toContain('Aanvraag P. Voorbeeld');
+    } finally {
+      delete vormen.indieningen['wet#1'];
+      werk.value = [{ stuk: aanvraag }];
+    }
+  });
+
   it('shows a submission whose decision was annulled as one to decide again, after the receipt', async () => {
     const ontvangst: Gram = {
       id: 'r',

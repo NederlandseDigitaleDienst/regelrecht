@@ -23,6 +23,7 @@ import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
 import { artikelNaam, omschrijving, rolVan } from '../gedeeld/keten';
+import { indieningTitel } from '../gedeeld/formulier';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import type { EigenVerzoek, Kroniek, Werkvoorraad } from './api';
@@ -136,7 +137,7 @@ function indieningsRij(stuk: Gram, na: string | undefined, kroniek: Kroniek): Ri
     sleutel: stuk.id,
     sinds: naGram?.recorded_on ?? stuk.recorded_on,
     lijsten: lijstenVanIndiening(wachtOp.length > 0),
-    tekst: c ? omschrijving(stuk, c, 'indiening') : stuk.kind,
+    tekst: c ? indieningTitel(stuk, c, vormen.value?.indieningen[stuk.basis]) : stuk.kind,
     regel: regel.filter(Boolean).join(' · '),
     opnieuw: !!na,
   };
