@@ -1,8 +1,7 @@
 // A submission waits on the request made for it, and on an open request made
 // for an earlier submission of the same person; not on anyone else's.
 import { describe, expect, it } from 'vitest';
-import type { Gram } from '../gedeeld/types';
-import type { EigenVerzoek } from './api';
+import type { EigenVerzoek, Gram } from './types';
 import { verzoekenBij } from './verzoek';
 
 const aanvraag = (id: string, bsn: string): Gram => ({

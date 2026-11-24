@@ -5,7 +5,13 @@
 import { longDate } from './datum';
 import { indieningTitel } from './formulier';
 import { artikelNaam, omschrijving, rolVan } from './keten';
-import type { Casus, Gram, Indieningsvorm, Kroniek } from './types';
+import type { Casus, EigenVerzoek, Gram, Indieningsvorm, Kroniek } from './types';
+import { verzoekenBij } from './verzoek';
+
+/** Whom the open submission `stuk` waits on: the parties of its open requests among `verzoeken`. */
+export const wachtOpBij = (stuk: Gram, verzoeken: readonly EigenVerzoek[]): string[] => [
+  ...new Set(verzoekenBij(stuk, [...verzoeken]).filter((v) => v.open).map((v) => v.aan_naam)),
+];
 
 /** What a row says of a submission. */
 export interface IndieningInWoorden {

@@ -42,6 +42,7 @@ function front() {
       if (pad.includes('bedrijfsparkeren')) return json({ fout: 'bedrijfsparkeren is not reachable' }, 502);
       if (pad.endsWith('/api/casus')) return json(casus);
       if (pad.endsWith('/api/formulier')) return json({ indieningen: {}, besluiten: {} });
+      if (pad.endsWith('/backoffice/verzoeken')) return json({ verzoeken: [] });
       return json(werkvoorraad);
     }),
   );
@@ -70,7 +71,7 @@ describe('the work queue of the organisation', () => {
     front();
     const w = await toon();
     const melding = w.find('nldd-inline-dialog');
-    expect(melding.attributes('text')).toBe('Bedrijfsparkeervergunning is nu niet bereikbaar');
+    expect(melding.attributes('text')).toBe('Bedrijfsparkeervergunning gaf geen werkvoorraad');
     expect(melding.attributes('supporting-text')).toContain('bedrijfsparkeren is not reachable');
   });
 
@@ -87,7 +88,7 @@ describe('the work queue of the organisation', () => {
     await flushPromises();
     expect(w.findAll('nldd-list-item')).toHaveLength(0);
     expect(w.text()).toContain('Er wacht niets op een besluit.');
-    keuze.element.dispatchEvent(new CustomEvent('change', { detail: { value: '' } }));
+    keuze.element.dispatchEvent(new CustomEvent('change', { detail: { value: 'alle' } }));
     await flushPromises();
     expect(w.findAll('nldd-list-item')).toHaveLength(1);
   });

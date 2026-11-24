@@ -1,7 +1,7 @@
 // Which requests of the executor's policy a submission waits on, as the pane
-// beside the work queue shows them (BehandelenPaneel.vue).
-import type { Gram } from '../gedeeld/types';
-import type { EigenVerzoek } from './api';
+// beside the work queue shows them (backoffice/BehandelenPaneel.vue) and the
+// rows of a work queue say (werkvoorraad.ts).
+import type { EigenVerzoek, Gram } from './types';
 
 /** A request, and whether it was made for an earlier submission of the same person. */
 export type VerzoekBij = EigenVerzoek & { eerder: boolean };

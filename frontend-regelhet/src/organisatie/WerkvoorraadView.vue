@@ -54,7 +54,7 @@ const kies = (e: Event) => {
             :key="o.proces.id"
             icon="warning"
             icon-color="warning"
-            :text="`${procesNaam(o.proces)} is nu niet bereikbaar`"
+            :text="`${procesNaam(o.proces)} gaf geen werkvoorraad`"
             :supporting-text="`Wat daar wacht, staat niet in deze lijst. ${o.fout}`"
           ></nldd-inline-dialog>
           <nldd-segmented-control
@@ -67,7 +67,13 @@ const kies = (e: Event) => {
             <nldd-segmented-control-item :value="ALLE" text="Alle"></nldd-segmented-control-item>
             <nldd-segmented-control-item v-for="p in processen" :key="p.id" :value="p.id" :text="procesNaam(p)"></nldd-segmented-control-item>
           </nldd-segmented-control>
-          <nldd-list v-if="zichtbaar.length" appearance="box-base" accessible-label="Werkvoorraad">
+          <nldd-inline-dialog
+            v-if="!processen.length"
+            icon="info"
+            text="Er is hier nog niets"
+            supporting-text="Bij deze organisatie is nog geen regeling aangemeld."
+          ></nldd-inline-dialog>
+          <nldd-list v-else-if="zichtbaar.length" appearance="box-base" accessible-label="Werkvoorraad">
             <nldd-list-item v-for="r in zichtbaar" :key="`${r.proces.id}/${r.stuk.id}`" size="md" :href="behandelAdres(r)">
               <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
               <nldd-cell>

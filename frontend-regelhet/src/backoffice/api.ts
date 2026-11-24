@@ -3,11 +3,11 @@
 // client only names the routes.
 import { gedeeldApi } from '../gedeeld/api';
 import { haal, stuur } from '../gedeeld/http';
-import type { Gram, Klok, Kroniek, Tijdlijn, Vervolgstand, Voorvertoning, Wachtend, Waarom, Werkvoorraad } from '../gedeeld/types';
+import type { EigenVerzoek, Gram, Klok, Kroniek, Tijdlijn, Vervolgstand, Voorvertoning, Wachtend, Waarom, Werkvoorraad } from '../gedeeld/types';
 
 // The chronicle and the work queue are read by the organisation's front too
 // (src/organisatie/), so their shapes live in gedeeld/types.ts.
-export type { Kroniek, Wachtend, Werkvoorraad };
+export type { EigenVerzoek, Kroniek, Wachtend, Werkvoorraad };
 
 /** A decision on the submission `op`, with what the authority finds. */
 export interface Beslissing {
@@ -56,19 +56,6 @@ export interface Vastlegging {
   verwijst_naar?: string;
   /** The receipt of the request this fact answers; the fields it shares with the request come from it. */
   verzoek?: string;
-}
-
-/**
- * A request the executor's policy made when an application came in, as the
- * executor sees it: its own record, the party it went to, and the record of
- * the answer that came back to it. Never the party's own records.
- */
-export interface EigenVerzoek {
-  verzoek: Gram;
-  aan: string;
-  aan_naam: string;
-  open: boolean;
-  antwoord_ontvangen: Gram | null;
 }
 
 export const backofficeApi = {

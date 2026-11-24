@@ -13,7 +13,8 @@
 // and nothing the entry reaches is of the public side. The front of an
 // organisation has its own entry (src/organisatieomgeving/, organisatie.html):
 // it reaches none of a process's screens, and its modules name no route of a
-// process, since the front calls the processes itself. The combined entry
+// process's API directly: they reach a process only through the front's relay
+// (`/api/processen/{id}/...`). The combined entry
 // (main.ts) is the only one that carries both.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';

@@ -1,6 +1,6 @@
 // Asking every process of the organisation at once, through the front. The
 // front passes a short list of a process's GET routes on with a statement of
-// who is logged in (`GET /api/processen/{id}/api/{pad}`, packages/wetsproces/
+// who is logged in (`GET /api/processen/{id}/api/{pad}`, packages/regelhet/
 // src/organisatie/relay.rs); a screen over all processes asks each and keeps
 // what each answered, or why it did not, so one process that fails leaves the
 // others on the screen.

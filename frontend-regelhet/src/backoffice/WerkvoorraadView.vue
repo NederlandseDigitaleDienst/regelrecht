@@ -23,7 +23,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { isIndiening } from '../gedeeld/keten';
-import { indieningInWoorden } from '../gedeeld/werkvoorraad';
+import { indieningInWoorden, wachtOpBij } from '../gedeeld/werkvoorraad';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import type { EigenVerzoek, Kroniek, Werkvoorraad } from './api';
@@ -31,7 +31,6 @@ import BehandelenPaneel from './BehandelenPaneel.vue';
 import { feitNaam } from './feit';
 import { LIJSTEN, lijstVan, lijstenVanIndiening, lijstenVanToekenning, nieuwsteEerst, oudsteEerst } from './lijsten';
 import type { Lijst } from './lijsten';
-import { verzoekenBij } from './verzoek';
 import { medewerkerStand, vervolgFeiten } from '../gedeeld/vervolg';
 import type { Vervolgstand } from '../gedeeld/types';
 import FeitVastleggen from './FeitVastleggen.vue';
@@ -134,7 +133,7 @@ function beslotenOp(stuk: Gram, kroniek: Kroniek): string | undefined {
  * it waits on when a request about it is still open; once decided, when.
  */
 function indieningsRij(stuk: Gram, open: { na?: string } | undefined, kroniek: Kroniek): Rij {
-  const wachtOp = open ? [...new Set(verzoekenBij(stuk, verzoeken.value).filter((v) => v.open).map((v) => v.aan_naam))] : [];
+  const wachtOp = open ? wachtOpBij(stuk, verzoeken.value) : [];
   const woorden = indieningInWoorden({
     stuk,
     casus: casus.value,

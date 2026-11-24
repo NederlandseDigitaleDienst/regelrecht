@@ -32,12 +32,14 @@ use crate::organisatie::{FrontState, PROCESS_TIMEOUT};
 
 /// The routes of a process the front passes on, per side, after `api/`; a
 /// `*` stands for one segment.
-pub const ALLOWED: [(Side, &str); 10] = [
+pub const ALLOWED: [(Side, &str); 11] = [
     (Side::Backoffice, "casus"),
     (Side::Backoffice, "ik"),
     // The forms, for the name an application records, in the work queue.
     (Side::Backoffice, "formulier"),
     (Side::Backoffice, "backoffice/werkvoorraad"),
+    // Whom a submission in the work queue waits on.
+    (Side::Backoffice, "backoffice/verzoeken"),
     (Side::Backoffice, "backoffice/vervolg"),
     (Side::Backoffice, "backoffice/cellen/*/kroniek"),
     (Side::Citizen, "casus"),
@@ -329,6 +331,7 @@ mod tests {
         ));
         assert!(allowed(Side::Citizen, "dossier"));
         assert!(allowed(Side::Backoffice, "formulier"));
+        assert!(allowed(Side::Backoffice, "backoffice/verzoeken"));
         assert!(!allowed(Side::Citizen, "backoffice/werkvoorraad"));
         assert!(!allowed(Side::Backoffice, "dossier"));
         assert!(!allowed(Side::Backoffice, "backoffice/besluiten"));

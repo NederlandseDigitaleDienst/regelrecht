@@ -36,6 +36,7 @@ const antwoord = (p: Proces, cel: string, stukken: Gram[]): ProcesAntwoord<Proce
   antwoord: {
     casus: casus(cel, p.titel ?? p.naam),
     vormen: { indieningen: {}, besluiten: {} } as unknown as Vormen,
+    verzoeken: [],
     werkvoorraad: { cel, cel_naam: `gemeente ${cel}`, open: stukken.map((s) => ({ stuk: s })) },
   },
 });
@@ -71,6 +72,39 @@ describe('the work queue over every process', () => {
     expect(filter(rijen, ander.id)).toEqual([]);
   });
 
+  it('orders rows of one day by the id of the submission, and a revoked one by the record to decide after', () => {
+    const naGram = stuk('n0', '2026-11-22');
+    const kroniek: Kroniek = { cel: 'wilgendaal', cel_naam: 'gemeente wilgendaal', kop: 1, grammen: [naGram], stand: { rollen: {}, herroepen: {}, antwoorden: {} } };
+    const herroepen: ProcesAntwoord<ProcesWerkvoorraad> = {
+      proces: parkeerkaart,
+      antwoord: {
+        casus: casus('wilgendaal', 'Gehandicaptenparkeerkaart'),
+        vormen: { indieningen: {}, besluiten: {} } as unknown as Vormen,
+        verzoeken: [],
+        werkvoorraad: { cel: 'wilgendaal', cel_naam: 'gemeente wilgendaal', open: [{ stuk: stuk('p0', '2026-11-01'), na: 'n0' }, { stuk: stuk('p9', '2026-11-21') }] },
+        kroniek,
+      },
+    };
+    const zelfdeDag = antwoord(bedrijven, 'wilgendaal', [stuk('b1', '2026-11-21')]);
+    const { rijen } = samenvoegen([herroepen, zelfdeDag]);
+    // b1 and p9 came in on one day: b1's id sorts first; p0 waits since the 22nd.
+    expect(rijen.map((r) => r.stuk.id)).toEqual(['b1', 'p9', 'p0']);
+    const opnieuw = rijen[2];
+    expect(opnieuw?.opnieuw).toBe(true);
+    expect(opnieuw?.sinds).toBe('2026-11-22');
+    expect(opnieuw?.regel).toContain('Opnieuw beslissen na');
+  });
+
+  it('says whom a submission waits on, from the requests of its process', () => {
+    const met: ProcesAntwoord<ProcesWerkvoorraad> = antwoord(parkeerkaart, 'wilgendaal', [stuk('p1', '2026-11-20')]);
+    if ('antwoord' in met) {
+      met.antwoord.verzoeken = [
+        { verzoek: { ...stuk('v1', '2026-11-20'), fields: { aanvraag: 'p1' } }, aan: 'ggd', aan_naam: 'GGD Wilgendaal', open: true, antwoord_ontvangen: null },
+      ];
+    }
+    expect(samenvoegen([met]).rijen[0]?.regel).toContain('Wacht op GGD Wilgendaal');
+  });
+
   it("opens a row in its process's handling screen through the hand-off", () => {
     const rij = samenvoegen(antwoorden).rijen[0];
     expect(rij && behandelAdres(rij)).toBe(
@@ -80,9 +114,15 @@ describe('the work queue over every process', () => {
 });
 
 describe('asking one process for its queue', () => {
-  function stub(werkvoorraad: unknown) {
+  function stub(werkvoorraad: unknown, kroniekStatus = 200) {
     const kroniek: Kroniek = { cel: 'wilgendaal', cel_naam: 'gemeente wilgendaal', kop: 0, grammen: [], stand: {} as Stand };
     const fetch = vi.fn(async (pad: string) => {
+      if (pad.includes('/kroniek') && kroniekStatus !== 200) {
+        return new Response(JSON.stringify({ fout: 'the chronicle failed' }), { status: kroniekStatus, headers: { 'content-type': 'application/json' } });
+      }
+      if (pad.endsWith('/backoffice/verzoeken')) {
+        return new Response(JSON.stringify({ verzoeken: [] }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
       const body = pad.endsWith('/api/casus')
         ? casus('wilgendaal', 'Gehandicaptenparkeerkaart')
         : pad.endsWith('/api/formulier')
@@ -102,6 +142,7 @@ describe('asking one process for its queue', () => {
     const zonder = await vraagWerkvoorraad(parkeerkaart);
     expect(zonder.kroniek).toBeUndefined();
     expect(gevraagd(fetch)).toEqual([
+      '/api/processen/tnt-p%2Fparkeerkaart/api/backoffice/verzoeken',
       '/api/processen/tnt-p%2Fparkeerkaart/api/backoffice/werkvoorraad',
       '/api/processen/tnt-p%2Fparkeerkaart/api/casus',
       '/api/processen/tnt-p%2Fparkeerkaart/api/formulier',
@@ -110,5 +151,15 @@ describe('asking one process for its queue', () => {
     const met = await vraagWerkvoorraad(parkeerkaart);
     expect(met.kroniek?.cel).toBe('wilgendaal');
     expect(gevraagd(fetch)).toContain('/api/processen/tnt-p%2Fparkeerkaart/api/backoffice/cellen/wilgendaal/kroniek');
+  });
+
+  it('keeps the rows of a process whose chronicle fails, marked to decide again', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    stub({ cel: 'wilgendaal', cel_naam: 'gemeente wilgendaal', open: [{ stuk: stuk('p1', '2026-11-20'), na: 'x' }] }, 502);
+    const zonder = await vraagWerkvoorraad(parkeerkaart);
+    expect(zonder.kroniek).toBeUndefined();
+    const rij = samenvoegen([{ proces: parkeerkaart, antwoord: zonder }]).rijen[0];
+    expect(rij?.opnieuw).toBe(true);
+    expect(rij?.regel).not.toContain('Opnieuw beslissen na');
   });
 });

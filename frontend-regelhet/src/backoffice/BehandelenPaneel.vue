@@ -46,8 +46,8 @@ import { backofficeApi, beheerApi } from './api';
 import BesluitWeergave from './BesluitWeergave.vue';
 import type { EigenVerzoek, Kroniek, Wachtend } from './api';
 import { feitNaam } from './feit';
-import { verzoekenBij } from './verzoek';
-import type { VerzoekBij } from './verzoek';
+import { verzoekenBij } from '../gedeeld/verzoek';
+import type { VerzoekBij } from '../gedeeld/verzoek';
 
 const props = defineProps<{
   cel: string;

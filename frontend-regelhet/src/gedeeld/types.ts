@@ -389,3 +389,16 @@ export interface Werkvoorraad {
   cel_naam: string;
   open: Wachtend[];
 }
+
+/**
+ * A request the executor's policy made when an application came in, as the
+ * executor sees it: its own record, the party it went to, and the record of
+ * the answer that came back to it. Never the party's own records.
+ */
+export interface EigenVerzoek {
+  verzoek: Gram;
+  aan: string;
+  aan_naam: string;
+  open: boolean;
+  antwoord_ontvangen: Gram | null;
+}
