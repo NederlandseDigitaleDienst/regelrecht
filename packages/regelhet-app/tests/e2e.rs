@@ -11,8 +11,7 @@ use std::sync::Arc;
 use regelrecht_fsc4b::jose::SigningKey;
 use regelrecht_regelhet::app;
 use regelrecht_regelhet::config::{
-    Config, DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice, Mode,
-    StoreChoice,
+    Config, DEFAULT_MANIFEST, DEFAULT_PORT, Fsc4bChoice, LoginChoice, Mode, StoreChoice,
 };
 use regelrecht_regelhet::fsc4b::testing::decide_as_municipality;
 use regelrecht_regelhet::login::Login;
@@ -52,7 +51,7 @@ async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::Jo
         frontend: PathBuf::from("/nonexistent/frontend"),
         port: DEFAULT_PORT,
         login: LoginChoice::TestLogin,
-        subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
+        subject_claim: None,
         fsc4b,
         accent: None,
         link: Default::default(),

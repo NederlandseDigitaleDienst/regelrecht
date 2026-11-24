@@ -61,7 +61,9 @@ use tower_sessions::{Session, SessionStore, session_store};
 use crate::access::{CITIZEN, Level, Principal};
 use crate::api::{ApiError, AppState};
 use crate::config::LoginChoice;
+use crate::identity::{Identifier, Kind};
 use crate::organisatie::statement::Acceptor;
+use crate::service::LoginOutcome;
 use crate::store::Channel;
 use crate::surface::Surface;
 
@@ -83,6 +85,36 @@ pub trait Host: Clone + Send + Sync + 'static {
     /// The accounts the test login offers, as `GET /auth/testpersonen`
     /// gives them.
     fn test_personas(&self) -> impl Future<Output = Vec<Value>> + Send;
+    /// The identifier of an applicant: the subject claim, and how the
+    /// simulated login checks it.
+    fn identifier(&self) -> Identifier {
+        Identifier::for_claim(self.subject_claim())
+    }
+    /// Whether the case logs in through a login step of its own
+    /// (`inloggen.inlogstap`): then only that step logs an applicant in.
+    fn has_login_step(&self) -> bool {
+        false
+    }
+    /// What the case's login step offers (`inlogstap::aanbod`), or `None`
+    /// without one.
+    fn login_offer(&self) -> impl Future<Output = Result<Option<Value>, ApiError>> + Send {
+        async { Ok(None) }
+    }
+    /// Log in through the case's login step as `user` with `password`: the
+    /// number under the case's login key and the name of whoever logged in.
+    fn step_log_in(
+        &self,
+        user: &str,
+        password: &str,
+    ) -> impl Future<Output = Result<(String, String), ApiError>> + Send {
+        let _ = (user, password);
+        async {
+            Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Deze casus heeft geen inlogstap.",
+            ))
+        }
+    }
     /// The OIDC login, when the server logs in through Keycloak.
     fn oidc(&self) -> Option<&OidcLogin> {
         match self.login() {
@@ -265,6 +297,7 @@ impl Login {
             Self::TestLogin => Router::new()
                 .route("/auth/testlogin", post(test_login::<S>))
                 .route("/auth/testpersonen", get(test_personas::<S>))
+                .route("/auth/simulatie", get(simulation::<S>))
                 .route("/auth/status", get(regelrecht_auth::handlers::status::<S>))
                 .route("/auth/logout", get(test_logout)),
         }
@@ -290,18 +323,34 @@ impl Login {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum TestLoginRequest {
-    Digid(SimulatedDigid),
+    Simulated(SimulatedLogin),
+    Step(StepLogin),
     Account(TestLogin),
 }
 
-/// A login of the simulated DigiD: a citizen's number and name, nothing
-/// else. The server makes the account itself, with the citizen's role only,
-/// so a request cannot add a role to it.
+/// A login of the simulated DigiD or eHerkenning: the applicant's number
+/// (`nummer`, or `bsn` as before) and name, nothing else. Which number it is
+/// follows from the case ([`Identifier`]). The server makes the account
+/// itself, with the citizen's role only, so a request cannot add a role to
+/// it.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct SimulatedDigid {
-    bsn: String,
+struct SimulatedLogin {
+    #[serde(alias = "bsn")]
+    nummer: String,
     naam: String,
+}
+
+/// A login through the login step of the case (`inloggen.inlogstap`), as
+/// with eHerkenning: a user name the step's cell issued, and the password
+/// of the simulation. The cell answers whether that user may act for the
+/// service, and records the authentication when it may
+/// ([`crate::service::Service::log_in`]).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StepLogin {
+    gebruikersnaam: String,
+    wachtwoord: String,
 }
 
 /// The longest name the simulated DigiD takes, in characters.
@@ -312,53 +361,6 @@ const MAX_NAME_CHARS: usize = 100;
 const TEST_CITIZEN_NAMES: [&str; 2] = ["Anna Voorbeeld", "Bram Proef"];
 // A citizen without a name would drop out of the list in silence.
 const _: () = assert!(TEST_CITIZEN_NAMES.len() == TEST_CITIZENS.len());
-
-/// A citizen service number of the test range: nine digits that pass the
-/// eleven test and start with [`regelrecht_fsc4b::wire::TEST_BSN_PREFIX`].
-/// The simulated DigiD takes no other, so a number typed into it is never a
-/// real one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Bsn(String);
-
-impl Bsn {
-    /// The number in `text`, with spaces around it left out.
-    ///
-    /// # Errors
-    ///
-    /// A message for the citizen when it is not nine digits, fails the eleven
-    /// test, or is outside the test range.
-    fn parse(text: &str) -> Result<Self, &'static str> {
-        let text = text.trim();
-        if text.len() != 9 || !text.bytes().all(|b| b.is_ascii_digit()) {
-            return Err("Een BSN bestaat uit negen cijfers.");
-        }
-        if !passes_eleven_test(text) {
-            return Err("Dit BSN haalt de elfproef niet. Kijk de cijfers na.");
-        }
-        if !regelrecht_fsc4b::wire::is_test_bsn(text) {
-            return Err(
-                "Deze simulatie neemt alleen een BSN uit de testreeks aan: negen cijfers die beginnen met 99999.",
-            );
-        }
-        Ok(Self(text.to_owned()))
-    }
-
-    /// The number as text.
-    fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-/// The eleven test of a citizen service number of nine ASCII digits: the
-/// first eight times 9 down to 2, minus the last, is a multiple of 11.
-fn passes_eleven_test(digits: &str) -> bool {
-    let sum: i64 = digits
-        .bytes()
-        .zip([9, 8, 7, 6, 5, 4, 3, 2, -1])
-        .map(|(b, weight)| i64::from(b - b'0') * weight)
-        .sum();
-    sum % 11 == 0
-}
 
 /// A test login: the account, its realm roles and its claims.
 #[derive(Debug, Deserialize)]
@@ -384,7 +386,15 @@ async fn test_login<S: Host>(
 ) -> Result<Json<Value>, ApiError> {
     let login = match request {
         TestLoginRequest::Account(login) => login,
-        TestLoginRequest::Digid(digid) => simulated_citizen(&state, &digid)?,
+        TestLoginRequest::Simulated(simulated) => simulated_citizen(&state, &simulated)?,
+        TestLoginRequest::Step(step) => {
+            serves_citizens(&state)?;
+            let (number, name) = state
+                .step_log_in(step.gebruikersnaam.trim(), &step.wachtwoord)
+                .await?;
+            tracing::info!(gebruikersnaam = %step.gebruikersnaam.trim(), "login through the login step");
+            applicant(&state.identifier(), &number, &name)
+        }
     };
     if login.sub.trim().is_empty() {
         return Err(ApiError::new(
@@ -407,36 +417,146 @@ async fn test_login<S: Host>(
     Ok(Json(json!({ "sub": login.sub, "rollen": login.rollen })))
 }
 
-/// The account of a citizen of the simulated DigiD: the citizen's role and
-/// nothing else, their number under the subject claim, and their name.
-fn simulated_citizen(state: &impl Host, digid: &SimulatedDigid) -> Result<TestLogin, ApiError> {
-    if !state.surface().serves_citizens() {
-        return Err(ApiError::new(
-            StatusCode::NOT_FOUND,
-            "this instance serves no citizens",
+/// The account of an applicant of the simulated login: the citizen's role
+/// and nothing else, their number under the subject claim, and their name.
+/// Refused for a case with a login step: there only the step logs in, as
+/// it records the authentication the case requires.
+fn simulated_citizen(state: &impl Host, simulated: &SimulatedLogin) -> Result<TestLogin, ApiError> {
+    serves_citizens(state)?;
+    let bad = |message: &str| ApiError::new(StatusCode::BAD_REQUEST, message);
+    if state.has_login_step() {
+        return Err(bad(
+            "In deze casus logt u in met een gebruikersnaam van de inlogstap, niet met een nummer.",
         ));
     }
-    let bad = |message: &str| ApiError::new(StatusCode::BAD_REQUEST, message);
-    let bsn = Bsn::parse(&digid.bsn).map_err(bad)?;
-    let name = digid.naam.trim();
+    let identifier = state.identifier();
+    let number = identifier.parse(&simulated.nummer).map_err(bad)?;
+    let name = check_name(&simulated.naam).map_err(|m| bad(&m))?;
+    Ok(applicant(&identifier, &number, name))
+}
+
+/// `Ok` on an instance that serves citizens, `404` elsewhere.
+fn serves_citizens(state: &impl Host) -> Result<(), ApiError> {
+    if state.surface().serves_citizens() {
+        return Ok(());
+    }
+    Err(ApiError::new(
+        StatusCode::NOT_FOUND,
+        "this instance serves no citizens",
+    ))
+}
+
+/// The account of an applicant with `number` under the claim of
+/// `identifier`, and `name`: the citizen's role and nothing else.
+fn applicant(identifier: &Identifier, number: &str, name: &str) -> TestLogin {
+    TestLogin {
+        sub: identifier.subject(number),
+        rollen: BTreeSet::from([CITIZEN.to_owned()]),
+        claims: BTreeMap::from([(identifier.claim().to_owned(), Value::from(number))]),
+        naam: Some(name.to_owned()),
+    }
+}
+
+/// The name of the simulated login, trimmed, or a message for the
+/// applicant.
+fn check_name(name: &str) -> Result<&str, String> {
+    let name = name.trim();
     if name.is_empty() {
-        return Err(bad("Vul een naam in."));
+        return Err("Vul een naam in.".to_owned());
     }
     if name.chars().count() > MAX_NAME_CHARS {
-        return Err(bad(&format!(
+        return Err(format!(
             "Een naam is hoogstens {MAX_NAME_CHARS} tekens lang."
-        )));
+        ));
     }
     // A name goes into the session and onto every screen that shows it.
     if name.chars().any(char::is_control) {
-        return Err(bad("Een naam bestaat uit letters, spaties en leestekens."));
+        return Err("Een naam bestaat uit letters, spaties en leestekens.".to_owned());
     }
-    Ok(TestLogin {
-        sub: format!("burger-{}", bsn.as_str()),
-        rollen: BTreeSet::from([CITIZEN.to_owned()]),
-        claims: BTreeMap::from([(state.subject_claim().to_owned(), Value::from(bsn.as_str()))]),
-        naam: Some(name.to_owned()),
-    })
+    Ok(name)
+}
+
+/// A login through the login step of the process's case: the step's cell
+/// checks the user name and the password and records the authentication
+/// in a commit; its claims give the number under the case's login key
+/// (`inloggen.sleutel`) and, when it asserts one, the name. The number and
+/// the name of whoever logged in.
+///
+/// # Errors
+///
+/// `400` with a message for the applicant when the step refuses: a wrong
+/// password, or a user the register does not authorize for the service;
+/// and what the service refuses.
+pub async fn process_step_log_in(
+    state: &AppState,
+    user: &str,
+    password: &str,
+) -> Result<(String, String), ApiError> {
+    let bad = |message: &str| ApiError::new(StatusCode::BAD_REQUEST, message);
+    let service = state.service();
+    let Some(login) = service.login().filter(|_| service.login_step().is_some()) else {
+        return Err(bad("Deze casus heeft geen inlogstap."));
+    };
+    let claims = match service
+        .log_in(user, password)
+        .await
+        .map_err(ApiError::from)?
+    {
+        LoginOutcome::LoggedIn(claims) => claims,
+        LoginOutcome::WrongPassword => {
+            return Err(bad(&format!(
+                "Het wachtwoord klopt niet. In deze simulatie is het {}.",
+                regelrecht_poc_chronolexografie::inlogstap::WACHTWOORD
+            )));
+        }
+        LoginOutcome::NotAuthorized => {
+            return Err(bad(
+                "De erkende dienst geeft deze gebruiker geen toegang tot deze dienst.",
+            ));
+        }
+    };
+    // The number the step asserts is checked as a typed one would be: a
+    // case whose register holds no valid number is a mistake in the case.
+    let asserted = match claims.get(login.sleutel.as_str()) {
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(Value::Number(n)) => Some(n.to_string()),
+        _ => None,
+    };
+    let Some(number) = asserted.and_then(|n| state.identifier().parse(&n).ok()) else {
+        return Err(ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the login step of the case asserts no valid number under its login key; the cause is in the case",
+        ));
+    };
+    let name = login
+        .naam
+        .as_deref()
+        .and_then(|n| claims.get(n).and_then(Value::as_str))
+        .map(str::to_owned)
+        .or_else(|| {
+            service
+                .begin_identities(&login.sleutel)
+                .into_iter()
+                .find(|(v, _)| *v == number)
+                .and_then(|(_, n)| n)
+        })
+        .unwrap_or_else(|| user.to_owned());
+    Ok((number, name))
+}
+
+/// `GET /auth/simulatie`: what the simulated login of the citizens' side
+/// asks. The number that identifies an applicant (`identiteit`: its claim,
+/// label, kind and digits) and, for a case with a login step, what that
+/// step offers (`inlogstap`: the cell, the service, the password of the
+/// simulation and the user names), else `null`. There only beside the
+/// test login, on an instance that serves citizens.
+async fn simulation<S: Host>(State(state): State<S>) -> Result<Json<Value>, ApiError> {
+    serves_citizens(&state)?;
+    let offer = state.login_offer().await?;
+    Ok(Json(json!({
+        "identiteit": state.identifier().describe(),
+        "inlogstap": offer,
+    })))
 }
 
 /// An account as a session holds it.
@@ -604,7 +724,7 @@ pub fn process_personas(state: &AppState) -> Vec<Value> {
     let surface = state.surface();
     let mut personas = Vec::new();
     if surface.serves_citizens() {
-        personas.extend(citizen_personas(state.subject_claim()));
+        personas.extend(applicant_personas(state));
     }
     if surface.serves_employees() {
         personas.extend(employee_personas(state));
@@ -628,6 +748,43 @@ pub fn citizen_personas(claim: &str) -> impl Iterator<Item = Value> + '_ {
                 "naam": name,
             })
         })
+}
+
+/// The applicants of the test login of a process. A case that identifies
+/// them by BSN gets the test citizens ([`citizen_personas`]). A case that
+/// logs in on another key, such as a KvK number, gets the numbers of that
+/// key in what its cells record before the first step, with the name a
+/// record beside them gives: the businesses of the Chamber of Commerce
+/// cell, say. A case with a login step gets none: there one logs in with a
+/// user name of the step (`GET /auth/simulatie`).
+fn applicant_personas(state: &AppState) -> Vec<Value> {
+    let identifier = state.identifier();
+    let service = state.service();
+    if service.login_step().is_some() {
+        return Vec::new();
+    }
+    match (identifier.kind(), service.login()) {
+        (Kind::Bsn, _) => citizen_personas(identifier.claim()).collect(),
+        // Another number than a BSN, without a login in the case to say
+        // where such numbers are: the screen asks for one.
+        (_, None) => Vec::new(),
+        (_, Some(login)) => service
+            .begin_identities(&login.sleutel)
+            .iter()
+            .filter(|(number, _)| identifier.parse(number).is_ok())
+            .map(|(number, name)| {
+                json!({
+                    "soort": "burger",
+                    "sub": identifier.subject(number),
+                    "rollen": [CITIZEN],
+                    "claims": { identifier.claim(): number },
+                    "identiteit": number,
+                    "label": identifier.label(),
+                    "naam": name,
+                })
+            })
+            .collect(),
+    }
 }
 
 /// The employees of the test login: a decider of the executor, with that
@@ -760,35 +917,6 @@ pub(crate) mod tests {
             client: Arc::new(regelrecht_auth::test_utils::offline_client(issuer)),
             end_session_url: None,
         }))
-    }
-
-    #[test]
-    fn a_bsn_is_nine_digits_that_pass_the_eleven_test_in_the_test_range() {
-        for bsn in TEST_CITIZENS {
-            assert_eq!(
-                Bsn::parse(bsn).map(|b| b.as_str().to_owned()),
-                Ok(bsn.to_owned())
-            );
-        }
-        assert_eq!(
-            Bsn::parse(" 999990032 ").map(|b| b.as_str().to_owned()),
-            Ok("999990032".into())
-        );
-        for wrong in ["", "99999003", "9999900321", "99999003a", "999 99003"] {
-            assert_eq!(
-                Bsn::parse(wrong),
-                Err("Een BSN bestaat uit negen cijfers."),
-                "{wrong}"
-            );
-        }
-        // One digit off fails the eleven test.
-        assert_eq!(
-            Bsn::parse("999990033"),
-            Err("Dit BSN haalt de elfproef niet. Kijk de cijfers na.")
-        );
-        // Passes the eleven test, but is outside the test range.
-        assert!(passes_eleven_test("123456782"));
-        assert!(Bsn::parse("123456782").unwrap_err().contains("testreeks"));
     }
 
     #[tokio::test]

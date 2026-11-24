@@ -53,7 +53,7 @@ fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
         frontend: PathBuf::from("/nonexistent/frontend"),
         port: DEFAULT_PORT,
         login: LoginChoice::TestLogin,
-        subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
+        subject_claim: None,
         fsc4b,
         accent: None,
         link: Default::default(),

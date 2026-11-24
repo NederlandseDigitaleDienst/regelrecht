@@ -49,6 +49,7 @@ pub mod config;
 pub mod dossier;
 pub mod external;
 pub mod fsc4b;
+pub mod identity;
 pub mod link;
 pub mod login;
 pub mod organisatie;

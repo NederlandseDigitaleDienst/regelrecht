@@ -135,7 +135,7 @@ impl FrontState {
             mode: config.mode,
             surface: config.surface,
             login,
-            subject_claim: config.subject_claim.as_str().into(),
+            subject_claim: config.subject_claim_for(None).as_str().into(),
             http_client: regelrecht_auth::http_client(),
             accent: config.accent,
         })

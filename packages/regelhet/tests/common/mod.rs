@@ -54,7 +54,7 @@ pub fn config_on(mode: Mode, surface: Surface) -> Config {
         frontend: PathBuf::from("/nonexistent/frontend"),
         port: DEFAULT_PORT,
         login: LoginChoice::TestLogin,
-        subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
+        subject_claim: None,
         fsc4b: Fsc4bChoice::Off,
         accent: None,
         link: Default::default(),

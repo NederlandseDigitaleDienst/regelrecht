@@ -90,7 +90,7 @@ use crate::link::Link;
 use crate::login::{Host, Login};
 use crate::organisatie::statement::Acceptor;
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
-use crate::store::{Actor, IdempotencyKey, StoreError};
+use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
 use crate::surface::Surface;
 use crate::theme::AccentColor;
 use crate::visibility;
@@ -228,6 +228,15 @@ impl Host for AppState {
     }
     async fn test_personas(&self) -> Vec<Value> {
         crate::login::process_personas(self)
+    }
+    fn has_login_step(&self) -> bool {
+        self.service.login_step().is_some()
+    }
+    async fn login_offer(&self) -> Result<Option<Value>, ApiError> {
+        self.service.login_offer().await.map_err(ApiError::from)
+    }
+    async fn step_log_in(&self, user: &str, password: &str) -> Result<(String, String), ApiError> {
+        crate::login::process_step_log_in(self, user, password).await
     }
 }
 
@@ -1070,11 +1079,18 @@ pub(crate) async fn submit_for(
 
 /// What the server knows of the citizen `principal` who submits an
 /// application ([`login_claims`]), and the means of login, which follows from
-/// the channel ([`access::login_method`]).
+/// the channel ([`access::login_method`]). The test login of a business
+/// simulates eHerkenning, not DigiD.
 fn submitter(state: &AppState, principal: &Principal, citizen: &Citizen) -> Indiener {
+    let channel = principal.login_channel();
+    let business = state.identifier().kind() == crate::identity::Kind::Kvk;
+    let method = match channel {
+        Channel::TestLogin if business => Some("eHerkenning"),
+        _ => access::login_method(channel),
+    };
     Indiener {
         inlog: login_claims(principal, state.service.login_field(), citizen.subject()),
-        inlogmiddel: access::login_method(principal.login_channel()).map(str::to_string),
+        inlogmiddel: method.map(str::to_string),
     }
 }
 

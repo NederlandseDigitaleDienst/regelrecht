@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use chrono::NaiveDate;
 use regelrecht_cel::Gram;
+use regelrecht_poc_chronolexografie::inlogstap;
 use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus, Indiener};
 use regelrecht_poc_chronolexografie::stand::{self, Stand};
 use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
@@ -142,6 +143,67 @@ pub enum Step {
     SendCopy(SendCopy),
     #[serde(rename = "overnemen")]
     TakeOver(TakeOver),
+    #[serde(rename = "inloggen")]
+    LogIn(LogIn),
+}
+
+/// A login through the login step of the case (`inloggen.inlogstap`), as
+/// with eHerkenning: the user name and the password the applicant gave
+/// ([`Service::log_in`]). The password is the one every test account of the
+/// simulation shares, and it is never stored: a login commits without a key,
+/// so no receipt holds the request.
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LogIn {
+    pub gebruikersnaam: String,
+    #[serde(skip_serializing)]
+    pub wachtwoord: String,
+}
+
+// Without the password: a step in a log line never shows it.
+impl std::fmt::Debug for LogIn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LogIn")
+            .field("gebruikersnaam", &self.gebruikersnaam)
+            .finish_non_exhaustive()
+    }
+}
+
+/// What a login through the case's login step came to ([`Service::log_in`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum LoginOutcome {
+    /// The service asserts these claims, and its cell recorded the
+    /// authentication.
+    LoggedIn(Map<String, Value>),
+    /// The password is not the simulation's; nothing was recorded.
+    WrongPassword,
+    /// The register holds no authorization of this user for the service;
+    /// nothing was recorded.
+    NotAuthorized,
+}
+
+impl LoginOutcome {
+    /// The outcome in `answer`, the step's answer as `inlogstap::Inlog`
+    /// serializes it.
+    ///
+    /// # Errors
+    ///
+    /// [`ServiceError::Internal`] for an answer of another shape: a change of
+    /// `Inlog` is said, not read as a refusal.
+    fn from_answer(answer: &Value) -> Result<Self, ServiceError> {
+        match (answer["uitkomst"].as_str(), answer["reden"].as_str()) {
+            (Some("ingelogd"), _) => answer["claims"]
+                .as_object()
+                .cloned()
+                .map(Self::LoggedIn)
+                .ok_or_else(|| ServiceError::Internal("a login without claims".into())),
+            (Some("geweigerd"), Some("wachtwoord")) => Ok(Self::WrongPassword),
+            (Some("geweigerd"), Some("geen_machtiging")) => Ok(Self::NotAuthorized),
+            _ => Err(ServiceError::Internal(format!(
+                "the login step answered in an unknown shape: {answer}"
+            ))),
+        }
+    }
 }
 
 /// What a step came to in the kern: its answer, and the records the
@@ -292,7 +354,30 @@ impl Step {
                 corpus, cellen, &t.cell, &t.fact, &t.fields, t.on,
             )?)
             .map(Applied::only),
+            Self::LogIn(l) => to_value(&inlogstap::inloggen(
+                corpus,
+                cellen,
+                &l.gebruikersnaam,
+                &l.wachtwoord,
+                None,
+                on,
+            )?)
+            .map(Applied::only),
         }
+    }
+}
+
+/// The fields of a record that name the identity beside a login key, in
+/// order: the case's own `inloggen.naam` is tried first
+/// ([`Service::begin_identities`] takes these when it has none).
+pub const NAME_FIELDS: [&str; 3] = ["handelsnaam", "statutaire_naam", "naam"];
+
+/// A login key as text: a string as it is, a number in digits.
+fn identity_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(s) if !s.trim().is_empty() => Some(s.trim().to_owned()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
     }
 }
 
@@ -756,6 +841,97 @@ impl Service {
             Ok(kern::vormen(&corpus, &cellen, today)?)
         })
         .await
+    }
+
+    /// What the login screen of the case's login step shows today: the cell
+    /// that checks, the service, the password of the simulation and the user
+    /// names of the means of login that cell issued (`inlogstap::aanbod`).
+    /// `None` for a case without a login step.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails or the cell of the step is not of the case.
+    pub async fn login_offer(&self) -> Result<Option<Value>, ServiceError> {
+        if self.login_step().is_none() {
+            return Ok(None);
+        }
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let today = self.today().await?;
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            Ok(Some(inlogstap::aanbod(&corpus, &cellen, today)?))
+        })
+        .await
+    }
+
+    /// The login step of the case (`inloggen.inlogstap`), if it has one.
+    pub fn login_step(&self) -> Option<&regelrecht_poc_chronolexografie::casus::Inlogstap> {
+        self.corpus.casus.inloggen.as_ref()?.inlogstap.as_ref()
+    }
+
+    /// The login of the case (`inloggen`), if it has one.
+    pub fn login(&self) -> Option<&regelrecht_poc_chronolexografie::casus::Inloggen> {
+        self.corpus.casus.inloggen.as_ref()
+    }
+
+    /// The identities the case's begin gives for the login key `key`, such
+    /// as the businesses of a Chamber of Commerce cell for `kvk_nummer`:
+    /// each value of `key` in what any cell records before the first step,
+    /// in the order of the case, with the first name a record beside it
+    /// gives ([`NAME_FIELDS`]).
+    pub fn begin_identities(&self, key: &str) -> Vec<(String, Option<String>)> {
+        let casus = &self.corpus.casus;
+        let begins = std::iter::once(casus.begin.as_ref())
+            .chain(casus.andere_cellen.iter().map(|a| a.begin.as_ref()))
+            .flatten();
+        let mut out: Vec<(String, Option<String>)> = Vec::new();
+        for record in begins.flat_map(|b| &b.executogrammen) {
+            let Some(value) = record.velden.get(key).and_then(identity_text) else {
+                continue;
+            };
+            let own = self.login().and_then(|l| l.naam.as_deref());
+            let name = own
+                .into_iter()
+                .chain(NAME_FIELDS)
+                .find_map(|f| record.velden.get(f).and_then(Value::as_str))
+                .map(str::to_owned);
+            match out.iter_mut().find(|(v, _)| *v == value) {
+                Some((_, known)) => {
+                    if known.is_none() {
+                        *known = name;
+                    }
+                }
+                None => out.push((value, name)),
+            }
+        }
+        out
+    }
+
+    /// Log in through the case's login step as `gebruikersnaam` with
+    /// `wachtwoord`, on today's date: the cell of the step answers whether
+    /// that user may act for the service, and when it may, records the fact
+    /// of the case's login, in a commit of its own
+    /// (`inlogstap::inloggen`).
+    ///
+    /// # Errors
+    ///
+    /// What [`Service::perform`] refuses, such as a case without a login
+    /// step.
+    pub async fn log_in(
+        &self,
+        gebruikersnaam: &str,
+        wachtwoord: &str,
+    ) -> Result<LoginOutcome, ServiceError> {
+        let actor = Actor {
+            account: format!("inlogstap:{gebruikersnaam}"),
+            channel: Channel::TestLogin,
+        };
+        let step = Step::LogIn(LogIn {
+            gebruikersnaam: gebruikersnaam.to_owned(),
+            wachtwoord: wachtwoord.to_owned(),
+        });
+        LoginOutcome::from_answer(&self.perform(None, step, &actor).await?)
     }
 
     /// The cell this server runs the process for, whose employees log in to
@@ -1968,6 +2144,58 @@ pub(crate) mod tests {
             .unwrap(),
             submitter: Some(submitter("DigiD")),
         })
+    }
+
+    /// A service on the PoC's test source with a login step, whose
+    /// accredited service knows the users bakker, kapper and bloemist.
+    async fn login_step_service() -> Service {
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../poc-chronolexografie/tests/bron-inlogstap/bron.yaml");
+        let (corpus, _) = crate::case::load(&manifest).unwrap();
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        Service::start(corpus, store, clock).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_login_through_the_step_records_the_authentication_once_granted() {
+        let s = login_step_service().await;
+        let cell = "voorbeeld_erkende_dienst";
+        let head = || async { s.chronicle(cell).await.unwrap()["kop"].as_u64().unwrap() };
+        let before = head().await;
+
+        let refused = s.log_in("kapper", "welkom").await.unwrap();
+        assert_eq!(refused, LoginOutcome::NotAuthorized);
+        let wrong = s.log_in("bakker", "verkeerd").await.unwrap();
+        assert_eq!(wrong, LoginOutcome::WrongPassword);
+        assert_eq!(head().await, before, "a refused login records nothing");
+
+        let LoginOutcome::LoggedIn(claims) = s.log_in("bakker", "welkom").await.unwrap() else {
+            panic!("bakker may log in");
+        };
+        assert_eq!(claims["kvk_nummer"], "99970011");
+        assert_eq!(head().await, before + 1);
+        let step = Step::LogIn(LogIn {
+            gebruikersnaam: "bakker".into(),
+            wachtwoord: "welkom".into(),
+        });
+        assert!(!serde_json::to_string(&step).unwrap().contains("welkom"));
+        assert!(!format!("{step:?}").contains("welkom"));
+    }
+
+    #[tokio::test]
+    async fn the_begin_names_the_numbers_of_the_login_key() {
+        let s = login_step_service().await;
+        let numbers: Vec<String> = s
+            .begin_identities("kvk_nummer")
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(numbers, ["99970011", "99970022", "99970033"]);
+        assert!(s.login_offer().await.unwrap().is_some());
     }
 
     #[tokio::test]

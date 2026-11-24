@@ -13,17 +13,41 @@ export interface Persona {
   rollen: string[];
   claims?: Record<string, unknown>;
   identiteit?: string;
-  /** A citizen's made-up name. */
+  /** What the number is called: BSN, or KvK-nummer for a business. */
+  label?: string;
+  /** A citizen's or a business's made-up name. */
   naam?: string;
   niveau?: string;
   cel?: string;
   cel_naam?: string;
 }
 
+/**
+ * What the simulated login of the citizens' side asks (`GET /auth/simulatie`):
+ * the number that identifies an applicant, and for a case with a login step
+ * what that step offers.
+ */
+export interface Simulatie {
+  identiteit: {
+    claim: string;
+    label: string;
+    soort: 'bsn' | 'kvk' | 'anders';
+    cijfers: number | null;
+  };
+  inlogstap: {
+    cel: string;
+    cel_naam: string;
+    dienst: string;
+    wachtwoord: string;
+    gebruikersnamen: string[];
+  } | null;
+}
+
 export const inloggenApi = {
   /** Asked anew every time: a test login changes it without a page load. */
   status: () => apiFetchJson<AuthStatus>('/auth/status', { credentials: 'same-origin' }).catch(onbereikbaar),
   testpersonen: () => apiFetchJson<Persona[]>('/auth/testpersonen', { credentials: 'same-origin' }).catch(onbereikbaar),
+  simulatie: () => apiFetchJson<Simulatie>('/auth/simulatie', { credentials: 'same-origin' }).catch(onbereikbaar),
   testlogin: (p: Persona, naam: string) =>
     apiFetch('/auth/testlogin', {
       method: 'POST',
@@ -32,16 +56,27 @@ export const inloggenApi = {
       body: JSON.stringify({ sub: p.sub, rollen: p.rollen, claims: p.claims ?? {}, naam }),
     }).catch(onbereikbaar),
   /**
-   * A citizen of the simulated DigiD, by number and name. The server checks
-   * the number (nine digits, the eleven test, the test range) and gives the
-   * account the citizen's role and no other.
+   * An applicant of the simulated DigiD or eHerkenning, by number and name.
+   * The server checks the number (a BSN of the test range, or eight digits
+   * for a KvK number) and gives the account the citizen's role and no other.
    */
-  digid: (bsn: string, naam: string) =>
+  digid: (nummer: string, naam: string) =>
     apiFetch('/auth/testlogin', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ bsn, naam }),
+      body: JSON.stringify({ nummer, naam }),
+    }).catch(onbereikbaar),
+  /**
+   * Through the login step of the case: the cell of the step checks the user
+   * name and the password and records the authentication.
+   */
+  inlogstap: (gebruikersnaam: string, wachtwoord: string) =>
+    apiFetch('/auth/testlogin', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ gebruikersnaam, wachtwoord }),
     }).catch(onbereikbaar),
   /** Through Keycloak: the browser leaves the app and comes back to `terug`. */
   oidc: (terug: string) => useAuth().login(terug),

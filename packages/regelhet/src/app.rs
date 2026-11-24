@@ -50,7 +50,9 @@ use tower_sessions_memory_store::MemoryStore;
 use crate::api::{ApiError, AppState, Organisation, router};
 use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
-use crate::config::{Config, FrontSettings, Fsc4bChoice, Mode, Role, StoreChoice};
+use crate::config::{
+    Config, DEFAULT_SUBJECT_CLAIM, FrontSettings, Fsc4bChoice, Mode, Role, StoreChoice,
+};
 use crate::fsc4b::{Fsc4b, Fsc4bError};
 use crate::link::{Link, LinkError};
 use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
@@ -82,6 +84,16 @@ pub enum StartupError {
     StableNeedsOneSurface,
     #[error("FSC voor Burgers serves citizens, and this instance serves the back office")]
     Fsc4bOnBackoffice,
+    #[error(
+        "the case identifies an applicant by `{0}`, which {1} does not carry; \
+         set REGELHET_SUBJECT_CLAIM={0} so the login asks for it"
+    )]
+    CaseClaim(String, &'static str),
+    #[error(
+        "REGELHET_SUBJECT_CLAIM is `{0}`, while the case logs in on `{1}` (inloggen.sleutel); \
+         set it to `{1}` or leave it out"
+    )]
+    ClaimNotCaseKey(String, String),
     #[error("the chronicle store ({store}): {source}")]
     Store {
         store: &'static str,
@@ -148,6 +160,31 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     for message in &messages {
         tracing::warn!(%message, "loading the case");
     }
+    let subject_claim =
+        config.subject_claim_for(corpus.casus.inloggen.as_ref().map(|l| l.sleutel.as_str()));
+    // A case that logs in on a key of its own fills that key, whatever the
+    // setting: a KvK number under `bsn` would pass no check of either.
+    if let (Some(set), Some(login)) = (&config.subject_claim, &corpus.casus.inloggen)
+        && *set != login.sleutel
+    {
+        return Err(StartupError::ClaimNotCaseKey(
+            set.clone(),
+            login.sleutel.clone(),
+        ));
+    }
+    // The configuration checked its claim against Keycloak and FSC voor
+    // Burgers; one the case brings is checked here.
+    if config.subject_claim.is_none() && subject_claim != DEFAULT_SUBJECT_CLAIM {
+        if matches!(login, Login::Oidc(_)) {
+            return Err(StartupError::CaseClaim(
+                subject_claim,
+                "the login through Keycloak",
+            ));
+        }
+        if !matches!(config.fsc4b, Fsc4bChoice::Off) {
+            return Err(StartupError::CaseClaim(subject_claim, "FSC voor Burgers"));
+        }
+    }
     let stores = open_store(&config.store, CONNECT_TIMEOUT, stable).await?;
     // The test clock keeps its day in the store, so instances on one store
     // tell the same date.
@@ -197,7 +234,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         config.surface,
         controllable,
         login,
-        &config.subject_claim,
+        &subject_claim,
     );
     state = state.with_accent(config.accent);
     if let Some(fsc4b) = fsc4b {
@@ -473,7 +510,7 @@ mod tests {
     use regelrecht_shared::postgres::test_utils::TestDatabase;
 
     use super::*;
-    use crate::config::{DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, LoginChoice};
+    use crate::config::{DEFAULT_MANIFEST, DEFAULT_PORT, LoginChoice};
 
     fn config(mode: Mode) -> Config {
         Config {
@@ -484,7 +521,7 @@ mod tests {
             frontend: PathBuf::from("/nonexistent/frontend"),
             port: DEFAULT_PORT,
             login: LoginChoice::TestLogin,
-            subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
+            subject_claim: None,
             fsc4b: Fsc4bChoice::Off,
             accent: None,
             link: Default::default(),

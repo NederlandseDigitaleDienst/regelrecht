@@ -47,8 +47,11 @@
 //!   so its default would let every account of the realm in.
 //! - `BASE_URL`: where the server is reached, for the redirect after a
 //!   login; required in stable mode.
-//! - `REGELHET_SUBJECT_CLAIM`: the claim of a citizen's account that
-//!   identifies them, by default `bsn`. The login keeps it in the session.
+//! - `REGELHET_SUBJECT_CLAIM`: the claim of an applicant's account that
+//!   identifies them. Without it the case decides: the key of its login
+//!   (`inloggen.sleutel`, such as `kvk_nummer`), or else `bsn`. The login
+//!   keeps it in the session. With Keycloak it must be set when the case's
+//!   key is not `bsn`, so the client asks for that claim.
 //!
 //! The FSC voor Burgers channel ([`Fsc4bChoice`], [`crate::fsc4b`]), off
 //! unless configured:
@@ -307,8 +310,10 @@ pub struct Config {
     pub frontend: PathBuf,
     pub port: u16,
     pub login: LoginChoice,
-    /// The claim of a citizen's account that identifies them.
-    pub subject_claim: String,
+    /// The claim of an applicant's account that identifies them, when
+    /// `REGELHET_SUBJECT_CLAIM` names one; without, the case decides
+    /// ([`Config::subject_claim_for`]).
+    pub subject_claim: Option<String>,
     /// The FSC voor Burgers channel.
     pub fsc4b: Fsc4bChoice,
     /// The accent colour of the screens; none keeps the design system's.
@@ -555,15 +560,13 @@ impl Config {
             Some(p) => p.trim().parse().map_err(|_| ConfigError::BadPort(p))?,
             None => DEFAULT_PORT,
         };
-        let subject_claim = set("REGELHET_SUBJECT_CLAIM").map_or_else(
-            || DEFAULT_SUBJECT_CLAIM.to_string(),
-            |c| c.trim().to_string(),
-        );
+        let subject_claim = set("REGELHET_SUBJECT_CLAIM").map(|c| c.trim().to_string());
+        let claim = subject_claim.as_deref().unwrap_or(DEFAULT_SUBJECT_CLAIM);
         let accent = set("REGELHET_ACCENT_COLOR")
             .map(|c| c.parse())
             .transpose()?;
-        let login = login_choice(mode, &subject_claim, &set)?;
-        let fsc4b = fsc4b_choice(mode, &subject_claim, port, &set)?;
+        let login = login_choice(mode, claim, &set)?;
+        let fsc4b = fsc4b_choice(mode, claim, port, &set)?;
         if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
             return Err(ConfigError::Fsc4bOnBackoffice);
         }
@@ -594,6 +597,19 @@ impl Config {
             link,
             role,
         })
+    }
+}
+
+impl Config {
+    /// The claim that identifies an applicant of the case `login_key`
+    /// names (`inloggen.sleutel`): `REGELHET_SUBJECT_CLAIM` when set, else
+    /// that key, else [`DEFAULT_SUBJECT_CLAIM`].
+    pub fn subject_claim_for(&self, login_key: Option<&str>) -> String {
+        self.subject_claim
+            .as_deref()
+            .or(login_key)
+            .unwrap_or(DEFAULT_SUBJECT_CLAIM)
+            .to_owned()
     }
 }
 
@@ -894,7 +910,9 @@ mod tests {
         assert_eq!(c.port, DEFAULT_PORT);
         assert_eq!(c.manifest, PathBuf::from(DEFAULT_MANIFEST));
         assert!(matches!(c.login, LoginChoice::TestLogin));
-        assert_eq!(c.subject_claim, DEFAULT_SUBJECT_CLAIM);
+        assert_eq!(c.subject_claim, None);
+        assert_eq!(c.subject_claim_for(None), DEFAULT_SUBJECT_CLAIM);
+        assert_eq!(c.subject_claim_for(Some("kvk_nummer")), "kvk_nummer");
         assert_eq!(c.surface, Surface::All);
     }
 
@@ -1057,11 +1075,16 @@ mod tests {
             ],
         ]))
         .unwrap();
-        let LoginChoice::Oidc { oidc, .. } = c.login else {
+        let LoginChoice::Oidc { oidc, .. } = &c.login else {
             panic!("stable mode logs in through OIDC");
         };
         assert_eq!(oidc.extra_claims, ["kvk_nummer", "naam"]);
-        assert_eq!(c.subject_claim, "kvk_nummer");
+        assert_eq!(c.subject_claim.as_deref(), Some("kvk_nummer"));
+        assert_eq!(
+            c.subject_claim_for(Some("bsn")),
+            "kvk_nummer",
+            "the setting wins over the case"
+        );
     }
 
     #[test]
