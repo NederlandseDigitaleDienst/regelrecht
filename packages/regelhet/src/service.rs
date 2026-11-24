@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use chrono::NaiveDate;
 use regelrecht_cel::Gram;
+use regelrecht_poc_chronolexografie::brongegevens::{self, Brongegevens};
 use regelrecht_poc_chronolexografie::inlogstap;
 use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus, Indiener};
 use regelrecht_poc_chronolexografie::stand::{self, Stand};
@@ -428,6 +429,14 @@ pub enum ServiceError {
          only the identifier (the login field) and `naam`"
     )]
     LoginClaim(Vec<String>),
+    /// The case names under `uitgeven` an answer the server cannot hand out
+    /// on the login field alone ([`brongegevens::ongeschikt`]).
+    #[error(
+        "the case names answers under `uitgeven` that cannot be handed out on the login field \
+         alone: {}",
+        .0.join("; ")
+    )]
+    Handout(Vec<String>),
 }
 
 /// The claims of a login that a field of the UI spec can take with
@@ -625,6 +634,22 @@ pub struct WorkQueue {
     pub open: Vec<Waiting>,
 }
 
+/// What the executor hands out to one person on one day
+/// ([`Service::source_data`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceData {
+    /// The day the answers are computed on, by the service's clock.
+    pub day: NaiveDate,
+    /// The id of the case.
+    pub case: String,
+    /// The executor's cell, which gives the answers.
+    pub cell: String,
+    pub answers: Brongegevens,
+    /// The records of the person's dossier, per cell in the order of the
+    /// case and in chronicle order within it.
+    pub records: Vec<Gram>,
+}
+
 /// The records of every cell that are about one person, as
 /// [`Service::dossier`] gives them.
 #[derive(Debug, Clone, PartialEq)]
@@ -690,6 +715,16 @@ impl Service {
             .collect();
         if !unknown.is_empty() {
             return Err(ServiceError::LoginClaim(unknown));
+        }
+        if !corpus.casus.uitgeven.is_empty() {
+            let today = clock.today().await?;
+            let cellen = corpus.cell()?;
+            let service = corpus.service()?;
+            let refused =
+                brongegevens::ongeschikt(&corpus, &service, &cellen, &login_field, today)?;
+            if !refused.is_empty() {
+                return Err(ServiceError::Handout(refused));
+            }
         }
         let service = Self {
             corpus: Arc::new(corpus),
@@ -1492,6 +1527,46 @@ impl Service {
         .await
     }
 
+    /// What the executor hands out to the person `subject` identifies in
+    /// the login field, today: the answers of its cell that it gives on the
+    /// login field alone ([`brongegevens::brongegevens`]), and the records
+    /// of their dossier, read from the same state of the chronicles.
+    /// Nothing is recorded. The records are those up to and including
+    /// today, as the answers read them: with the test clock set back, a
+    /// later record is no part of what the answers rest on.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails. An answer the engine does not give is
+    /// [`ServiceError::Internal`]: the request asks nothing of its own, so a
+    /// refusal is the server's fault and not the citizen's to correct.
+    pub async fn source_data(&self, subject: &str) -> Result<SourceData, ServiceError> {
+        let read = self.read().await?;
+        let today = self.today().await?;
+        let records = self
+            .dossier_grams(&read, subject)
+            .into_iter()
+            .filter(|g| g.recorded_on <= today)
+            .collect();
+        let corpus = Arc::clone(&self.corpus);
+        let field = self.login_field.clone();
+        let subject = subject.to_string();
+        let answers = blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            // The API logs an internal error and answers without its text.
+            brongegevens::brongegevens(&corpus, &cellen, &field, &subject, today)
+                .map_err(|e| ServiceError::Internal(format!("the source data: {e}")))
+        })
+        .await?;
+        Ok(SourceData {
+            day: today,
+            case: self.corpus.casus.id.clone(),
+            cell: self.executor().to_string(),
+            answers,
+            records,
+        })
+    }
+
     /// The records of every cell about the person `subject` identifies in
     /// the login field ([`crate::dossier`]), derived from the chronicles as
     /// they are now.
@@ -1501,18 +1576,25 @@ impl Service {
     /// When the store fails.
     pub async fn dossier(&self, subject: &str) -> Result<Dossier, ServiceError> {
         let read = self.read().await?;
+        Ok(Dossier {
+            grams: self.dossier_grams(&read, subject),
+        })
+    }
+
+    /// The records of `read` about the person `subject` identifies in the
+    /// login field ([`crate::dossier`]), per cell in the order of the case
+    /// and in chronicle order within it.
+    fn dossier_grams(&self, read: &Read, subject: &str) -> Vec<Gram> {
         let all: Vec<&Gram> = read
             .chronicles
             .iter()
             .flat_map(|c| c.grams.iter().map(|g| &g.gram))
             .collect();
         let ids = crate::dossier::ids(&all, &self.login_field, subject);
-        let grams = all
-            .into_iter()
+        all.into_iter()
             .filter(|g| ids.contains(g.id.as_str()))
             .cloned()
-            .collect();
-        Ok(Dossier { grams })
+            .collect()
     }
 
     /// [`Service::dossier`], with what the kern says of its records
@@ -2193,6 +2275,19 @@ pub(crate) mod tests {
         Service::start(corpus, store, clock).await.unwrap()
     }
 
+    /// The service on the case of this crate after `adjust` changed it.
+    async fn service_with(adjust: impl FnOnce(&mut Corpus)) -> Service {
+        let (mut corpus, _) =
+            crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
+        adjust(&mut corpus);
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        Service::start(corpus, store, clock).await.unwrap()
+    }
+
     #[tokio::test]
     async fn a_login_through_the_step_records_the_authentication_once_granted() {
         let s = login_step_service().await;
@@ -2230,6 +2325,49 @@ pub(crate) mod tests {
             .collect();
         assert_eq!(numbers, ["99970011", "99970022", "99970033"]);
         assert!(s.login_offer().await.unwrap().is_some());
+    }
+
+    /// The answers the cell hands out are those the case names under
+    /// `uitgeven`, and without that list none.
+    #[tokio::test]
+    async fn only_the_answers_the_case_names_under_uitgeven_go_out() {
+        const EERDER: &str = "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt";
+        let names = |data: &SourceData| -> Vec<String> {
+            data.answers.antwoorden.keys().cloned().collect()
+        };
+        let none = service_with(|c| c.casus.uitgeven.clear())
+            .await
+            .source_data("999990032")
+            .await
+            .unwrap();
+        assert!(names(&none).is_empty(), "{:?}", names(&none));
+        assert!(!none.answers.bij_aanvraag.is_empty());
+        let one = service_with(|c| c.casus.uitgeven = vec![EERDER.into()])
+            .await
+            .source_data("999990032")
+            .await
+            .unwrap();
+        assert_eq!(names(&one), [EERDER]);
+    }
+
+    /// A name under `uitgeven` that needs more than the login field stops
+    /// the server, with the name and what it needs.
+    #[tokio::test]
+    async fn an_answer_that_needs_more_than_the_login_field_stops_the_server() {
+        const ADVIES: &str = "advies_langdurige_loopbeperking";
+        let (mut corpus, _) =
+            crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
+        corpus.casus.uitgeven = vec![ADVIES.into()];
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        let e = Service::start(corpus, store, clock).await.unwrap_err();
+        assert!(
+            matches!(&e, ServiceError::Handout(why) if why.len() == 1 && why[0].contains(ADVIES) && why[0].contains("dagtekening_aanvraag")),
+            "{e}"
+        );
     }
 
     #[tokio::test]

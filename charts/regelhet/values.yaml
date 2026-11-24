@@ -249,6 +249,11 @@ koppeling:
 # The discovery configuration is at https://<citizens' host>/fsc4b/discovery.
 fsc4b:
   enabled: false
+  # The origins of the browser apps that call the channel from another
+  # address, such as the citizen's app: each https://host or
+  # http://host:port, without a path. The server answers them with CORS
+  # headers on /fsc4b/ and no other origin. Empty sends none.
+  origins: []
 
 # This release is the front of an organisation (docs:
 # components/regelhet-organisatie): the server in the role `organisatie`,

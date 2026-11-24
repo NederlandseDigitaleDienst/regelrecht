@@ -44,7 +44,7 @@ serde_yaml_ng.workspace = true
 # The query of a hand-off to a process (src/organisatie/relay.rs).
 url.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
-tower-http = { workspace = true, features = ["trace", "fs"] }
+tower-http = { workspace = true, features = ["trace", "fs", "cors"] }
 # `oneshot` on the service of the built frontend (src/app.rs).
 tower = { workspace = true, features = ["util"] }
 tracing.workspace = true

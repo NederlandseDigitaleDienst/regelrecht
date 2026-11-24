@@ -289,6 +289,13 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "origins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^https?://[A-Za-z0-9.:\\[\\]-]+$"
+          }
         }
       }
     },

@@ -34,6 +34,14 @@ andere_cellen:
     cel_naam: GGD Wilgendaal
   - cel: rechtbank_wilgendaal
     cel_naam: Rechtbank Wilgendaal
+# Welke antwoorden van de gemeente een burgerapp via FSC voor Burgers over de
+# burger zelf mag ophalen (/fsc4b/burger/v1/gegevens). Zonder deze lijst gaat
+# er niets uit. Elk antwoord moet te vragen zijn met alleen het BSN; anders
+# start de server niet. Het advies van de GGD staat hier niet: dat hoort bij
+# een aanvraag en komt pas daarna (bij_aanvraag).
+uitgeven:
+  - aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+  - verzoek_om_geneeskundig_onderzoek_staat_open
 # Wat het college uit eigen beleid doet als een aanvraag binnenkomt: artikel 9
 # van zijn fictieve beleid zegt of het de GGD om een geneeskundig onderzoek
 # vraagt. Zo ja, dan legt de gemeente het verzoek vast en de GGD de

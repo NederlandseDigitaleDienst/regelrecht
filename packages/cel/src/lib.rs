@@ -41,6 +41,6 @@ pub use chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Receive
 pub use decision::{DecisionShape, Input, Source};
 pub use error::{Error, Result};
 pub use files::{Bundle, Disk, Files};
-pub use reading::{Binding, Term};
+pub use reading::{AnswerParameter, Binding, GivenAnswer, Term};
 pub use shape::{Field, Moment, Shape};
 pub use versions::{LawChange, LawSince};

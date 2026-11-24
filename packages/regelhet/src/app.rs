@@ -156,7 +156,8 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     if !config.surface.serves_citizens() && !matches!(config.fsc4b, Fsc4bChoice::Off) {
         return Err(StartupError::Fsc4bOnBackoffice);
     }
-    let (corpus, messages) = case::load_chosen(&config.manifest, config.case.as_deref())?;
+    let files = case::files(&config.manifest)?;
+    let (corpus, messages) = case::from_files(files.clone(), config.case.as_deref())?;
     for message in &messages {
         tracing::warn!(%message, "loading the case");
     }
@@ -240,6 +241,9 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         .with_accent(config.accent)
         .with_title(config.title.clone());
     if let Some(fsc4b) = fsc4b {
+        let fsc4b = fsc4b
+            .with_bundle(files)
+            .with_origins(config.fsc4b_origins.clone());
         state = state.with_fsc4b(Arc::new(fsc4b));
     }
     if let Some(link) = link {
@@ -261,19 +265,20 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         });
     }
     let frontend = config.frontend.join(config.surface.name());
+    // Around everything, so that an error under /fsc4b/ carries it too.
+    let cors = state.fsc4b().and_then(|f| crate::fsc4b::cors(f.origins()));
     let app = with_frontend(router(state.clone()), &frontend).layer(
         middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<AppState>),
     );
     let surface = config.surface;
-    match stores.sessions {
-        None => Ok(with_sessions(app, MemoryStore::default(), surface, secure)),
-        Some(pool) => Ok(with_sessions(
-            app,
-            postgres_sessions(pool).await?,
-            surface,
-            secure,
-        )),
-    }
+    let app = match stores.sessions {
+        None => with_sessions(app, MemoryStore::default(), surface, secure),
+        Some(pool) => with_sessions(app, postgres_sessions(pool).await?, surface, secure),
+    };
+    Ok(match cors {
+        Some(layer) => app.layer(layer),
+        None => app,
+    })
 }
 
 /// The router of the front of an organisation `settings` describe: its
@@ -526,6 +531,7 @@ mod tests {
             login: LoginChoice::TestLogin,
             subject_claim: None,
             fsc4b: Fsc4bChoice::Off,
+            fsc4b_origins: Default::default(),
             accent: None,
             title: None,
             link: Default::default(),

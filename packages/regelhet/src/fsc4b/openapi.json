@@ -82,6 +82,34 @@
         "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
       }
     },
+    "/fsc4b/burger/v1/gegevens": {
+      "post": {
+        "summary": "The source data the executor holds about the citizen of the session, signed",
+        "description": "Decrypted, the body is {}; a BSN in it is not read. The answers are those the case file names under uitgeven, each an answer of the executor's cell (answers in its cel.yaml) that takes the login field of the case as its one required parameter; the server fills it with the BSN of the session. Without uitgeven, antwoorden is empty. Each answer is computed on today by the server's clock. The decrypted answer is { \"ondertekend\": \"<compact JWS>\", \"gegevens\": { ... } }: ondertekend is a JWS (ES256) under the organization's key from the Stelseldocument, and gegevens is its payload, for an app that does not verify. A waarde of null means the cell gives no answer (it is silent), not false. bij_aanvraag names the facts that only come after an application, such as an advice another party still has to give: those are missing because they do not exist yet. The JWS carries no exp or aud: it records what the organization handed out on peildatum, for whoever the citizen shows it to.",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "$ref": "#/components/requestBodies/Empty" },
+        "responses": {
+          "200": {
+            "description": "A compact JWE (alg dir, enc A256GCM) under the session key, holding a Gegevens object",
+            "content": { "application/jose": { "schema": { "type": "string" } } },
+            "x-decrypted": { "$ref": "#/components/schemas/Gegevens" }
+          },
+          "401": { "$ref": "#/components/responses/NoSession" }
+        }
+      }
+    },
+    "/fsc4b/regelwerken": {
+      "get": {
+        "summary": "The case as a bundle, to compute on locally",
+        "description": "Without a session: the case is no personal data. Plain JSON, { \"<path>\": \"<text>\" }, every file of the source the server runs, by its path in the source: the case under casussen/, the regelwerken under regulation/, the cells with their reductions under cells/, and the UI spec as ui_spec.yaml. It is the bestanden of a source (packages/poc-chronolexografie/src/bundel.rs, Bron) that the kern loads with bundel::uit_bron, as the server loads it. The signed source data carry its hash (bundel_hash). A manifest may make several cases; the one the server runs is the one gegevens names under casus.",
+        "responses": {
+          "200": {
+            "description": "Per path its text",
+            "content": { "application/json": { "schema": { "type": "object", "additionalProperties": { "type": "string" } } } }
+          }
+        }
+      }
+    },
     "/fsc4b/discovery": {
       "get": {
         "summary": "The discovery configuration (section 4.2)",
@@ -101,6 +129,65 @@
     }
   },
   "components": {
+    "schemas": {
+      "Gegevens": {
+        "type": "object",
+        "required": ["ondertekend", "gegevens"],
+        "properties": {
+          "ondertekend": { "type": "string", "description": "A compact JWS (ES256) under the organization's key, whose payload is gegevens" },
+          "gegevens": { "$ref": "#/components/schemas/GegevensClaims" }
+        }
+      },
+      "GegevensClaims": {
+        "type": "object",
+        "required": ["iss", "sub", "iat", "bundel_hash", "peildatum", "casus", "cel", "regelwerken", "antwoorden", "records", "bij_aanvraag"],
+        "properties": {
+          "iss": { "type": "string", "description": "The OIN of the organization" },
+          "sub": { "type": "string", "description": "The BSN of the session" },
+          "iat": { "type": "integer", "description": "Unix time of signing" },
+          "bundel_hash": { "type": "string", "description": "sha256: and the lowercase hex SHA-256 of the bundle GET /fsc4b/regelwerken gives: per path in ascending byte order, the decimal byte length of the path, ':', the path, the decimal byte length of its text, ':' and the text, all UTF-8, concatenated without separators. {\"a.yaml\": \"x\"} hashes the bytes 6:a.yaml1:x. An app checks the bundle against it before it computes on it." },
+          "peildatum": { "type": "string", "format": "date", "description": "The day the answers are computed on, by the server's clock (the test clock in test mode)" },
+          "casus": { "type": "string", "description": "The id of the case" },
+          "cel": { "type": "string", "description": "The executor's cell, which gave the answers" },
+          "regelwerken": {
+            "type": "array",
+            "description": "The regelwerk versions the answers were computed under",
+            "items": { "type": "object", "required": ["law_id"], "properties": { "law_id": { "type": "string" }, "valid_from": { "type": "string" }, "hash": { "type": "string" } } }
+          },
+          "antwoorden": {
+            "type": "object",
+            "description": "Per answer name (cel.yaml answers) its value and where it came from",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["waarde", "parameters", "herkomst"],
+              "properties": {
+                "waarde": { "description": "The value; null when the cell gives no answer" },
+                "parameters": { "type": "object", "description": "What the answer was asked with: the login field of the case and the BSN of the session, such as { \"bsn_aanvrager\": \"999990032\" }. Ask the same of the cell (Cell::give_answer, or brongegevens in the kern) to compute it again." },
+                "herkomst": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "door": { "type": "string", "description": "The cell that answered" },
+                      "antwoord": { "type": "string" },
+                      "reductie": { "type": "string", "description": "The $id of the reduction" },
+                      "artikel": { "type": "string" },
+                      "geldig_vanaf": { "type": "string", "description": "The version of the reduction" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "records": { "type": "array", "description": "The records of the citizen's dossier, in every cell, as POST /fsc4b/burger/v1/dossier gives them under grammen: what the answers rest on, to replay locally", "items": { "type": "object" } },
+          "bij_aanvraag": {
+            "type": "array",
+            "description": "The facts that only come after an application (bij_aanvraag of the case)",
+            "items": { "type": "object", "required": ["feit"], "properties": { "feit": { "type": "string", "description": "<regelwerk>#<article>#<fact>" }, "taak": { "type": "string", "description": "What the fact is called while it has yet to come" } } }
+          }
+        }
+      }
+    },
     "parameters": {
       "SessionToken": { "name": "Authorization", "in": "header", "required": true, "schema": { "type": "string" }, "description": "The session token from /fsc4b/session/v1/complete, bare or after \"Bearer \"." }
     },

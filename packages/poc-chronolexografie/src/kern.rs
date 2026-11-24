@@ -206,6 +206,16 @@ impl Corpus {
         casus.verwijzingen_kloppen()?;
         let cell_dir = cel_dir(&*files, roots, &casus.cel);
         let cell = Cell::in_memory_from(&*files, &casus.cel, &cell_dir)?;
+        if let Some(onbekend) = casus
+            .uitgeven
+            .iter()
+            .find(|a| !cell.answers().contains_key(*a))
+        {
+            return Err(Error::Setup(format!(
+                "uitgeven names '{onbekend}', which is no answer of the cell '{}'",
+                casus.cel
+            )));
+        }
         let andere_dirs: Vec<PathBuf> = casus
             .andere_cellen
             .iter()
@@ -2128,7 +2138,7 @@ fn uit_bron(result: &ArticleResult, bron: &str) -> Result<Value> {
 /// Where a cell's answer comes from, as the app shows it: the cell, the
 /// answer, the reduction with its article and version, and how far the cell
 /// read its chronicle.
-fn herkomst(answer: &AnswerProvenance) -> Value {
+pub(crate) fn herkomst(answer: &AnswerProvenance) -> Value {
     json!({
         "door": answer.answerer,
         "antwoord": answer.answer,

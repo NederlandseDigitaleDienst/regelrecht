@@ -14,6 +14,8 @@
 //! - [`store`]: challenges and sessions, in memory or in Postgres;
 //! - [`session`]: `CreateSession` (§4.3.4), the challenge and its answer;
 //! - [`citizen`]: the citizen's routes, encrypted under the session key;
+//! - [`handout`]: what an app needs to compute on the citizen's device: the
+//!   signed source data about the citizen and the case as a bundle;
 //! - [`discovery`]: the discovery configuration (§4.2) and the OpenAPI
 //!   specification (§2.2.1);
 //! - [`demo`]: a demo Stelsel with a test Activatiedienst, for test mode;
@@ -25,6 +27,10 @@
 //! and none of its paths answers. A session of the channel is a citizen and
 //! nothing else ([`crate::access::Principal::fsc4b_citizen`]), and reaches
 //! only the routes below.
+//!
+//! A browser app on another address reaches the routes only when its origin
+//! is configured ([`crate::config::Fsc4bOrigins`]): those get CORS headers,
+//! a preflight included.
 
 pub mod citizen;
 /// The reference client, from the crate the app runs on too.
@@ -32,6 +38,7 @@ pub mod citizen;
 pub use regelrecht_fsc4b::client;
 pub mod demo;
 pub mod discovery;
+pub mod handout;
 /// The JOSE formats, from the crate the app shares with this server.
 pub use regelrecht_fsc4b::jose;
 pub mod presentation;
@@ -41,15 +48,18 @@ pub mod store;
 pub mod testing;
 pub mod trust;
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Router;
+use axum::http::{HeaderValue, Method, header};
 use axum::routing::{get, post};
 use sqlx::PgPool;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::api::AppState;
-use crate::config::{Fsc4bChoice, Fsc4bSettings, KeySource, Mode};
+use crate::config::{Fsc4bChoice, Fsc4bOrigins, Fsc4bSettings, KeySource, Mode};
 use crate::fsc4b::demo::Demo;
 use crate::fsc4b::jose::{JoseError, SigningKey, VerifyingKey};
 use crate::fsc4b::store::{Fsc4bStore, InMemoryFsc4bStore, PostgresFsc4bStore};
@@ -69,6 +79,11 @@ pub const DOSSIER: &str = "/fsc4b/burger/v1/dossier";
 pub const SUBMIT: &str = "/fsc4b/burger/v1/indieningen";
 /// `POST`: why a decision of the citizen's own dossier came out so.
 pub const EXPLAIN: &str = "/fsc4b/burger/v1/waarom";
+/// `POST`: the source data the executor holds about the citizen, signed.
+pub const GEGEVENS: &str = "/fsc4b/burger/v1/gegevens";
+/// `GET`: the case as a bundle of files, to compute on in the app; without
+/// a session.
+pub const REGELWERKEN: &str = "/fsc4b/regelwerken";
 /// `GET`: the discovery configuration (§4.2).
 pub const DISCOVERY: &str = "/fsc4b/discovery";
 /// `GET`: the OpenAPI specification of the routes above.
@@ -82,7 +97,7 @@ pub const CITIZEN_BASE: &str = "/fsc4b/burger";
 
 /// Every route of the channel outside the demo, with its method: what the
 /// router registers and what the OpenAPI specification must describe.
-pub const ROUTES: [(&str, &str); 9] = [
+pub const ROUTES: [(&str, &str); 11] = [
     ("post", CHALLENGE),
     ("post", COMPLETE),
     ("post", CASE),
@@ -90,6 +105,8 @@ pub const ROUTES: [(&str, &str); 9] = [
     ("post", DOSSIER),
     ("post", SUBMIT),
     ("post", EXPLAIN),
+    ("post", GEGEVENS),
+    ("get", REGELWERKEN),
     ("get", DISCOVERY),
     ("get", OPENAPI),
 ];
@@ -125,13 +142,17 @@ pub enum Fsc4bError {
 }
 
 /// The open channel: what it trusts, where it keeps its challenges and
-/// sessions, where apps reach it, and the demo Stelsel when it runs on one.
+/// sessions, where apps reach it, the demo Stelsel when it runs on one, the
+/// case it hands apps, and the browser apps it answers.
 #[derive(Debug)]
 pub struct Fsc4b {
     trust: Trust,
     store: Arc<dyn Fsc4bStore>,
     public_url: String,
     demo: Option<Demo>,
+    bundle: BTreeMap<String, String>,
+    bundle_hash: String,
+    origins: Fsc4bOrigins,
 }
 
 impl Fsc4b {
@@ -147,7 +168,44 @@ impl Fsc4b {
             store,
             public_url,
             demo,
+            bundle_hash: bundle_hash(&BTreeMap::new()),
+            bundle: BTreeMap::new(),
+            origins: Fsc4bOrigins::default(),
         }
+    }
+
+    /// The channel handing apps the case in `bundle`: the files of the
+    /// source the server runs, by their path in it
+    /// ([`crate::case::files`]).
+    #[must_use]
+    pub fn with_bundle(mut self, bundle: BTreeMap<String, String>) -> Self {
+        self.bundle_hash = bundle_hash(&bundle);
+        self.bundle = bundle;
+        self
+    }
+
+    /// The channel answering the browser apps of `origins` with CORS
+    /// headers.
+    #[must_use]
+    pub fn with_origins(mut self, origins: Fsc4bOrigins) -> Self {
+        self.origins = origins;
+        self
+    }
+
+    /// The case as the channel hands it to apps ([`REGELWERKEN`]).
+    pub fn bundle(&self) -> &BTreeMap<String, String> {
+        &self.bundle
+    }
+
+    /// The hash of [`Fsc4b::bundle`] ([`bundle_hash`]), which the signed
+    /// source data carry so that an app can check the unsigned bundle.
+    pub fn bundle_hash(&self) -> &str {
+        &self.bundle_hash
+    }
+
+    /// The origins of the browser apps the channel answers.
+    pub fn origins(&self) -> &Fsc4bOrigins {
+        &self.origins
     }
 
     /// The channel `choice` configures in `mode`, keeping its state in
@@ -230,9 +288,66 @@ fn trust_of(settings: &Fsc4bSettings) -> Result<Trust, Fsc4bError> {
     })?)
 }
 
+/// The hash of a bundle of files by path, as the source data carry it
+/// (`bundel_hash`): `sha256:` and the lowercase hex SHA-256 of, per path in
+/// ascending byte order, the decimal byte length of the path, `:`, the path,
+/// the decimal byte length of its text, `:` and the text, all UTF-8 and
+/// without separators. The lengths make the concatenation unambiguous
+/// whatever a path or text holds. `{"a.yaml": "x"}` hashes `6:a.yaml1:x`.
+pub fn bundle_hash(bundle: &BTreeMap<String, String>) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    // A BTreeMap of Strings iterates in byte order of the keys.
+    for (path, text) in bundle {
+        hasher.update(format!("{}:", path.len()));
+        hasher.update(path);
+        hasher.update(format!("{}:", text.len()));
+        hasher.update(text);
+    }
+    let hex: String = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    format!("sha256:{hex}")
+}
+
+/// The CORS headers for the browser apps of `origins`, on every path under
+/// `/fsc4b/` and no other, `None` when there are no origins. It goes
+/// around the whole router, so a path that is no route (a 404) and any
+/// error answer carry the headers too, and the app can read why instead of
+/// seeing a network error. An origin that is no header value was refused by
+/// the configuration already; it is left out here rather than failing.
+pub fn cors(origins: &Fsc4bOrigins) -> Option<CorsLayer> {
+    let allowed: Vec<HeaderValue> = origins
+        .as_slice()
+        .iter()
+        .filter_map(|o| HeaderValue::from_str(o).ok())
+        .collect();
+    if allowed.is_empty() {
+        return None;
+    }
+    Some(
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(move |origin, request| {
+                request.uri.path().starts_with(CHANNEL_PREFIX) && allowed.contains(origin)
+            }))
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+            .max_age(std::time::Duration::from_secs(CORS_MAX_AGE_SECONDS)),
+    )
+}
+
+/// What every path of the channel starts with.
+const CHANNEL_PREFIX: &str = "/fsc4b/";
+
+/// How long a browser may keep the answer to a preflight.
+const CORS_MAX_AGE_SECONDS: u64 = 600;
+
 /// The routes of the open channel `fsc4b`: the session service, the
-/// citizen's service, the discovery configuration and the OpenAPI
-/// specification, and the demo Stelsel's routes when it runs on one.
+/// citizen's service, the case for apps, the discovery configuration and
+/// the OpenAPI specification, and the demo Stelsel's routes when it runs on
+/// one. The CORS headers come from [`cors`], around the whole router.
 pub fn routes(fsc4b: &Fsc4b) -> Router<AppState> {
     let router = Router::new()
         .route(CHALLENGE, post(session::challenge_route))
@@ -242,10 +357,39 @@ pub fn routes(fsc4b: &Fsc4b) -> Router<AppState> {
         .route(DOSSIER, post(citizen::dossier_route))
         .route(SUBMIT, post(citizen::submit_route))
         .route(EXPLAIN, post(citizen::explain_route))
+        .route(GEGEVENS, post(citizen::source_data_route))
+        .route(REGELWERKEN, get(handout::regelwerken_route))
         .route(DISCOVERY, get(discovery::discovery_route))
         .route(OPENAPI, get(discovery::openapi_route));
     match fsc4b.demo() {
         Some(_) => router.merge(demo::routes()),
         None => router,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_bundle_hash_is_over_length_prefixed_paths_and_texts_in_order() {
+        use sha2::{Digest, Sha256};
+        let hex = |bytes: &[u8]| -> String {
+            Sha256::digest(bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect()
+        };
+        let one = BTreeMap::from([("a.yaml".to_string(), "x".to_string())]);
+        assert_eq!(bundle_hash(&one), format!("sha256:{}", hex(b"6:a.yaml1:x")));
+        let two = BTreeMap::from([
+            ("b".to_string(), "ë".to_string()),
+            ("a".to_string(), String::new()),
+        ]);
+        // Sorted by path; lengths in bytes, so "ë" counts 2.
+        assert_eq!(
+            bundle_hash(&two),
+            format!("sha256:{}", hex("1:a0:1:b2:ë".as_bytes()))
+        );
     }
 }

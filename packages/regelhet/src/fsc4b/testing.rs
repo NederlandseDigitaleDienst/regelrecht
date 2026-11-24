@@ -249,28 +249,31 @@ pub fn flip_ciphertext_bit(jwe: &str) -> String {
     segments.join(".")
 }
 
-/// A decider of the municipality decides on the submission `op` of the
-/// server at `base`, through the test login of the browser channel; the id
-/// of the decision comes back. For a test that asks why a decision came
-/// out so.
-pub async fn decide_as_municipality(http: &reqwest::Client, base: &str, op: &str) -> String {
+/// The session cookie of an employee `sub` with `roles`, logged in through
+/// the test login of the browser channel of the server at `base`.
+pub async fn test_login(http: &reqwest::Client, base: &str, sub: &str, roles: &[&str]) -> String {
     let login = http
         .post(format!("{base}/auth/testlogin"))
-        .json(&json!({
-            "sub": "gemeente-1",
-            "rollen": ["regelhet-beslisser"],
-        }))
+        .json(&json!({ "sub": sub, "rollen": roles }))
         .send()
         .await
         .unwrap();
     assert_eq!(login.status(), reqwest::StatusCode::OK);
-    let cookie = login.headers()["set-cookie"]
+    login.headers()["set-cookie"]
         .to_str()
         .unwrap()
         .split(';')
         .next()
         .unwrap()
-        .to_string();
+        .to_string()
+}
+
+/// A decider of the municipality decides on the submission `op` of the
+/// server at `base`, through the test login of the browser channel; the id
+/// of the decision comes back. For a test that asks why a decision came
+/// out so.
+pub async fn decide_as_municipality(http: &reqwest::Client, base: &str, op: &str) -> String {
+    let cookie = test_login(http, base, "gemeente-1", &["regelhet-beslisser"]).await;
     let findings = json!({
         "langdurige_loopbeperking_volgens_college": true,
         "continu_afhankelijk_van_hulp_bestuurder_volgens_college": false,

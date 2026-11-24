@@ -11,8 +11,8 @@ use std::sync::Arc;
 use regelrecht_auth::OidcConfig;
 use regelrecht_regelhet::app::{self, StartupError};
 use regelrecht_regelhet::config::{
-    Config, DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice, Mode,
-    StoreChoice,
+    Config, DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, Fsc4bOrigins,
+    LoginChoice, Mode, StoreChoice,
 };
 use regelrecht_regelhet::fsc4b::client::{self, App, Directory, Session};
 use regelrecht_regelhet::fsc4b::demo::{
@@ -20,7 +20,7 @@ use regelrecht_regelhet::fsc4b::demo::{
 };
 use regelrecht_regelhet::fsc4b::jose::{AesKey, SigningKey, VerifyingKey};
 use regelrecht_regelhet::fsc4b::testing::{
-    OWN_OIN, TestApp, TestStelsel, decide_as_municipality, flip_ciphertext_bit,
+    OWN_OIN, TestApp, TestStelsel, decide_as_municipality, flip_ciphertext_bit, test_login,
 };
 use regelrecht_regelhet::fsc4b::{self, ROUTES, now_unix};
 use regelrecht_regelhet::login::{Login, OidcLogin};
@@ -56,6 +56,7 @@ fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
         login: LoginChoice::TestLogin,
         subject_claim: None,
         fsc4b,
+        fsc4b_origins: Default::default(),
         accent: None,
         title: None,
         link: Default::default(),
@@ -77,16 +78,19 @@ async fn serve(listener: TcpListener, config: &Config, login: Login) -> reqwest:
 
 /// A server in test mode on the demo Stelsel, with `store`.
 async fn demo_server(store: StoreChoice) -> Server {
+    demo_server_for(store, Fsc4bOrigins::default()).await
+}
+
+/// A server in test mode on the demo Stelsel, with `store`, answering the
+/// browser apps of `origins`.
+async fn demo_server_for(store: StoreChoice, origins: Fsc4bOrigins) -> Server {
     let (listener, base) = listener().await;
     let fsc4b = Fsc4bChoice::Demo {
         public_url: base.clone(),
     };
-    let http = serve(
-        listener,
-        &config(Mode::Test, store, fsc4b),
-        Login::TestLogin,
-    )
-    .await;
+    let mut c = config(Mode::Test, store, fsc4b);
+    c.fsc4b_origins = origins;
+    let http = serve(listener, &c, Login::TestLogin).await;
     Server { base, http }
 }
 
@@ -718,4 +722,333 @@ async fn with_the_frontend_built_an_unknown_fsc4b_path_still_answers_404() {
         StatusCode::NOT_FOUND
     );
     assert_eq!(server.status("get", "/").await, StatusCode::OK);
+}
+
+/// The source data of `session` on `server`, asked with `body`, after
+/// checking that `ondertekend` verifies under the organization's key from
+/// the Stelseldocument and that `gegevens` is its payload.
+async fn source_data(server: &Server, session: &Session, body: &Value) -> Value {
+    let (status, answer) = session
+        .call(&server.http, "gegevens", body, None)
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    let key = server.directory().await.organization_key;
+    let verified = key.verify(answer["ondertekend"].as_str().unwrap()).unwrap();
+    assert_eq!(Value::Object(verified.claims), answer["gegevens"]);
+    answer["gegevens"].clone()
+}
+
+/// The answers of the municipality's cell that take the BSN alone. The
+/// others drop out: the advice of the GGD is read for an application (by
+/// its date), a valid card on the day of a decision, and the business
+/// permits by a KvK number.
+const HANDED_OUT: [&str; 2] = [
+    "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt",
+    "verzoek_om_geneeskundig_onderzoek_staat_open",
+];
+
+/// The fact by which the GGD advises the municipality.
+const ADVICE: &str =
+    "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
+
+#[tokio::test]
+async fn the_source_data_are_the_answers_on_the_bsn_of_the_session_signed() {
+    let server = demo_server(StoreChoice::Memory).await;
+    let anna = server.citizen(ANNA).await;
+    // A BSN in the request is not read: the session says whose data these
+    // are.
+    let data = source_data(&server, &anna, &json!({ "bsn_aanvrager": BRAM })).await;
+    assert_eq!(data["sub"], json!(ANNA));
+    assert_eq!(data["iss"], json!(DEMO_ORGANIZATION_OIN));
+    assert_eq!(data["casus"], json!("gehandicaptenparkeerkaart"));
+    assert_eq!(data["cel"], json!("gemeente_wilgendaal"));
+    let names: Vec<&str> = data["antwoorden"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(names, HANDED_OUT, "{data:#}");
+    for (name, answer) in data["antwoorden"].as_object().unwrap() {
+        assert_eq!(
+            answer["parameters"],
+            json!({ "bsn_aanvrager": ANNA }),
+            "{name}"
+        );
+    }
+    // The advice of the GGD comes only after an application: it is named
+    // as still to come, not handed out.
+    assert_eq!(
+        data["bij_aanvraag"],
+        json!([{
+            "feit": ADVICE,
+            "taak": "Geneeskundig advies uitbrengen",
+        }])
+    );
+    assert_eq!(data["records"], json!([]));
+    // Never granted a card, so the cell says nothing: no answer, not "no".
+    assert_eq!(
+        data["antwoorden"][HANDED_OUT[0]]["waarde"],
+        json!(null),
+        "{data:#}"
+    );
+    assert!(
+        !data["regelwerken"].as_array().unwrap().is_empty(),
+        "{data:#}"
+    );
+}
+
+/// An admin of the server at `base` sets the test clock on `day`.
+async fn set_clock(http: &reqwest::Client, base: &str, cookie: &str, day: &str) {
+    let response = http
+        .put(format!("{base}/api/backoffice/klok"))
+        .header("cookie", cookie)
+        .json(&json!({ "datum": day }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+/// An admin enters the GGD's advice on `bsn` in the admin panel, from the
+/// open request about `bsn`, on 2026-10-16; the clock then stands on
+/// 2026-10-20.
+async fn ggd_advises(http: &reqwest::Client, base: &str, bsn: &str) {
+    let admin = test_login(http, base, "admin-1", &["regelhet-admin"]).await;
+    set_clock(http, base, &admin, "2026-10-16").await;
+    let panel: Value = http
+        .get(format!("{base}/api/backoffice/beheer/partijen"))
+        .header("cookie", &admin)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let verzoek = panel["partijen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["cel"] == json!("ggd_wilgendaal"))
+        .and_then(|p| p["verzoeken"].as_array())
+        .and_then(|all| {
+            all.iter()
+                .find(|r| r["verzoek"]["fields"]["bsn_aanvrager"] == json!(bsn))
+        })
+        .map(|r| r["verzoek"]["id"].clone())
+        .unwrap_or_else(|| panic!("an open request about {bsn}: {panel}"));
+    let advies = json!({
+        "cel": "ggd_wilgendaal",
+        "feit": ADVICE,
+        "verzoek": verzoek,
+        "velden": {
+            "datum_onderzoek": "2026-10-16",
+            "langdurige_loopbeperking": true,
+            "continu_afhankelijk_van_hulp_bestuurder": false,
+            "permanent_rolstoelgebonden": false,
+            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
+        },
+    });
+    let response = http
+        .post(format!("{base}/api/backoffice/beheer/vastleggingen"))
+        .header("cookie", &admin)
+        .json(&advies)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    set_clock(http, base, &admin, "2026-10-20").await;
+}
+
+#[tokio::test]
+async fn after_a_grant_the_source_data_hold_it_and_the_records_it_rests_on() {
+    let server = demo_server(StoreChoice::Memory).await;
+    let anna = server.citizen(ANNA).await;
+    let (status, aanvraag) = anna
+        .call(&server.http, "indieningen", &application(), None)
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::OK, "{aanvraag}");
+    let aanvraag = aanvraag["id"].as_str().unwrap().to_string();
+    // While the request to the GGD is open, the source data say so.
+    let data = source_data(&server, &anna, &json!({})).await;
+    assert_eq!(
+        data["antwoorden"]["verzoek_om_geneeskundig_onderzoek_staat_open"]["waarde"],
+        json!(true),
+        "{data:#}"
+    );
+    ggd_advises(&server.http, &server.base, ANNA).await;
+    let besluit = decide_as_municipality(&server.http, &server.base, &aanvraag).await;
+    let data = source_data(&server, &anna, &json!({})).await;
+    assert_eq!(data["peildatum"], json!("2026-10-20"));
+    let eerder = &data["antwoorden"]["aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt"];
+    assert_eq!(eerder["waarde"], json!(true), "{data:#}");
+    assert_eq!(
+        eerder["herkomst"][0]["reductie"],
+        json!("reductie_geldige_gehandicaptenparkeerkaart")
+    );
+    let records: Vec<&str> = data["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|g| g["id"].as_str().unwrap())
+        .collect();
+    assert!(records.contains(&aanvraag.as_str()), "{records:?}");
+    assert!(records.contains(&besluit.as_str()), "{records:?}");
+    // The provenance says which reduction answered, not how far it read the
+    // municipality's chronicle: that holds everyone's records.
+    assert!(eerder["herkomst"][0].get("gelezen").is_none(), "{eerder}");
+    assert!(
+        eerder["herkomst"][0].get("tot_en_met").is_none(),
+        "{eerder}"
+    );
+    // Another citizen gets none of it, also when he names Anna's number.
+    let bram = server.citizen(BRAM).await;
+    let data = source_data(&server, &bram, &json!({ "bsn_aanvrager": ANNA })).await;
+    assert_eq!(data["sub"], json!(BRAM));
+    assert_eq!(data["records"], json!([]));
+    assert_ne!(
+        data["antwoorden"]["aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt"]["waarde"],
+        json!(true)
+    );
+    let text = data.to_string();
+    for id in &records {
+        assert!(!text.contains(id), "Bram's source data name {id}: {text}");
+    }
+}
+
+#[tokio::test]
+async fn the_case_bundle_loads_as_a_source_without_a_session() {
+    use regelrecht_poc_chronolexografie::bundel::{self, Bron, BronStand};
+    let server = demo_server(StoreChoice::Memory).await;
+    let response = server
+        .http
+        .get(format!("{}{}", server.base, fsc4b::REGELWERKEN))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bestanden: std::collections::BTreeMap<String, String> = response.json().await.unwrap();
+    assert!(
+        bestanden.contains_key("ui_spec.yaml"),
+        "{:?}",
+        bestanden.keys()
+    );
+    let bron = Bron {
+        naam: "regelhet".into(),
+        bestanden,
+        ..Bron::default()
+    };
+    let mut stand = BronStand::default();
+    let cases = bundel::uit_bron(&bron, &mut stand).unwrap();
+    assert!(stand.fouten.is_empty(), "{:?}", stand.fouten);
+    let ids: Vec<&str> = cases.iter().map(|c| c.casus.id.as_str()).collect();
+    assert_eq!(ids, ["gehandicaptenparkeerkaart"]);
+    // The signed source data name the hash of exactly this bundle.
+    let anna = server.citizen(ANNA).await;
+    let data = source_data(&server, &anna, &json!({})).await;
+    assert_eq!(
+        data["bundel_hash"],
+        json!(fsc4b::bundle_hash(&bron.bestanden))
+    );
+}
+
+const APP_ORIGIN: &str = "https://burgerapp.example.org";
+
+/// A preflight for `POST` on `path` from `origin`: the origin it allows,
+/// if any.
+async fn preflight(server: &Server, path: &str, origin: &str) -> Option<String> {
+    let response = server
+        .http
+        .request(reqwest::Method::OPTIONS, format!("{}{path}", server.base))
+        .header("origin", origin)
+        .header("access-control-request-method", "POST")
+        .header("access-control-request-headers", "authorization")
+        .send()
+        .await
+        .unwrap();
+    response
+        .headers()
+        .get("access-control-allow-origin")
+        .map(|v| v.to_str().unwrap().to_string())
+}
+
+#[tokio::test]
+async fn the_channel_answers_the_configured_browser_apps_and_no_others() {
+    let origins = Fsc4bOrigins::parse(APP_ORIGIN).unwrap();
+    let server = demo_server_for(StoreChoice::Memory, origins).await;
+    assert_eq!(
+        preflight(&server, fsc4b::GEGEVENS, APP_ORIGIN)
+            .await
+            .as_deref(),
+        Some(APP_ORIGIN)
+    );
+    assert_eq!(
+        preflight(&server, fsc4b::CHALLENGE, APP_ORIGIN)
+            .await
+            .as_deref(),
+        Some(APP_ORIGIN)
+    );
+    assert_eq!(
+        preflight(&server, fsc4b::GEGEVENS, "https://elders.example.org").await,
+        None
+    );
+    let response = server
+        .http
+        .get(format!("{}{}", server.base, fsc4b::REGELWERKEN))
+        .header("origin", APP_ORIGIN)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        response.headers()["access-control-allow-origin"],
+        APP_ORIGIN
+    );
+    // An answer to a real request carries the header too, a refusal
+    // included, so the app can read why.
+    let response = server
+        .http
+        .post(format!("{}{}", server.base, fsc4b::GEGEVENS))
+        .header("origin", APP_ORIGIN)
+        .header("authorization", "geen-sessie")
+        .body("geen-jwe")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        response.headers()["access-control-allow-origin"],
+        APP_ORIGIN
+    );
+    // So does a path under /fsc4b/ that is no route.
+    let response = server
+        .http
+        .get(format!("{}/fsc4b/bestaat-niet", server.base))
+        .header("origin", APP_ORIGIN)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        response.headers()["access-control-allow-origin"],
+        APP_ORIGIN
+    );
+    // Only the channel: a browser route of the server gets no CORS headers.
+    let response = server
+        .http
+        .get(format!("{}/api/uiterlijk", server.base))
+        .header("origin", APP_ORIGIN)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .is_none()
+    );
+    // Without origins configured, no app on another address is answered.
+    let server = demo_server(StoreChoice::Memory).await;
+    assert_eq!(preflight(&server, fsc4b::GEGEVENS, APP_ORIGIN).await, None);
 }

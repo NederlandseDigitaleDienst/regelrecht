@@ -1,8 +1,9 @@
 //! The reference client of FSC voor Burgers against a running server in
 //! test mode with the demo Stelsel (`REGELHET_FSC4B_DEMO=true`): it makes
 //! an app key, gets a credential from the test Activatiedienst, reads and
-//! checks the Stelseldocument, runs CreateSession, submits an application
-//! and reads its own dossier.
+//! checks the Stelseldocument, runs CreateSession, asks the source data the
+//! executor holds about the citizen and checks their signature, submits an
+//! application and reads its own dossier.
 //!
 //! ```text
 //! cargo run -p regelrecht-regelhet --features test-utils --example fsc4b_client -- \
@@ -58,6 +59,22 @@ async fn run(base: &str, bsn: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("session service at {}", directory.session_api);
     let session = client::create_session(&http, &directory, &app, &credential).await?;
     println!("session created");
+    let (status, answer) = session.call(&http, "gegevens", &json!({}), None).await?;
+    println!("source data: {status}");
+    // The answer carries the data twice: signed, and as the payload of that
+    // signature for reading. An app keeps the signed form, which shows later
+    // where a value came from.
+    let signed = answer["ondertekend"]
+        .as_str()
+        .ok_or("the source data are not signed")?;
+    let verified = directory.organization_key.verify(signed)?;
+    if answer["gegevens"].as_object() != Some(&verified.claims) {
+        return Err("the source data differ from what the organization signed".into());
+    }
+    println!(
+        "signed by the organization, for {}:\n{:#}",
+        verified.claims["sub"], verified.claims["antwoorden"]
+    );
     let application = json!({ "velden": {
         "kaart_als_bestuurder": true,
         "kaart_als_passagier": false,

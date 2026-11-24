@@ -54,6 +54,7 @@ async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::Jo
         login: LoginChoice::TestLogin,
         subject_claim: None,
         fsc4b,
+        fsc4b_origins: Default::default(),
         accent: None,
         title: None,
         link: Default::default(),

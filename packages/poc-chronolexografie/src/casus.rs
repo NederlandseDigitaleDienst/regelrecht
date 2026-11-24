@@ -81,6 +81,14 @@ pub struct Casus {
     /// Who logs in to apply, where the case has a login ([`Inloggen`]).
     #[serde(default)]
     pub inloggen: Option<Inloggen>,
+    /// The answers of the case's cell that it hands out to the applicant
+    /// about themself ([`crate::brongegevens`]), by their name in its
+    /// catalogue. Without it the cell hands out nothing. The list is the
+    /// case's and not the cell's: the cell's catalogue serves every case
+    /// that runs it, and what goes out to an applicant is a choice of the
+    /// procedure, as the login it goes with.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uitgeven: Vec<String>,
     /// What the case's cell does by its own policy when an application comes
     /// in ([`Opvolging`]), such as asking the GGD for an examination.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

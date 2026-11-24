@@ -26,7 +26,7 @@ use crate::decision::{self, DecisionShape, Source, finding_field};
 use crate::error::{Result, refused, setup};
 use crate::files::{Disk, Files};
 use crate::identity;
-use crate::reading::{Asked, Reader};
+use crate::reading::{AnswerParameter, Asked, GivenAnswer, Reader};
 use crate::shape::{self, Field, Shape};
 use crate::versions::{self, LawSince};
 use regelrecht_law_model::stored;
@@ -1380,6 +1380,47 @@ impl Cell {
             )));
         }
         Ok(explained)
+    }
+
+    /// The parameters the answer `name` of the cell's catalogue takes on
+    /// `on`, as its reduction declares them. `None` when the catalogue does
+    /// not name it, or its reduction is not in force on `on`.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded or has no output `name`.
+    pub fn answer_parameters(
+        &self,
+        service: &LawExecutionService,
+        name: &str,
+        on: NaiveDate,
+    ) -> Result<Option<Vec<AnswerParameter>>> {
+        self.reader(Vec::new(), None).takes(service, name, on)
+    }
+
+    /// The answer `name` of the cell's catalogue with `parameters`, as the
+    /// cell knows things on `on`, asked directly rather than through a
+    /// binding: what the cell tells a party about itself, such as a citizen
+    /// asking which data the executor holds about them. Nothing is recorded.
+    /// `None` when the cell is silent ([`crate::reading::Reader::give`]).
+    ///
+    /// A cell asks no other cell inside a reduction (RFC-048 §4), so this
+    /// takes no sphere. Unlike [`Cell::consult`], which refuses a reduction
+    /// as its source because a decision may take one only through a binding
+    /// (RFC-056), this gives an answer and decides nothing.
+    ///
+    /// # Errors
+    ///
+    /// A parameter the reduction does not take, one it needs that is left
+    /// out, and whatever the engine refuses.
+    pub fn give_answer(
+        &self,
+        service: &LawExecutionService,
+        name: &str,
+        parameters: &BTreeMap<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Option<GivenAnswer>> {
+        self.known_on(on).give(service, name, parameters, on)
     }
 
     /// What the output `source` (`<regulation>#<article>#<output>`) comes to

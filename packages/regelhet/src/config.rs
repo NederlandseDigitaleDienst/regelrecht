@@ -79,7 +79,15 @@
 //! - `REGELHET_FSC4B_PUBLIC_URL`: where apps reach the server, for the
 //!   discovery configuration; `BASE_URL` when not set.
 //!
-//! These come all together or not at all. `REGELHET_FSC4B_DEMO=true`
+//! - `REGELHET_FSC4B_ORIGINS`: the origins of the web apps that call the
+//!   channel from the browser, comma-separated, each `scheme://host[:port]`
+//!   ([`Fsc4bOrigins`]). The routes under `/fsc4b/` answer those origins
+//!   with CORS headers; without it they send none, and a browser app on
+//!   another address cannot read them. Optional, with the channel open
+//!   only.
+//!
+//! These come all together or not at all, the origins excepted.
+//! `REGELHET_FSC4B_DEMO=true`
 //! instead opens the channel on a demo Stelsel the server makes at start,
 //! with a test Activatiedienst; test mode only, and with none of the above.
 //! The channel is for citizens: the back office refuses either.
@@ -259,6 +267,81 @@ impl std::fmt::Debug for Fsc4bChoice {
     }
 }
 
+/// The origins of the web apps that may call the FSC voor Burgers channel
+/// from a browser (`REGELHET_FSC4B_ORIGINS`): each a scheme, a host and
+/// perhaps a port, with no path. Empty sends no CORS headers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Fsc4bOrigins(Vec<String>);
+
+impl Fsc4bOrigins {
+    /// The origins in `list`, comma-separated.
+    ///
+    /// # Errors
+    ///
+    /// [`ConfigError::BadFsc4bOrigin`] for an entry that is no
+    /// `http(s)://host[:port]`, such as one with a path or a trailing slash,
+    /// or `*`: a browser compares the origin exactly, and the channel names
+    /// the apps it answers.
+    pub fn parse(list: &str) -> Result<Self, ConfigError> {
+        let mut origins = Vec::new();
+        for origin in list.split(',').map(str::trim).filter(|o| !o.is_empty()) {
+            let authority = origin
+                .strip_prefix("https://")
+                .or_else(|| origin.strip_prefix("http://"));
+            if !authority.is_some_and(valid_authority) {
+                return Err(ConfigError::BadFsc4bOrigin(origin.to_string()));
+            }
+            origins.push(origin.to_string());
+        }
+        Ok(Self(origins))
+    }
+
+    /// Whether every origin is `https`, or one on this machine
+    /// (`localhost`, `127.0.0.1`), as stable mode asks.
+    fn all_https(&self) -> bool {
+        self.0.iter().all(|o| {
+            o.starts_with("https://")
+                || ["http://localhost", "http://127.0.0.1"]
+                    .iter()
+                    .any(|local| o == local || o.starts_with(&format!("{local}:")))
+        })
+    }
+
+    /// The origins, as a browser sends them in `Origin`.
+    pub fn as_slice(&self) -> &[String] {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// Whether `authority` is a host with perhaps a port, as a browser writes
+/// it in `Origin`: a lowercase name or IPv4 address, or an IPv6 address in
+/// brackets, then `:` and the digits of the port if any.
+fn valid_authority(authority: &str) -> bool {
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, port))
+            if !host.ends_with(':') && (!host.contains(':') || host.ends_with(']')) =>
+        {
+            (host, Some(port))
+        }
+        _ => (authority, None),
+    };
+    let host_ok = if let Some(ip6) = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')) {
+        !ip6.is_empty() && ip6.bytes().all(|b| b.is_ascii_hexdigit() || b == b':')
+    } else {
+        !host.is_empty()
+            && host
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'.' || b == b'-')
+    };
+    let port_ok =
+        port.is_none_or(|p| (1..=5).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()));
+    host_ok && port_ok
+}
+
 /// Where the private key of the organization comes from.
 #[derive(Clone)]
 pub enum KeySource {
@@ -331,6 +414,8 @@ pub struct Config {
     pub subject_claim: Option<String>,
     /// The FSC voor Burgers channel.
     pub fsc4b: Fsc4bChoice,
+    /// The origins of the browser apps that may call the channel.
+    pub fsc4b_origins: Fsc4bOrigins,
     /// The accent colour of the screens; none keeps the design system's.
     pub accent: Option<AccentColor>,
     /// The title in the bar of the screens; none carries the case's own.
@@ -549,6 +634,18 @@ pub enum ConfigError {
     StableFetchesNoKey,
     #[error("an address of the organisation is `{0}`: it is an http(s) URL")]
     BadOrganisationUrl(String),
+    #[error(
+        "REGELHET_FSC4B_ORIGINS names `{0}`: each origin is http(s)://host[:port], without a \
+         path or a trailing slash"
+    )]
+    BadFsc4bOrigin(String),
+    #[error("REGELHET_FSC4B_ORIGINS is set, but FSC voor Burgers is not configured")]
+    Fsc4bOriginsWithoutChannel,
+    #[error(
+        "REGELHET_FSC4B_ORIGINS names an http origin; stable mode answers only https apps, and \
+         http on localhost or 127.0.0.1"
+    )]
+    StableFsc4bOriginNeedsHttps,
     #[error("REGELHET_FSC4B_PUBLIC_URL: {0}")]
     BadFsc4bPublicUrl(String),
     #[error(
@@ -597,6 +694,16 @@ impl Config {
         if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
             return Err(ConfigError::Fsc4bOnBackoffice);
         }
+        let fsc4b_origins = set("REGELHET_FSC4B_ORIGINS")
+            .map(|list| Fsc4bOrigins::parse(&list))
+            .transpose()?
+            .unwrap_or_default();
+        if !fsc4b_origins.is_empty() && matches!(fsc4b, Fsc4bChoice::Off) {
+            return Err(ConfigError::Fsc4bOriginsWithoutChannel);
+        }
+        if mode == Mode::Stable && !fsc4b_origins.all_https() {
+            return Err(ConfigError::StableFsc4bOriginNeedsHttps);
+        }
         let link = link_settings(mode, surface, &set)?;
         let role = crate::organisatie::settings::role(mode, surface, &set)?;
         if let Role::Organisation(_) = role {
@@ -627,6 +734,7 @@ impl Config {
             login,
             subject_claim,
             fsc4b,
+            fsc4b_origins,
             accent,
             title,
             link,
@@ -1317,6 +1425,67 @@ mod tests {
             error(&[test, &[("REGELHET_FSC4B_OIN", "1")]]),
             ConfigError::Fsc4bDemoAndSettings("REGELHET_FSC4B_OIN")
         );
+    }
+
+    #[test]
+    fn the_origins_of_browser_apps_are_exact_and_need_the_channel() {
+        let demo: Pairs = &[("REGELHET_MODE", "test"), ("REGELHET_FSC4B_DEMO", "true")];
+        let c = Config::from_env(env(&[
+            demo,
+            &[(
+                "REGELHET_FSC4B_ORIGINS",
+                "https://burgerapp.example.org, http://localhost:7150",
+            )],
+        ]))
+        .unwrap();
+        assert_eq!(
+            c.fsc4b_origins.as_slice(),
+            ["https://burgerapp.example.org", "http://localhost:7150"]
+        );
+        assert!(
+            Config::from_env(env(&[demo]))
+                .unwrap()
+                .fsc4b_origins
+                .is_empty()
+        );
+        assert!(Fsc4bOrigins::parse("http://[::1]:7150").is_ok());
+        for bad in [
+            "*",
+            "burgerapp.example.org",
+            "https://burgerapp.example.org/",
+            "https://burgerapp.example.org/app",
+            "https://Burgerapp.example.org",
+            "https://:",
+            "https://a:b:c",
+            "https://burgerapp.example.org:poort",
+        ] {
+            assert_eq!(
+                Fsc4bOrigins::parse(bad),
+                Err(ConfigError::BadFsc4bOrigin(bad.into()))
+            );
+        }
+        assert_eq!(
+            error(&[
+                &[("REGELHET_MODE", "test")],
+                &[("REGELHET_FSC4B_ORIGINS", "https://burgerapp.example.org")]
+            ]),
+            ConfigError::Fsc4bOriginsWithoutChannel
+        );
+        let origins = |list: &'static str| -> Pairs {
+            Box::leak(Box::new([("REGELHET_FSC4B_ORIGINS", list)]))
+        };
+        assert_eq!(
+            error(&[STABLE, OIDC, FSC4B, origins("http://burgerapp.example.org")]),
+            ConfigError::StableFsc4bOriginNeedsHttps
+        );
+        let c = Config::from_env(env(&[
+            STABLE,
+            OIDC,
+            FSC4B,
+            origins("https://burgerapp.example.org,http://localhost:7150"),
+        ]))
+        .unwrap();
+        assert_eq!(c.fsc4b_origins.as_slice().len(), 2);
     }
 
     #[test]

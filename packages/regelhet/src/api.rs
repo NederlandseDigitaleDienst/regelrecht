@@ -301,7 +301,8 @@ impl From<ServiceError> for ApiError {
             | ServiceError::Internal(_)
             | ServiceError::LoginField(_)
             | ServiceError::Prefill(_)
-            | ServiceError::LoginClaim(_) => {
+            | ServiceError::LoginClaim(_)
+            | ServiceError::Handout(_) => {
                 // The full error, with what the database said, goes to the
                 // log only.
                 tracing::error!(error = %e, "request failed");

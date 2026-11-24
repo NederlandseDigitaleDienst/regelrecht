@@ -15,6 +15,7 @@
 //! plays on when a case of a source does not load, this server does not
 //! start: a process that half loads is no process to run.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use regelrecht_poc_chronolexografie::bundel::{self, Bron, BronStand};
@@ -67,11 +68,33 @@ pub fn load_chosen(
     manifest: &Path,
     chosen: Option<&str>,
 ) -> Result<(Corpus, Vec<String>), CaseError> {
-    let bestanden =
-        regelrecht_corpus::source_manifest::lokaal(manifest).map_err(CaseError::Manifest)?;
+    from_files(files(manifest)?, chosen)
+}
+
+/// The files of the source the manifest at `manifest` makes, by their path
+/// in the source: what [`from_files`] loads, and what the FSC voor Burgers
+/// channel hands an app to compute on (`crate::fsc4b::REGELWERKEN`).
+///
+/// # Errors
+///
+/// When the manifest or a file it names does not read.
+pub fn files(manifest: &Path) -> Result<BTreeMap<String, String>, CaseError> {
+    regelrecht_corpus::source_manifest::lokaal(manifest).map_err(CaseError::Manifest)
+}
+
+/// The case `chosen` in the source of `files` ([`files`]), or without a
+/// choice its only case, as [`load_chosen`] gives it.
+///
+/// # Errors
+///
+/// As [`load_chosen`], except that the manifest is read already.
+pub fn from_files(
+    files: BTreeMap<String, String>,
+    chosen: Option<&str>,
+) -> Result<(Corpus, Vec<String>), CaseError> {
     let bron = Bron {
         naam: SOURCE.to_string(),
-        bestanden,
+        bestanden: files,
         ..Bron::default()
     };
     let mut stand = BronStand::default();
@@ -127,6 +150,30 @@ mod tests {
                 "rechtbank_wilgendaal"
             ]
         );
+    }
+
+    /// A name under `uitgeven` that is no answer of the case's cell stops
+    /// the load: a typo would hand out nothing without saying so.
+    #[test]
+    fn uitgeven_names_only_answers_of_the_cell() {
+        const CASE: &str = "casussen/gehandicaptenparkeerkaart.yaml";
+        let base = files(Path::new(DEFAULT_MANIFEST)).unwrap();
+        let (corpus, _) = from_files(base.clone(), None).unwrap();
+        assert_eq!(
+            corpus.casus.uitgeven,
+            [
+                "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt",
+                "verzoek_om_geneeskundig_onderzoek_staat_open"
+            ]
+        );
+        let mut files = base;
+        let case = files.get_mut(CASE).unwrap();
+        *case = case.replace(
+            "  - verzoek_om_geneeskundig_onderzoek_staat_open\n",
+            "  - geen_antwoord_van_de_cel\n",
+        );
+        let e = from_files(files, None).unwrap_err().to_string();
+        assert!(e.contains("geen_antwoord_van_de_cel"), "{e}");
     }
 
     #[test]

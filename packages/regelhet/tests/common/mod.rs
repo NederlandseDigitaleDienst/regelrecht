@@ -57,6 +57,7 @@ pub fn config_on(mode: Mode, surface: Surface) -> Config {
         login: LoginChoice::TestLogin,
         subject_claim: None,
         fsc4b: Fsc4bChoice::Off,
+        fsc4b_origins: Default::default(),
         accent: None,
         title: None,
         link: Default::default(),

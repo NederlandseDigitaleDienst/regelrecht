@@ -4,7 +4,8 @@
 //! Every request is a `POST` with the session token in the `Authorization`
 //! header (bare, as in §4.4.1.1.2.9, or after `Bearer `) and a body that is
 //! a JWE (`alg: dir`, `enc: A256GCM`) under the session key, holding a JSON
-//! object: the submission for `indieningen`, `{}` for the others. Without a
+//! object: the submission for `indieningen`, `{}` for the others. The
+//! source data (`gegevens`) come from [`super::handout`]. Without a
 //! body that decrypts under the session's key, the token alone opens
 //! nothing. The answer is a JWE under the same key, with the JSON the
 //! browser routes answer, an error included, and the HTTP status beside it.
@@ -33,7 +34,7 @@ use crate::api::{self, ApiError, AppState, CitizenResult};
 use crate::fsc4b::jose::AesKey;
 use crate::fsc4b::session::{JOSE_MEDIA_TYPE, channel, token_response};
 use crate::fsc4b::store::TokenHash;
-use crate::fsc4b::{Fsc4b, now_unix};
+use crate::fsc4b::{Fsc4b, handout, now_unix};
 use crate::service::Submit;
 
 /// What prefixes the account of an app in the store: the thumbprint of its
@@ -144,6 +145,7 @@ enum Route {
     Dossier,
     Submit,
     Explain,
+    SourceData,
 }
 
 async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str) -> Response {
@@ -162,6 +164,7 @@ async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str)
         (Route::Forms, Ok(_)) => api::forms_for(state, p).await,
         (Route::Dossier, Ok(_)) => api::dossier_of(state, p).await,
         (Route::Submit, Ok(payload)) => submit(state, p, payload).await,
+        (Route::SourceData, Ok(_)) => handout::source_data_for(state, fsc, p).await,
         (Route::Explain, Ok(payload)) => match payload.get("id").and_then(Value::as_str) {
             Some(id) => api::explain_for(state, p, id).await,
             None => Err(ApiError::new(
@@ -236,6 +239,14 @@ pub(crate) async fn explain_route(
     body: String,
 ) -> Response {
     handle(&state, Route::Explain, &headers, &body).await
+}
+
+pub(crate) async fn source_data_route(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
+    handle(&state, Route::SourceData, &headers, &body).await
 }
 
 pub(crate) async fn submit_route(

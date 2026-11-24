@@ -28,6 +28,8 @@ The client in `packages/fsc4b/src/client.rs` does each step as its own function.
 | `POST /fsc4b/burger/v1/dossier` | The citizen's own dossier |
 | `POST /fsc4b/burger/v1/waarom` | Why a decision of the citizen's own dossier came out so, for `{ "id": "<decision>" }`, as `GET /api/dossier/waarom/{id}` |
 | `POST /fsc4b/burger/v1/indieningen` | A submission, as `POST /api/indieningen` takes it, with its idempotency key as the member `idempotency_key` inside the encrypted body |
+| `POST /fsc4b/burger/v1/gegevens` | The source data the executor holds about the citizen, signed by the organization ([below](#source-data-for-the-app)) |
+| `GET /fsc4b/regelwerken` | The case as a bundle of files, without a session |
 | `GET /fsc4b/discovery` | The discovery configuration: `sessionApi` and `regelhetBurgerApi`, each in version `v1` |
 | `GET /fsc4b/openapi.json` | The OpenAPI 3 specification of these routes |
 
@@ -36,6 +38,22 @@ The citizen's routes run the same handlers as the browser routes. A session of t
 A refused presentation answers `401` with one fixed message, whatever check failed; the server log names the check. The log never holds a nonce, a token or a key. A session is kept under the SHA-256 of its token. Challenges and sessions live with the chronicles, in memory or in the tables `fsc4b_challenges` and `fsc4b_sessions` of the schema `wetsproces`. Taking a challenge deletes its row in the same statement, so two instances of the server never both accept one nonce. About 10,000 challenges wait at once, over all instances; above that `/v1/challenge` answers `503`. The bound is checked without a lock: challenges started at the same moment can each pass the check, so the count can go over by as many as run at once. A limit per client address is left to the ingress in front of the server.
 
 The ephemeral key of a waiting challenge and the AES key of a session are stored as they are, since another instance must be able to use them. Whoever can read the database, or a backup of it, while they live can decrypt the traffic of that challenge or session.
+
+## Source data for the app
+
+An app can predict a decision on the citizen's own device before the citizen applies. It needs two things for that: the case, and what the executor already knows about the citizen. The fields the citizen fills in then stay on the device until they apply.
+
+`GET /fsc4b/regelwerken` gives the case: every file of the source the server runs, as `{ "<path>": "<text>" }` (the case file, the regelwerken, the cells with their reductions, and `ui_spec.yaml`). It is the case and holds nobody's data, so it needs no session. The bundle itself is not signed; its hash is, as `bundel_hash` in the source data below, and the [service profile](/components/regelhet-fsc4b-dienstprofiel) says how it is computed. Everything under the directories the manifest names is public this way, so a manifest should name no directory with data about people. The kern loads it as a source with `bundel::uit_bron`, the way the server loads its own case.
+
+`POST /fsc4b/burger/v1/gegevens` gives the source data. The case file says which answers go out: it names them under `uitgeven`, each an answer the executor's cell gives (`answers` in its `cel.yaml`). Without that list nothing goes out, and the route answers with no answers at all. The list is the case's and not the cell's, because one cell's catalogue serves every case that runs it, and what goes out to a citizen is a choice of the procedure. Each answer named must take the login field as its only required parameter. The server fills that field with the BSN of the session, never with a value from the app, and computes the answer on today's date. A name that is no answer of the cell, or one that needs more, stops the server with a message that names it. The number of business permits a company holds needs a KvK number, and the GGD's advice needs the date of an application, so neither can be listed. For the parking card the case lists two answers: whether the municipality granted the citizen a card before, and whether a request to the GGD for an examination is open. That a listed answer is about the citizen alone rests on its reduction reading only the records of the person its parameter names, which is why nothing goes out unless the case names it.
+
+```yaml
+uitgeven:
+  - aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+  - verzoek_om_geneeskundig_onderzoek_staat_open
+```
+
+The answer holds the answers with what they were asked with and where each came from, the records of the citizen's dossier up to today, the regelwerk versions they were computed on, and the facts that only come after an application (`bij_aanvraag` of the case). Where an answer came from names the cell, the reduction and its version, but not how far the cell read its chronicle: that chronicle holds everyone's records. The app replays the records, computes the answers itself, and knows that the GGD's advice is still to come rather than missing. The whole is a JWS under the organization's key from the Stelseldocument, with the BSN in `sub`, next to the payload in plain form. Signing it lets the citizen show later where a value came from. It has no `exp` or `aud`, since it records what the organization handed out on that day, whoever the citizen later shows it to. The kern function that computes the answers is `brongegevens` in `packages/poc-chronolexografie/src/brongegevens.rs`, so an app running the kern as WebAssembly can compute them too and compare.
 
 ## Configuration
 
@@ -48,8 +66,11 @@ The ephemeral key of a waiting challenge and the AES key of a session are stored
 | `REGELHET_FSC4B_STELSELBEHEERDER_KEY` | The Stelselbeheerder's public key, a JWK |
 | `REGELHET_FSC4B_PUBLIC_URL` | Where apps reach the server; `BASE_URL` when not set |
 | `REGELHET_FSC4B_DEMO` | `true` for the demo Stelsel below, in test mode only |
+| `REGELHET_FSC4B_ORIGINS` | The origins of browser apps that call the channel from another address, comma-separated, each `https://host` or `http://host:port` |
 
 The OIN, the scope, the key (as file or value), the Stelseldocument and the Stelselbeheerder's key come together or not at all; one of them without the others stops the server. The public URL is optional and falls back to `BASE_URL`; in stable mode it must start with `https://`. At startup the server checks the Stelseldocument's signature, takes its `app_managers` as the trusted Activatiediensten, and refuses to start when the document does not list this organization's OIN with the public key of its private key. The channel requires `REGELHET_SUBJECT_CLAIM` to be `bsn`, and it belongs on the instance for citizens: on `REGELHET_SURFACE=backoffice` its variables, the demo's included, stop the server ([surfaces](/components/regelhet#surfaces)).
+
+`REGELHET_FSC4B_ORIGINS` is optional and needs the channel. Every answer under `/fsc4b/` carries CORS headers for those origins, a preflight, an error and a path that is no route included, so the app can read why a request failed. Other origins and the browser routes of the server get none. An origin with a path, a trailing slash or `*` stops the server.
 
 The standard leaves the structure of a Stelseldocument to the Stelselbeheerder (§4.1.1.1). This server reads the example structure of that section, `{ version, organizations, app_managers, document_types }`, with each `public_key` as a JWK.
 
@@ -68,9 +89,9 @@ cargo run --manifest-path packages/Cargo.toml -p regelrecht-regelhet \
   --features test-utils --example fsc4b_client -- http://localhost:7180 999990019
 ```
 
-The example asks a credential, runs `CreateSession`, submits an application and prints the dossier.
+The example asks a credential, runs `CreateSession`, fetches the source data and checks their signature, submits an application and prints the dossier.
 
-On a cluster the Helm chart `charts/regelhet` turns the demo Stelsel on with `fsc4b.enabled: true`. It sets `REGELHET_FSC4B_DEMO` and `REGELHET_FSC4B_PUBLIC_URL` on the citizens' instance only, and refuses the value in stable mode or when the one instance is the back office. The keys stay in memory, so the chart mounts no Secret, and after a restart an app reads the Stelseldocument again. The Fundament plugin sets the value from `spec.fsc4b.enabled` of a RegelHet and names the discovery configuration in `status.fsc4bDiscoveryUrl`. Run the example against that host, such as `https://<name>.cluster-a.fieldlab2026.nl`.
+On a cluster the Helm chart `charts/regelhet` turns the demo Stelsel on with `fsc4b.enabled: true`, and `fsc4b.origins` lists the origins of browser apps. It sets `REGELHET_FSC4B_DEMO` and `REGELHET_FSC4B_PUBLIC_URL` on the citizens' instance only, and refuses the value in stable mode or when the one instance is the back office. The keys stay in memory, so the chart mounts no Secret, and after a restart an app reads the Stelseldocument again. The Fundament plugin sets the value from `spec.fsc4b.enabled` of a RegelHet and names the discovery configuration in `status.fsc4bDiscoveryUrl`. Run the example against that host, such as `https://<name>.cluster-a.fieldlab2026.nl`.
 
 Which requests the service takes, and what goes in and comes out, is in the [service profile](/components/regelhet-fsc4b-dienstprofiel) (Dutch).
 
@@ -90,5 +111,6 @@ Each choice sits in one place in `src/fsc4b/`.
 - **The post-quantum hybrid.** §3.3 recommends ML-KEM-768 with ECIES, but the challenge of §4.3.4.2.2.4 has no field for an ML-KEM key, so an app cannot use it with `CreateSession`. The server uses `ECDH-ES` alone.
 - **Revocation.** The server does not check Token Status Lists (§4.5). A revoked credential is accepted until its `exp`. The Stelselbeheerder's revocation and expiry of issuer keys (§4.5, §4.6.2) depend on a toepassingsprofiel that does not exist here, so the server does not check them either.
 - **Replay within a session.** The body of a request to the citizen's service holds no time or route, so a request someone captured can be sent again while the session lasts. A submission with an `idempotency_key` is answered from its receipt the second time and recorded once; that key sits inside the encryption, so it cannot be stripped off. A submission without one, and every read, can be replayed. The werkversie names no protection against this.
+- **A log of handouts.** The server does not yet record that it handed out source data, although the AVG's accountability duty and the Logius standard Logboek Dataverwerkingen point toward such a log.
 - **OpenID4VP and OpenID4VCI** (§4.3.5, §4.4.2), and activation of an app with a real Activatiedienst (§4.4.1).
 - **A native app with a key in secure hardware.** [The app](/components/regelhet-app) runs as a desktop window with its key in software; a phone build is not made.

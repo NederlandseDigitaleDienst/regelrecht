@@ -283,6 +283,12 @@ spec:
             # names its services under it.
             - name: REGELHET_FSC4B_PUBLIC_URL
               value: {{ printf "https://%s" $inst.host | quote }}
+            {{- with .Values.fsc4b.origins }}
+            # The browser apps that may call the channel from their own
+            # address (CORS).
+            - name: REGELHET_FSC4B_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- end }}
             {{- with .Values.theme.accentColor }}
             - name: REGELHET_ACCENT_COLOR
