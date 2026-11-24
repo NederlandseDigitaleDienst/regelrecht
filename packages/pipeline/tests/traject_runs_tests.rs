@@ -365,7 +365,14 @@ async fn matches_a_bwb_id_only_on_a_harvest() {
 }
 
 fn task_enrich_payload() -> Value {
-    json!({ "deliver": "task", "law_id": "wet_op_de_zorgtoeslag", "provider": "claude" })
+    json!({
+        "deliver": "task",
+        "law_id": "wet_op_de_zorgtoeslag",
+        "provider": "claude",
+        "yaml_path": "wet/wet_op_de_zorgtoeslag/2025-01-01.yaml",
+        "traject_id": traject_id().to_string(),
+        "traject_ref": TRAJECT_REF,
+    })
 }
 
 async fn insert_input_blob(db: &TestDb, job_id: Uuid) {
@@ -467,8 +474,19 @@ async fn a_stop_does_not_reach_another_trajects_or_a_corpus_run() {
         json!({ "provider": "claude" }),
     )
     .await;
+    // Same eight hex characters, another traject: the full id tells them apart.
+    let mut collision = task_enrich_payload();
+    collision["traject_id"] = json!("abcd1234-ffff-4000-8000-000000000000");
+    let lookalike = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        collision,
+    )
+    .await;
 
-    for job in [other, corpus] {
+    for job in [other, corpus, lookalike] {
         let outcome = stop_traject_enrich_run(&db.pool, traject_id(), job)
             .await
             .unwrap();
@@ -558,4 +576,47 @@ async fn the_runs_list_shows_a_run_that_is_stopping() {
     let run = runs.iter().find(|r| r.job_id == job).unwrap();
     assert_eq!(run.status, JobStatus::Processing);
     assert!(run.cancel_requested_at.is_some());
+}
+
+#[tokio::test]
+async fn a_stop_while_the_result_is_written_discards_it() {
+    let db = TestDb::new().await;
+    let job_id = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    insert_input_blob(&db, job_id).await;
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job_id)
+        .await
+        .unwrap();
+
+    let workdir = tempfile::tempdir().unwrap();
+    let continuation = regelrecht_pipeline::worker::finish_enrich_task_job_scoped(
+        &db.pool,
+        &job,
+        workdir.path(),
+        &[],
+        false,
+        None,
+        Some(vec!["3".to_string()]),
+    )
+    .await
+    .unwrap();
+    assert!(continuation.is_none(), "no continuation after a stop");
+    assert_eq!(
+        job_queue::get_job(&db.pool, job_id).await.unwrap().status,
+        JobStatus::Cancelled
+    );
+    assert_eq!(blob_count(&db, job_id).await, 0);
+    let (tasks,): (i64,) = sqlx::query_as("SELECT count(*) FROM tasks WHERE job_id = $1")
+        .bind(job_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(tasks, 0);
 }

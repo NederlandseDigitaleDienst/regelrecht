@@ -775,7 +775,14 @@ impl<G: LawGraphs> Walker<'_, G> {
             return;
         };
         if target_law == from.bwb_id {
-            if article != from.article {
+            let exists = self
+                .out
+                .laws
+                .get(&target_law)
+                .is_some_and(|g| g.articles.contains(&article));
+            if !exists {
+                self.gap(GapKind::ArticleNotInLaw, &target_law);
+            } else if article != from.article {
                 internal.push((article, EdgeKind::Binds));
             }
         } else {

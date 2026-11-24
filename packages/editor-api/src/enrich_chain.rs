@@ -231,12 +231,14 @@ impl<'a> Stelsel<'a> {
             implementors: BTreeMap::new(),
         };
         for (law_id, facts) in laws {
-            let key = if facts.bwb_id.is_empty() {
+            // A second law with the same BWB id (a copy made in the traject)
+            // gets the stand-in key too, or the walk would load the first.
+            let key = if facts.bwb_id.is_empty() || stelsel.law_of_key.contains_key(&facts.bwb_id) {
                 format!("$id:{law_id}")
             } else {
                 facts.bwb_id.clone()
             };
-            stelsel.law_of_key.entry(key.clone()).or_insert(law_id);
+            stelsel.law_of_key.insert(key.clone(), law_id);
             stelsel.key_of.insert(law_id, key);
         }
         for (law_id, facts) in laws {
@@ -643,7 +645,7 @@ impl LawGraphs for FactsLaws<'_, '_> {
         let law_id = self.stelsel.law_of_key.get(bwb_id)?;
         let facts = self.stelsel.laws.get(*law_id)?;
         let mut law = facts.loaded();
-        if facts.bwb_id.is_empty() {
+        if facts.bwb_id != bwb_id {
             law.graph = rekeyed(law.graph, bwb_id);
         }
         Some(law)
@@ -928,5 +930,19 @@ articles:
         let articles: Vec<&str> = chain.nodes.iter().map(|n| n.article.as_str()).collect();
         assert_eq!(articles, ["1", "2"]);
         assert!(chain.gaps.is_empty(), "{:?}", chain.gaps);
+    }
+
+    #[test]
+    fn a_copy_with_the_same_bwb_id_walks_its_own_articles() {
+        let copy = ZORGTOESLAG.replace("$id: zorgtoeslag", "$id: zorgtoeslag_kopie");
+        let copy = copy.replace(
+            "  - number: '4'",
+            "  - number: '5'\n    text: Alleen in de kopie.\n  - number: '4'",
+        );
+        let facts = laws(&[ZORGTOESLAG, &copy]);
+        let stelsel = Stelsel::new(&facts);
+        let chain = stelsel.chain("zorgtoeslag_kopie", "5", 3, 0).unwrap();
+        assert_eq!(chain.nodes[0].law_id, "zorgtoeslag_kopie");
+        assert!(stelsel.chain("zorgtoeslag", "2", 3, 0).is_ok());
     }
 }

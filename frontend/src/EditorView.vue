@@ -1916,6 +1916,15 @@ async function submitEnrichSheet(options: EnrichOptions) {
   }
 }
 
+// Stop the running enrichment; a refusal is said, not swallowed.
+async function stopEnrichWithFeedback() {
+  try {
+    await stopEnrich();
+  } catch {
+    enrichFeedback.value = { variant: 'critical', text: 'Stoppen is mislukt. Probeer het opnieuw.' };
+  }
+}
+
 // The stepped flow sends its requests itself, one per law; this says what
 // came of them. A refusal stays visible in the sheet too.
 function onEnrichPlanSubmitted(outcome: PlanOutcome) {
@@ -2860,7 +2869,7 @@ async function handleActionSave() {
                   @enrich="enrichLaw"
                   @enrich-article="openEnrichSheet('article')"
                   @enrich-options="openEnrichSheet('law')"
-                  @stop-enrich="stopEnrich"
+                  @stop-enrich="stopEnrichWithFeedback"
                   @view-tasks="openTasksForLaw"
                   @review="openReviewForLaw"
                   @add-action="handleAddAction"
@@ -2903,7 +2912,7 @@ async function handleActionSave() {
                   @enrich="enrichLaw"
                   @enrich-article="openEnrichSheet('article')"
                   @enrich-options="openEnrichSheet('law')"
-                  @stop-enrich="stopEnrich"
+                  @stop-enrich="stopEnrichWithFeedback"
                   @write="handleInitMr"
                   @view-tasks="openTasksForLaw"
                   @review="openReviewForLaw"

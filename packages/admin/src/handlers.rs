@@ -98,6 +98,7 @@ fn job_sort_expression(col: &str) -> String {
             WHEN 'pending' THEN 3 \
             WHEN 'processing' THEN 2 \
             WHEN 'completed' THEN 1 \
+            WHEN 'cancelled' THEN 0 \
             ELSE 0 END"
             .to_string(),
         other => other.to_string(),

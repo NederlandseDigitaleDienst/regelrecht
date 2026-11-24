@@ -1938,6 +1938,22 @@ impl TrajectCorpusCache {
     }
 }
 
+/// Start building the facts of a freshly built corpus in the background, when
+/// the chain and hotspots are on. A flag that cannot be read counts as off:
+/// a prewarm is an optimisation, and the first lookup builds anyway.
+fn prewarm_facts_if_enabled(pool: &PgPool, corpus: &Arc<TrajectCorpus>) {
+    let pool = pool.clone();
+    let corpus = Arc::clone(corpus);
+    tokio::spawn(async move {
+        match crate::feature_flags::flag_enabled(&pool, crate::feature_flags::ENRICH_HOTSPOTS).await
+        {
+            Ok(true) => corpus.prewarm_facts(),
+            Ok(false) => {}
+            Err(e) => tracing::debug!(error = %e, "hotspots flag unreadable; facts not prewarmed"),
+        }
+    });
+}
+
 /// The background leg of [`TrajectCorpusCache::get_or_build`]'s
 /// stale-while-revalidate: refresh the index snapshot off the request
 /// path and swap it into the slot. `guard` is the slot's build lock,
@@ -1955,22 +1971,6 @@ impl TrajectCorpusCache {
 /// spawn and swap orphans the slot (it's no longer in `cells`), so the
 /// swap writes into state nobody reads again — the next request builds
 /// cold, which is exactly what invalidation asks for.
-/// Start building the facts of a freshly built corpus in the background, when
-/// the chain and hotspots are on. A flag that cannot be read counts as off:
-/// a prewarm is an optimisation, and the first lookup builds anyway.
-fn prewarm_facts_if_enabled(pool: &PgPool, corpus: &Arc<TrajectCorpus>) {
-    let pool = pool.clone();
-    let corpus = Arc::clone(corpus);
-    tokio::spawn(async move {
-        match crate::feature_flags::flag_enabled(&pool, crate::feature_flags::ENRICH_HOTSPOTS).await
-        {
-            Ok(true) => corpus.prewarm_facts(),
-            Ok(false) => {}
-            Err(e) => tracing::debug!(error = %e, "hotspots flag unreadable; facts not prewarmed"),
-        }
-    });
-}
-
 fn spawn_background_refresh(
     guard: tokio::sync::OwnedMutexGuard<()>,
     slot: Arc<TrajectSlot>,

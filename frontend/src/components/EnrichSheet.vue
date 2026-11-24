@@ -224,19 +224,25 @@ function hotspotReason(node: ChainNode): string | undefined {
   return node.hotspot ? topReason(node.hotspot.reasons, displayName) : undefined;
 }
 
+// Bumped per load: an answer for an older depth, or for a sheet that was
+// closed and opened again, must not overwrite the chain or the choice.
+let chainGeneration = 0;
 async function loadChain() {
   if (!props.trajectRef || !props.lawId || !props.article) return;
+  const mine = ++chainGeneration;
   chainLoading.value = true;
   chainError.value = null;
   try {
     const result = await apiFetchJson<Chain>(chainUrl(props.trajectRef, props.lawId, props.article, depth.value));
+    if (mine !== chainGeneration) return;
     chain.value = result;
     picked.value = preselection(result);
   } catch {
+    if (mine !== chainGeneration) return;
     chainError.value = 'De keten kon niet worden opgehaald.';
     chain.value = null;
   } finally {
-    chainLoading.value = false;
+    if (mine === chainGeneration) chainLoading.value = false;
   }
 }
 
@@ -311,6 +317,8 @@ function reset() {
   consumersError.value = false;
   step.value = 1;
   depth.value = DEFAULT_CHAIN_DEPTH;
+  chainGeneration += 1;
+  chainLoading.value = false;
   chain.value = null;
   chainError.value = null;
   picked.value = new Set(rootKey.value ? [rootKey.value] : []);

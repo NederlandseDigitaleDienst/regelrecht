@@ -374,6 +374,12 @@ pub async fn notify_reaped_task_jobs(
     reaped: &[crate::job_queue::ReapedJob],
 ) -> Result<()> {
     for job in reaped {
+        // A stopped run the reaper ended: no task, and nothing will read its
+        // input again.
+        if job.status == JobStatus::Cancelled {
+            delete_blobs_for_job(pool, job.id).await?;
+            continue;
+        }
         if job.status != JobStatus::Failed {
             continue;
         }

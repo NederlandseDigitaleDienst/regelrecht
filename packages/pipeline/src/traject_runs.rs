@@ -213,10 +213,12 @@ pub async fn stop_traject_enrich_run(
            AND right(traject_ref, 9) = '-' || $2 \
            AND job_type = 'enrich' \
            AND payload->>'deliver' = 'task' \
+           AND payload->>'traject_id' = $3 \
          FOR UPDATE",
     )
     .bind(job_id)
     .bind(traject_key(traject_id))
+    .bind(traject_id.to_string())
     .fetch_optional(&mut *tx)
     .await?;
     let outcome = match status {

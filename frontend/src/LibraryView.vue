@@ -1075,6 +1075,14 @@ function openEnrichSheet(mode: 'article' | 'law', anchorEl: EventTarget | null =
 // The chain in the article mode's steps, and the hotspots in the sidebar
 // (flag `enrich.hotspots`, only together with the scope modes).
 const hotspotsEnabled = computed(() => scopedEnrich.value && featureFlags.isEnabled('enrich.hotspots'));
+// Stop the running enrichment; a refusal is said, not swallowed.
+async function stopEnrichWithFeedback() {
+  try {
+    await stopEnrich();
+  } catch {
+    enrichError.value = 'Stoppen is mislukt. Probeer het opnieuw.';
+  }
+}
 // A row of "Kan verrijking gebruiken": open that article, with the enrich
 // sheet at its first step, the chain.
 function openHotspot(lawId: string, article: string) {
@@ -3288,8 +3296,8 @@ watch(activeTrajectRef, () => {
                   <nldd-spacer size="24"></nldd-spacer>
                   <KeepAlive>
                     <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrich" />
-                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrich" />
+                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrichWithFeedback" />
+                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrichWithFeedback" />
                   </KeepAlive>
                 </nldd-simple-section>
               </template>

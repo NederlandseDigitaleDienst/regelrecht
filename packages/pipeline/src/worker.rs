@@ -2423,7 +2423,15 @@ async fn unless_stopped<T>(
 pub async fn cancel_enrich_task_job(pool: &PgPool, job: &crate::models::Job) -> Result<()> {
     let mut tx = pool.begin().await?;
     crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
-    job_queue::mark_cancelled(&mut *tx, job.id).await?;
+    match job_queue::mark_cancelled(&mut *tx, job.id).await {
+        Ok(_) => {}
+        // The reaper ended it first (as cancelled, the stop being recorded);
+        // the blobs still go.
+        Err(PipelineError::JobNotProcessing(_)) => {
+            tracing::debug!(job_id = %job.id, "stopped job was no longer processing");
+        }
+        Err(e) => return Err(e),
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -2538,11 +2546,12 @@ pub(crate) fn scoped_task_config(
     if list.is_empty() {
         return Err("gerichte verrijking zonder artikelen".to_string());
     }
-    // The article mode is one run over its targets, whatever the batch size.
-    // The law mode walks its selection in batches of the worker's window
-    // size, so a long selection does not become one session that cannot
-    // finish in time.
-    let batch = if payload.is_article_mode() || config.max_articles_per_run == 0 {
+    // Both modes walk their list in batches of the worker's window size, so a
+    // long list does not become one session that cannot finish in time. In
+    // the article mode the start article leads the list, so it is in the
+    // first batch; each batch keeps the instruction and the neighbour rule,
+    // and a continuation carries the rest.
+    let batch = if config.max_articles_per_run == 0 {
         list.len()
     } else {
         config.max_articles_per_run.min(list.len())
@@ -4373,21 +4382,20 @@ articles:
     }
 
     #[test]
-    fn the_article_mode_is_one_run() {
+    fn the_article_mode_walks_its_targets_in_batches_start_first() {
         let mut base = config_with_timeouts(600);
-        base.max_articles_per_run = 1;
+        base.max_articles_per_run = 2;
         let (config, remaining) =
             scoped_task_config(&base, &scoped("article", &["69"])).expect("valid");
         assert_eq!(config.target_articles, vec!["69"]);
         assert_eq!(remaining, Some(vec![]));
 
-        // Several targets in the article mode are still one run, whatever
-        // the batch size: the instruction and the neighbour rule cover them
-        // together.
+        // Many targets do not become one session that cannot finish: the
+        // start article leads the first batch, a continuation does the rest.
         let (config, remaining) =
             scoped_task_config(&base, &scoped("article", &["69", "18d", "24"])).expect("valid");
-        assert_eq!(config.target_articles, vec!["69", "18d", "24"]);
-        assert_eq!(remaining, Some(vec![]));
+        assert_eq!(config.target_articles, vec!["69", "18d"]);
+        assert_eq!(remaining, Some(vec!["24".to_string()]));
     }
 
     #[test]
