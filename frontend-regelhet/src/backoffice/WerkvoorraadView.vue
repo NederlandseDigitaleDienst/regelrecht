@@ -293,11 +293,20 @@ async function klaar(naam: string) {
       :accessible-label="huidigeLijst.tekst"
       :empty="route.query.lijst ? undefined : true"
     >
-      <nldd-top-title-bar slot="header" :text="huidigeLijst.tekst" heading-level="3" back-text="Aanvragen" collapse-anchor="lijst-titel"></nldd-top-title-bar>
+      <!-- An empty list has no title: the dialog says what matters, and is the heading. -->
+      <nldd-top-title-bar
+        slot="header"
+        :text="zichtbaar.length ? huidigeLijst.tekst : ''"
+        heading-level="3"
+        back-text="Aanvragen"
+        :collapse-anchor="zichtbaar.length ? 'lijst-titel' : undefined"
+      ></nldd-top-title-bar>
       <nldd-simple-section width="full">
-        <nldd-title id="lijst-titel" size="display-3"><h3>{{ huidigeLijst.tekst }}</h3></nldd-title>
-        <nldd-text v-if="zichtbaar.length" size="sm" color="secondary"><p>{{ huidigeLijst.uitleg }}</p></nldd-text>
-        <nldd-spacer size="16"></nldd-spacer>
+        <template v-if="zichtbaar.length">
+          <nldd-title id="lijst-titel" size="display-3"><h3>{{ huidigeLijst.tekst }}</h3></nldd-title>
+          <nldd-text size="sm" color="secondary"><p>{{ huidigeLijst.uitleg }}</p></nldd-text>
+          <nldd-spacer size="16"></nldd-spacer>
+        </template>
         <template v-if="vastgelegd">
           <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
           <nldd-spacer size="16"></nldd-spacer>
@@ -335,15 +344,7 @@ async function klaar(naam: string) {
             </nldd-list-item>
           </template>
         </nldd-list>
-        <nldd-inline-dialog v-else :text="leeg.tekst" :supporting-text="leeg.uitleg">
-          <nldd-button
-            v-if="lijst === 'te-doen' && aantallen.wacht > 0"
-            slot="actions"
-            appearance="secondary"
-            text="Bekijk Wacht op anderen"
-            @click="kies('wacht')"
-          ></nldd-button>
-        </nldd-inline-dialog>
+        <nldd-inline-dialog v-else heading-level="3" :text="leeg.tekst" :supporting-text="leeg.uitleg"></nldd-inline-dialog>
         <template v-if="!recht.beslissen && zichtbaar.some((r) => r.soort === 'indiening')">
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-text size="sm" color="secondary">

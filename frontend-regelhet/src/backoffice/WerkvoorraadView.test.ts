@@ -255,7 +255,7 @@ describe('the work queue', () => {
     expect(zelf.query.lijst).toBe('te-doen');
   });
 
-  it('says the work is done when Te doen is empty, and points at what still waits on someone else', async () => {
+  it('says the work is done when Te doen is empty, and what still waits on someone else', async () => {
     const bewaard = vervolg.splice(0);
     verzoeken.value = [verzoek];
     try {
@@ -264,8 +264,9 @@ describe('the work queue', () => {
       expect(dialoog.attributes('text')).toBe('U bent helemaal klaar');
       expect(dialoog.attributes('supporting-text')).toContain('Eén aanvraag wacht op een andere partij');
       expect(dialoog.attributes('icon')).toBeUndefined();
-      expect(knoppen(w)).toContain('Bekijk Wacht op anderen');
-      // No description above an empty list: the dialog says what matters.
+      expect(dialoog.attributes('heading-level')).toBe('3');
+      // No title and no description above an empty list: the dialog says what matters.
+      expect(w.find('#lijst-titel').exists()).toBe(false);
       expect(w.findAll('nldd-text').map((t) => t.text())).not.toContain('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
     } finally {
       vervolg.push(...bewaard);
