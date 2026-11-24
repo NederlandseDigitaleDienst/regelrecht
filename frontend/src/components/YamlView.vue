@@ -27,6 +27,8 @@ const props = withDefaults(
     /** Anchor target for that button. Leave unset when the user isn't logged
      *  in, so the click gates on the login popover instead of the href. */
     createHref?: string;
+    /** Artikel- en wetmodus aangeboden (feature flag `enrich.scoped`). */
+    scopedEnrich?: boolean;
   }>(),
   {
     article: null,
@@ -38,6 +40,7 @@ const props = withDefaults(
     reviewReady: false,
     reviewArticle: '',
     createHref: undefined,
+    scopedEnrich: false,
   },
 );
 
@@ -51,6 +54,8 @@ const emit = defineEmits<{
   'view-tasks': [];
   /** Open review-modus voor de klaarstaande taak. */
   review: [];
+  'enrich-article': [];
+  'enrich-options': [];
 }>();
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
@@ -77,7 +82,10 @@ const yamlText = computed(() => {
     :can-create="canCreate"
     :create-href="createHref"
     :enrich-error="enrichError"
+    :scoped="scopedEnrich"
     @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
+    @enrich-article="emit('enrich-article')"
+    @enrich-options="emit('enrich-options')"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"
     @review="emit('review')"

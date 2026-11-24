@@ -2623,8 +2623,11 @@ async function handleActionSave() {
                        altijd achter de ...-knop en vecht dus nooit met de
                        pane-switcher om breedte. Is de pane leeg, dan staat de
                        ingang in de lege staat zelf. -->
+                  <!-- With the scope modes on, the whole-law run goes through
+                       the sheet too (the item below), so it is never one
+                       click away. -->
                   <nldd-menu-item
-                    v-if="canEnrichLaw && isEnrichPane(view) && hasMachineReadable"
+                    v-if="!scopedEnrich && canEnrichLaw && isEnrichPane(view) && hasMachineReadable"
                     slot="overflow"
                     icon="ai"
                     text="Verrijk dit regelwerk opnieuw"
