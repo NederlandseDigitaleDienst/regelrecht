@@ -29,6 +29,8 @@ const props = withDefaults(
     createHref?: string;
     /** Artikel- en wetmodus aangeboden (feature flag `enrich.scoped`). */
     scopedEnrich?: boolean;
+    /** A stop was asked for and the running enrichment winds down. */
+    enrichStopping?: boolean;
   }>(),
   {
     article: null,
@@ -41,6 +43,7 @@ const props = withDefaults(
     reviewArticle: '',
     createHref: undefined,
     scopedEnrich: false,
+    enrichStopping: false,
   },
 );
 
@@ -56,6 +59,8 @@ const emit = defineEmits<{
   review: [];
   'enrich-article': [];
   'enrich-options': [];
+  /** Stop the running enrichment (confirmed in MachineEmptyState). */
+  'stop-enrich': [];
 }>();
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
@@ -83,9 +88,11 @@ const yamlText = computed(() => {
     :create-href="createHref"
     :enrich-error="enrichError"
     :scoped="scopedEnrich"
+    :stopping="enrichStopping"
     @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
     @enrich-article="emit('enrich-article')"
     @enrich-options="emit('enrich-options')"
+    @stop-enrich="emit('stop-enrich')"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"
     @review="emit('review')"

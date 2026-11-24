@@ -341,6 +341,11 @@ const ROUTES: &[Route] = &[
         RoleAndAccount(WRITER),
     ),
     route(
+        Method::DELETE,
+        "/api/trajects/{traject_ref}/runs/{job_id}",
+        RoleAndAccount(WRITER),
+    ),
+    route(
         Method::POST,
         "/api/trajects/{traject_ref}/corpus/laws/{law_id}/promote",
         RoleAndAccount(WRITER),

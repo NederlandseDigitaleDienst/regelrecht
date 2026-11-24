@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue';
+import { computed, inject, ref } from 'vue';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import { ENRICH_PROVIDER_OPTIONS } from '../lib/enrichProviders';
 
 // De lege staat van de Machine- en YAML-panes, op één plek.
@@ -43,6 +44,8 @@ const props = withDefaults(defineProps<{
   /** Wat de lopende verrijking bestrijkt ("artikel 3", "4 artikelen"); leeg
    *  bij de klassieke verrijking van de hele wet. */
   enrichingScope?: string;
+  /** A stop was asked for and the run is winding down. */
+  stopping?: boolean;
 }>(), {
   reviewReady: false,
   reviewArticle: '',
@@ -55,6 +58,7 @@ const props = withDefaults(defineProps<{
   needs: '',
   scoped: false,
   enrichingScope: '',
+  stopping: false,
 });
 
 const emit = defineEmits<{
@@ -72,7 +76,17 @@ const emit = defineEmits<{
   'enrich-article': [];
   /** De hele wet verrijken met keuzes over scope, model en rondes. */
   'enrich-options': [];
+  /** Stop de lopende verrijking; de vraag om bevestiging is al gesteld. */
+  'stop-enrich': [];
 }>();
+
+// Stopping throws the run away, so it asks first. The dialog lives here, so
+// every pane that shows the busy state asks the same question.
+const stopConfirm = ref<NLDDModalDialog | null>(null);
+function confirmStop() {
+  stopConfirm.value?.hide();
+  emit('stop-enrich');
+}
 
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
 
@@ -130,6 +144,14 @@ const emptyText = computed(() => {
   </nldd-inline-dialog>
 
   <nldd-inline-dialog
+    v-else-if="enriching && stopping"
+    data-testid="enrich-stopping"
+    icon="ai"
+    text="Stoppen…"
+    supporting-text="De verrijking wordt gestopt. Er komt geen voorstel."
+  ></nldd-inline-dialog>
+
+  <nldd-inline-dialog
     v-else-if="enriching"
     data-testid="enriching"
     icon="ai"
@@ -144,7 +166,19 @@ const emptyText = computed(() => {
       text="Bekijk taken"
       @click="emit('view-tasks')"
     ></nldd-button>
+    <!-- Stopping is offered with the scope modes, which make a run something
+         you choose the size of; a run you can start you can also stop. -->
+    <nldd-button
+      v-if="scoped"
+      slot="actions"
+      appearance="secondary"
+      size="md"
+      data-testid="stop-enrich-btn"
+      text="Stop verrijking"
+      @click="stopConfirm?.show()"
+    ></nldd-button>
   </nldd-inline-dialog>
+
 
   <nldd-inline-dialog
     v-else
@@ -230,4 +264,28 @@ const emptyText = computed(() => {
       @pointerdown.capture="onLoginTriggerPointerdown"
     ></nldd-button>
   </nldd-inline-dialog>
+
+  <!-- After the v-if chain above, which it must not break. -->
+  <nldd-modal-dialog
+    v-if="scoped"
+    ref="stopConfirm"
+    variant="alert"
+    icon="exclamation-triangle"
+    text="Verrijking stoppen?"
+    supporting-text="Wat de verrijking tot nu toe deed gaat verloren. Er komt geen voorstel."
+  >
+    <nldd-button
+      slot="actions"
+      appearance="primary"
+      text="Laat doorlopen"
+      @click="stopConfirm?.hide()"
+    ></nldd-button>
+    <nldd-button
+      slot="actions"
+      appearance="destructive"
+      data-testid="confirm-stop-enrich"
+      text="Stop verrijking"
+      @click="confirmStop"
+    ></nldd-button>
+  </nldd-modal-dialog>
 </template>

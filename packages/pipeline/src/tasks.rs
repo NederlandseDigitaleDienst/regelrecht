@@ -143,6 +143,9 @@ pub struct RunningTaskJob {
     pub mode: Option<String>,
     /// De werklijst van een gerichte verrijking (payload `articles`).
     pub articles: Option<serde_json::Value>,
+    /// Wanneer een lid van het traject vroeg de run te stoppen; gezet op een
+    /// run die nog afbouwt ("Stoppen…").
+    pub cancel_requested_at: Option<DateTime<Utc>>,
 }
 
 /// Lopende (pending/processing) taak-flow-jobs van een account, nieuwste
@@ -156,7 +159,8 @@ pub async fn list_running_task_jobs_for_account(
     let jobs = sqlx::query_as::<_, RunningTaskJob>(
         "SELECT id AS job_id, job_type, law_id, traject_ref, \
                 COALESCE(payload->>'target_path', payload->>'filename') AS target_path, \
-                status, created_at, payload->>'mode' AS mode, payload->'articles' AS articles \
+                status, created_at, payload->>'mode' AS mode, payload->'articles' AS articles, \
+                cancel_requested_at \
          FROM jobs \
          WHERE job_type IN ('enrich', 'document_convert', 'law_convert', 'traject_harvest') \
            AND status IN ('pending', 'processing') \

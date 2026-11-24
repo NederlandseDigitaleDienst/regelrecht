@@ -12,9 +12,13 @@
  * The rows look like the table on the law's Algemeen page: label left, value
  * right, in a tinted box.
  */
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import { useTrajectRunsStore } from '../stores/trajectRuns';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
+import { useTaskActions } from '../composables/useTasks';
 import {
+  canStop,
   coverageText,
   durationText,
   formatMoment,
@@ -27,8 +31,10 @@ import {
 const props = withDefaults(
   defineProps<{
     jobId?: string | null;
+    /** The traject the run belongs to; needed to stop it. */
+    trajectRef?: string | null;
   }>(),
-  { jobId: null },
+  { jobId: null, trajectRef: null },
 );
 
 const emit = defineEmits<{
@@ -47,6 +53,12 @@ function asText(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
+function endLabel(status: string): string {
+  if (status === 'failed') return 'Mislukt';
+  if (status === 'cancelled') return 'Gestopt';
+  return 'Klaar';
+}
+
 const rows = computed<Row[]>(() => {
   const r = run.value;
   if (!r) return [];
@@ -55,7 +67,7 @@ const rows = computed<Row[]>(() => {
     ['Aangevraagd door', r.requested_by_name],
     ['Aangevraagd', formatMoment(r.created_at)],
     ['Gestart', timesCurrentAttempt(r) ? formatMoment(r.started_at) : null],
-    [r.status === 'failed' ? 'Mislukt' : 'Klaar', formatMoment(r.completed_at)],
+    [endLabel(r.status), formatMoment(r.completed_at)],
     [isActive(r) ? 'Loopt al' : 'Duur', durationText(r)],
     ['Pogingen', r.attempts > 1 ? `${r.attempts} van ${r.max_attempts}` : null],
     // The worker's own note on what it is doing, while it does it.
@@ -90,6 +102,28 @@ const lawId = computed(() => (run.value?.job_type === 'enrich' ? run.value.law_i
 // their own. Someone else's open proposals get a line saying whose they are,
 // not a button to a list where they are not.
 const othersOpen = computed(() => (run.value ? run.value.tasks_open - run.value.tasks_open_mine : 0));
+
+// Stopping a running enrichment, with the scope modes on: any member with
+// write access may stop any member's run (the server checks both).
+const featureFlags = useFeatureFlagsStore();
+const { stopRun } = useTaskActions();
+const showStop = computed(
+  () => featureFlags.isEnabled('enrich.scoped') && !!props.trajectRef && !!run.value && canStop(run.value),
+);
+const stopConfirm = ref<NLDDModalDialog | null>(null);
+const stopError = ref<string | null>(null);
+async function confirmStop(): Promise<void> {
+  stopConfirm.value?.hide();
+  const r = run.value;
+  if (!r || !props.trajectRef) return;
+  stopError.value = null;
+  try {
+    await stopRun(props.trajectRef, r.job_id);
+    await store.refresh();
+  } catch {
+    stopError.value = 'Stoppen is mislukt. Probeer het opnieuw.';
+  }
+}
 </script>
 
 <template>
@@ -125,6 +159,39 @@ const othersOpen = computed(() => (run.value ? run.value.tasks_open - run.value.
           op beoordeling door {{ run.requested_by_name || 'de aanvrager' }}.
         </p>
       </nldd-rich-text>
+    </template>
+
+    <template v-if="showStop">
+      <nldd-spacer size="24"></nldd-spacer>
+      <nldd-inline-dialog v-if="stopError" variant="alert" :text="stopError"></nldd-inline-dialog>
+      <nldd-spacer v-if="stopError" size="16"></nldd-spacer>
+      <nldd-button
+        appearance="secondary"
+        data-testid="stop-run-btn"
+        text="Stop verrijking"
+        @click="stopConfirm?.show()"
+      ></nldd-button>
+      <nldd-modal-dialog
+        ref="stopConfirm"
+        variant="alert"
+        icon="exclamation-triangle"
+        text="Verrijking stoppen?"
+        supporting-text="Wat de verrijking tot nu toe deed gaat verloren. Er komt geen voorstel."
+      >
+        <nldd-button
+          slot="actions"
+          appearance="primary"
+          text="Laat doorlopen"
+          @click="stopConfirm?.hide()"
+        ></nldd-button>
+        <nldd-button
+          slot="actions"
+          appearance="destructive"
+          data-testid="confirm-stop-run"
+          text="Stop verrijking"
+          @click="confirmStop"
+        ></nldd-button>
+      </nldd-modal-dialog>
     </template>
 
     <template v-if="lawId && run.tasks_open_mine > 0">

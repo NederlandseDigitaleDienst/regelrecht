@@ -2080,6 +2080,16 @@ pub async fn finish_enrich_task_job_scoped(
         .map(|b| b.content);
 
     let mut tx = pool.begin().await?;
+    // A stop requested while the run was finishing: lock the row, so the
+    // request lands either before this check (the result is discarded) or
+    // after the commit (the run is done and the stop finds nothing).
+    if job_queue::stop_requested_for_update(&mut *tx, job.id).await? {
+        crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+        job_queue::mark_cancelled(&mut *tx, job.id).await?;
+        tx.commit().await?;
+        tracing::info!(job_id = %job.id, law_id = %job.law_id, "stop requested before the result landed; result discarded");
+        return Ok(None);
+    }
     crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
     let mut proposal_yaml: Option<String> = None;
     let mut result_blobs: Vec<(String, String)> = Vec::new();
@@ -2388,6 +2398,23 @@ async fn finalize_failed_task_job_tx(
     Ok(())
 }
 
+/// End a task-flow enrichment that a member stopped: its input blobs go, the
+/// job is marked cancelled, and nothing follows. No review task (there is no
+/// result), no failure task (nothing failed), no continuation.
+///
+/// # Errors
+///
+/// Returns an error when the transaction fails; the job then stays
+/// processing, keeps its `cancel_requested_at`, and the reaper ends it as
+/// cancelled once the heartbeat stops.
+pub async fn cancel_enrich_task_job(pool: &PgPool, job: &crate::models::Job) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+    job_queue::mark_cancelled(&mut *tx, job.id).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 /// Taak-flow falen (terminaal): faal de job onvoorwaardelijk en ruim
 /// taak+blobs op, atomair in één transactie — een crash of DB-fout tussen de
 /// fail-markering en de taak-aanmaak zou anders een definitief gefaalde job
@@ -2403,13 +2430,18 @@ pub async fn fail_enrich_task_job(
     // too, or the worker log shows a failure without saying why.
     tracing::warn!(job_id = %job.id, law_id = %job.law_id, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
-    job_queue::fail_job_terminal(
+    let failed_job = job_queue::fail_job_terminal(
         &mut *tx,
         job.id,
         Some(serde_json::json!({ "error": error })),
     )
     .await?;
-    finalize_failed_task_job_tx(&mut tx, job, error).await?;
+    if failed_job.status == crate::models::JobStatus::Cancelled {
+        // Stopped by a member: nothing failed from their point of view.
+        crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+    } else {
+        finalize_failed_task_job_tx(&mut tx, job, error).await?;
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -2434,8 +2466,18 @@ pub async fn fail_enrich_task_job_with_retry(
         Some(serde_json::json!({ "error": error })),
     )
     .await?;
-    if failed_job.status == crate::models::JobStatus::Failed {
-        finalize_failed_task_job_tx(&mut tx, job, error).await?;
+    match failed_job.status {
+        crate::models::JobStatus::Failed => {
+            finalize_failed_task_job_tx(&mut tx, job, error).await?;
+        }
+        // Stopped by a member while it failed: no failure task, and no retry
+        // that would need the input.
+        crate::models::JobStatus::Cancelled => {
+            crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+        }
+        crate::models::JobStatus::Pending
+        | crate::models::JobStatus::Processing
+        | crate::models::JobStatus::Completed => {}
     }
     tx.commit().await?;
     Ok(())
@@ -2499,12 +2541,17 @@ pub(crate) fn scoped_task_config(
 /// enrichment draaien, resultaat als blobs + taak terugschrijven. Raakt
 /// bewust geen law_entries, untranslatables of vervolg-harvests aan: dit is
 /// een traject-persoonlijke enrichment, geen corpus-brede.
+///
+/// `stop` fires when a member of the traject asks to stop the run (see
+/// [`job_queue::JobHeartbeat::stop_requested`]): the run is dropped at once,
+/// which kills the agent's process group, and the job ends as cancelled.
 async fn process_enrich_task_job(
     pool: &PgPool,
     job: &crate::models::Job,
     payload: &EnrichPayload,
     enrich_config: &EnrichConfig,
     job_timeout: Duration,
+    stop: tokio_util::sync::CancellationToken,
 ) -> Result<JobOutcome> {
     let effective_config = match &payload.provider {
         Some(provider_name) => enrich_config.with_provider_override(provider_name),
@@ -2558,7 +2605,7 @@ async fn process_enrich_task_job(
     // artikelen). De cursor reist mee in de `.enrichment.yaml` die
     // `finish_enrich_task_job` als input-blob aan de vervolgjob doorgeeft.
 
-    let outcome = with_progress(
+    let run = with_progress(
         pool,
         job.id,
         ProgressSources::for_law(workdir.path(), &payload.yaml_path, activity.clone()),
@@ -2566,8 +2613,17 @@ async fn process_enrich_task_job(
             job_timeout,
             execute_enrich(payload, workdir.path(), &bounded_config, ""),
         ),
-    )
-    .await;
+    );
+    let outcome = tokio::select! {
+        outcome = run => outcome,
+        () = stop.cancelled() => {
+            // Leaving this arm drops `run`, and with it the agent subprocess:
+            // its process group is killed on drop (see the supervisor).
+            tracing::info!(job_id = %job.id, law_id = %job.law_id, "enrich task job stopped on request");
+            cancel_enrich_task_job(pool, job).await?;
+            return Ok(JobOutcome::Processed);
+        }
+    };
 
     match outcome {
         Err(_elapsed) => {
@@ -2891,7 +2947,15 @@ async fn process_next_enrich_job(
             .await?;
             return Ok(JobOutcome::Processed);
         }
-        return process_enrich_task_job(pool, &job, &payload, enrich_config, job_timeout).await;
+        return process_enrich_task_job(
+            pool,
+            &job,
+            &payload,
+            enrich_config,
+            job_timeout,
+            _heartbeat.stop_requested(),
+        )
+        .await;
     }
 
     // Contract-borging (worker/traject-contract, zie de crate-doc): vanaf hier
@@ -3471,6 +3535,9 @@ async fn with_progress<T>(
     };
     let sources = std::sync::Arc::new(sources);
     let cancel = tokio_util::sync::CancellationToken::new();
+    // A stopped run drops this future before `work` ends; the guard then stops
+    // the poller instead of leaving it to write progress for a dead job.
+    let _stop_poller = cancel.clone().drop_guard();
     let poller = {
         let pool = pool.clone();
         let sources = std::sync::Arc::clone(&sources);

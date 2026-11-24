@@ -127,4 +127,20 @@ describe('useTasks', () => {
       })
     );
   });
+
+  it('stops a run through the runs route and refreshes the list', async () => {
+    apiFetch.mockImplementation(async (url: string) =>
+      url === '/api/tasks'
+        ? { status: 200, json: async () => ({ tasks: [], open_count: 0, running: [] }) }
+        : { status: 200, json: async () => ({ state: 'stopping' }) },
+    );
+    const { useTaskActions } = await import('./useTasks');
+    const state = await useTaskActions().stopRun('traject-abcd1234', 'job-1');
+    expect(state).toBe('stopping');
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/trajects/traject-abcd1234/runs/job-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(apiFetch).toHaveBeenCalledWith('/api/tasks', expect.anything());
+  });
 });

@@ -523,6 +523,12 @@ fn traject_writer_routes() -> Router<AppState> {
             axum::routing::post(task_requests::request_enrich),
         )
         .route(
+            // Stop a task-flow enrichment of this traject. Any writer who is
+            // a member may stop it, not only the one who requested it.
+            "/api/trajects/{traject_ref}/runs/{job_id}",
+            axum::routing::delete(traject_runs::stop),
+        )
+        .route(
             // Promote: copy a law from the central corpus into the traject's
             // repository (the same write path and authorization as save_law).
             "/api/trajects/{traject_ref}/corpus/laws/{law_id}/promote",

@@ -50,7 +50,9 @@ const groups = computed(() => {
 // A finished run says how it ended with its icon; a running one shows an
 // activity indicator instead (in the template).
 function runIcon(run: TrajectRun): string {
-  return run.status === 'failed' ? 'exclamation-circle-filled' : 'done';
+  if (run.status === 'failed') return 'exclamation-circle-filled';
+  if (run.status === 'cancelled') return 'stop';
+  return 'done';
 }
 </script>
 

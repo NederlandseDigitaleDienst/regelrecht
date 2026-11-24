@@ -1036,6 +1036,8 @@ const selectedArticleNumber = ref<string | null>(null);
 // gooit een ReferenceError in setup en dan rendert de hele view niets.
 const {
   isEnriching,
+  isStopping: enrichStopping,
+  stopEnrich,
   reviewReady,
   reviewArticleForPane,
   openReviewForLaw,
@@ -3163,6 +3165,7 @@ watch(activeTrajectRef, () => {
                 <RunDetailSheet
                   :job-id="openRunId"
                   :law-name="lawName"
+                  :traject-ref="activeTrajectRef"
                   @close="openRunId = null"
                   @open-tasks="goToRunTasks"
                 ></RunDetailSheet>
@@ -3234,8 +3237,8 @@ watch(activeTrajectRef, () => {
                   <nldd-spacer size="24"></nldd-spacer>
                   <KeepAlive>
                     <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" :scoped-enrich="scopedEnrich" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" />
-                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" :scoped-enrich="scopedEnrich" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" />
+                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrich" />
+                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrich" />
                   </KeepAlive>
                 </nldd-simple-section>
               </template>

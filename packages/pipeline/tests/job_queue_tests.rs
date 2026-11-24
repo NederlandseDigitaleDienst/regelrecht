@@ -396,6 +396,7 @@ async fn test_reap_spares_long_running_job_with_fresh_heartbeat() {
         job_queue::heartbeat(&db.pool, held.id, held.started_at)
             .await
             .unwrap()
+            .holds()
     );
 
     let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
@@ -442,13 +443,19 @@ async fn test_heartbeat_reports_job_no_longer_processing() {
     let job = job_queue::create_job(&db.pool, req).await.unwrap();
 
     // Pending: nothing to beat for.
-    assert!(!job_queue::heartbeat(&db.pool, job.id, None).await.unwrap());
+    assert!(
+        !job_queue::heartbeat(&db.pool, job.id, None)
+            .await
+            .unwrap()
+            .holds()
+    );
 
     let claimed = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
     assert!(
         job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
             .await
             .unwrap()
+            .holds()
     );
 
     job_queue::complete_job(&db.pool, job.id, None)
@@ -458,6 +465,7 @@ async fn test_heartbeat_reports_job_no_longer_processing() {
         !job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
             .await
             .unwrap()
+            .holds()
     );
 }
 
@@ -485,11 +493,13 @@ async fn test_heartbeat_from_earlier_claim_does_not_land() {
         !job_queue::heartbeat(&db.pool, first.id, first.started_at)
             .await
             .unwrap()
+            .holds()
     );
     assert!(
         job_queue::heartbeat(&db.pool, second.id, second.started_at)
             .await
             .unwrap()
+            .holds()
     );
 }
 

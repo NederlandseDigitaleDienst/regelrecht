@@ -1788,6 +1788,8 @@ onBeforeUnmount(() => clearTimeout(engineLoadDebounce));
 // zonder de 30s-poll van useTasks() te starten voor elke editor-bezoeker.
 const {
   isEnriching,
+  isStopping: enrichStopping,
+  stopEnrich,
   runningScope,
   reviewReady,
   reviewArticleForPane,
@@ -2823,6 +2825,7 @@ async function handleActionSave() {
                   :enriching="isEnriching"
                   :scoped-enrich="scopedEnrich"
                   :enriching-scope="enrichingScope"
+                  :enrich-stopping="enrichStopping"
                   :review-ready="reviewReady"
                   :review-article="reviewArticleForPane"
                   :dirty="isMachineReadableDirty"
@@ -2838,6 +2841,7 @@ async function handleActionSave() {
                   @enrich="enrichLaw"
                   @enrich-article="openEnrichSheet('article')"
                   @enrich-options="openEnrichSheet('law')"
+                  @stop-enrich="stopEnrich"
                   @view-tasks="openTasksForLaw"
                   @review="openReviewForLaw"
                   @add-action="handleAddAction"
@@ -2876,9 +2880,11 @@ async function handleActionSave() {
                   :can-write-here="canEdit"
                   :scoped="scopedEnrich"
                   :enriching-scope="enrichingScope"
+                  :stopping="enrichStopping"
                   @enrich="enrichLaw"
                   @enrich-article="openEnrichSheet('article')"
                   @enrich-options="openEnrichSheet('law')"
+                  @stop-enrich="stopEnrich"
                   @write="handleInitMr"
                   @view-tasks="openTasksForLaw"
                   @review="openReviewForLaw"

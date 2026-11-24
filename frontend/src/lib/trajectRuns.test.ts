@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  canStop,
   runLawTitle,
   coverageText,
   durationText,
@@ -143,3 +144,20 @@ function at<T>(list: readonly T[], i: number): T {
   if (item === undefined) throw new Error(`no item at index ${i}`);
   return item;
 }
+
+describe('stopping a run', () => {
+  it('says a run that is winding down is stopping, and a stopped one stopped', () => {
+    expect(runStatusText(makeRun({ status: 'processing', cancel_requested_at: '2026-11-24T10:00:00Z' }))).toBe('Stoppen…');
+    expect(runStatusText(makeRun({ status: 'cancelled' }))).toBe('Gestopt');
+    expect(runOutcome(makeRun({ status: 'cancelled' }))).toBe('Gestopt');
+    expect(isActive(makeRun({ status: 'cancelled' }))).toBe(false);
+  });
+
+  it('offers a stop only on a running enrichment nobody stopped yet', () => {
+    expect(canStop(makeRun({ status: 'processing' }))).toBe(true);
+    expect(canStop(makeRun({ status: 'pending' }))).toBe(true);
+    expect(canStop(makeRun({ status: 'processing', cancel_requested_at: '2026-11-24T10:00:00Z' }))).toBe(false);
+    expect(canStop(makeRun({ status: 'completed' }))).toBe(false);
+    expect(canStop(makeRun({ status: 'processing', job_type: 'document_convert' }))).toBe(false);
+  });
+});

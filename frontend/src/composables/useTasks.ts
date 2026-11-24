@@ -46,6 +46,8 @@ export interface RunningTaskJob extends RunningJob {
   mode?: string | null;
   /** The work list of a scoped enrichment. */
   articles?: string[] | null;
+  /** Set when a member asked to stop the run and it is winding down. */
+  cancel_requested_at?: string | null;
 }
 
 /** `GET /api/tasks` (TaskListResponse in tasks_api.rs). */
@@ -241,6 +243,34 @@ async function requestEnrich(
   return { alreadyRunning: res.status === 409, tooMany: res.status === 429, running };
 }
 
+/**
+ * What a stop request did (StopOutcome in pipeline/src/traject_runs.rs):
+ * `removed` (it had not started), `stopping` (the worker ends it within half a
+ * minute) or `done` (nothing left to stop).
+ */
+export type StopState = 'removed' | 'stopping' | 'done';
+
+/**
+ * Stop a running enrichment of the traject. Any member with write access may
+ * stop any member's run. Refreshes the shared task list afterwards, so a
+ * removed run leaves the "Bezig" list at once.
+ */
+async function stopRun(trajectRef: string, jobId: string): Promise<StopState> {
+  const res = await apiFetch(
+    `/api/trajects/${encodeURIComponent(trajectRef)}/runs/${encodeURIComponent(jobId)}`,
+    { method: 'DELETE' },
+  );
+  let state: StopState = 'done';
+  try {
+    const json = (await res.json()) as { state?: StopState } | null;
+    if (json?.state) state = json.state;
+  } catch {
+    // A body we cannot read still means the request went through.
+  }
+  await refresh();
+  return state;
+}
+
 /** The scope of a running enrichment, as the 409 and `/api/tasks` report it. */
 export interface RunningScope {
   mode: string | null;
@@ -326,6 +356,7 @@ export function useTasks() {
     fetchJobTasks,
     applyEnrichment,
     requestEnrich,
+    stopRun,
   };
 }
 
@@ -365,6 +396,7 @@ export function useTaskActions() {
     fetchJobTasks,
     applyEnrichment,
     requestEnrich,
+    stopRun,
     refresh,
     running,
     tasks,

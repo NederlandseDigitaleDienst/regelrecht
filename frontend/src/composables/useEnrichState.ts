@@ -32,6 +32,8 @@ export interface EnrichStateSources {
 // Structural view of a running job (`RunningTaskJob`, owned by useTasks); only
 // the fields read here.
 interface RunningJobView {
+  job_id?: string;
+  cancel_requested_at?: string | null;
   job_type?: string;
   law_id?: string | null;
   traject_ref?: string | null;
@@ -54,6 +56,7 @@ export function useEnrichState({ trajectRef, lawId, articleNumber, reviewActive 
   const {
     refresh: refreshTasks,
     requestEnrich: requestEnrichRaw,
+    stopRun,
     running: runningJobs,
     tasks: openTasks,
   } = useTaskActions();
@@ -163,23 +166,44 @@ export function useEnrichState({ trajectRef, lawId, articleNumber, reviewActive 
     return result;
   }
 
+  // The running enrichment of this law in this traject, if any.
+  const runningJob = computed<RunningJobView | null>(() => {
+    const traject = toValue(trajectRef);
+    if (!traject) return null;
+    return (
+      runningJobs.value.find(
+        (j: RunningJobView) =>
+          j.job_type === 'enrich' &&
+          j.law_id === toValue(lawId) &&
+          sameTraject(j.traject_ref, traject),
+      ) ?? null
+    );
+  });
+
   // What the running enrichment of this law covers: one article, a selection,
   // or (null) the whole law. Lets the pane say "artikel 3 wordt verrijkt".
   const runningScope = computed<RunningScope | null>(() => {
-    const traject = toValue(trajectRef);
-    if (!traject) return null;
-    const job = runningJobs.value.find(
-      (j: RunningJobView) =>
-        j.job_type === 'enrich' &&
-        j.law_id === toValue(lawId) &&
-        sameTraject(j.traject_ref, traject),
-    );
+    const job = runningJob.value;
     if (!job || !job.mode) return null;
     return { mode: job.mode, articles: job.articles ?? null };
   });
 
+  // A stop was asked for and the worker is still winding the run down.
+  const isStopping = computed(() => !!runningJob.value?.cancel_requested_at);
+
+  // Stop the running enrichment of this law. The caller asked for
+  // confirmation; the shared list refreshes inside stopRun.
+  async function stopEnrich(): Promise<void> {
+    const traject = toValue(trajectRef);
+    const jobId = runningJob.value?.job_id;
+    if (!traject || !jobId) return;
+    await stopRun(traject, jobId);
+  }
+
   return {
     isEnriching,
+    isStopping,
+    stopEnrich,
     runningScope,
     pendingReviewTask,
     reviewReady,

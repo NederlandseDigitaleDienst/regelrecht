@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import MachineEmptyState from './MachineEmptyState.vue';
 
@@ -93,6 +93,42 @@ describe('MachineEmptyState', () => {
       const w = mountEmpty(needs);
       expect(w.find('nldd-split-button').exists()).toBe(false);
       expect(w.find('[data-testid="enrich-with-opencode"]').exists()).toBe(false);
+    });
+  });
+
+  describe('stopping a running enrichment', () => {
+    function mountBusy(props: Record<string, unknown> = {}) {
+      return mount(MachineEmptyState, {
+        props: { canEnrich: true, enriching: true, scoped: true, ...props },
+      });
+    }
+
+    it('offers a stop that asks first, and emits only after confirmation', async () => {
+      const w = mountBusy();
+      // The custom elements are not registered here: give the dialog the two
+      // methods the component calls on it.
+      const dialog = w.find('nldd-modal-dialog').element as HTMLElement & { show?: () => void; hide?: () => void };
+      dialog.show = vi.fn();
+      dialog.hide = vi.fn();
+      const stop = w.find('[data-testid="stop-enrich-btn"]');
+      expect(stop.exists()).toBe(true);
+      await stop.trigger('click');
+      expect(dialog.show).toHaveBeenCalled();
+      expect(w.emitted('stop-enrich')).toBeUndefined();
+      await w.find('[data-testid="confirm-stop-enrich"]').trigger('click');
+      expect(w.emitted('stop-enrich')).toHaveLength(1);
+    });
+
+    it('offers no stop without the scope modes', () => {
+      const w = mountBusy({ scoped: false });
+      expect(w.find('[data-testid="enriching"]').exists()).toBe(true);
+      expect(w.find('[data-testid="stop-enrich-btn"]').exists()).toBe(false);
+    });
+
+    it('says the run is stopping once a stop was asked for', () => {
+      const w = mountBusy({ stopping: true });
+      expect(w.find('[data-testid="enrich-stopping"]').attributes('text')).toBe('Stoppen…');
+      expect(w.find('[data-testid="stop-enrich-btn"]').exists()).toBe(false);
     });
   });
 });
