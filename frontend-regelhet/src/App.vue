@@ -3,7 +3,7 @@
 // office): the editor's layout (gedeeld/Schil.vue) with the tabs of the side
 // the screen belongs to, the account of the login, and the trial band with the
 // date of the clock.
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { gedeeldApi } from './gedeeld/api';
@@ -40,6 +40,23 @@ const onder = computed(() => {
   const rol = cel ? `${hoofdletter(i.niveau)} bij ${cel}` : hoofdletter(i.niveau);
   return rol.toLowerCase() === naam.value?.trim().toLowerCase() ? null : rol;
 });
+// The organization this server runs the process for: the case's executor,
+// the same on every screen and for every employee, so it sits in the bar and
+// not on a screen. A citizen's side names its service there instead.
+const organisatie = ref<string | null>(null);
+watch(
+  ik,
+  async (i) => {
+    organisatie.value =
+      i && !i.burger
+        ? await gedeeldApi
+            .casus()
+            .then((c) => hoofdletter(c.cel_naam))
+            .catch(() => null)
+        : null;
+  },
+  { immediate: true },
+);
 const rechten = computed<Tab['recht'][]>(() => [
   ...(ik.value?.klok_zetten ? (['klok_zetten'] as const) : []),
   ...(ik.value?.partijen_invoeren ? (['partijen_invoeren'] as const) : []),
@@ -50,6 +67,7 @@ const rechten = computed<Tab['recht'][]>(() => [
   <Schil
     :tabs="tabsVan(route)"
     :titel="titelVan(route)"
+    :organisatie="organisatie"
     :actie="actieVan(route)"
     :naam="naam"
     :onder="onder"

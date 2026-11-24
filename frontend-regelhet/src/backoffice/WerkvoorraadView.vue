@@ -19,7 +19,7 @@
 
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { hoofdletter, toon } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
 import { artikelNaam, omschrijving, rolVan } from '../gedeeld/keten';
@@ -242,7 +242,6 @@ async function klaar(naam: string) {
       <nldd-top-title-bar slot="header" text="Aanvragen" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
       <nldd-simple-section width="full">
         <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Aanvragen</h3></nldd-title>
-        <nldd-text v-if="casus" color="secondary"><p>{{ hoofdletter(casus.cel_naam) }}</p></nldd-text>
         <nldd-spacer size="16"></nldd-spacer>
         <nldd-activity-indicator v-if="laden" text="De aanvragen laden" show-text></nldd-activity-indicator>
         <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De aanvragen laden niet" :supporting-text="fout"></nldd-inline-dialog>

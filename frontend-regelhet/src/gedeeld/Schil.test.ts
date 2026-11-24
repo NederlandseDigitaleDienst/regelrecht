@@ -71,6 +71,12 @@ describe('the shell', () => {
     expect(metTabs.find('[slot="mobile-bar"]').exists()).toBe(true);
   });
 
+  it('centers the organization in the bar of a side with tabs, and leaves it out of a side without', async () => {
+    const midden = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-toolbar-title[slot="center"]').map((t) => t.attributes('text'));
+    expect(midden(await toon({ organisatie: 'Gemeente Voorbeeld' }))).toEqual(['Gemeente Voorbeeld']);
+    expect(midden(await toon({ tabs: [], titel: 'Vergunningen', organisatie: 'Gemeente Voorbeeld' }))).toEqual([]);
+  });
+
   it('marks the tab of the screen as current, also on a screen under it', async () => {
     const w = await toon({}, '/lijst/7');
     expect(w.find('nldd-tab-bar-item').attributes('current')).toBeDefined();

@@ -34,10 +34,12 @@ const props = withDefaults(
     rechten?: Tab['recht'][];
     /** The name of the side, shown where it has no tabs. */
     titel?: string | null;
+    /** The organization the server runs the process for, centered in the bar of a side with tabs. */
+    organisatie?: string | null;
     /** The one action the side offers, as the primary button beside the account. */
     actie?: Actie | null;
   }>(),
-  { afmeldTekst: 'Uitloggen', klok: null, rechten: () => [], titel: null, actie: null, onder: null },
+  { afmeldTekst: 'Uitloggen', klok: null, rechten: () => [], titel: null, organisatie: null, actie: null, onder: null },
 );
 const emit = defineEmits<{ afmelden: [] }>();
 
@@ -69,6 +71,7 @@ const wijzen = computed(
       <nldd-container slot="primary-bar" above="md" padding="8" padding-left="16">
         <nldd-toolbar size="md">
           <nldd-toolbar-title v-if="titel" slot="start" :text="titel"></nldd-toolbar-title>
+          <nldd-toolbar-title v-if="organisatie && zichtbaar.length" slot="center" align="center" :text="organisatie"></nldd-toolbar-title>
           <nldd-toolbar-item v-if="zichtbaar.length" slot="start" :priority="1">
             <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
               <nldd-tab-bar-item
