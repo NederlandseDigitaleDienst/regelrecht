@@ -8710,6 +8710,68 @@ chunk_report:
         assert!(prompt.contains("> houd het bij lid 1"), "{prompt}");
     }
 
+    #[test]
+    fn the_article_mode_scope_allows_the_target_and_its_neighbours() {
+        let law = "$id: t\nbwb_id: BWBR0000001\narticles:\n  - number: \"2\"\n    text: \"Het bedrag, bedoeld in artikel 3.\"\n  - number: \"3\"\n    text: \"De grondslag.\"\n  - number: \"3.1\"\n    text: \"Een onderdeel.\"\n  - number: \"4\"\n    text: \"Losstaand.\"\n";
+        let entries: Vec<String> = ["2", "3", "3.1", "4"].map(String::from).to_vec();
+        let article = EnrichPayload {
+            mode: Some("article".into()),
+            articles: Some(vec!["2".into()]),
+            ..Default::default()
+        };
+        assert!(article.is_article_mode());
+        let scope = decide_scope(&article, law, &["2".to_string()], &entries);
+        assert!(scope.article_mode);
+        assert_eq!(scope.neighbours, vec!["3".to_string()]);
+        assert_eq!(scope.allowed, vec!["2", "3", "3.1"]);
+
+        // The law mode has no neighbours: only the targets may change.
+        let law_mode = EnrichPayload {
+            mode: Some("law".into()),
+            articles: Some(vec!["2".into()]),
+            ..Default::default()
+        };
+        assert!(!law_mode.is_article_mode());
+        let scope = decide_scope(&law_mode, law, &["2".to_string()], &entries);
+        assert!(scope.neighbours.is_empty());
+        assert_eq!(scope.allowed, vec!["2"]);
+    }
+
+    #[tokio::test]
+    async fn an_unscoped_run_with_a_stelsel_file_is_told_context_is_read_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let law_dir = dir.path().join("regulation/nl/wet/test_law");
+        tokio::fs::create_dir_all(&law_dir).await.unwrap();
+        let yaml_path = "regulation/nl/wet/test_law/2025-01-01.yaml";
+        tokio::fs::write(dir.path().join(yaml_path), four_article_law())
+            .await
+            .unwrap();
+        tokio::fs::write(
+            law_dir.join(crate::enrich_v2::stelsel::STELSEL_FILE),
+            "law_id: test_law\n",
+        )
+        .await
+        .unwrap();
+        let config = test_config(LlmProvider::OpenCode {
+            path: "fake".into(),
+            model: None,
+        });
+        let runner = OverreachingRunner {
+            prompts: std::sync::Mutex::new(Vec::new()),
+        };
+        let _ = execute_enrich_with_runner(
+            &chunk_test_payload(yaml_path),
+            dir.path(),
+            &config,
+            "sha1",
+            &runner,
+        )
+        .await;
+        let prompt = runner.prompts.lock().unwrap()[0].clone();
+        assert!(prompt.contains(crate::enrich_v2::stelsel::CONTEXT_READ_ONLY));
+        assert!(!prompt.contains("## Scope of this run"));
+    }
+
     #[tokio::test]
     async fn an_unscoped_run_keeps_its_prompt_and_reports_no_signals() {
         let dir = tempfile::tempdir().unwrap();
@@ -8738,7 +8800,9 @@ chunk_report:
         .await
         .unwrap();
         assert!(result.signals.is_empty());
-        assert!(!runner.prompts.lock().unwrap()[0].contains("## Scope of this run"));
+        let prompt = runner.prompts.lock().unwrap()[0].clone();
+        assert!(!prompt.contains("## Scope of this run"));
+        assert!(!prompt.contains(crate::enrich_v2::stelsel::CONTEXT_READ_ONLY));
     }
 
     fn four_article_law() -> &'static str {

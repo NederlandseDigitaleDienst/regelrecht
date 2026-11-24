@@ -2030,6 +2030,17 @@ pub async fn finish_enrich_task_job(
     .await
 }
 
+/// Whether an input blob is part of the stelselcontext the editor-api sent
+/// along: a slice of another law under `context/`, or the stelsel file beside
+/// the law. Those go to a continuation unchanged.
+pub(crate) fn is_context_blob(path: &str) -> bool {
+    path.starts_with("context/")
+        || Path::new(path).file_name()
+            == Some(std::ffi::OsStr::new(
+                crate::enrich_v2::stelsel::STELSEL_FILE,
+            ))
+}
+
 /// [`finish_enrich_task_job`] for a scoped run: `next_articles` is what is left
 /// of the work list, and becomes the continuation's `articles`. Without it a
 /// continuation of a scoped run would carry the whole list again, or, with no
@@ -2060,13 +2071,7 @@ pub async fn finish_enrich_task_job_scoped(
     // again rather than a brief without them.
     let context_blobs: Vec<(String, String)> = inputs
         .iter()
-        .filter(|b| {
-            b.path.starts_with("context/")
-                || Path::new(&b.path).file_name()
-                    == Some(std::ffi::OsStr::new(
-                        crate::enrich_v2::stelsel::STELSEL_FILE,
-                    ))
-        })
+        .filter(|b| is_context_blob(&b.path))
         .map(|b| (b.path.clone(), b.content.clone()))
         .collect();
     let source_yaml = inputs
@@ -4262,6 +4267,24 @@ articles:
         assert_eq!(remaining, Some(vec!["5".to_string()]));
         let (_, last) = scoped_task_config(&base, &scoped("law", &["5"])).expect("valid");
         assert_eq!(last, Some(vec![]), "the last batch finishes the list");
+    }
+
+    #[test]
+    fn context_blobs_are_the_slices_and_the_stelsel_file() {
+        assert!(is_context_blob("context/awir/law.yaml"));
+        assert!(is_context_blob("laws/zorgtoeslag/.enrichment-stelsel.yaml"));
+        assert!(!is_context_blob("laws/zorgtoeslag/law.yaml"));
+        assert!(!is_context_blob("laws/zorgtoeslag/.enrichment.yaml"));
+    }
+
+    #[test]
+    fn without_a_window_size_the_law_mode_is_one_batch() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 0;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("law", &["1", "3", "5"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["1", "3", "5"]);
+        assert_eq!(remaining, Some(vec![]));
     }
 
     #[test]

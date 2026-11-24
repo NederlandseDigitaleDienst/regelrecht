@@ -674,6 +674,130 @@ articles:
     }
 
     #[test]
+    fn read_finds_the_stelsel_file_beside_the_law() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(read(dir.path()), None);
+        std::fs::write(
+            dir.path().join(STELSEL_FILE),
+            "law_id: x\nconsumers:\n  - law_id: y\n    article: \"7\"\n    target: bedrag\n    kind: source_output\n",
+        )
+        .unwrap();
+        let ctx = read(dir.path()).expect("read");
+        assert_eq!(ctx.law_id, "x");
+        assert_eq!(ctx.consumers[0].law_id, "y");
+    }
+
+    fn link(law: &str, article: &str, target: &str, kind: &str) -> StelselLink {
+        StelselLink {
+            law_id: law.into(),
+            article: article.into(),
+            target: target.into(),
+            kind: kind.into(),
+        }
+    }
+
+    #[test]
+    fn the_section_shows_only_what_the_context_holds() {
+        let empty = StelselContext {
+            law_id: "x".into(),
+            ..Default::default()
+        };
+        let bare = render_section(&empty, Some(&RunScope::default()));
+        assert!(bare.contains("No article elsewhere in this corpus reads this law."));
+        for absent in [
+            "Neighbours you may adjust",
+            "### Open terms",
+            "### What this law reads elsewhere",
+            "### Not included",
+        ] {
+            assert!(!bare.contains(absent), "{absent} in {bare}");
+        }
+
+        let full = StelselContext {
+            law_id: "x".into(),
+            consumers: vec![link("y", "7", "bedrag", "source_output")],
+            open_terms: vec![
+                OpenTermDecl {
+                    id: "premie".into(),
+                    article: "2".into(),
+                },
+                OpenTermDecl {
+                    id: "drempel".into(),
+                    article: "3".into(),
+                },
+            ],
+            implementors: vec![link("regeling", "1", "premie", "implements")],
+            reads: vec![link("awir", "4", "inkomen", "source_output")],
+            omitted: vec!["groot".into()],
+            partial: false,
+        };
+        let scope = RunScope {
+            neighbours: vec!["3".into()],
+            ..Default::default()
+        };
+        let text = render_section(&full, Some(&scope));
+        assert!(text.contains("Neighbours you may adjust: 3."));
+        assert!(text.contains("`bedrag` is read by y art. 7"));
+        assert!(text.contains("`premie` (article 2), filled by regeling art. 1."));
+        assert!(text.contains("`drempel` (article 3), filled by no law in this corpus."));
+        assert!(text.contains("article 4 reads `inkomen` from awir"));
+        assert!(text.contains("groot were left out"));
+
+        // Implementors alone still open the section.
+        let only_implementors = StelselContext {
+            law_id: "x".into(),
+            implementors: vec![link("regeling", "1", "premie", "implements")],
+            ..Default::default()
+        };
+        assert!(render_section(&only_implementors, None).contains("### Open terms"));
+    }
+
+    #[test]
+    fn unquoted_article_numbers_count_as_articles() {
+        let before = "articles:\n  - number: 1\n    text: een\n  - number: 2\n    text: twee\n";
+        let after = before.replace("text: een", "text: een\n    machine_readable: {}");
+        let (_, reverted) = revert_out_of_scope(before, &after, &["2".to_string()]).unwrap();
+        assert_eq!(reverted, vec!["1".to_string()]);
+    }
+
+    #[test]
+    fn a_producer_or_reader_without_a_textual_reference_is_a_neighbour() {
+        let law = r#"
+$id: t
+bwb_id: BWBR0000002
+articles:
+  - number: "1"
+    text: "Eerste."
+    machine_readable:
+      execution:
+        output:
+          - name: a
+  - number: "2"
+    text: "Tweede."
+    machine_readable:
+      execution:
+        input:
+          - name: x
+            source:
+              output: a
+        output:
+          - name: b
+  - number: "3"
+    text: "Derde."
+    machine_readable:
+      execution:
+        input:
+          - name: y
+            source:
+              output: b
+"#;
+        let doc: Value = serde_yaml_ng::from_str(law).unwrap();
+        assert_eq!(neighbours(&doc, &["2".to_string()]), vec!["1", "3"]);
+        // Article 1 only produces: its neighbour is the reader, not 3.
+        assert_eq!(neighbours(&doc, &["1".to_string()]), vec!["2"]);
+    }
+
+    #[test]
     fn section_says_when_absence_proves_nothing() {
         let ctx = StelselContext {
             law_id: "x".into(),
