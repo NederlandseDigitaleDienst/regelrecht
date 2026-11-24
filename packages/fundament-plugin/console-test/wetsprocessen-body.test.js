@@ -1,6 +1,6 @@
 // What the wizard builds: the Wetsproces and the Secret of a private
 // repository, and the checks that say what is wrong before the API server
-// refuses it. Run with `node --test packages/fundament-plugin/console-test/`.
+// refuses it. Run with `node --test packages/fundament-plugin/console-test/*.test.js`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

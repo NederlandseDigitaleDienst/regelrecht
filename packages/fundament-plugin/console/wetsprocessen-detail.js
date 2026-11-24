@@ -1,20 +1,19 @@
-import { loadSdk, loadNlddDesignSystem, escapeHtml, renderKeyValueList, navigateBack } from './_shared.js';
+import {
+  loadSdk,
+  loadNlddDesignSystem,
+  escapeHtml,
+  renderKeyValueList,
+  linkRow,
+  conditionPairs,
+  deleteSectionHtml,
+  wireDelete,
+} from './_shared.js';
 import { WETSPROCES_RESOURCE, phaseBadge } from './wetsprocessen-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
 const ctx = await fundament.init;
 const content = document.getElementById('content');
 const { name, namespace } = ctx.resource ?? {};
-
-function linkRow(label, url) {
-  if (!url) return '';
-  return `
-    <nldd-list-item>
-      <nldd-text-cell text="${escapeHtml(label)}"></nldd-text-cell>
-      <nldd-spacer-cell size="12"></nldd-spacer-cell>
-      <nldd-link href="${escapeHtml(url)}" target="_blank" text="${escapeHtml(url)}"></nldd-link>
-    </nldd-list-item>`;
-}
 
 // Where the passwords of stable mode are: the name of the Secret and its
 // keys, and how to read one, never a value. The page cannot read the Secret
@@ -41,10 +40,7 @@ function show(item) {
   const badge = phaseBadge(item);
   const spec = item.spec ?? {};
   const manifest = spec.manifest ?? {};
-  const conditions = (item.status?.conditions ?? []).map((c) => [
-    c.type,
-    `${c.status === 'True' ? 'ja' : 'nee'}${c.message ? `: ${c.message}` : ''}`,
-  ]);
+  const conditions = conditionPairs(item);
   content.innerHTML = `
     <nldd-title size="2" heading-level="1" text="${escapeHtml(name)}"
                 supporting-text="${escapeHtml(ctx.namespaceDisplayNames?.[namespace] ?? namespace)}">
@@ -78,56 +74,29 @@ function show(item) {
         ],
         ['FSC voor Burgers', spec.fsc4b?.enabled ? 'aan, met het demo-stelsel' : 'uit'],
         ['Externe partijen', spec.parties?.ownInstances ? 'op een eigen omgeving, waar de casus een partij iets vraagt' : 'via het beheerpaneel'],
+        ['Organisatie', organisatieText(spec.organisatie, item)],
         ['Hostnaam', spec.hostname ?? ''],
       ],
       'Instellingen',
     )}
     ${conditions.length ? `<nldd-spacer size="16"></nldd-spacer><nldd-title size="5" heading-level="2" text="Toestand"></nldd-title>${renderKeyValueList(conditions, 'Toestand')}` : ''}
     <nldd-spacer size="24"></nldd-spacer>
-    <nldd-title size="5" heading-level="2" text="Verwijderen"></nldd-title>
-    <nldd-rich-text>
-      <p>Verwijderen haalt het wetsproces weg met alles wat erbij hoort: de schermen, de database met alle
-      kronieken en het volume eronder. Dat is niet terug te draaien, en er is geen back-up.</p>
-    </nldd-rich-text>
-    <nldd-spacer size="12"></nldd-spacer>
-    <nldd-form>
-      <form id="delete-form" novalidate>
-        <nldd-banner id="delete-error" variant="critical" hidden></nldd-banner>
-        <nldd-form-field label="Typ **${escapeHtml(name)}** om te bevestigen">
-          <nldd-text-field id="confirm" name="confirm" no-spellcheck></nldd-text-field>
-        </nldd-form-field>
-        <nldd-form-actions>
-          <nldd-button id="delete-btn" type="submit" appearance="destructive" text="Wetsproces en data verwijderen"></nldd-button>
-        </nldd-form-actions>
-      </form>
-    </nldd-form>`;
+    ${deleteSectionHtml(
+      name,
+      'Verwijderen haalt de procedure weg met alles wat erbij hoort: de schermen, de database met alle kronieken en het volume eronder. Dat is niet terug te draaien, en er is geen back-up.',
+      'Procedure en data verwijderen',
+    )}`;
+  wireDelete(content, { resource: WETSPROCES_RESOURCE, name, namespace });
+}
 
-  const form = document.getElementById('delete-form');
-  const banner = document.getElementById('delete-error');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    banner.hidden = true;
-    if (String(document.getElementById('confirm').value ?? '').trim() !== name) {
-      banner.setAttribute('text', `Typ ${name} om het verwijderen te bevestigen.`);
-      banner.hidden = false;
-      return;
-    }
-    const button = document.getElementById('delete-btn');
-    button.loading = true;
-    try {
-      await fundament.k8s.delete({ ...WETSPROCES_RESOURCE, name, namespace });
-      navigateBack();
-    } catch (err) {
-      banner.setAttribute(
-        'text',
-        err?.code === 'forbidden'
-          ? 'Verwijderen mag alleen een beheerder van het project.'
-          : `Verwijderen lukte niet: ${err?.message ?? err}`,
-      );
-      banner.hidden = false;
-      button.loading = false;
-    }
-  });
+// The organisatie of spec.organisatie, and whether the plugin put the
+// wetsproces on its list (condition OrganisatieGevonden).
+function organisatieText(ref, item) {
+  if (!ref) return 'geen, losse procedure';
+  const where = `${ref.namespace || namespace}/${ref.name}`;
+  const found = (item.status?.conditions ?? []).find((c) => c.type === 'OrganisatieGevonden');
+  if (!found) return where;
+  return found.status === 'True' ? `${where}, aangemeld` : `${where}, niet aangemeld: ${found.message}`;
 }
 
 try {
@@ -135,6 +104,6 @@ try {
 } catch (err) {
   const banner = document.createElement('nldd-banner');
   banner.setAttribute('variant', 'critical');
-  banner.setAttribute('text', `Dit wetsproces is niet te lezen: ${err?.message ?? err}`);
+  banner.setAttribute('text', `Deze procedure is niet te lezen: ${err?.message ?? err}`);
   content.replaceChildren(banner);
 }

@@ -127,7 +127,7 @@ func TestAPodMapsToTheWetsprocesOfItsRelease(t *testing.T) {
 
 func TestTheReleaseWaitsThreeMinutes(t *testing.T) {
 	t.Parallel()
-	hr := newHelmRelease(newWetsproces("a", "a"), validConfig())
+	hr := newHelmRelease(newWetsproces("a", "a"), nil)
 	timeout, _, _ := unstructured.NestedString(hr.Object, "spec", "timeout")
 	assert.Equal(t, "3m", timeout)
 }

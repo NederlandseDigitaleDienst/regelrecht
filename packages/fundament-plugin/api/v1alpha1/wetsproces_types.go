@@ -169,6 +169,12 @@ type WetsprocesSpec struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$`
 	Hostname string `json:"hostname"`
+
+	// Organisatie puts this wetsproces on the list of an Organisatie in the
+	// same Fundament project, behind its front. The wetsproces keeps its own
+	// addresses. Empty runs it on its own.
+	// +optional
+	Organisatie *OrganisatieReference `json:"organisatie,omitempty"`
 }
 
 // WetsprocesStatus is what the plugin last saw.
@@ -221,7 +227,8 @@ type WetsprocesStatus struct {
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// Conditions are Ready and ReleaseReady.
+	// Conditions are Ready and ReleaseReady, and OrganisatieGevonden with
+	// spec.organisatie.
 	// +listType=map
 	// +listMapKey=type
 	// +optional

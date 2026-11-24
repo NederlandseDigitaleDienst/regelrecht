@@ -12,8 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
 
 // The labels the chart puts on every pod of a release (charts/wetsproces,
@@ -70,14 +68,15 @@ const (
 // termination message as they were written.
 var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-// releasePodProblem looks at the pods of w's release and returns the first
-// problem it finds, by pod name, or nil when every container is running or
-// still on its way. now is the time the start-up grace is measured against.
-func releasePodProblem(ctx context.Context, c client.Reader, w *v1alpha1.Wetsproces, now time.Time) (*podProblem, error) {
+// releasePodProblem looks at the pods of the release of owner, a Wetsproces
+// or an Organisatie, and returns the first problem it finds, by pod name, or
+// nil when every container is running or still on its way. now is the time
+// the start-up grace is measured against.
+func releasePodProblem(ctx context.Context, c client.Reader, owner client.Object, now time.Time) (*podProblem, error) {
 	var pods corev1.PodList
-	if err := c.List(ctx, &pods, client.InNamespace(w.Namespace),
-		client.MatchingLabels{appLabel: appName, instanceLabel: w.Name}); err != nil {
-		return nil, fmt.Errorf("list the pods of %s/%s: %w", w.Namespace, w.Name, err)
+	if err := c.List(ctx, &pods, client.InNamespace(owner.GetNamespace()),
+		client.MatchingLabels{appLabel: appName, instanceLabel: owner.GetName()}); err != nil {
+		return nil, fmt.Errorf("list the pods of %s/%s: %w", owner.GetNamespace(), owner.GetName(), err)
 	}
 	sort.Slice(pods.Items, func(i, j int) bool { return pods.Items[i].Name < pods.Items[j].Name })
 	for i := range pods.Items {

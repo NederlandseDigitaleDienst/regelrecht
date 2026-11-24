@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: wetsprocessen.wetsproces.regelrecht.nl
 spec:
   group: wetsproces.regelrecht.nl
@@ -133,6 +133,26 @@ spec:
                 required:
                 - repoUrl
                 type: object
+              organisatie:
+                description: |-
+                  Organisatie puts this wetsproces on the list of an Organisatie in the
+                  same Fundament project, behind its front. The wetsproces keeps its own
+                  addresses. Empty runs it on its own.
+                properties:
+                  name:
+                    description: Name of the Organisatie.
+                    maxLength: 40
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace of the Organisatie; empty is the namespace of the
+                      Wetsproces. It must be a namespace of the same Fundament project.
+                    maxLength: 63
+                    type: string
+                required:
+                - name
+                type: object
               parties:
                 description: |-
                   Parties says where the external parties of the case work. Empty
@@ -203,7 +223,9 @@ spec:
                 description: BackofficeURL is where employees do.
                 type: string
               conditions:
-                description: Conditions are Ready and ReleaseReady.
+                description: |-
+                  Conditions are Ready and ReleaseReady, and OrganisatieGevonden with
+                  spec.organisatie.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

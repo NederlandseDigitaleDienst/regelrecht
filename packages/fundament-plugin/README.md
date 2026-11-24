@@ -3,7 +3,7 @@
 A [Fundament](https://github.com/fundament-oss/fundament) plugin that offers
 the wetsprocessysteem (`packages/wetsproces`) to the projects of a cluster. It
 is installed once per cluster. After that a project member creates a
-wetsproces in the console under **Wetsprocessen**, and each one runs one case
+wetsproces in the console under **Procedures**, and each one runs one case
 on an address of its own, with a database of its own. Several can run in one
 namespace or spread over several. The model is that of Fundament's
 CloudNativePG plugin, where a project makes its own databases.
@@ -177,6 +177,95 @@ reports that the chart is not there.
 The case comes from `manifest.ref`, not from the image. A case on `main` that
 needs a newer server than the pinned image can stop the server at start; it
 says why in its log.
+
+## Organisaties
+
+A municipality runs more than one wetsproces. An `Organisatie` puts several of
+them behind one front with its own name, logo and login, so employees log in
+once and citizens find every product in one place. Each wetsproces keeps its own
+release, its own database and its own addresses, and works on its own as well.
+
+```yaml
+apiVersion: wetsproces.regelrecht.nl/v1alpha1
+kind: Organisatie
+metadata:
+  name: wilgendaal
+  namespace: tnt-rr-voorbeeld--wilgendaal
+spec:
+  displayName: Gemeente Wilgendaal
+  logo: https://wilgendaal.example.org/logo.svg   # optional
+  theme:
+    accentColor: groen
+  hostname: wilgendaal
+  version: ''                                      # as for a Wetsproces
+  auth:
+    mode: test                                     # test only, for now
+status:
+  phase: Ready
+  url: https://wilgendaal.cluster-a.fieldlab2026.nl/
+  backofficeUrl: https://wilgendaal-medewerkers.cluster-a.fieldlab2026.nl/
+  processen:
+    - namespace: tnt-rr-voorbeeld--parkeerkaart
+      name: parkeerkaart
+      phase: Ready
+```
+
+A wetsproces joins it through its own spec. An empty `namespace` is the
+namespace of the wetsproces:
+
+```yaml
+spec:
+  organisatie:
+    name: wilgendaal
+    namespace: tnt-rr-voorbeeld--wilgendaal
+```
+
+For an Organisatie the plugin makes a `GitRepository` and a `HelmRelease`, as
+for a Wetsproces and with the same chart, with the block `voorkant` in the
+values: the server in its role as a front, without a case and without a
+database. The list of processes in that block holds every Wetsproces that
+names the organisatie, with its address on the cluster network
+(`http://<name>-<side>.<namespace>.svc.cluster.local:8000`) and its public
+one. The plugin watches wetsprocessen, so a process that joins or leaves
+changes the list, and the chart restarts the front.
+
+The HelmRelease of a wetsproces on the list gets the block `organisatie`: the
+id of the front, its name, its two addresses and where its public key is
+served on the cluster network. The wetsproces accepts what that front signs.
+
+A wetsproces joins only an organisatie of its own Fundament project. In one
+namespace that holds by itself; across namespaces both must carry the same
+`fundament.io/project-id` label, which the plugin reads with `get` on the two
+namespaces. Without the check any project could put a wetsproces behind the
+front of another. The condition `OrganisatieGevonden` on the wetsproces says
+how it went:
+
+| Reason | What happens |
+|---|---|
+| `OrganisatieFound` | on the list; the release has the block `organisatie` |
+| `OrganisatieNotFound` | the organisatie does not exist or is being deleted; the wetsproces runs on its own |
+| `OrganisatieInOtherProject` | the namespaces are in different projects, or one is in none; the wetsproces runs on its own |
+| `OrganisatieModeMismatch` | a stable wetsproces behind a front in test mode, whose test login lets anyone in as anyone; the wetsproces goes to `Failed` |
+
+A wetsproces also runs on its own, with the reason `OrganisatieRefused`, when
+the plugin refuses the organisatie itself (its spec, its address or its name).
+The other way round, an organisatie lists no wetsproces the plugin refuses.
+The plugin reads the project label when a wetsproces or an organisatie
+changes; it does not watch namespaces, so a label that changes later counts
+from the next change of either.
+
+Deleting an organisatie deletes its release and leaves the wetsprocessen
+running; their condition turns `False` and their releases lose the block. The
+plugin then deletes the Secret `<name>-organisatie` with the signing key, which
+the Job of the chart made outside Helm, as it does with the Keycloak Secret of
+a wetsproces. The wizard of a stable wetsproces skips the step **Organisatie**:
+an organisatie runs in test mode only for now.
+
+The address check of a wetsproces covers organisaties as well: an organisatie
+`wilgendaal` and a wetsproces `wilgendaal` cannot both have
+`wilgendaal.<domain>`, and the newer one gets `HostnameInUse`. Within one
+namespace a Wetsproces and an Organisatie cannot share a name either, because
+the name is that of their Helm release; the newer one gets `NameInUse`.
 
 ## The chart behind a shared Gateway
 
@@ -385,7 +474,7 @@ Both examples are complete in `charts/wetsproces/ci/`, where CI renders them.
 
 ## Console
 
-The plugin adds **Wetsprocessen** to the project sidebar, under the heading
+The plugin adds **Procedures** to the project sidebar, under the heading
 **RegelHet** (the `displayName` of the definition), with pages of its own
 under `console/`: a list, a detail page with the addresses and the status, and
 a wizard that asks, one step at a time, for the case, the access and the login
@@ -394,13 +483,27 @@ the accent color and the address, and shows what it will make before it makes
 it. For a private repository the wizard makes the Secret with the token as well,
 owned by the Wetsproces so the two go together.
 
+The console calls a wetsproces a procedure: the menu item, the page titles and
+the text on the pages say "procedure", while the kind `Wetsproces`, its API
+group, its fields and the addresses keep their names.
+
+Under **Organisaties**, next to **Procedures**, are the same three pages for an Organisatie: a list,
+a detail page with the addresses, the wetsprocessen on its list and the status,
+and a wizard for the name and logo, the accent color and the address. The
+wizard of a wetsproces has a step **Organisatie** with three choices: none, a
+new one (whose name, address, logo and color it asks for, and which it makes in
+the namespace of the wetsproces before the wetsproces itself), or one of the
+organisaties in the namespaces of the project. The detail page of a wetsproces
+names its organisatie and whether it is on the list. Both wizards share the
+step machine in `console/_shared.js`.
+
 The version step offers the latest build or a commit typed in. It does not list
 the available builds: the console's content security policy lets a page reach
 only Fundament's own APIs, not the registry.
 
 The pages are plain ES modules with the NLDD components the console serves
-(0.15.0). Their logic outside the DOM is in `console/wetsprocessen-body.js`,
-with tests in `console-test/`.
+(0.15.0). Their logic outside the DOM is in `console/wetsprocessen-body.js` and
+`console/organisaties-body.js`, with tests in `console-test/`.
 
 ## Configuration
 
@@ -427,22 +530,24 @@ v0.1 made stay in their namespace until they are deleted by hand.
 
 | Event | What the plugin does |
 |---|---|
-| Start, install, upgrade | Checks that Flux is there, applies the CRD and the two roles below, then runs the controller. A failed set-up is retried every 30 seconds. |
+| Start, install, upgrade | Checks that Flux is there, applies the two CRDs and the two roles below, then runs the controllers. A failed set-up is retried every 30 seconds. |
 | Reconcile | Repairs the CRD and the roles and reports how many wetsprocessen are ready, every `FUNP_RECONCILE_INTERVAL` (default 5m). |
-| Uninstall | Deletes the two roles. It keeps the CRD and every Wetsproces: deleting the CRD would delete every wetsproces with its data. Flux keeps them running; without the plugin nobody reconciles a change. |
+| Uninstall | Deletes the two roles. It keeps the CRDs and every object: deleting the Wetsproces CRD would delete every wetsproces with its data. Flux keeps them running; without the plugin nobody reconciles a change. |
 
-To remove everything after an uninstall, delete the Wetsproces objects first
-(`kubectl delete wetsprocessen --all -n <namespace>`), then the CRD.
+To remove everything after an uninstall, delete the objects first
+(`kubectl delete wetsprocessen,organisaties --all -n <namespace>`), then the
+CRDs.
 
 ## Permissions
 
 Fundament makes `spec.permissions.rbac` a ClusterRole, so no rule can be kept
 to the namespaces of a project. The rules in `definition.yaml` say per group
-why the plugin needs them. In short: create and get the plugin's own CRD,
-manage two ClusterRoles by name, manage Wetsproces objects and their status,
-manage Flux `GitRepository` and `HelmRelease` objects, read pods, and create,
-get and delete Secrets. Pods are read to report a wetsproces that does not
-start. On Secrets the plugin has no `list` or `watch`, so it sees only a
+why the plugin needs them. In short: create and get the plugin's own CRDs,
+manage two ClusterRoles by name, manage Wetsproces and Organisatie objects and
+their status, manage Flux `GitRepository` and `HelmRelease` objects, read pods,
+get namespaces, and create, get and delete Secrets. Pods are read to report a
+wetsproces that does not start. A namespace is read, with `get` only, for its
+project label when a wetsproces names an organisatie in another namespace. On Secrets the plugin has no `list` or `watch`, so it sees only a
 Secret it asks for by name:
 
 - `create` is for the wizard, which makes the Secret with the token of a
@@ -457,7 +562,7 @@ The pages never read a Secret.
 
 The two ClusterRoles aggregate into `admin` and `view`, the roles Fundament
 binds project admins and viewers to. Admins may create and delete
-wetsprocessen; viewers may read them.
+wetsprocessen and organisaties; viewers may read them.
 
 ## External parties on a release of their own
 
@@ -519,7 +624,7 @@ regenerate the deep copies and the CRD with controller-gen 0.20:
 ```sh
 controller-gen object paths=./api/... crd:crdVersions=v1 output:crd:dir=./crds
 go -C packages/fundament-plugin test ./...
-node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
+node --test packages/fundament-plugin/console-test/*.test.js
 docker build -t wetsproces-fundament-plugin:dev packages/fundament-plugin
 ```
 

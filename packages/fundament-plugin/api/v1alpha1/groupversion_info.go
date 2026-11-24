@@ -1,5 +1,6 @@
 // Package v1alpha1 holds the API of the wetsproces plugin: the Wetsproces
-// resource, one wetsprocessysteem per object.
+// resource, one wetsprocessysteem per object, and the Organisatie resource,
+// one front for several of them.
 // +kubebuilder:object:generate=true
 // +groupName=wetsproces.regelrecht.nl
 package v1alpha1
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	// GroupVersion is the group and version of the Wetsproces resource.
+	// GroupVersion is the group and version of the resources of the plugin.
 	GroupVersion = schema.GroupVersion{Group: "wetsproces.regelrecht.nl", Version: "v1alpha1"}
 
 	// SchemeBuilder adds the types of this group-version to a scheme. The

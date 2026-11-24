@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
@@ -38,11 +39,12 @@ var (
 	helmReleaseGVK   = schema.GroupVersionKind{Group: "helm.toolkit.fluxcd.io", Version: "v2", Kind: "HelmRelease"}
 )
 
-// sourceName is the GitRepository with the chart of the Wetsproces w. The
-// HelmRelease, the Helm release and the chart's own objects (Deployments,
-// Services, Gateway, database) are named after w itself, so two Wetsproces
-// objects in one namespace never share an object.
-func sourceName(w *v1alpha1.Wetsproces) string { return w.Name + "-chart" }
+// sourceName is the GitRepository with the chart of a Wetsproces or an
+// Organisatie. The HelmRelease, the Helm release and the chart's own objects
+// (Deployments, Services, Gateway, database) are named after the object
+// itself, so two objects in one namespace never share one; a Wetsproces and an
+// Organisatie of the same name in one namespace are refused (NameInUse).
+func sourceName(owner client.Object) string { return owner.GetName() + "-chart" }
 
 // hosts are the addresses of w: citizens on its hostname under the base
 // domain, employees on <hostname>-medewerkers beside it. Both stay one label
@@ -61,7 +63,12 @@ type hosts struct {
 }
 
 func hostsOf(w *v1alpha1.Wetsproces, domain string) hosts {
-	name := w.Spec.Hostname
+	return hostsFor(w.Spec.Hostname, isStable(w), domain)
+}
+
+// hostsFor is hostsOf for a hostname, which a Wetsproces and an Organisatie
+// turn into addresses the same way.
+func hostsFor(name string, stable bool, domain string) hosts {
 	var h hosts
 	if strings.Contains(name, ".") {
 		first, rest, _ := strings.Cut(name, ".")
@@ -69,7 +76,7 @@ func hostsOf(w *v1alpha1.Wetsproces, domain string) hosts {
 	} else {
 		h = hosts{burger: name + "." + domain, backoffice: name + "-medewerkers." + domain, login: name + "-login." + domain}
 	}
-	if !isStable(w) {
+	if !stable {
 		h.login = ""
 	}
 	return h
@@ -130,16 +137,21 @@ func validateSpec(w *v1alpha1.Wetsproces, domain string) error {
 	if w.Spec.Fsc4b.Enabled && isStable(w) {
 		return fmt.Errorf("fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only")
 	}
-	h := hostsOf(w, domain)
+	return validateHosts(w.Spec.Hostname, hostsOf(w, domain))
+}
+
+// validateHosts checks that every address h gives the hostname is a domain
+// name, label by label.
+func validateHosts(hostname string, h hosts) error {
 	for _, name := range h.all() {
 		if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
-			return fmt.Errorf("hostname %q gives %s, which is no valid domain name: %s", w.Spec.Hostname, name, strings.Join(errs, "; "))
+			return fmt.Errorf("hostname %q gives %s, which is no valid domain name: %s", hostname, name, strings.Join(errs, "; "))
 		}
 		// The subdomain check counts the whole name; each label between the
 		// dots has a limit of its own, which -medewerkers can push it past.
 		for _, label := range strings.Split(name, ".") {
 			if errs := validation.IsDNS1123Label(label); len(errs) > 0 {
-				return fmt.Errorf("hostname %q gives %s, whose part %q is no valid label: %s", w.Spec.Hostname, name, label, strings.Join(errs, "; "))
+				return fmt.Errorf("hostname %q gives %s, whose part %q is no valid label: %s", hostname, name, label, strings.Join(errs, "; "))
 			}
 		}
 	}
@@ -162,16 +174,16 @@ func pathOrDefault(path string) string {
 	return path
 }
 
-func objectLabels(w *v1alpha1.Wetsproces) map[string]any {
-	return map[string]any{managedByLabel: fieldOwner, nameLabel: w.Name}
+func objectLabels(owner client.Object) map[string]any {
+	return map[string]any{managedByLabel: fieldOwner, nameLabel: owner.GetName()}
 }
 
-func newObject(gvk schema.GroupVersionKind, w *v1alpha1.Wetsproces, name string, spec map[string]any) *unstructured.Unstructured {
+func newObject(gvk schema.GroupVersionKind, owner client.Object, name string, spec map[string]any) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{Object: map[string]any{
 		"metadata": map[string]any{
 			"name":      name,
-			"namespace": w.Namespace,
-			"labels":    objectLabels(w),
+			"namespace": owner.GetNamespace(),
+			"labels":    objectLabels(owner),
 		},
 		"spec": spec,
 	}}
@@ -179,16 +191,17 @@ func newObject(gvk schema.GroupVersionKind, w *v1alpha1.Wetsproces, name string,
 	return obj
 }
 
-// newGitRepository builds the source of the chart: the fork at ChartRef, or,
-// for a Wetsproces with a version, at that very commit, so the image and the
-// chart that runs it come from one commit. The ignore rules keep only the
-// chart, so the artifact stays small in a large repository.
-func newGitRepository(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Unstructured {
+// newGitRepository builds the source of the chart for owner, a Wetsproces or
+// an Organisatie: the fork at ChartRef, or, for one with a version, at that
+// very commit, so the image and the chart that runs it come from one commit.
+// The ignore rules keep only the chart, so the artifact stays small in a large
+// repository.
+func newGitRepository(owner client.Object, version string, cfg pluginConfig) *unstructured.Unstructured {
 	ref := map[string]any{"branch": cfg.ChartRef}
-	if w.Spec.Version != "" {
-		ref = map[string]any{"commit": w.Spec.Version}
+	if version != "" {
+		ref = map[string]any{"commit": version}
 	}
-	return newObject(gitRepositoryGVK, w, sourceName(w), map[string]any{
+	return newObject(gitRepositoryGVK, owner, sourceName(owner), map[string]any{
 		"url":      forkURL,
 		"ref":      ref,
 		"interval": fluxInterval,
@@ -215,20 +228,8 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 		caseValues["credentialsSecret"] = m.CredentialsSecretRef.Name
 	}
 	h := hostsOf(w, cfg.Domain)
-	values := map[string]any{
-		"domain": cfg.Domain,
-		"host":   h.burger,
-		"surfaces": map[string]any{
-			"burger":     map[string]any{"host": h.burger},
-			"backoffice": map[string]any{"host": h.backoffice},
-		},
-		"case":  caseValues,
-		"theme": map[string]any{"accentColor": w.Spec.Theme.AccentColor},
-		"tls":   map[string]any{"acme": cfg.ACME},
-	}
-	if w.Spec.Version != "" {
-		values["image"] = map[string]any{"ref": cfg.DefaultImage + ":" + w.Spec.Version}
-	}
+	values := baseValues(h, w.Spec.Theme.AccentColor, w.Spec.Version, cfg)
+	values["case"] = caseValues
 	if w.Spec.Fsc4b.Enabled {
 		// The chart sets the demo Stelsel on the citizens' instance; its
 		// keys are made in memory at start, so there is no Secret to name.
@@ -254,27 +255,47 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 	return values
 }
 
-// newHelmRelease builds the HelmRelease that installs the chart for w.
-// reconcileStrategy Revision rebuilds the chart on every new commit of the
-// source, because the chart version does not change per commit.
-func newHelmRelease(w *v1alpha1.Wetsproces, cfg pluginConfig) *unstructured.Unstructured {
-	return newObject(helmReleaseGVK, w, w.Name, map[string]any{
+// baseValues are the values a Wetsproces and an Organisatie set alike: the
+// addresses, the colour, the certificates and, with a version, the image.
+func baseValues(h hosts, accentColor, version string, cfg pluginConfig) map[string]any {
+	values := map[string]any{
+		"domain": cfg.Domain,
+		"host":   h.burger,
+		"surfaces": map[string]any{
+			"burger":     map[string]any{"host": h.burger},
+			"backoffice": map[string]any{"host": h.backoffice},
+		},
+		"theme": map[string]any{"accentColor": accentColor},
+		"tls":   map[string]any{"acme": cfg.ACME},
+	}
+	if version != "" {
+		values["image"] = map[string]any{"ref": cfg.DefaultImage + ":" + version}
+	}
+	return values
+}
+
+// newHelmRelease builds the HelmRelease that installs the chart for owner, a
+// Wetsproces or an Organisatie, with values. reconcileStrategy Revision
+// rebuilds the chart on every new commit of the source, because the chart
+// version does not change per commit.
+func newHelmRelease(owner client.Object, values map[string]any) *unstructured.Unstructured {
+	return newObject(helmReleaseGVK, owner, owner.GetName(), map[string]any{
 		"interval":    fluxInterval,
 		"timeout":     releaseTimeout,
-		"releaseName": w.Name,
+		"releaseName": owner.GetName(),
 		"chart": map[string]any{
 			"spec": map[string]any{
 				"chart":             "./" + chartPath,
 				"reconcileStrategy": "Revision",
 				"sourceRef": map[string]any{
 					"kind": "GitRepository",
-					"name": sourceName(w),
+					"name": sourceName(owner),
 				},
 			},
 		},
 		"install": map[string]any{"remediation": map[string]any{"retries": int64(3)}},
 		"upgrade": map[string]any{"remediation": map[string]any{"retries": int64(3)}},
-		"values":  chartValues(w, cfg),
+		"values":  values,
 	})
 }
 

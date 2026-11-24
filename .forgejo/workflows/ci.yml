@@ -121,7 +121,9 @@ jobs:
       - run: npm test -w frontend-wetsproces -- --maxWorkers=2
       - run: npm run typecheck -w frontend-wetsproces
       # The console pages of the Fundament plugin: plain modules, no build.
-      - run: node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
+      - run: >-
+          node --test packages/fundament-plugin/console-test/wetsprocessen-body.test.js
+          packages/fundament-plugin/console-test/organisaties-body.test.js
       - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
       - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
 

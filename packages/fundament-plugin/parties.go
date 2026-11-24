@@ -91,7 +91,7 @@ func newHTTPParties() *httpParties {
 
 func (p *httpParties) Asked(ctx context.Context, w *v1alpha1.Wetsproces) (askedParties, error) {
 	var asked askedParties
-	url := fmt.Sprintf("http://%s-backoffice.%s.svc.cluster.local:%d%s", w.Name, w.Namespace, serverPort, partiesPath)
+	url := internalURL(w, "backoffice") + partiesPath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return asked, fmt.Errorf("ask %s: %w", url, err)
@@ -228,13 +228,12 @@ func partyValues(w *v1alpha1.Wetsproces, cfg pluginConfig, p v1alpha1.PartyStatu
 // source of w itself.
 func newPartyRelease(w *v1alpha1.Wetsproces, cfg pluginConfig, p v1alpha1.PartyStatus) *unstructured.Unstructured {
 	name := partyRelease(w, p.Cell)
-	hr := newHelmRelease(w, cfg)
+	hr := newHelmRelease(w, partyValues(w, cfg, p))
 	hr.SetName(name)
 	labels := hr.GetLabels()
 	labels[partyLabel] = partySlug(p.Cell)
 	hr.SetLabels(labels)
 	_ = unstructured.SetNestedField(hr.Object, name, "spec", "releaseName")
-	_ = unstructured.SetNestedMap(hr.Object, partyValues(w, cfg, p), "spec", "values")
 	return hr
 }
 

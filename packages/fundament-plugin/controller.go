@@ -14,8 +14,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026/packages/fundament-plugin/api/v1alpha1"
 )
@@ -54,8 +59,11 @@ type WetsprocesReconciler struct {
 	// Secrets reads one Secret past the cache, so the plugin needs get on
 	// Secrets and no informer over every Secret of the cluster (list, watch).
 	Secrets client.Reader
-	Scheme  *runtime.Scheme
-	Config  pluginConfig
+	// Namespaces reads one Namespace past the cache, for its project label,
+	// when a Wetsproces names an Organisatie in another namespace.
+	Namespaces client.Reader
+	Scheme     *runtime.Scheme
+	Config     pluginConfig
 	// Parties asks a running release which parties its policy asks
 	// something of; the Service inside the cluster when nil.
 	Parties PartiesReader
@@ -86,11 +94,34 @@ func (r *WetsprocesReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// The pods of the release are Helm's, not the plugin's, so they are
 		// watched by their labels rather than owned.
 		Watches(&corev1.Pod{}, podToWetsproces()).
+		// A wetsproces that names an organisatie joins it once it appears,
+		// and runs on its own again once it goes.
+		// Only on a change of its spec: its status changes with every phase
+		// of every member, and resolveOrganisatie reads the spec alone.
+		Watches(&v1alpha1.Organisatie{}, handler.EnqueueRequestsFromMapFunc(r.namingWetsprocessen),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 	if err != nil {
 		return fmt.Errorf("register the Wetsproces controller: %w", err)
 	}
 	return nil
+}
+
+// namingWetsprocessen are the wetsprocessen that name the Organisatie obj.
+func (r *WetsprocesReconciler) namingWetsprocessen(ctx context.Context, obj client.Object) []reconcile.Request {
+	var all v1alpha1.WetsprocesList
+	if err := r.Client.List(ctx, &all); err != nil {
+		log.FromContext(ctx).Error(err, "list the wetsprocessen that name an organisatie", "organisatie", client.ObjectKeyFromObject(obj))
+		return nil
+	}
+	var out []reconcile.Request
+	for i := range all.Items {
+		w := &all.Items[i]
+		if w.Spec.Organisatie != nil && organisatieKey(w) == client.ObjectKeyFromObject(obj) {
+			out = append(out, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(w)})
+		}
+	}
+	return out
 }
 
 // Reconcile brings one Wetsproces to its spec.
@@ -126,136 +157,110 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 		w.Status.LoginURL = "https://" + h.login + "/"
 		w.Status.KeycloakSecret = keycloakSecret(w)
 	}
-	if err := validateSpec(w, r.Config.Domain); err != nil {
-		refuse(w, reasonInvalidSpec, err.Error())
+	reason, message, err := wetsprocesRefusal(ctx, r.Client, r.Config, w)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if reason != "" {
+		// A refused wetsproces is on no organisatie's list either.
+		apimeta.RemoveStatusCondition(&w.Status.Conditions, v1alpha1.ConditionOrganisatieFound)
+		refuse(w, reason, message)
+		if reason == reasonHostnameInUse || reason == reasonNameInUse {
+			// The other one may be deleted without an event here.
+			return ctrl.Result{RequeueAfter: retryRequeue}, nil
+		}
 		return ctrl.Result{}, nil
 	}
 	// Only for a spec the plugin accepts: a refused one serves no discovery.
 	if w.Spec.Fsc4b.Enabled {
 		w.Status.Fsc4bDiscoveryURL = "https://" + h.burger + fsc4bDiscoveryPath
 	}
-	if isStable(w) && r.Config.ACME != acmeProduction {
-		// The server reads Keycloak's discovery document at start, over
-		// HTTPS, and does not trust a Let's Encrypt staging certificate:
-		// it would never start.
-		refuse(w, reasonStableNeedsProductionCerts, fmt.Sprintf(
-			"stable mode logs in through Keycloak over HTTPS, and this installation's certificates come from Let's Encrypt %s, which the server does not trust; set ACME to production, or use auth.mode test", r.Config.ACME))
-		return ctrl.Result{}, nil
-	}
-	taken, err := r.hostTakenBy(ctx, w)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if taken != "" {
-		refuse(w, reasonHostnameInUse, fmt.Sprintf("hostname %s gives an address Wetsproces %s has already", w.Spec.Hostname, taken))
-		return ctrl.Result{RequeueAfter: retryRequeue}, nil
-	}
 
-	for _, obj := range []*unstructured.Unstructured{newGitRepository(w, r.Config), newHelmRelease(w, r.Config)} {
-		if err := r.apply(ctx, w, obj); err != nil {
+	var organisatie *v1alpha1.Organisatie
+	if w.Spec.Organisatie == nil {
+		apimeta.RemoveStatusCondition(&w.Status.Conditions, v1alpha1.ConditionOrganisatieFound)
+	} else {
+		m, err := resolveOrganisatie(ctx, r.Client, r.Namespaces, r.Config.Domain, w)
+		if err != nil {
 			return ctrl.Result{}, err
 		}
+		apimeta.SetStatusCondition(&w.Status.Conditions, m.condition)
+		if m.refused {
+			refuse(w, m.condition.Reason, m.condition.Message)
+			return ctrl.Result{}, nil
+		}
+		organisatie = m.organisatie
 	}
-	released := r.releaseCondition(ctx, w)
-	apimeta.SetStatusCondition(&w.Status.Conditions, released)
+	// The values follow the status too (the peers of the parties), so the
+	// release is built again after the parties changed them.
+	release := func() *unstructured.Unstructured {
+		values := chartValues(w, r.Config)
+		if organisatie != nil {
+			values["organisatie"] = organisatieValues(organisatie, r.Config)
+		}
+		return newHelmRelease(w, values)
+	}
+
+	objects := []*unstructured.Unstructured{newGitRepository(w, w.Spec.Version, r.Config), release()}
 	// The parties follow the executor's release: its server names them.
 	// When that changes them, the executor's release is applied again with
-	// its new peers.
-	peersChanged, requeue, err := r.reconcileParties(ctx, w, released.Status == metav1.ConditionTrue)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if peersChanged {
-		if err := r.apply(ctx, w, newHelmRelease(w, r.Config)); err != nil {
-			return ctrl.Result{}, err
+	// its new peers. Only a server that did not name its parties yet is
+	// asked again later.
+	parties := func(released metav1.Condition) (time.Duration, error) {
+		peersChanged, requeue, err := r.reconcileParties(ctx, w, released.Status == metav1.ConditionTrue)
+		if err != nil {
+			return 0, err
 		}
-	}
-	problem, err := releasePodProblem(ctx, r.Client, w, r.now())
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	if problem != nil {
-		// Said within seconds, where Helm would only give up after its
-		// timeout. The release goes on trying; once the pods run, the next
-		// event clears this.
-		refuse(w, reasonNotStarting, fmt.Sprintf("%s (%s)", problem.Message, problem.Reason))
-		return ctrl.Result{RequeueAfter: requeue}, nil
-	}
-
-	ready := metav1.Condition{Type: v1alpha1.ConditionReady, Status: released.Status, Reason: released.Reason, Message: released.Message}
-	apimeta.SetStatusCondition(&w.Status.Conditions, ready)
-	w.Status.Message = released.Message
-	switch released.Reason {
-	case reasonReleaseReady:
-		w.Status.Phase = v1alpha1.PhaseReady
-	case reasonReleaseStalled, reasonChartNotInCommit:
-		w.Status.Phase = v1alpha1.PhaseFailed
-	default:
-		w.Status.Phase = v1alpha1.PhasePending
-	}
-	// A change of the HelmRelease's status is an event of an owned object,
-	// so nothing needs to be polled; only a server that did not name its
-	// parties is asked again.
-	return ctrl.Result{RequeueAfter: requeue}, nil
-}
-
-// refuse marks w failed for reason, and makes nothing for it.
-func refuse(w *v1alpha1.Wetsproces, reason, message string) {
-	w.Status.Phase = v1alpha1.PhaseFailed
-	w.Status.Message = message
-	apimeta.SetStatusCondition(&w.Status.Conditions, metav1.Condition{
-		Type: v1alpha1.ConditionReady, Status: metav1.ConditionFalse, Reason: reason, Message: message,
-	})
-}
-
-// hostTakenBy names the Wetsproces that has an address of w already, or "".
-// Of two with one address the older keeps it, and between two made at the same
-// second the first by namespace and name, so the answer does not depend on
-// which one is reconciled first.
-func (r *WetsprocesReconciler) hostTakenBy(ctx context.Context, w *v1alpha1.Wetsproces) (string, error) {
-	var all v1alpha1.WetsprocesList
-	if err := r.Client.List(ctx, &all); err != nil {
-		return "", fmt.Errorf("list wetsprocessen: %w", err)
-	}
-	mine := append(hostsOf(w, r.Config.Domain).all(), partyHosts(w)...)
-	for i := range all.Items {
-		o := &all.Items[i]
-		theirs := append(hostsOf(o, r.Config.Domain).all(), partyHosts(o)...)
-		if o.UID == w.UID || !o.DeletionTimestamp.IsZero() || !shareAnAddress(mine, theirs) {
-			continue
-		}
-		if comesFirst(o, w) {
-			return o.Namespace + "/" + o.Name, nil
-		}
-	}
-	return "", nil
-}
-
-func shareAnAddress(a, b []string) bool {
-	for _, x := range a {
-		for _, y := range b {
-			if x == y {
-				return true
+		if peersChanged {
+			if err := r.apply(ctx, w, release()); err != nil {
+				return 0, err
 			}
 		}
+		return requeue, nil
 	}
-	return false
-}
-
-func comesFirst(a, b *v1alpha1.Wetsproces) bool {
-	if !a.CreationTimestamp.Equal(&b.CreationTimestamp) {
-		return a.CreationTimestamp.Before(&b.CreationTimestamp)
-	}
-	return a.Namespace+"/"+a.Name < b.Namespace+"/"+b.Name
+	return runRelease(ctx, releaseDeps{Client: r.Client, Scheme: r.Scheme, Now: r.now()}, w, w.Spec.Version, objects, wetsprocesStatus(w), parties)
 }
 
 // apply server-side applies obj, owned by w.
 func (r *WetsprocesReconciler) apply(ctx context.Context, w *v1alpha1.Wetsproces, obj *unstructured.Unstructured) error {
-	if err := controllerutil.SetControllerReference(w, obj, r.Scheme); err != nil {
+	return applyOwned(ctx, r.Client, r.Scheme, w, obj)
+}
+
+// wetsprocesRefusal is why the plugin refuses w before it makes anything for
+// it: a spec it cannot run, stable mode on staging certificates, or an
+// address or a name another object has. Empty when it accepts w. An
+// organisatie lists no wetsproces the plugin refuses.
+func wetsprocesRefusal(ctx context.Context, c client.Reader, cfg pluginConfig, w *v1alpha1.Wetsproces) (reason, message string, err error) {
+	if err := validateSpec(w, cfg.Domain); err != nil {
+		return reasonInvalidSpec, err.Error(), nil
+	}
+	if isStable(w) && cfg.ACME != acmeProduction {
+		// The server reads Keycloak's discovery document at start, over
+		// HTTPS, and does not trust a Let's Encrypt staging certificate:
+		// it would never start.
+		return reasonStableNeedsProductionCerts, fmt.Sprintf(
+			"stable mode logs in through Keycloak over HTTPS, and this installation's certificates come from Let's Encrypt %s, which the server does not trust; set ACME to production, or use auth.mode test", cfg.ACME), nil
+	}
+	return addressTakenBy(ctx, c, cfg.Domain, w, wetsprocesAddresses(w, cfg.Domain))
+}
+
+// wetsprocesStatus points at the status of w.
+func wetsprocesStatus(w *v1alpha1.Wetsproces) status {
+	return statusOf(&w.Status.Phase, &w.Status.Message, &w.Status.Conditions)
+}
+
+// refuse marks w failed for reason, and makes nothing for it.
+func refuse(w *v1alpha1.Wetsproces, reason, message string) {
+	wetsprocesStatus(w).refuse(reason, message)
+}
+
+// applyOwned server-side applies obj, owned by owner.
+func applyOwned(ctx context.Context, c client.Client, scheme *runtime.Scheme, owner client.Object, obj *unstructured.Unstructured) error {
+	if err := controllerutil.SetControllerReference(owner, obj, scheme); err != nil {
 		return fmt.Errorf("own %s %s: %w", obj.GetKind(), obj.GetName(), err)
 	}
 	//nolint:staticcheck // client.Apply with an unstructured object is the simplest SSA path here.
-	if err := r.Client.Patch(ctx, obj, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
+	if err := c.Patch(ctx, obj, client.Apply, client.FieldOwner(fieldOwner), client.ForceOwnership); err != nil {
 		return fmt.Errorf("apply %s %s/%s: %w", obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
 	}
 	return nil
@@ -263,11 +268,12 @@ func (r *WetsprocesReconciler) apply(ctx context.Context, w *v1alpha1.Wetsproces
 
 // releaseCondition is ReleaseReady: the HelmRelease's Ready, with Stalled
 // (Flux gave up until the spec changes) as a failure of its own.
-func (r *WetsprocesReconciler) releaseCondition(ctx context.Context, w *v1alpha1.Wetsproces) metav1.Condition {
+// owner is a Wetsproces or an Organisatie, and version its spec.version.
+func releaseCondition(ctx context.Context, reader client.Reader, owner client.Object, version string) metav1.Condition {
 	c := metav1.Condition{Type: v1alpha1.ConditionReleaseReady, Status: metav1.ConditionFalse, Reason: reasonReleasePending}
 	hr := &unstructured.Unstructured{}
 	hr.SetGroupVersionKind(helmReleaseGVK)
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: w.Namespace, Name: w.Name}, hr); err != nil {
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(owner), hr); err != nil {
 		c.Message = "the HelmRelease is not readable yet: " + err.Error()
 		return c
 	}
@@ -279,11 +285,11 @@ func (r *WetsprocesReconciler) releaseCondition(ctx context.Context, w *v1alpha1
 		c.Status, c.Reason = metav1.ConditionTrue, reasonReleaseReady
 	case stalled:
 		c.Reason, c.Message = reasonReleaseStalled, "Flux gave up: "+stalledMsg
-	case w.Spec.Version != "" && strings.Contains(msg, chartMissingMarker):
+	case version != "" && strings.Contains(msg, chartMissingMarker):
 		// Flux retries this forever without stalling, while the commit
 		// will never get a chart.
 		c.Reason = reasonChartNotInCommit
-		c.Message = fmt.Sprintf("commit %s has no %s, so it cannot run here; choose a later commit or leave version empty (Flux: %s)", w.Spec.Version, chartPath, msg)
+		c.Message = fmt.Sprintf("commit %s has no %s, so it cannot run here; choose a later commit or leave version empty (Flux: %s)", version, chartPath, msg)
 	}
 	return c
 }
@@ -307,18 +313,46 @@ func (r *WetsprocesReconciler) deleteKeycloakSecret(ctx context.Context, key cli
 	if r.Secrets == nil {
 		return nil
 	}
+	// The pods of an Organisatie of this name map here too; its release is
+	// not ours to clean up after.
+	var o v1alpha1.Organisatie
+	if err := r.Client.Get(ctx, key, &o); err == nil {
+		return nil
+	} else if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("read Organisatie %s: %w", key, err)
+	}
+	return deleteChartSecret(ctx, r.Secrets, r.Client, key, "keycloak")
+}
+
+// deleteChartSecret deletes the Secret <release>-<component> that the Job of
+// the chart generated for the release key, once its object is gone. Only a
+// Secret with the chart's labels for this release and component is deleted,
+// and only the one that was read (its UID).
+func deleteChartSecret(ctx context.Context, secrets client.Reader, c client.Client, key client.ObjectKey, component string) error {
 	var secret corev1.Secret
-	name := client.ObjectKey{Namespace: key.Namespace, Name: key.Name + "-keycloak"}
-	if err := r.Secrets.Get(ctx, name, &secret); err != nil {
+	name := client.ObjectKey{Namespace: key.Namespace, Name: key.Name + "-" + component}
+	if err := secrets.Get(ctx, name, &secret); err != nil {
 		return client.IgnoreNotFound(err)
 	}
 	l := secret.Labels
-	if l[appLabel] != appName || l[instanceLabel] != key.Name || l[componentLabel] != "keycloak" {
+	if l[appLabel] != appName || l[instanceLabel] != key.Name || l[componentLabel] != component {
 		return nil
 	}
-	err := r.Client.Delete(ctx, &secret, client.Preconditions{UID: &secret.UID})
+	err := c.Delete(ctx, &secret, client.Preconditions{UID: &secret.UID})
 	if err := client.IgnoreNotFound(err); err != nil {
-		return fmt.Errorf("delete the Keycloak Secret %s: %w", name, err)
+		return fmt.Errorf("delete the Secret %s: %w", name, err)
 	}
 	return nil
+}
+
+// shareAnAddress reports whether a and b have an address in common.
+func shareAnAddress(a, b []string) bool {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -148,6 +148,7 @@ export function buildWetsproces({
   testAccounts = false,
   fsc4b = false,
   ownParties = false,
+  organisatie,
 }) {
   const name = nameFromHostname(hostname);
   const manifest = { repoUrl, ref: ref || DEFAULT_REF, path: path || DEFAULT_PATH };
@@ -163,6 +164,9 @@ export function buildWetsproces({
   // A release of their own for the parties the case's regelwerken ask
   // something of; the link signs with keys made at start, test mode only.
   if (ownParties && !stable) spec.parties = { ownInstances: true };
+  // The Organisatie whose front lists it (organisaties-body.js,
+  // organisatieReference); without one it runs on its own.
+  if (organisatie) spec.organisatie = organisatie;
   return {
     apiVersion: `${WETSPROCES_RESOURCE.group}/${WETSPROCES_RESOURCE.version}`,
     kind: 'Wetsproces',

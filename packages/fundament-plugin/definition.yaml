@@ -8,7 +8,8 @@ metadata:
   description: >-
     Offers the regelrecht wetsprocessysteem to the projects of a cluster.
     Installed once per cluster; project members then create a wetsproces per
-    case from the console, each on its own address with its own database.
+    case from the console, each on its own address with its own database, and
+    an organisatie that puts several of them behind one front.
   author: regelrecht
   license: EUPL-1.2
   icon: document
@@ -62,7 +63,7 @@ spec:
 
   permissions:
     rbac:
-      # Install time: the plugin's own CRD. get for the establishment wait;
+      # Install time: the plugin's own CRDs. get for the establishment wait;
       # patch for the server-side apply. create cannot be kept to one name.
       - apiGroups: [apiextensions.k8s.io]
         resources: [customresourcedefinitions]
@@ -71,12 +72,13 @@ spec:
         resources: [customresourcedefinitions]
         resourceNames:
           - wetsprocessen.wetsproces.regelrecht.nl
+          - organisaties.wetsproces.regelrecht.nl
           # The check that Flux is there.
           - gitrepositories.source.toolkit.fluxcd.io
           - helmreleases.helm.toolkit.fluxcd.io
         verbs: [get, patch]
-      # The roles that let project admins and viewers use wetsprocessen
-      # (setup.go). They grant nothing the plugin does not hold itself.
+      # The roles that let project admins and viewers use wetsprocessen and
+      # organisaties (setup.go). They grant nothing the plugin does not hold itself.
       - apiGroups: [rbac.authorization.k8s.io]
         resources: [clusterroles]
         verbs: [create]
@@ -87,16 +89,27 @@ spec:
       # The controller and the console pages: the pages act with the rights
       # the user and the plugin share, so the plugin holds what the wizard and
       # the detail page do (create, delete).
+      # An organisatie is one front for several wetsprocessen, with the same
+      # rights as a wetsproces.
       - apiGroups: [wetsproces.regelrecht.nl]
-        resources: [wetsprocessen]
+        resources: [wetsprocessen, organisaties]
         verbs: [get, list, watch, create, update, patch, delete]
       - apiGroups: [wetsproces.regelrecht.nl]
-        resources: [wetsprocessen/status]
+        resources: [wetsprocessen/status, organisaties/status]
         verbs: [get, update, patch]
       # Owner references with blockOwnerDeletion need update on finalizers.
       - apiGroups: [wetsproces.regelrecht.nl]
-        resources: [wetsprocessen/finalizers]
+        resources: [wetsprocessen/finalizers, organisaties/finalizers]
         verbs: [update]
+      # Namespaces, get only: a wetsproces may join an organisatie in another
+      # namespace only when both namespaces carry the same
+      # fundament.io/project-id label, so no project puts a wetsproces behind
+      # the front of another (organisatie.go, sameProject). Without list or
+      # watch the plugin reads only the two namespaces it names; the names
+      # are not known in advance, so resourceNames cannot narrow this.
+      - apiGroups: ['']
+        resources: [namespaces]
+        verbs: [get]
       # Flux, which the cluster already runs, does the rest: helm-controller
       # installs the chart with its own service account.
       - apiGroups: [source.toolkit.fluxcd.io]
@@ -117,14 +130,17 @@ spec:
       # deleted, the plugin reads <name>-keycloak, the Secret the chart's Job
       # generated for its Keycloak, and deletes it when it carries the
       # chart's labels for that release (controller.go,
-      # deleteKeycloakSecret). The names are not known in advance, so
-      # resourceNames cannot narrow this, and Fundament grants a ClusterRole.
+      # deleteKeycloakSecret). The same for <name>-organisatie, the signing
+      # key of the front of a deleted Organisatie (organisatie.go). The names
+      # are not known in advance, so resourceNames cannot narrow this, and
+      # Fundament grants a ClusterRole.
       # The console pages only create; they never read a Secret.
       - apiGroups: ['']
         resources: [secrets]
         verbs: [create, get, delete]
   crds:
     - wetsprocessen.wetsproces.regelrecht.nl
+    - organisaties.wetsproces.regelrecht.nl
 
   menu:
     project:
@@ -132,19 +148,33 @@ spec:
         list: true
         detail: true
         icon: document
-        label: Wetsprocessen
-        singularLabel: Wetsproces
+        label: Procedures
+        singularLabel: Procedure
+      - crd: organisaties.wetsproces.regelrecht.nl
+        list: true
+        detail: true
+        icon: building
+        label: Organisaties
+        singularLabel: Organisatie
 
   customComponents:
     Wetsproces:
       list: wetsprocessen-list.html
       detail: wetsprocessen-detail.html
       create: wetsprocessen-create.html
+    Organisatie:
+      list: organisaties-list.html
+      detail: organisaties-detail.html
+      create: organisaties-create.html
 
   allowedResources:
     - group: wetsproces.regelrecht.nl
       version: v1alpha1
       resource: wetsprocessen
+      verbs: [list, get, create, delete]
+    - group: wetsproces.regelrecht.nl
+      version: v1alpha1
+      resource: organisaties
       verbs: [list, get, create, delete]
     - group: ''
       version: v1
@@ -153,6 +183,19 @@ spec:
 
   uiHints:
     wetsprocessen.wetsproces.regelrecht.nl:
+      statusMapping:
+        jsonPath: .status.phase
+        values:
+          Ready:
+            badge: success
+            label: Draait
+          Failed:
+            badge: danger
+            label: Mislukt
+        default:
+          badge: warning
+          label: Bezig
+    organisaties.wetsproces.regelrecht.nl:
       statusMapping:
         jsonPath: .status.phase
         values:

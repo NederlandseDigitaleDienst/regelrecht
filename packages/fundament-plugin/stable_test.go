@@ -65,11 +65,11 @@ func TestTheLoginHostCountsForTheAddressCheck(t *testing.T) {
 func TestAVersionPinsTheChartToItsCommit(t *testing.T) {
 	t.Parallel()
 	w := newWetsproces("a", "a")
-	ref, _, _ := unstructured.NestedStringMap(newGitRepository(w, validConfig()).Object, "spec", "ref")
+	ref, _, _ := unstructured.NestedStringMap(newGitRepository(w, w.Spec.Version, validConfig()).Object, "spec", "ref")
 	assert.Equal(t, map[string]string{"branch": "main"}, ref)
 
 	w.Spec.Version = pinned
-	ref, _, _ = unstructured.NestedStringMap(newGitRepository(w, validConfig()).Object, "spec", "ref")
+	ref, _, _ = unstructured.NestedStringMap(newGitRepository(w, w.Spec.Version, validConfig()).Object, "spec", "ref")
 	assert.Equal(t, map[string]string{"commit": pinned}, ref, "the chart comes from the commit the image was built from")
 }
 

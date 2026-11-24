@@ -196,9 +196,9 @@ func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(objs...).
-		WithStatusSubresource(&v1alpha1.Wetsproces{}).
+		WithStatusSubresource(&v1alpha1.Wetsproces{}, &v1alpha1.Organisatie{}).
 		Build()
-	return &WetsprocesReconciler{Client: c, Secrets: c, Scheme: scheme, Config: validConfig(), Now: func() time.Time { return testNow }}
+	return &WetsprocesReconciler{Client: c, Secrets: c, Namespaces: c, Scheme: scheme, Config: validConfig(), Now: func() time.Time { return testNow }}
 }
 
 // testNow is the clock of the tests; a pod from releasePod is ten seconds old.
@@ -355,9 +355,13 @@ func TestTheEmbeddedCRDIsTheOneTheDefinitionNames(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"metadata"`
 	}
-	require.NoError(t, yaml.Unmarshal(wetsprocesCRD, &crd))
-	assert.Equal(t, crdName, crd.Metadata.Name)
-	assert.Equal(t, []string{crdName}, loadSourceDefinition(t).Spec.CRDs)
+	names := make([]string, 0, len(pluginCRDs))
+	for _, c := range pluginCRDs {
+		require.NoError(t, yaml.Unmarshal(c.yaml, &crd))
+		assert.Equal(t, c.name, crd.Metadata.Name)
+		names = append(names, c.name)
+	}
+	assert.Equal(t, names, loadSourceDefinition(t).Spec.CRDs)
 }
 
 func TestSummary(t *testing.T) {

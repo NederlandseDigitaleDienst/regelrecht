@@ -104,7 +104,7 @@ func (p *WetsprocesPlugin) Start(ctx context.Context, host pluginruntime.Host) e
 		host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseFailed, Message: err.Error()})
 		return err
 	}
-	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseInstalling, Message: "installing the Wetsproces CRD"})
+	host.ReportStatus(pluginruntime.PluginStatus{Phase: pluginruntime.PhaseInstalling, Message: "installing the CRDs"})
 	// Retry here rather than return: the runtime ends the process on an
 	// error from Start, and a pod in a crash loop reports nothing.
 	for {
@@ -143,9 +143,9 @@ func (p *WetsprocesPlugin) setUpOnce(ctx context.Context) error {
 	return setUp(ctx, p.kube)
 }
 
-// newManager builds the controller manager with the Wetsproces controller.
-// Its cache holds the Wetsproces objects and only the Flux objects the plugin
-// made, by their label.
+// newManager builds the controller manager with the Wetsproces and the
+// Organisatie controller. Its cache holds the objects of both kinds and only
+// the Flux objects the plugin made, by their label.
 func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 	mine := cache.ByObject{Label: labels.SelectorFromSet(labels.Set{managedByLabel: fieldOwner})}
 	byObject := map[client.Object]cache.ByObject{}
@@ -167,12 +167,23 @@ func (p *WetsprocesPlugin) newManager() (ctrl.Manager, error) {
 		return nil, fmt.Errorf("set up the controller manager: %w", err)
 	}
 	r := &WetsprocesReconciler{
-		Client:  mgr.GetClient(),
-		Secrets: mgr.GetAPIReader(),
-		Scheme:  p.scheme,
-		Config:  p.cfg,
+		Client:     mgr.GetClient(),
+		Secrets:    mgr.GetAPIReader(),
+		Namespaces: mgr.GetAPIReader(),
+		Scheme:     p.scheme,
+		Config:     p.cfg,
 	}
 	if err := r.SetupWithManager(mgr); err != nil {
+		return nil, err
+	}
+	o := &OrganisatieReconciler{
+		Client:     mgr.GetClient(),
+		Namespaces: mgr.GetAPIReader(),
+		Secrets:    mgr.GetAPIReader(),
+		Scheme:     p.scheme,
+		Config:     p.cfg,
+	}
+	if err := o.SetupWithManager(mgr); err != nil {
 		return nil, err
 	}
 	return mgr, nil

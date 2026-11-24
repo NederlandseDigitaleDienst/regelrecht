@@ -6,6 +6,8 @@
 // style alike: events go through addEventListener, styling through the
 // <nldd-*> components and the .plugin-* classes in plugin-sdk.css.
 
+import { ACCENT_COLORS } from './wetsprocessen-body.js';
+
 // Loads the plugin SDK v1. The iframe runs on the plugin-proxy origin, which
 // also serves the SDK, so these bare paths satisfy script-src 'self'. The /v1/
 // segment tracks protocolVersion: a breaking change ships as /v2/.
@@ -180,6 +182,199 @@ export function wireSubmit(form, { button, errorBanner, failPrefix, checks, acti
       errorBanner.setAttribute('text', `${failPrefix}: ${err?.message ?? err}`);
       errorBanner.hidden = false;
       busy = false;
+      button.loading = false;
+    }
+  });
+}
+
+// A dropdown of the accent colours of the NLDD design system, empty for its
+// own accent.
+export function accentDropdown(name, chosen) {
+  const options = [optionHtml('', 'Standaard', !chosen)]
+    .concat(ACCENT_COLORS.map((c) => optionHtml(c, c, c === chosen)))
+    .join('');
+  return `<nldd-dropdown><select name="${name}">${options}</select></nldd-dropdown>`;
+}
+
+// The building blocks of a wizard step. Values are escaped here.
+export function field(label, control, { errorId, hint } = {}) {
+  const errors = errorId
+    ? `<nldd-validation-list><nldd-validation-item id="${errorId}"></nldd-validation-item></nldd-validation-list>`
+    : '';
+  const help = hint ? `<nldd-form-field-help-text>${escapeHtml(hint)}</nldd-form-field-help-text>` : '';
+  return `<nldd-form-field label="${escapeHtml(label)}">${control}${errors}${help}</nldd-form-field>`;
+}
+
+export function textField(name, value, extra = '') {
+  return `<nldd-text-field name="${name}" value="${escapeHtml(value)}" no-spellcheck ${extra}></nldd-text-field>`;
+}
+
+export function radios(name, label, options, chosen) {
+  const fields = options
+    .map(
+      ([value, text]) =>
+        `<nldd-radio-button-field value="${escapeHtml(value)}" label="${escapeHtml(text)}"${value === chosen ? ' checked' : ''}></nldd-radio-button-field>`,
+    )
+    .join('');
+  return `<nldd-radio-button-group name="${name}" accessible-label="${escapeHtml(label)}">${fields}</nldd-radio-button-group>`;
+}
+
+export function optionHtml(value, text, selected) {
+  return `<option value="${escapeHtml(value)}"${selected ? ' selected' : ''}>${escapeHtml(text)}</option>`;
+}
+
+export function chosenRadio(form, name) {
+  const group = form.querySelector(`nldd-radio-button-group[name="${name}"]`);
+  const checked = [...(group?.querySelectorAll('nldd-radio-button-field') ?? [])].find((f) => f.checked);
+  return checked?.value ?? '';
+}
+
+// A dropdown of the namespaces of the project, or a text field outside one.
+export function namespaceControl(ctx, chosen) {
+  const namespaces = Array.isArray(ctx.namespaces) ? ctx.namespaces : [];
+  if (!namespaces.length) return textField('namespace', chosen, 'required maxlength="63"');
+  return `<nldd-dropdown><select name="namespace">${namespaces
+    .map((n) => optionHtml(n, ctx.namespaceDisplayNames?.[n] ?? n, n === chosen))
+    .join('')}</select></nldd-dropdown>`;
+}
+
+// Runs a wizard in content, with its steps in stepBar: one step at a time,
+// each a form of its own whose submit is "Volgende", and on the last step
+// finish(). A step has a title, an intro, fields() returning its HTML, an
+// optional wire(form), checks(form) returning [control, check] pairs as
+// wireSubmit wants them, and keep(value, form), which stores what was
+// entered. Steps with skip() returning true are passed over.
+export function runWizard({ content, stepBar, steps, finishText, failPrefix, finish }) {
+  let current = 0;
+  const visible = () => steps.filter((s) => !s.skip?.());
+
+  function renderStepBar(shown, step) {
+    const at = shown.indexOf(step);
+    stepBar.innerHTML = shown
+      .map((s, i) => {
+        const status = i < at ? 'past' : i === at ? 'current' : 'future';
+        return `<nldd-step-bar-item text="${escapeHtml(s.title)}" status="${status}"></nldd-step-bar-item>`;
+      })
+      .join('');
+  }
+
+  function render() {
+    const shown = visible();
+    const step = shown[current];
+    const last = current === shown.length - 1;
+    renderStepBar(shown, step);
+    content.innerHTML = `
+      <nldd-title size="4" heading-level="2" text="${escapeHtml(step.title)}" supporting-text="${escapeHtml(step.intro)}"></nldd-title>
+      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-form>
+        <form id="step-form" novalidate>
+          <nldd-banner id="error-banner" variant="critical" hidden></nldd-banner>
+          ${step.fields()}
+          <nldd-form-actions>
+            <nldd-button-group orientation="horizontal">
+              <nldd-button id="next-btn" type="submit" appearance="primary" text="${escapeHtml(last ? finishText : 'Volgende')}"></nldd-button>
+              <nldd-button id="back-btn" type="button" appearance="secondary" text="${current === 0 ? 'Annuleren' : 'Vorige'}"></nldd-button>
+            </nldd-button-group>
+          </nldd-form-actions>
+        </form>
+      </nldd-form>`;
+    const form = content.querySelector('#step-form');
+    const value = (name) => String(form.querySelector(`[name="${name}"]`)?.value ?? '').trim();
+    step.wire?.(form);
+    content.querySelector('#back-btn').addEventListener('click', () => {
+      if (current === 0) {
+        navigateBack();
+        return;
+      }
+      current -= 1;
+      render();
+    });
+    wireSubmit(form, {
+      button: content.querySelector('#next-btn'),
+      errorBanner: content.querySelector('#error-banner'),
+      failPrefix: last ? failPrefix : 'Dat lukte niet',
+      checks: step.checks(form),
+      action: async () => {
+        step.keep(value, form);
+        if (last) {
+          await finish();
+          return;
+        }
+        // keep() may change which steps show; stay on the step after this one.
+        current = visible().indexOf(step) + 1;
+        render();
+      },
+    });
+  }
+
+  render();
+}
+
+// One row of an nldd-list with a label and a link that opens in a new tab;
+// nothing without a URL.
+export function linkRow(label, url) {
+  if (!url) return '';
+  return `
+    <nldd-list-item>
+      <nldd-text-cell text="${escapeHtml(label)}"></nldd-text-cell>
+      <nldd-spacer-cell size="12"></nldd-spacer-cell>
+      <nldd-link href="${escapeHtml(url)}" target="_blank" text="${escapeHtml(url)}"></nldd-link>
+    </nldd-list-item>`;
+}
+
+// The conditions of a status as [type, text] pairs for renderKeyValueList.
+export function conditionPairs(item) {
+  return (item.status?.conditions ?? []).map((c) => [
+    c.type,
+    `${c.status === 'True' ? 'ja' : 'nee'}${c.message ? `: ${c.message}` : ''}`,
+  ]);
+}
+
+// The section that deletes the object of a detail page once its name is
+// typed: its explanation, the form, and the delete itself.
+export function deleteSectionHtml(name, explanation, buttonText) {
+  return `
+    <nldd-title size="5" heading-level="2" text="Verwijderen"></nldd-title>
+    <nldd-rich-text><p>${escapeHtml(explanation)}</p></nldd-rich-text>
+    <nldd-spacer size="12"></nldd-spacer>
+    <nldd-form>
+      <form id="delete-form" novalidate>
+        <nldd-banner id="delete-error" variant="critical" hidden></nldd-banner>
+        <nldd-form-field label="Typ **${escapeHtml(name)}** om te bevestigen">
+          <nldd-text-field id="confirm" name="confirm" no-spellcheck></nldd-text-field>
+        </nldd-form-field>
+        <nldd-form-actions>
+          <nldd-button id="delete-btn" type="submit" appearance="destructive" text="${escapeHtml(buttonText)}"></nldd-button>
+        </nldd-form-actions>
+      </form>
+    </nldd-form>`;
+}
+
+// Wires the form of deleteSectionHtml to delete { ...resource, name, namespace }.
+export function wireDelete(root, { resource, name, namespace }) {
+  const form = root.querySelector('#delete-form');
+  const banner = root.querySelector('#delete-error');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    banner.hidden = true;
+    if (String(root.querySelector('#confirm').value ?? '').trim() !== name) {
+      banner.setAttribute('text', `Typ ${name} om het verwijderen te bevestigen.`);
+      banner.hidden = false;
+      return;
+    }
+    const button = root.querySelector('#delete-btn');
+    button.loading = true;
+    try {
+      await fundament.k8s.delete({ ...resource, name, namespace });
+      navigateBack();
+    } catch (err) {
+      banner.setAttribute(
+        'text',
+        err?.code === 'forbidden'
+          ? 'Verwijderen mag alleen een beheerder van het project.'
+          : `Verwijderen lukte niet: ${err?.message ?? err}`,
+      );
+      banner.hidden = false;
       button.loading = false;
     }
   });
