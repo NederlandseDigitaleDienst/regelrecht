@@ -90,8 +90,8 @@ spec is refused, `Pending` before that.
 
 Helm waits for the pods of an install until its timeout, and says nothing
 before that. The plugin does not wait for it: it watches the pods of each
-release, and as soon as a container keeps stopping (`CrashLoopBackOff`), an
-image cannot be pulled, or a Secret the pod needs is missing, it sets the
+release, and as soon as a container stops with an error or keeps stopping
+(`CrashLoopBackOff`), an image cannot be pulled, or a Secret the pod needs is missing, it sets the
 Wetsproces to `Failed` with the reason `NotStarting`. The message names the
 container and gives the last line it wrote, which the chart keeps in the
 container status (`terminationMessagePolicy: FallbackToLogsOnError`). A
@@ -99,6 +99,12 @@ manifest path that is not in the repository therefore reads, within a minute:
 
 ```
 container wetsproces: wetsproces: the case: the manifest does not read: ...
+```
+
+A token for a private manifest repository that the git server refuses reads:
+
+```
+container clone-case: fatal: Authentication failed for 'https://...' (Error)
 ```
 
 Helm goes on trying. Its timeout is 3 minutes instead of the default 5, so a

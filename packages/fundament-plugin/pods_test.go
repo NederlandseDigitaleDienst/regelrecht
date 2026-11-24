@@ -53,6 +53,26 @@ func TestContainerProblemSaysWhyInTheServersWords(t *testing.T) {
 	assert.Nil(t, containerProblem(corev1.ContainerStatus{State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}}))
 }
 
+// Between two attempts a failed init container is mostly terminated, not
+// waiting: the reason has to show then too. A container that ended well is
+// no problem.
+func TestContainerProblemSeesAnInitContainerBetweenAttempts(t *testing.T) {
+	t.Parallel()
+	failed := corev1.ContainerStatus{Name: "clone-case", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+		ExitCode: 128, Reason: "Error",
+		Message: "remote: invalid credentials\nfatal: Authentication failed for 'https://git.example.org/case/'\n",
+	}}}
+	p := containerProblem(failed)
+	require.NotNil(t, p)
+	assert.Equal(t, "Error", p.Reason)
+	assert.Equal(t, "container clone-case: fatal: Authentication failed for 'https://git.example.org/case/'", p.Message)
+
+	done := corev1.ContainerStatus{Name: "clone-case", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+		ExitCode: 0, Reason: "Completed",
+	}}}
+	assert.Nil(t, containerProblem(done))
+}
+
 func releasePod(name, release string, statuses ...corev1.ContainerStatus) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

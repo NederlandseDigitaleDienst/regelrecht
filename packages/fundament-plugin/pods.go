@@ -80,6 +80,18 @@ func releasePodProblem(ctx context.Context, c client.Reader, w *v1alpha1.Wetspro
 
 // containerProblem is the problem of one container, or nil.
 func containerProblem(s corev1.ContainerStatus) *podProblem {
+	// A failed init container, such as clone-case with a token the git
+	// server refuses, spends most of its back-off as terminated with an
+	// error (Init:Error) and only moments as waiting in CrashLoopBackOff.
+	// Looking at waiting alone would say why only now and then, and
+	// "Pending" in between.
+	if t := s.State.Terminated; t != nil && t.ExitCode != 0 {
+		reason := t.Reason
+		if reason == "" {
+			reason = "Error"
+		}
+		return &podProblem{Reason: reason, Message: fmt.Sprintf("container %s: %s", s.Name, terminationMessage(t))}
+	}
 	waiting := s.State.Waiting
 	if waiting == nil || !waitingProblems[waiting.Reason] {
 		return nil
@@ -90,12 +102,18 @@ func containerProblem(s corev1.ContainerStatus) *podProblem {
 	// the line a person needs: "the manifest ... does not read", not
 	// "back-off restarting failed container".
 	if t := s.LastTerminationState.Terminated; t != nil {
-		message = lastLine(t.Message)
-		if message == "" {
-			message = fmt.Sprintf("stopped with exit code %d", t.ExitCode)
-		}
+		message = terminationMessage(t)
 	}
 	return &podProblem{Reason: waiting.Reason, Message: fmt.Sprintf("container %s: %s", s.Name, message)}
+}
+
+// terminationMessage is the last line a stopped container wrote, or its
+// exit code when it wrote nothing.
+func terminationMessage(t *corev1.ContainerStateTerminated) string {
+	if message := lastLine(t.Message); message != "" {
+		return message
+	}
+	return fmt.Sprintf("stopped with exit code %d", t.ExitCode)
 }
 
 // lastLine is the last line of text that is not empty, without colour codes.
