@@ -1,6 +1,13 @@
 //! The one case this server runs, from the source manifest that ships with
 //! it.
 //!
+//! A manifest may make several cases, one per case file under `casussen/`,
+//! so that one repository holds several processes. The deployment then
+//! chooses one by its id, the name of its case file
+//! (`REGELHET_CASUS`, [`crate::config`]); a manifest of one case needs no
+//! choice. Every case of the manifest still has to load: the manifest is one
+//! source, and a source with a broken case is not one to run from.
+//!
 //! The manifest is read as the poc-portal reads one
 //! (`regelrecht_corpus::source_manifest::lokaal`), and the source it makes is
 //! loaded as the chronolexografie poc loads a source
@@ -25,19 +32,41 @@ pub enum CaseError {
     Source(#[from] regelrecht_cel::Error),
     #[error("a case does not load: {}", .0.join("; "))]
     Cases(Vec<String>),
-    #[error("the manifest makes {0} cases; this server runs exactly one")]
-    NotOne(usize),
+    #[error("the manifest makes no case")]
+    NoCase,
+    #[error(
+        "the manifest makes {} cases ({}); choose one with REGELHET_CASUS",
+        .0.len(),
+        .0.join(", ")
+    )]
+    NoChoice(Vec<String>),
+    #[error("REGELHET_CASUS is `{chosen}`, which the manifest does not make; it makes {}", .ids.join(", "))]
+    UnknownCase { chosen: String, ids: Vec<String> },
 }
 
-/// The case in the source the manifest at `manifest` makes, with the
-/// messages loading it gave (such as a regelwerk version set aside), for the
-/// log.
+/// The case in the source the manifest at `manifest` makes, when it makes
+/// exactly one, with the messages loading it gave, for the log.
+///
+/// # Errors
+///
+/// As [`load_chosen`] without a choice.
+pub fn load(manifest: &Path) -> Result<(Corpus, Vec<String>), CaseError> {
+    load_chosen(manifest, None)
+}
+
+/// The case `chosen` (the name of its case file) in the source the manifest
+/// at `manifest` makes, or without a choice its only case, with the messages
+/// loading it gave (such as a regelwerk version set aside), for the log.
 ///
 /// # Errors
 ///
 /// When the manifest does not read, the source does not load, a case in it
-/// does not load, or it holds no case or more than one.
-pub fn load(manifest: &Path) -> Result<(Corpus, Vec<String>), CaseError> {
+/// does not load, or it holds no case; without a choice, when it holds more
+/// than one; with one, when none has that id.
+pub fn load_chosen(
+    manifest: &Path,
+    chosen: Option<&str>,
+) -> Result<(Corpus, Vec<String>), CaseError> {
     let bestanden =
         regelrecht_corpus::source_manifest::lokaal(manifest).map_err(CaseError::Manifest)?;
     let bron = Bron {
@@ -46,17 +75,36 @@ pub fn load(manifest: &Path) -> Result<(Corpus, Vec<String>), CaseError> {
         ..Bron::default()
     };
     let mut stand = BronStand::default();
-    let mut cases = bundel::uit_bron(&bron, &mut stand)?;
+    let cases = bundel::uit_bron(&bron, &mut stand)?;
     if !stand.fouten.is_empty() {
         return Err(CaseError::Cases(stand.fouten));
     }
-    let Some(case) = cases.pop() else {
-        return Err(CaseError::NotOne(0));
-    };
-    if !cases.is_empty() {
-        return Err(CaseError::NotOne(cases.len() + 1));
-    }
+    let case = choose(cases, chosen)?;
     Ok((case, stand.meldingen))
+}
+
+/// The case of `cases` whose id is `chosen`, or without a choice the only
+/// one.
+fn choose(mut cases: Vec<Corpus>, chosen: Option<&str>) -> Result<Corpus, CaseError> {
+    let ids = || cases_ids(&cases);
+    match chosen {
+        Some(id) => match cases.iter().position(|c| c.casus.id == id) {
+            Some(i) => Ok(cases.swap_remove(i)),
+            None => Err(CaseError::UnknownCase {
+                chosen: id.to_string(),
+                ids: ids(),
+            }),
+        },
+        None if cases.len() > 1 => Err(CaseError::NoChoice(ids())),
+        None => cases.pop().ok_or(CaseError::NoCase),
+    }
+}
+
+/// The ids of `cases`, sorted, for a message.
+fn cases_ids(cases: &[Corpus]) -> Vec<String> {
+    let mut ids: Vec<String> = cases.iter().map(|c| c.casus.id.clone()).collect();
+    ids.sort();
+    ids
 }
 
 #[cfg(test)]
@@ -79,6 +127,49 @@ mod tests {
                 "rechtbank_wilgendaal"
             ]
         );
+    }
+
+    #[test]
+    fn the_only_case_may_also_be_chosen_by_its_id() {
+        let (corpus, _) = load_chosen(
+            Path::new(DEFAULT_MANIFEST),
+            Some("gehandicaptenparkeerkaart"),
+        )
+        .unwrap();
+        assert_eq!(corpus.casus.id, "gehandicaptenparkeerkaart");
+        let e = load_chosen(Path::new(DEFAULT_MANIFEST), Some("zorgtoeslag")).unwrap_err();
+        assert!(
+            matches!(&e, CaseError::UnknownCase { chosen, ids } if chosen == "zorgtoeslag" && ids == &["gehandicaptenparkeerkaart"]),
+            "{e}"
+        );
+    }
+
+    /// A manifest with every case of the chronolexografie poc.
+    const SEVERAL: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/meerdere-casussen/bron.yaml"
+    );
+
+    #[test]
+    fn a_manifest_of_several_cases_runs_the_one_chosen_and_refuses_no_choice() {
+        let e = load(Path::new(SEVERAL)).unwrap_err();
+        let CaseError::NoChoice(ids) = &e else {
+            unreachable!("no choice among several: {e}");
+        };
+        assert!(ids.len() > 1, "{ids:?}");
+        assert!(
+            ids.iter().any(|i| i == "bedrijfsparkeervergunning"),
+            "{ids:?}"
+        );
+        assert!(e.to_string().contains("REGELHET_CASUS"), "{e}");
+
+        let (corpus, _) =
+            load_chosen(Path::new(SEVERAL), Some("bedrijfsparkeervergunning")).unwrap();
+        assert_eq!(corpus.casus.id, "bedrijfsparkeervergunning");
+        assert_eq!(corpus.casus.titel, "Bedrijfsparkeervergunning");
+
+        let e = load_chosen(Path::new(SEVERAL), Some("parkeren")).unwrap_err();
+        assert!(matches!(e, CaseError::UnknownCase { .. }), "{e}");
     }
 
     #[test]

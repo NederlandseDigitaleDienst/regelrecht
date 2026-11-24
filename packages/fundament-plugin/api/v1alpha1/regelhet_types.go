@@ -165,6 +165,17 @@ type RegelHetSpec struct {
 	// Manifest is the case to run.
 	Manifest Manifest `json:"manifest"`
 
+	// Casus chooses the case to run from a manifest that makes several, by
+	// the name of its case file: `bedrijfsparkeervergunning` for
+	// casussen/bedrijfsparkeervergunning.yaml. So one manifest repository
+	// holds several procedures, each its own RegelHet. Empty runs the only
+	// case of the manifest; the server refuses to start when the manifest
+	// makes several, or none by this name.
+	// +kubebuilder:validation:MaxLength=100
+	// +kubebuilder:validation:Pattern=`^([a-z0-9][a-z0-9_-]*)?$`
+	// +optional
+	Casus string `json:"casus,omitempty"`
+
 	// Version is the regelrecht commit whose RegelHet image runs, the full
 	// 40-character hash, and whose chart installs it. Empty follows main: the
 	// chart on main and the latest build it names.
@@ -175,6 +186,14 @@ type RegelHetSpec struct {
 	// Theme is how the screens look.
 	// +optional
 	Theme Theme `json:"theme,omitempty"`
+
+	// Title is the text in the bar at the top of the screens, at most 80
+	// characters on one line, without spaces at either end. Empty carries
+	// the title of the case (`titel` in the case file).
+	// +kubebuilder:validation:MaxLength=80
+	// +kubebuilder:validation:Pattern=`^(\S([^\x00-\x1f\x7f]*\S)?)?$`
+	// +optional
+	Title string `json:"title,omitempty"`
 
 	// Auth is how people log in. Empty is the test login.
 	// +optional

@@ -17,7 +17,7 @@
 //! | Method and path | Who | What |
 //! |---|---|---|
 //! | `GET /health` | anyone | `ok` once the server runs |
-//! | `GET /api/uiterlijk` | anyone | the accent colour, and the organisation the process belongs to (`organisatie: { naam, url }`, or `null`) |
+//! | `GET /api/uiterlijk` | anyone | the accent colour, the title of the bar (`titel`), and the organisation the process belongs to (`organisatie: { naam, url }`, or `null`) |
 //! | `GET /api/casus` | citizen or employee | the case, and today |
 //! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
 //! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
@@ -92,7 +92,7 @@ use crate::organisatie::statement::Acceptor;
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
 use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
 use crate::surface::Surface;
-use crate::theme::AccentColor;
+use crate::theme::{AccentColor, Title};
 use crate::visibility;
 
 /// The header that carries a request's [`IdempotencyKey`].
@@ -115,6 +115,8 @@ pub struct AppState {
     fsc4b: Option<Arc<Fsc4b>>,
     /// The accent colour of the screens; none keeps the design system's.
     accent: Option<AccentColor>,
+    /// The title in the bar of the screens; none carries the case's own.
+    title: Option<Title>,
     /// The link with the servers of other cells, when one is configured.
     link: Option<Arc<Link>>,
     /// The organisation the process belongs to, when it belongs to one.
@@ -151,6 +153,7 @@ impl AppState {
             http_client: regelrecht_auth::http_client(),
             fsc4b: None,
             accent: None,
+            title: None,
             link: None,
             organisation: None,
         }
@@ -165,6 +168,13 @@ impl AppState {
     /// The state with the screens in the accent colour `accent`.
     pub fn with_accent(mut self, accent: Option<AccentColor>) -> Self {
         self.accent = accent;
+        self
+    }
+
+    /// The state with `title` in the bar of the screens, or the case's own
+    /// title when `None`.
+    pub fn with_title(mut self, title: Option<Title>) -> Self {
+        self.title = title;
         self
     }
 
@@ -1319,14 +1329,20 @@ async fn clock_state(state: &AppState) -> ApiResult {
 }
 
 /// How the screens look: the accent colour, a theme of the NLDD design
-/// system, or `null` for the design system's own.
+/// system, or `null` for the design system's own, and the title in their
+/// bar, the deployment's or else the case's own.
 async fn appearance(State(state): State<AppState>) -> Json<Value> {
+    let title = state
+        .title
+        .as_ref()
+        .map_or_else(|| state.service.case_title(), Title::as_str);
     let organisation = state
         .organisation
         .as_ref()
         .map(|o| json!({ "naam": o.name, "url": o.url }));
     Json(json!({
         "accentkleur": state.accent.map(AccentColor::name),
+        "titel": title,
         "organisatie": organisation,
     }))
 }

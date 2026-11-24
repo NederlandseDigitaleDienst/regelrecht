@@ -1,7 +1,7 @@
 // The accent colour the server names lands on <html> as an NLDD theme, and a
 // failed call leaves the screens on the design system's own accent.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { laadUiterlijk, zetUiterlijk } from './uiterlijk';
+import { laadUiterlijk, titel, zetUiterlijk } from './uiterlijk';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -35,5 +35,15 @@ describe('the accent colour', () => {
     await laadUiterlijk();
     expect(document.documentElement.dataset.nlddTheme).toBeUndefined();
     expect(warn).toHaveBeenCalled();
+  });
+});
+
+describe('the title', () => {
+  it('is the one the server names, and none on an answer without it', () => {
+    const root = document.createElement('html');
+    zetUiterlijk({ accentkleur: null, titel: 'Gehandicaptenparkeerkaart' }, root);
+    expect(titel.value).toBe('Gehandicaptenparkeerkaart');
+    zetUiterlijk({ accentkleur: null }, root);
+    expect(titel.value).toBeNull();
   });
 });

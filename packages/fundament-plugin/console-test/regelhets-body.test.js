@@ -17,6 +17,8 @@ import {
   phaseBadge,
   refError,
   repoUrlError,
+  titleError,
+  casusError,
 } from '../console/regelhets-body.js';
 
 const base = {
@@ -130,4 +132,30 @@ test('parties get an environment of their own only when chosen, and never in sta
   assert.equal(buildRegelHet(base).spec.parties, undefined);
   assert.deepEqual(buildRegelHet({ ...base, ownParties: true }).spec.parties, { ownInstances: true });
   assert.equal(buildRegelHet({ ...base, ownParties: true, stable: true }).spec.parties, undefined);
+});
+
+test('a title is in the spec only when given, and the check refuses what the CRD refuses', () => {
+  assert.equal(buildRegelHet(base).spec.title, undefined);
+  assert.equal(buildRegelHet({ ...base, title: '  ' }).spec.title, undefined);
+  assert.equal(buildRegelHet({ ...base, title: ' IIT Groningen ' }).spec.title, 'IIT Groningen');
+  assert.equal(titleError(''), null);
+  assert.equal(titleError('é'.repeat(80)), null);
+  assert.ok(titleError('é'.repeat(81)));
+  assert.ok(titleError('een\ntwee'));
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  const block = crd.slice(crd.indexOf('              title:'), crd.indexOf('type: string', crd.indexOf('              title:')));
+  assert.match(block, /maxLength: 80\n/);
+});
+
+test('a case is in the spec only when chosen, by the name of its case file', () => {
+  assert.equal(buildRegelHet(base).spec.casus, undefined);
+  assert.equal(buildRegelHet({ ...base, casus: 'bedrijfsparkeervergunning' }).spec.casus, 'bedrijfsparkeervergunning');
+  assert.equal(casusError(''), null);
+  assert.equal(casusError('individuele_inkomenstoeslag'), null);
+  assert.ok(casusError('bedrijfsparkeervergunning.yaml'));
+  assert.ok(casusError('casussen/a'));
+  assert.ok(casusError('A'));
+  assert.ok(casusError('a'.repeat(101)));
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  assert.ok(crd.includes('pattern: ^([a-z0-9][a-z0-9_-]*)?$'), 'the wizard checks what the CRD checks');
 });

@@ -38,6 +38,10 @@ spec:
   version: ''
   theme:
     accentColor: donkergroen
+  # Empty carries the case's own title.
+  title: Parkeervergunningen
+  # Only for a manifest with several cases: the name of the case file.
+  # casus: gehandicaptenparkeerkaart
   hostname: parkeerkaart
 status:
   phase: Ready
@@ -56,6 +60,8 @@ status:
 | `manifest.credentialsSecretRef` | a Secret in the same namespace with `username` and `token`, for a private repository. Only the snapshot Job reads it; annotated `regelhet.regelrecht.nl/delete-after-snapshot: "true"`, the plugin deletes it after the snapshot (below) |
 | `version` | the regelrecht commit whose RegelHet image runs and whose chart installs it, the full 40-character hash. Empty follows main |
 | `theme.accentColor` | an NLDD theme, such as `paars` or `donkergroen`; empty keeps the design system's own accent |
+| `casus` | the case to run when the manifest makes several, by the name of its case file under `casussen/` without `.yaml`, such as `bedrijfsparkeervergunning`. One manifest repository then holds several procedures, each a RegelHet of its own with its own `casus`. Empty runs the only case; a manifest with several and no choice, or a name it does not make, sets the RegelHet to `Failed` with `NotStarting`, and its message carries the server's error, which lists the cases the manifest makes. An external party on a release of its own runs the same case. A `version` from before this field ignores it |
+| `title` | the title in the bar at the top of the screens, at most 80 characters on one line. Empty carries the `titel` of the case file. A `version` from before this field ignores it |
 | `hostname` | a name under the base domain, or a domain of your own with a dot in it |
 | `auth.mode` | `test` (the default: the test login and a clock the admin sets) or `stable` (a Keycloak of its own, and the real date) |
 | `auth.testAccounts` | in stable mode, give that Keycloak the test accounts of the case, with one generated password |

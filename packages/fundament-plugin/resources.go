@@ -241,12 +241,18 @@ func chartValues(w *v1alpha1.RegelHet, cfg pluginConfig, snap *snapshot) map[str
 	if m.CredentialsSecretRef != nil {
 		caseValues["credentialsSecret"] = m.CredentialsSecretRef.Name
 	}
+	if w.Spec.Casus != "" {
+		caseValues["id"] = w.Spec.Casus
+	}
 	if snap != nil {
 		caseValues["snapshot"] = map[string]any{"configMaps": toAny(snap.configMaps)}
 	}
 	h := hostsOf(w, cfg.Domain)
 	values := baseValues(h, w.Spec.Theme.AccentColor, w.Spec.Version, cfg)
 	values["case"] = caseValues
+	if w.Spec.Title != "" {
+		values["theme"].(map[string]any)["title"] = w.Spec.Title
+	}
 	if w.Spec.Fsc4b.Enabled {
 		// The chart sets the demo Stelsel on the citizens' instance; its
 		// keys are made in memory at start, so there is no Secret to name.

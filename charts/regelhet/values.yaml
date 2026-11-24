@@ -33,6 +33,10 @@ case:
   # Path of the manifest inside the repository. The manifest's `repo_root` is
   # resolved from there, so ../.. points at /case for the default path.
   path: packages/regelhet/bron.yaml
+  # The case to run when the manifest makes several: the name of its case
+  # file under casussen/, such as bedrijfsparkeervergunning. Empty runs the
+  # only case of the manifest. The front of an organisation ignores it.
+  id: ''
   # A Secret in the release's namespace with the keys `username` and `token`,
   # for a private repository; empty for a public one. The init container
   # hands them to git as the credentials of repoUrl, and they stay out of the
@@ -296,6 +300,10 @@ theme:
   # hemelblauw, lichtblauw, mintgroen, mosgroen, oranje, paars, robijnrood,
   # rood, roze or violet). Empty keeps the design system's own accent.
   accentColor: ''
+  # The title in the bar at the top of the screens, at most 80 characters
+  # on one line. Empty carries the case's own `titel`. The front of an
+  # organisation carries the organisation's name and ignores it.
+  title: ''
 
 gateway:
   # How the hosts are reached.

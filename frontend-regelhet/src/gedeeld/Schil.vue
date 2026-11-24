@@ -10,7 +10,9 @@
 // tabs come from the route (schil.ts), who is in and how to leave from the
 // shell that uses it. When the server belongs to an organisation
 // (uiterlijk.ts), the bar starts with the organisation's name as a link back
-// to its front; on the front itself the name is the bar's title.
+// to its front; on the front itself the name is the bar's title. On a side
+// without tabs the bar's title is the one the server names (uiterlijk.ts),
+// unless the route names its own.
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 // The page height the shell needs; see the comment in that file.
@@ -20,7 +22,7 @@ import ProefStrook from './ProefStrook.vue';
 import { isHuidig } from './schil';
 import type { Actie, Tab } from './schil';
 import type { Klok } from './types';
-import { organisatie } from './uiterlijk';
+import { organisatie, titel as serverTitel } from './uiterlijk';
 import { wijsDeWeg } from './wegwijs';
 
 const props = withDefaults(
@@ -35,7 +37,7 @@ const props = withDefaults(
     klok?: Klok | null;
     /** The rights the account holds, for tabs that need one. */
     rechten?: Tab['recht'][];
-    /** The name of the side, shown where it has no tabs. */
+    /** A title the route names, over the one the server names. */
     titel?: string | null;
     /** The executor the server runs the process for, centered in the bar of a side with tabs. */
     uitvoerder?: string | null;
@@ -52,8 +54,13 @@ const router = useRouter();
 const zichtbaar = computed(() => props.tabs.filter((t) => !t.recht || props.rechten.includes(t.recht)));
 /** The organisation's front to go back to, when this is a process of one. */
 const terugNaarOrganisatie = computed(() => (organisatie.value?.url ? { naam: organisatie.value.naam, url: organisatie.value.url } : null));
-/** The bar's title: the side's own, or on the front of an organisation its name. */
-const kopTitel = computed(() => props.titel ?? (organisatie.value?.voorkant ? organisatie.value.naam : null));
+/** The bar's title: the route's own, on the front of an organisation its name, else on a side
+ *  without tabs the server's. A side with tabs has them at the start and the executor in the middle. */
+const kopTitel = computed(
+  () =>
+    props.titel ??
+    (organisatie.value?.voorkant ? organisatie.value.naam : zichtbaar.value.length ? null : serverTitel.value),
+);
 const huidig = (t: Tab) => isHuidig(t, route.name);
 const open = (t: Tab) => {
   if (!huidig(t) || route.path !== t.pad) void router.push(t.pad);

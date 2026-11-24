@@ -221,6 +221,14 @@ jobs:
           out="$(helm template regelhet "$C" --set domain=example.org $CNPG $SNAP -f "$C/ci/voorkant-values.yaml")"
           case "$out" in *unpack-case* | *snapshot-0*) echo "the front unpacks a case"; exit 1 ;; esac
           contains REGELHET_ACCENT_COLOR $SMALL --set theme.accentColor=paars
+          contains 'value: "IIT Groningen"' $SMALL --set 'theme.title=IIT Groningen'
+          contains 'value: "bedrijfsparkeervergunning"' $SMALL --set case.id=bedrijfsparkeervergunning
+          out="$(helm template regelhet "$C" --set domain=example.org $SMALL)"
+          case "$out" in *REGELHET_CASUS*) echo "a case is chosen without case.id"; exit 1 ;; esac
+          # The front carries the organisation's name, which a title would override.
+          out="$(helm template regelhet "$C" --set domain=example.org $CNPG \
+            -f "$C/ci/voorkant-values.yaml" --set theme.title=Titel)"
+          case "$out" in *REGELHET_TITLE*) echo "the front got a title"; exit 1 ;; esac
           # A release for an external party, linked with the executor's.
           contains REGELHET_LINK_PARTY $CNPG --set surfaces.split=false \
             --set regelhet.surface=backoffice --set koppeling.partij=ggd_wilgendaal \

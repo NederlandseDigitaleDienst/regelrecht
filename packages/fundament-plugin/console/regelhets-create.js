@@ -46,6 +46,8 @@ import {
   refError,
   repoUrlError,
   secretName,
+  titleError,
+  casusError,
   tokenError,
   usernameError,
   nameFromHostname,
@@ -73,6 +75,8 @@ const state = {
   pinned: false,
   version: '',
   accentColor: '',
+  title: '',
+  casus: '',
   hostname: '',
   namespace: ctx.namespaces?.[0] ?? '',
   organisatie: ORGANISATIE_NONE,
@@ -115,13 +119,15 @@ const steps = [
     fields: () => `
       ${field('Repository', textField('repoUrl', state.repoUrl, 'type="url" required placeholder="https://code.digitaledienst.overheid.nl/regelrecht/regelhet-parkeerkaart"'), { errorId: 'e-repo', hint: 'Het https-adres om de repository te klonen.' })}
       ${field('Branch, tag of commit', textField('ref', state.ref), { errorId: 'e-ref', hint: 'Leeg is main.' })}
-      ${field('Pad naar het manifest', textField('path', state.path), { errorId: 'e-path', hint: 'In een manifestrepository staat bron.yaml bovenin. In de repository fieldlab-2026 zelf is het packages/regelhet/bron.yaml.' })}`,
+      ${field('Pad naar het manifest', textField('path', state.path), { errorId: 'e-path', hint: 'In een manifestrepository staat bron.yaml bovenin. In de repository fieldlab-2026 zelf is het packages/regelhet/bron.yaml.' })}
+      ${field('Casus', textField('casus', state.casus, 'maxlength="100" placeholder="bedrijfsparkeervergunning"'), { errorId: 'e-casus', hint: 'Alleen als het manifest meer dan één casus heeft: de naam van het casusbestand onder casussen/, zonder .yaml. Leeg is de enige casus. Een naam die het manifest niet kent, laat de procedure niet starten.' })}`,
     checks: (f) => [
       [f.querySelector('[name="repoUrl"]'), repoUrlError],
       [f.querySelector('[name="ref"]'), refError],
       [f.querySelector('[name="path"]'), pathError],
+      [f.querySelector('[name="casus"]'), casusError],
     ],
-    keep: (v) => Object.assign(state, { repoUrl: v('repoUrl'), ref: v('ref'), path: v('path') }),
+    keep: (v) => Object.assign(state, { repoUrl: v('repoUrl'), ref: v('ref'), path: v('path'), casus: v('casus') }),
   },
   {
     title: 'Toegang',
@@ -204,10 +210,12 @@ const steps = [
   },
   {
     title: 'Uiterlijk',
-    intro: 'De accentkleur van de schermen, een van de kleuren van het NLDD-designsysteem.',
-    fields: () => field('Accentkleur', accentDropdown('accentColor', state.accentColor)),
-    checks: () => [],
-    keep: (v) => Object.assign(state, { accentColor: v('accentColor') }),
+    intro: 'De titel bovenaan de schermen, en hun accentkleur, een van de kleuren van het NLDD-designsysteem.',
+    fields: () => `
+      ${field('Titel', textField('title', state.title, 'maxlength="80"'), { errorId: 'e-title', hint: 'Bovenaan elk scherm, zoals Parkeervergunningen. Leeg is de titel uit het casusbestand.' })}
+      ${field('Accentkleur', accentDropdown('accentColor', state.accentColor))}`,
+    checks: (f) => [[f.querySelector('[name="title"]'), titleError]],
+    keep: (v) => Object.assign(state, { title: v('title'), accentColor: v('accentColor') }),
   },
   {
     title: 'Adres',
@@ -301,8 +309,10 @@ const steps = [
             ['Repository', state.repoUrl],
             ['Branch of tag', state.ref || DEFAULT_REF],
             ['Manifest', state.path || DEFAULT_PATH],
+            ['Casus', state.casus || 'de enige casus van het manifest'],
             ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}, verwijderd na de kopie` : 'openbaar'],
             ['Versie', state.version || 'laatste versie (main)'],
+            ['Titel', state.title || 'uit het casusbestand'],
             ['Accentkleur', state.accentColor || 'standaard'],
             [
               'Inloggen',

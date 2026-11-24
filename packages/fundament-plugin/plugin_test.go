@@ -152,6 +152,13 @@ func TestChartValuesFollowTheSpec(t *testing.T) {
 	values = chartValues(w, validConfig(), testSnapshot)
 	assert.Equal(t, map[string]any{"ref": "registry.example.org/regelrecht/regelhet:0123456789abcdef0123456789abcdef01234567"}, values["image"])
 	assert.Equal(t, map[string]any{"accentColor": "paars"}, values["theme"])
+	w.Spec.Title = "Parkeren in Wilgendaal"
+	values = chartValues(w, validConfig(), testSnapshot)
+	assert.Equal(t, map[string]any{"accentColor": "paars", "title": "Parkeren in Wilgendaal"}, values["theme"])
+	assert.NotContains(t, values["case"], "id", "without a choice the server runs the only case")
+	w.Spec.Casus = "bedrijfsparkeervergunning"
+	values = chartValues(w, validConfig(), testSnapshot)
+	assert.Equal(t, "bedrijfsparkeervergunning", values["case"].(map[string]any)["id"])
 	// Named for the chart of an older version only: with a snapshot the
 	// chart mounts no Secret (CI checks the render).
 	assert.Equal(t, "zorgtoeslag-repo", values["case"].(map[string]any)["credentialsSecret"])
@@ -181,6 +188,8 @@ func TestChartValuesExistInChart(t *testing.T) {
 	w := newRegelHet("a", "a")
 	w.Spec.Version = "0123456789abcdef0123456789abcdef01234567"
 	w.Spec.Manifest.CredentialsSecretRef = &v1alpha1.SecretReference{Name: "a-repo"}
+	w.Spec.Title = "Een titel"
+	w.Spec.Casus = "een_casus"
 	check("", chartValues(w, validConfig(), testSnapshot), chart)
 	w.Spec.Auth = v1alpha1.Auth{Mode: v1alpha1.AuthStable, TestAccounts: true}
 	check("", chartValues(w, validConfig(), testSnapshot), chart)

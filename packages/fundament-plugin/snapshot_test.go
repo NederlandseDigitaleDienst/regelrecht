@@ -327,12 +327,14 @@ func TestSnapshotScriptPacksWhatTheManifestNames(t *testing.T) {
 	assert.Equal(t, []string{"c/a.yaml", "c/beëindiging.yaml", "case/bron.yaml", "ui.yaml"}, listed)
 }
 
-func TestAPartyReleaseRunsTheSameSnapshot(t *testing.T) {
+func TestAPartyReleaseRunsTheSameSnapshotAndCase(t *testing.T) {
 	t.Parallel()
 	w := newRegelHet("a", "a")
+	w.Spec.Casus = "bedrijfsparkeervergunning"
 	w.Status.Snapshot = &v1alpha1.SnapshotStatus{Commit: testCommit, ConfigMaps: []string{"a-case-1-0"}}
 	values := partyValues(w, validConfig(), v1alpha1.PartyStatus{Cell: "ggd", URL: "https://a-ggd.cluster.example.org/"})
 	assert.Equal(t, map[string]any{"configMaps": []any{"a-case-1-0"}}, values["case"].(map[string]any)["snapshot"])
+	assert.Equal(t, "bedrijfsparkeervergunning", values["case"].(map[string]any)["id"])
 }
 
 func TestAPinnedVersionKeepsItsToken(t *testing.T) {

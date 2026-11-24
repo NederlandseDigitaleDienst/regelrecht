@@ -44,6 +44,10 @@ const LABEL = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const HOSTNAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
 const REF = /^[A-Za-z0-9._/][A-Za-z0-9._/-]*$/;
 const COMMIT = /^[0-9a-f]{40}$/;
+// The title in the bar of the screens: as the CRD and the server allow it,
+// one line of at most 80 characters (spec.title).
+export const TITLE_MAX = 80;
+const CONTROL = /[\u0000-\u001f\u007f]/;
 
 // Each check returns the message a field shows, or null.
 
@@ -86,6 +90,23 @@ export function tokenError(value) {
 
 export function commitError(value) {
   return COMMIT.test(value) ? null : 'De volledige commit-hash: 40 tekens, 0-9 en a-f.';
+}
+
+// A case file under casussen/, by its name without .yaml (spec.casus).
+const CASUS = /^[a-z0-9][a-z0-9_-]*$/;
+export const CASUS_MAX = 100;
+
+export function casusError(value) {
+  if (!value) return null;
+  if (value.endsWith('.yaml')) return 'De naam zonder .yaml, zoals bedrijfsparkeervergunning.';
+  if (!CASUS.test(value)) return 'De naam van het casusbestand: kleine letters, cijfers, _ en -.';
+  return value.length > CASUS_MAX ? `Ten hoogste ${CASUS_MAX} tekens.` : null;
+}
+
+export function titleError(value) {
+  if (!value) return null;
+  if (CONTROL.test(value)) return 'Eén regel tekst.';
+  return [...value].length > TITLE_MAX ? `Ten hoogste ${TITLE_MAX} tekens.` : null;
 }
 
 export function hostnameError(value) {
@@ -144,6 +165,8 @@ export function buildRegelHet({
   privateRepo,
   version,
   accentColor,
+  title = '',
+  casus = '',
   stable = false,
   testAccounts = false,
   fsc4b = false,
@@ -155,7 +178,11 @@ export function buildRegelHet({
   if (privateRepo) manifest.credentialsSecretRef = { name: secretName(name) };
   const spec = { manifest, hostname };
   if (version) spec.version = version;
+  // Without a choice the server runs the manifest's only case.
+  if (casus) spec.casus = casus;
   if (accentColor) spec.theme = { accentColor };
+  // Without a title the screens carry the case's own.
+  if (title.trim()) spec.title = title.trim();
   // Test mode is the CRD's default, so a test RegelHet says nothing.
   if (stable) spec.auth = { mode: 'stable', testAccounts };
   // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the

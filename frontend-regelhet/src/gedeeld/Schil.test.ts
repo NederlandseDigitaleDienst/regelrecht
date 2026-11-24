@@ -4,12 +4,13 @@
 // (One file for the component and its helpers in schil.ts: a second file
 // named schil.test.ts collides with this one on a case-insensitive disk.)
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { RouteRecordNormalized } from 'vue-router';
 import Schil from './Schil.vue';
 import { isHuidig, tabsVan } from './schil';
 import type { Tab } from './schil';
+import { zetUiterlijk } from './uiterlijk';
 
 const tabs: Tab[] = [
   { naam: 'lijst', tekst: 'Lijst', pad: '/lijst', icoon: 'inbox', ook: ['detail'] },
@@ -36,6 +37,8 @@ async function toon(props: Record<string, unknown>, pad = '/lijst') {
 
 const tabTeksten = (w: Awaited<ReturnType<typeof toon>>) =>
   w.findAll('nldd-tab-bar-item').map((t) => t.attributes('text'));
+
+afterEach(() => zetUiterlijk({ accentkleur: null }, document.createElement('html')));
 
 describe('the shell', () => {
   it('shows the screen in the main pane of a bar split view', async () => {
@@ -75,6 +78,15 @@ describe('the shell', () => {
     const midden = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-toolbar-title[slot="center"]').map((t) => t.attributes('text'));
     expect(midden(await toon({ uitvoerder: 'Gemeente Voorbeeld' }))).toEqual(['Gemeente Voorbeeld']);
     expect(midden(await toon({ tabs: [], titel: 'Vergunningen', uitvoerder: 'Gemeente Voorbeeld' }))).toEqual([]);
+  });
+
+  it('carries the title the server names on a side without tabs, unless the route names its own', async () => {
+    zetUiterlijk({ accentkleur: null, titel: 'IIT Groningen' }, document.createElement('html'));
+    const titels = (w: Awaited<ReturnType<typeof toon>>) =>
+      w.findAll('nldd-toolbar-title').map((t) => t.attributes('text'));
+    expect(titels(await toon({ tabs: [] }))).toEqual(['IIT Groningen', 'IIT Groningen']);
+    expect(titels(await toon({}))).toEqual([]);
+    expect(titels(await toon({ tabs: [], titel: 'Eigen' }))).toEqual(['Eigen', 'Eigen']);
   });
 
   it('marks the tab of the screen as current, also on a screen under it', async () => {

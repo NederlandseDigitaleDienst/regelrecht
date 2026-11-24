@@ -752,6 +752,12 @@ impl Service {
             .map(|(field, _)| field.as_str())
     }
 
+    /// The case's own title (`titel` in the case file), which the screens
+    /// carry in their bar when the deployment names none.
+    pub fn case_title(&self) -> &str {
+        &self.corpus.casus.titel
+    }
+
     /// The article of the case's application, which the login field
     /// belongs to.
     pub fn application_article(&self) -> &str {

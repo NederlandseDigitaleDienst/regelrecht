@@ -156,7 +156,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     if !config.surface.serves_citizens() && !matches!(config.fsc4b, Fsc4bChoice::Off) {
         return Err(StartupError::Fsc4bOnBackoffice);
     }
-    let (corpus, messages) = case::load(&config.manifest)?;
+    let (corpus, messages) = case::load_chosen(&config.manifest, config.case.as_deref())?;
     for message in &messages {
         tracing::warn!(%message, "loading the case");
     }
@@ -236,7 +236,9 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         login,
         &subject_claim,
     );
-    state = state.with_accent(config.accent);
+    state = state
+        .with_accent(config.accent)
+        .with_title(config.title.clone());
     if let Some(fsc4b) = fsc4b {
         state = state.with_fsc4b(Arc::new(fsc4b));
     }
@@ -518,12 +520,14 @@ mod tests {
             surface: Surface::All,
             store: StoreChoice::Memory,
             manifest: PathBuf::from(DEFAULT_MANIFEST),
+            case: None,
             frontend: PathBuf::from("/nonexistent/frontend"),
             port: DEFAULT_PORT,
             login: LoginChoice::TestLogin,
             subject_claim: None,
             fsc4b: Fsc4bChoice::Off,
             accent: None,
+            title: None,
             link: Default::default(),
             role: Role::Process(None),
         }
@@ -656,5 +660,16 @@ mod tests {
         c.manifest = PathBuf::from("/nonexistent/bron.yaml");
         let e = build_with(&c, Login::TestLogin).await.unwrap_err();
         assert!(matches!(e, StartupError::Case(_)), "{e}");
+    }
+
+    #[tokio::test]
+    async fn a_case_the_manifest_does_not_make_does_not_start() {
+        let mut c = config(Mode::Test);
+        c.case = Some("zorgtoeslag".into());
+        let e = build_with(&c, Login::TestLogin).await.unwrap_err();
+        assert!(
+            matches!(e, StartupError::Case(CaseError::UnknownCase { .. })),
+            "{e}"
+        );
     }
 }

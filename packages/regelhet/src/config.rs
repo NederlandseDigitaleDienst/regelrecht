@@ -28,6 +28,15 @@
 //!   of the NLDD design system such as `paars` ([`crate::theme`]). Without
 //!   it the screens keep the design system's own accent; a name that is no
 //!   theme does not start.
+//! - `REGELHET_CASUS`: the case to run, by the name of its case file
+//!   (`bedrijfsparkeervergunning` for `casussen/bedrijfsparkeervergunning.yaml`),
+//!   for a manifest that makes several ([`crate::case`]). Without it the
+//!   manifest must make exactly one; a name it does not make does not start.
+//!   The front of an organisation runs no case and refuses it.
+//! - `REGELHET_TITLE`: the title in the bar of the screens
+//!   ([`crate::theme::Title`]), at most 80 characters on one line. Without
+//!   it the screens carry the case's own `titel`. The front of an
+//!   organisation carries the organisation's name and refuses it.
 //!
 //! The login ([`LoginChoice`]):
 //!
@@ -89,7 +98,7 @@ use crate::access::{CITIZEN, Level, ROLE_PREFIX};
 pub use crate::organisatie::settings::{FrontSettings, Membership, OrganisationKey, Role};
 use crate::store::postgres::PoolSize;
 use crate::surface::Surface;
-use crate::theme::AccentColor;
+use crate::theme::{AccentColor, Title};
 
 /// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
 /// them set without it is a configuration half done, not a choice for the
@@ -305,6 +314,8 @@ pub struct Config {
     pub surface: Surface,
     pub store: StoreChoice,
     pub manifest: PathBuf,
+    /// The case of the manifest to run, by its id; none runs its only case.
+    pub case: Option<String>,
     /// The directory of the built screens, one build per surface in a
     /// directory of its name; the server serves its own surface's.
     pub frontend: PathBuf,
@@ -318,6 +329,8 @@ pub struct Config {
     pub fsc4b: Fsc4bChoice,
     /// The accent colour of the screens; none keeps the design system's.
     pub accent: Option<AccentColor>,
+    /// The title in the bar of the screens; none carries the case's own.
+    pub title: Option<Title>,
     /// A process, on its own or in an organisation, or an organisation's
     /// front.
     pub role: Role,
@@ -426,6 +439,14 @@ pub enum ConfigError {
     OidcLoginWithoutOidc,
     #[error("REGELHET_ACCENT_COLOR: {0}")]
     UnknownAccentColor(#[from] crate::theme::UnknownAccentColor),
+    #[error("REGELHET_TITLE is no title: {0}")]
+    BadTitle(#[from] crate::theme::BadTitle),
+    #[error(
+        "the front of an organisation carries the organisation's name; REGELHET_TITLE is for a process"
+    )]
+    TitleOnFront,
+    #[error("the front of an organisation runs no case; REGELHET_CASUS is for a process")]
+    CaseOnFront,
     #[error("REGELHET_PORT is `{0}`, which is no port")]
     BadPort(String),
     #[error("REGELHET_STORE is `{0}`: it is `memory` or `postgres`")]
@@ -554,6 +575,7 @@ impl Config {
         )?;
         let manifest =
             set("REGELHET_MANIFEST").map_or_else(|| PathBuf::from(DEFAULT_MANIFEST), PathBuf::from);
+        let case = set("REGELHET_CASUS").map(|c| c.trim().to_string());
         let frontend =
             set("REGELHET_FRONTEND").map_or_else(|| PathBuf::from(DEFAULT_FRONTEND), PathBuf::from);
         let port = match set("REGELHET_PORT") {
@@ -565,6 +587,7 @@ impl Config {
         let accent = set("REGELHET_ACCENT_COLOR")
             .map(|c| c.parse())
             .transpose()?;
+        let title = set("REGELHET_TITLE").map(|t| t.parse()).transpose()?;
         let login = login_choice(mode, claim, &set)?;
         let fsc4b = fsc4b_choice(mode, claim, port, &set)?;
         if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
@@ -582,18 +605,26 @@ impl Config {
             if link.party.is_some() || !link.peers.is_empty() || link.key.is_some() {
                 return Err(ConfigError::LinkOnFront);
             }
+            if title.is_some() {
+                return Err(ConfigError::TitleOnFront);
+            }
+            if case.is_some() {
+                return Err(ConfigError::CaseOnFront);
+            }
         }
         Ok(Self {
             mode,
             surface,
             store,
             manifest,
+            case,
             frontend,
             port,
             login,
             subject_claim,
             fsc4b,
             accent,
+            title,
             link,
             role,
         })
@@ -991,6 +1022,30 @@ mod tests {
         assert!(matches!(
             error(&[test, &[("REGELHET_ACCENT_COLOR", "#7d3f98")]]),
             ConfigError::UnknownAccentColor(_)
+        ));
+    }
+
+    #[test]
+    fn the_case_is_chosen_by_its_id_or_not_at_all() {
+        let test = &[("REGELHET_MODE", "test")];
+        assert_eq!(Config::from_env(env(&[test])).unwrap().case, None);
+        let c = Config::from_env(env(&[
+            test,
+            &[("REGELHET_CASUS", " bedrijfsparkeervergunning ")],
+        ]))
+        .unwrap();
+        assert_eq!(c.case.as_deref(), Some("bedrijfsparkeervergunning"));
+    }
+
+    #[test]
+    fn the_title_is_one_short_line_or_the_case_s_own() {
+        let test = &[("REGELHET_MODE", "test")];
+        assert_eq!(Config::from_env(env(&[test])).unwrap().title, None);
+        let c = Config::from_env(env(&[test, &[("REGELHET_TITLE", " IIT Groningen ")]])).unwrap();
+        assert_eq!(c.title.as_ref().map(Title::as_str), Some("IIT Groningen"));
+        assert!(matches!(
+            error(&[test, &[("REGELHET_TITLE", "een\ntwee")]]),
+            ConfigError::BadTitle(crate::theme::BadTitle::Control)
         ));
     }
 

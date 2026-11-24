@@ -58,6 +58,11 @@
           "minLength": 1,
           "pattern": "^[^/].*$"
         },
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^([a-z0-9][a-z0-9_-]*)?$"
+        },
         "credentialsSecret": {
           "type": "string",
           "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
@@ -397,6 +402,11 @@
             "roze",
             "violet"
           ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^(\\S([^\\x00-\\x1f\\x7f]*\\S)?)?$"
         }
       }
     },

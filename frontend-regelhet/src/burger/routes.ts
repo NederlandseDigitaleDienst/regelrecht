@@ -1,7 +1,7 @@
 // The routes of the public side. Every screen loads as a chunk of its own,
 // apart from the back office, so this side can be bundled on its own. This
-// side has no sections, so its bar carries its name and its one action
-// (`meta.titel`, `meta.actie`, gedeeld/schil.ts).
+// side has no sections, so its bar carries the title the server names
+// (gedeeld/uiterlijk.ts) and its one action (`meta.actie`, gedeeld/schil.ts).
 // The dossier and a record in it are one screen, as the editor's sidebar
 // and main pane: the record opens beside the dossier. Every record has one
 // address, `/burger/dossier/<id>`; `/burger/besluit/<id>`, the address of a
@@ -24,7 +24,6 @@ export const burgerRoutes: RouteRecordRaw[] = [
     component: RouterView,
     meta: {
       kant: 'burger',
-      titel: 'Parkeervergunningen',
       actie: {
         tekst: 'Nieuwe aanvraag',
         hash: AANVRAAG,

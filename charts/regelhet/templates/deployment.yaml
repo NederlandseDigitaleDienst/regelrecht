@@ -238,6 +238,10 @@ spec:
             {{- else }}
             - name: REGELHET_MANIFEST
               value: {{ printf "/case/%s" (include "regelhet.casePath" .) | quote }}
+            {{- with .Values.case.id }}
+            - name: REGELHET_CASUS
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- with .Values.organisatie }}
             {{- if .id }}
@@ -279,6 +283,13 @@ spec:
             {{- with .Values.theme.accentColor }}
             - name: REGELHET_ACCENT_COLOR
               value: {{ . | quote }}
+            {{- end }}
+            {{- /* The front carries the organisation's name; the server refuses a title there. */}}
+            {{- if not $front }}
+            {{- with .Values.theme.title }}
+            - name: REGELHET_TITLE
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- /*
             One instance of a release holds the link: the one for employees,

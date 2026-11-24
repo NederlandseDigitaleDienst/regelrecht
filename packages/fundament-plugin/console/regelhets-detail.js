@@ -72,10 +72,12 @@ function show(item) {
         ['Repository', manifest.repoUrl ?? ''],
         ['Branch of tag', manifest.ref ?? 'main'],
         ['Manifest', manifest.path ?? ''],
+        ['Casus', spec.casus || 'de enige casus van het manifest'],
         ['Toegang', manifest.credentialsSecretRef ? `privé, met Secret ${manifest.credentialsSecretRef.name}` : 'openbaar'],
         ['Kopie van de casus', item.status?.snapshot?.commit ? `commit ${item.status.snapshot.commit}` : 'nog niet gemaakt'],
         ...(manifest.credentialsSecretRef ? [['Token', tokenText(item.status?.token)]] : []),
         ['Versie', spec.version || 'laatste build van main'],
+        ['Titel', spec.title || 'uit het casusbestand'],
         ['Accentkleur', spec.theme?.accentColor || 'standaard'],
         [
           'Inloggen',

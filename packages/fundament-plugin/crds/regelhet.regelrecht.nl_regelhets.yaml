@@ -40,7 +40,7 @@ spec:
       openAPIV3Schema:
         description: |-
           RegelHet is one RegelHet: a case from a git repository, run by
-          the regelhet server on its own address.
+          the RegelHet server on its own address.
         properties:
           apiVersion:
             description: |-
@@ -81,6 +81,17 @@ spec:
                       only; without them, accounts are made in Keycloak itself.
                     type: boolean
                 type: object
+              casus:
+                description: |-
+                  Casus chooses the case to run from a manifest that makes several, by
+                  the name of its case file: `bedrijfsparkeervergunning` for
+                  casussen/bedrijfsparkeervergunning.yaml. So one manifest repository
+                  holds several procedures, each its own RegelHet. Empty runs the only
+                  case of the manifest; the server refuses to start when the manifest
+                  makes several, or none by this name.
+                maxLength: 100
+                pattern: ^([a-z0-9][a-z0-9_-]*)?$
+                type: string
               fsc4b:
                 description: Fsc4b is FSC voor Burgers. Empty is off.
                 properties:
@@ -144,8 +155,8 @@ spec:
                 type: object
               organisatie:
                 description: |-
-                  Organisatie puts this regelhet on the list of an Organisatie in the
-                  same Fundament project, behind its front. The regelhet keeps its own
+                  Organisatie puts this RegelHet on the list of an Organisatie in the
+                  same Fundament project, behind its front. The RegelHet keeps its own
                   addresses. Empty runs it on its own.
                 properties:
                   name:
@@ -205,9 +216,17 @@ spec:
                     - violet
                     type: string
                 type: object
+              title:
+                description: |-
+                  Title is the text in the bar at the top of the screens, at most 80
+                  characters on one line, without spaces at either end. Empty carries
+                  the title of the case (`titel` in the case file).
+                maxLength: 80
+                pattern: ^(\S([^\x00-\x1f\x7f]*\S)?)?$
+                type: string
               version:
                 description: |-
-                  Version is the regelrecht commit whose regelhet image runs, the full
+                  Version is the regelrecht commit whose RegelHet image runs, the full
                   40-character hash, and whose chart installs it. Empty follows main: the
                   chart on main and the latest build it names.
                 pattern: ^([0-9a-f]{40})?$
@@ -374,7 +393,7 @@ spec:
                   namespace: Present or Absent; empty without credentialsSecretRef.
                 type: string
               url:
-                description: URL is where citizens use the RegelHet.
+                description: URL is where citizens use RegelHet.
                 type: string
             type: object
         required:
