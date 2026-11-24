@@ -56,6 +56,12 @@ pub fn collect_source_bindings(yaml: &str) -> Vec<SourceBinding> {
     let Ok(doc) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(yaml) else {
         return Vec::new();
     };
+    source_bindings_of(&doc)
+}
+
+/// [`collect_source_bindings`] for a body that is already parsed.
+#[must_use]
+pub fn source_bindings_of(doc: &serde_yaml_ng::Value) -> Vec<SourceBinding> {
     let own_id = doc.get("$id").and_then(|v| v.as_str()).unwrap_or_default();
     let mut out = BTreeSet::new();
     let Some(articles) = doc.get("articles").and_then(|v| v.as_sequence()) else {

@@ -122,7 +122,8 @@ pub struct Node {
 }
 
 impl Node {
-    fn new(bwb_id: impl Into<String>, article: impl Into<String>) -> Self {
+    /// The article `article` of the statute `bwb_id`.
+    pub fn new(bwb_id: impl Into<String>, article: impl Into<String>) -> Self {
         Self {
             bwb_id: bwb_id.into(),
             article: article.into(),
@@ -141,6 +142,23 @@ pub struct Producer {
     pub parameters: Vec<String>,
 }
 
+/// One binding a model declares: where a value it reads comes from.
+///
+/// Kept as written, unresolved: `regulation` names a law by `$id` and `output`
+/// a value that law produces, and only an index over several laws can turn
+/// that into an article (through the target's [`Graph::producers`]). Inside
+/// one law, `regulation` is `None` and the own producers resolve `output`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Binding {
+    /// `$id` of the law read, or `None` for this law itself.
+    pub regulation: Option<String>,
+    /// The output read, from `source.output`.
+    pub output: Option<String>,
+    /// The article called, from `source.article` (`<law>#<article>`), as its
+    /// article half.
+    pub article: Option<String>,
+}
+
 /// The reference graph plus the value producer index.
 #[derive(Debug, Clone, Default)]
 pub struct Graph {
@@ -155,6 +173,12 @@ pub struct Graph {
     /// corpus-wide order would walk, and dropping them here would make the
     /// generalisation a rewrite instead of an extension.
     pub depends_on: BTreeMap<Node, BTreeSet<Node>>,
+    /// What each top-level article's model reads, keyed by that article: the
+    /// `source` blocks of its `machine_readable`. Where `depends_on` is what
+    /// the text cites, this is what the model computes with, and the two
+    /// differ both ways: a citation that passes no value, a value read from a
+    /// law the text names only by its title.
+    pub binds_to: BTreeMap<String, BTreeSet<Binding>>,
     /// Every output name this law declares, and where. A name declared by more
     /// than one entry maps to all of them — ambiguity that the closing pass
     /// refuses to resolve on its own.
@@ -198,6 +222,18 @@ impl Graph {
 
             for (name, producer) in outputs_of(article, &number, index) {
                 graph.producers.entry(name).or_default().push(producer);
+            }
+            let own_id = doc.get("$id").and_then(Value::as_str).unwrap_or_default();
+            let mut bindings = BTreeSet::new();
+            if let Some(mr) = article.get("machine_readable") {
+                collect_bindings(mr, own_id, &mut bindings);
+            }
+            if !bindings.is_empty() {
+                graph
+                    .binds_to
+                    .entry(top.clone())
+                    .or_default()
+                    .extend(bindings);
             }
 
             let from = Node::new(&bwb_id, &top);
@@ -350,6 +386,57 @@ impl Graph {
     #[must_use]
     pub fn plan_order(&self) -> Vec<String> {
         self.layers().into_iter().flatten().collect()
+    }
+}
+
+/// Every `source` block under `value`, as a [`Binding`]. A walk rather than a
+/// fixed path, because a source can sit in an input, a parameter or deeper,
+/// and a binding the schema grows later must not drop out silently. A
+/// `$`-article is chosen at run time and names nothing to follow.
+fn collect_bindings(value: &Value, own_id: &str, out: &mut BTreeSet<Binding>) {
+    match value {
+        Value::Mapping(map) => {
+            if let Some(source) = map.get("source") {
+                let regulation = source
+                    .get("regulation")
+                    .and_then(Value::as_str)
+                    .filter(|r| !r.is_empty() && *r != own_id)
+                    .map(str::to_string);
+                let output = source
+                    .get("output")
+                    .and_then(Value::as_str)
+                    .filter(|o| !o.is_empty())
+                    .map(str::to_string);
+                let called = source
+                    .get("article")
+                    .and_then(Value::as_str)
+                    .filter(|t| !t.starts_with('$'))
+                    .and_then(|t| t.split_once('#'));
+                let (regulation, article) = match called {
+                    Some((law, art)) if !law.is_empty() && law != own_id => {
+                        (Some(law.to_string()), Some(art.to_string()))
+                    }
+                    Some((_, art)) => (regulation, Some(art.to_string())),
+                    None => (regulation, None),
+                };
+                if output.is_some() || article.is_some() {
+                    out.insert(Binding {
+                        regulation,
+                        output,
+                        article,
+                    });
+                }
+            }
+            for (_, child) in map {
+                collect_bindings(child, own_id, out);
+            }
+        }
+        Value::Sequence(items) => {
+            for item in items {
+                collect_bindings(item, own_id, out);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -531,6 +618,64 @@ mod tests {
         assert_eq!(top_article("10.2a"), "10.2a");
         // Distinct articles stay distinct, which is the whole point.
         assert_ne!(top_article("2.62"), top_article("2.65"));
+    }
+
+    #[test]
+    fn scan_records_what_each_model_reads() {
+        let graph = Graph::scan(&doc(r"
+$id: lezer
+bwb_id: BWBR0000001
+articles:
+  - number: '2'
+    text: Het recht.
+    machine_readable:
+      execution:
+        input:
+          - name: inkomen
+            source:
+              regulation: awir
+              output: toetsingsinkomen
+          - name: premie
+            source:
+              output: standaardpremie
+          - name: besluit
+            source:
+              article: awb#4:3
+          - name: datum
+            source:
+              article: $gekozen_artikel
+          - name: eigen
+            source:
+              regulation: lezer
+              output: drempel
+"));
+        let binds = graph.binds_to.get("2").unwrap();
+        let expected: BTreeSet<Binding> = [
+            Binding {
+                regulation: Some("awir".into()),
+                output: Some("toetsingsinkomen".into()),
+                article: None,
+            },
+            Binding {
+                regulation: None,
+                output: Some("standaardpremie".into()),
+                article: None,
+            },
+            Binding {
+                regulation: Some("awb".into()),
+                output: None,
+                article: Some("4:3".into()),
+            },
+            // Naming the own law is an intra-law binding.
+            Binding {
+                regulation: None,
+                output: Some("drempel".into()),
+                article: None,
+            },
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(binds, &expected);
     }
 
     #[test]

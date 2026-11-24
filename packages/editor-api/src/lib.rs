@@ -9,6 +9,7 @@ pub mod config;
 pub mod corpus_handlers;
 pub mod credentials;
 pub mod crypto;
+pub mod enrich_chain;
 pub mod enrich_review;
 pub mod enrich_scope;
 mod favorites;

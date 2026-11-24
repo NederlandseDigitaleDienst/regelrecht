@@ -14,6 +14,11 @@ use crate::state::AppState;
 /// decide whether traject writes must carry the acting user's own token.
 pub const GITHUB_USER_OAUTH: &str = "github.user_oauth";
 
+/// The chain of an article and the hotspots of a traject: the routes behind
+/// it answer 404 while it is off, and the facts index is only prewarmed when
+/// it is on.
+pub const ENRICH_HOTSPOTS: &str = "enrich.hotspots";
+
 /// Every flag the editor knows, with its default. This is also the allow-list
 /// for `PUT /api/feature-flags/{key}`: a key missing here is rejected with 400,
 /// and the frontend then silently reverts the toggle. The frontend keeps its
@@ -41,6 +46,10 @@ static DEFAULTS: LazyLock<HashMap<String, bool>> = LazyLock::new(|| {
         // wanneer de enrich-worker met scope-ondersteuning draait, want een
         // oudere worker negeert de scope en verrijkt dan de hele wet.
         ("enrich.scoped".into(), false),
+        // Keten en hotspots: welke artikelen een verrijking raakt en waar
+        // verrijken het meest oplevert. Default off; het eerste gebruik van
+        // een traject bouwt dan ook de feitenindex in de achtergrond.
+        (ENRICH_HOTSPOTS.into(), false),
     ])
 });
 

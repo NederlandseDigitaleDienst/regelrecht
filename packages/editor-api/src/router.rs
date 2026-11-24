@@ -411,6 +411,14 @@ fn traject_reader_routes() -> Router<AppState> {
             get(corpus_handlers::list_traject_law_consumers),
         )
         .route(
+            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/articles/{article}/chain",
+            get(corpus_handlers::get_traject_article_chain),
+        )
+        .route(
+            "/api/trajects/{traject_ref}/hotspots",
+            get(corpus_handlers::list_traject_hotspots),
+        )
+        .route(
             "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
             get(corpus_handlers::list_traject_scenarios),
         )

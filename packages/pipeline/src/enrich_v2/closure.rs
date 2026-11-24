@@ -123,7 +123,7 @@ use std::path::{Path, PathBuf};
 
 use serde_yaml_ng::Value;
 
-use super::refgraph::Graph;
+use super::refgraph::{Binding, Graph, Node, top_article};
 
 /// Where a law lives and what it is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -385,12 +385,523 @@ impl Plan {
     }
 }
 
+/// How the traversal reached an article.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EdgeKind {
+    /// The text or the `references` block names it.
+    Cites,
+    /// A model reads a value it produces, or calls its decision.
+    Binds,
+    /// It fills an open term of the article walked from.
+    Implements,
+}
+
+/// The step that first reached an article: where from, and along what.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Via {
+    pub from: Node,
+    pub kind: EdgeKind,
+}
+
+/// One law as the traversal needs it.
+#[derive(Debug, Clone, Default)]
+pub struct LoadedLaw {
+    /// Its reference graph.
+    pub graph: Graph,
+    /// Its top-level articles that are begripsbepalingen.
+    pub definitions: BTreeSet<String>,
+}
+
+/// Where the traversal gets its laws from.
+///
+/// The closure is the same walk whether the laws are files in a checkout
+/// (`enrich-once`, [`FsLaws`]) or the facts a server holds for the corpus of a
+/// traject. Only the lookups differ.
+pub trait LawGraphs {
+    /// What the corpus knows about a law without loading it, by BWB id;
+    /// `None` when the corpus does not have it.
+    fn entry(&self, bwb_id: &str) -> Option<LawEntry>;
+
+    /// The law itself, read and scanned; `None` when it cannot be read.
+    fn load(&mut self, bwb_id: &str) -> Option<LoadedLaw>;
+
+    /// The BWB id of the law with `$id` `law_id`, for following bindings.
+    /// Without it, bindings to other laws are not followed.
+    fn bwb_of(&self, _law_id: &str) -> Option<String> {
+        None
+    }
+
+    /// Articles elsewhere that fill an open term of `article` in `bwb_id`.
+    fn implementors(&self, _bwb_id: &str, _article: &str) -> Vec<Node> {
+        Vec::new()
+    }
+}
+
+/// The corpus as files under a root, as `enrich-once` reads it.
+pub struct FsLaws<'a> {
+    root: &'a Path,
+    index: &'a LawIndex,
+}
+
+impl<'a> FsLaws<'a> {
+    #[must_use]
+    pub fn new(root: &'a Path, index: &'a LawIndex) -> Self {
+        Self { root, index }
+    }
+}
+
+impl LawGraphs for FsLaws<'_> {
+    fn entry(&self, bwb_id: &str) -> Option<LawEntry> {
+        self.index.get(bwb_id).cloned()
+    }
+
+    fn load(&mut self, bwb_id: &str) -> Option<LoadedLaw> {
+        let entry = self.index.get(bwb_id)?;
+        let doc = read_law(&self.root.join(&entry.path))?;
+        Some(loaded(&doc))
+    }
+}
+
+/// Scan a parsed law into what the traversal needs.
+#[must_use]
+pub fn loaded(doc: &Value) -> LoadedLaw {
+    let graph = Graph::scan(doc);
+    let definitions = graph
+        .articles
+        .iter()
+        .filter(|a| is_definition_article(doc, a))
+        .cloned()
+        .collect();
+    LoadedLaw { graph, definitions }
+}
+
+/// What the walk is allowed to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Walk {
+    /// Law jumps from the starting law.
+    pub depth: usize,
+    pub rules: StopRules,
+    /// Follow what the models read ([`Graph::binds_to`]) and the articles
+    /// that fill an open term, besides what the text cites. A binding or an
+    /// implements edge is followed into a delegated regulation, which a
+    /// citation is not: the value read there is part of the computation.
+    pub follow_bindings: bool,
+    /// Stop taking articles once this many are taken.
+    pub node_cap: Option<usize>,
+}
+
+/// What one walk found, before it is turned into a plan or a chain.
+#[derive(Debug, Clone, Default)]
+pub struct Closure {
+    /// Taken articles per law, by BWB id.
+    pub taken: BTreeMap<String, BTreeSet<String>>,
+    /// Law jumps from the start, per law.
+    pub law_depth: BTreeMap<String, usize>,
+    /// Which law reads which, for ordering producers first.
+    pub reads: BTreeMap<String, BTreeSet<String>>,
+    /// The scanned laws the walk loaded.
+    pub laws: BTreeMap<String, Graph>,
+    /// How each article was first reached. The start articles have none.
+    pub via: BTreeMap<Node, Via>,
+    /// Edges recorded rather than followed, with how often.
+    pub gaps: BTreeMap<(GapKind, String), usize>,
+    /// Whether the node cap stopped the walk.
+    pub node_capped: bool,
+}
+
+/// One edge leaving the free walk of a ring, charged after the ring.
+struct Crossing {
+    from: Node,
+    target_law: String,
+    target_article: String,
+    kind: EdgeKind,
+}
+
+/// Walk the closure from `start_articles` of the law `start_bwb`.
+///
+/// The ring discipline and the depth rules are described at
+/// [`plan_closure`]; this is that walk over any [`LawGraphs`].
+///
+/// # Errors
+///
+/// When the starting law cannot be loaded, or does not have one of the
+/// start articles.
+pub fn walk_closure<G: LawGraphs>(
+    graphs: &mut G,
+    start_bwb: &str,
+    start_articles: &[String],
+    walk: Walk,
+) -> std::result::Result<Closure, String> {
+    let start = graphs
+        .load(start_bwb)
+        .ok_or_else(|| format!("cannot read the law {start_bwb}"))?;
+    for article in start_articles {
+        if !start.graph.articles.iter().any(|a| a == article) {
+            return Err(format!(
+                "law {start_bwb} has no article {article}; naming one it does not have is a \
+                 mistake in the query and a plan of nothing would look like a plan of nothing to do"
+            ));
+        }
+    }
+    let mut walker = Walker {
+        graphs,
+        walk,
+        definitions: BTreeMap::new(),
+        out: Closure::default(),
+        pending: BTreeMap::new(),
+    };
+    walker.out.laws.insert(start_bwb.to_string(), start.graph);
+    walker
+        .definitions
+        .insert(start_bwb.to_string(), start.definitions);
+    walker.out.law_depth.insert(start_bwb.to_string(), 0);
+    walker.run(start_bwb, start_articles);
+    Ok(walker.out)
+}
+
+struct Walker<'g, G: LawGraphs> {
+    graphs: &'g mut G,
+    walk: Walk,
+    definitions: BTreeMap<String, BTreeSet<String>>,
+    out: Closure,
+    /// Articles waiting to be walked, bucketed by the depth they sit at. A
+    /// single ring advanced by one does not hold: an article that surfaces
+    /// late on an already-known law re-enters at that law's own, shallower
+    /// depth.
+    pending: BTreeMap<usize, Vec<(String, String)>>,
+}
+
+impl<G: LawGraphs> Walker<'_, G> {
+    fn gap(&mut self, kind: GapKind, law: &str) {
+        *self.out.gaps.entry((kind, law.to_string())).or_default() += 1;
+    }
+
+    /// Take an article, unless it was taken already or the cap is reached.
+    /// Returns whether it is new.
+    fn take(&mut self, law: &str, article: &str, via: Option<Via>) -> bool {
+        if self
+            .out
+            .taken
+            .get(law)
+            .is_some_and(|set| set.contains(article))
+        {
+            return false;
+        }
+        if let Some(cap) = self.walk.node_cap {
+            let taken: usize = self.out.taken.values().map(BTreeSet::len).sum();
+            if taken >= cap {
+                self.out.node_capped = true;
+                return false;
+            }
+        }
+        self.out
+            .taken
+            .entry(law.to_string())
+            .or_default()
+            .insert(article.to_string());
+        if let Some(via) = via {
+            self.out.via.entry(Node::new(law, article)).or_insert(via);
+        }
+        true
+    }
+
+    /// Make sure a law is loaded; `false` when it cannot be read.
+    fn ensure_loaded(&mut self, bwb: &str) -> bool {
+        if self.out.laws.contains_key(bwb) {
+            return true;
+        }
+        let Some(law) = self.graphs.load(bwb) else {
+            return false;
+        };
+        self.out.laws.insert(bwb.to_string(), law.graph);
+        self.definitions.insert(bwb.to_string(), law.definitions);
+        true
+    }
+
+    fn run(&mut self, start_bwb: &str, start_articles: &[String]) {
+        // The articles this ring came in through. An entry point is an
+        // article the closure was pointed at; a definition article is a leaf
+        // only when it was walked into, never when it was asked for by name.
+        let mut ring: Vec<(String, String)> = Vec::new();
+        for article in start_articles {
+            if self.take(start_bwb, article, None) {
+                ring.push((start_bwb.to_string(), article.clone()));
+            }
+        }
+        let mut here = 0usize;
+        while !ring.is_empty() {
+            let crossings = self.free_walk(&ring);
+            for crossing in crossings {
+                self.charge(crossing, here);
+            }
+            // The next ring is the shallowest bucket with work left, which is
+            // not always `here + 1`: a late article re-enters at its own law's
+            // depth.
+            let Some(next_depth) = self.pending.keys().copied().next() else {
+                break;
+            };
+            ring = self.pending.remove(&next_depth).unwrap_or_default();
+            here = next_depth;
+        }
+    }
+
+    /// The free walk inside the laws of one ring, to closure. Returns the
+    /// edges that leave a law, to be charged once the ring is walked out:
+    /// following one on sight would put a law of the next ring in front of
+    /// the articles of this ring that have not run yet.
+    fn free_walk(&mut self, ring: &[(String, String)]) -> Vec<Crossing> {
+        let mut crossings: Vec<Crossing> = Vec::new();
+        let mut queue: VecDeque<(String, String, bool)> = ring
+            .iter()
+            .map(|(l, a)| (l.clone(), a.clone(), true))
+            .collect();
+        while let Some((bwb, article, entry_point)) = queue.pop_front() {
+            let Some(graph) = self.out.laws.get(&bwb) else {
+                continue;
+            };
+            if self.walk.rules.definitions_are_leaves
+                && !entry_point
+                && self
+                    .definitions
+                    .get(&bwb)
+                    .is_some_and(|d| d.contains(&article))
+            {
+                continue;
+            }
+            let from = Node::new(&bwb, &article);
+            let mut internal: Vec<(String, EdgeKind)> = Vec::new();
+            if let Some(targets) = graph.depends_on.get(&from) {
+                for target in targets {
+                    if target.bwb_id == bwb {
+                        internal.push((target.article.clone(), EdgeKind::Cites));
+                    } else {
+                        crossings.push(Crossing {
+                            from: from.clone(),
+                            target_law: target.bwb_id.clone(),
+                            target_article: target.article.clone(),
+                            kind: EdgeKind::Cites,
+                        });
+                    }
+                }
+            }
+            let no_article: Vec<String> = graph
+                .outward_law_only
+                .iter()
+                .filter(|(f, _)| *f == article)
+                .map(|(_, law)| law.clone())
+                .collect();
+            let bindings: Vec<Binding> = if self.walk.follow_bindings {
+                graph
+                    .binds_to
+                    .get(&article)
+                    .into_iter()
+                    .flatten()
+                    .cloned()
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            for law in no_article {
+                self.gap(GapKind::NoArticle, &law);
+            }
+            if self.walk.follow_bindings {
+                for binding in bindings {
+                    self.binding_edge(&from, &binding, &mut internal, &mut crossings);
+                }
+                for target in self.graphs.implementors(&bwb, &article) {
+                    if target.bwb_id == bwb {
+                        internal.push((target.article, EdgeKind::Implements));
+                    } else {
+                        crossings.push(Crossing {
+                            from: from.clone(),
+                            target_law: target.bwb_id,
+                            target_article: target.article,
+                            kind: EdgeKind::Implements,
+                        });
+                    }
+                }
+            }
+            // Free inside the law.
+            for (target, kind) in internal {
+                let via = Via {
+                    from: from.clone(),
+                    kind,
+                };
+                if self.take(&bwb, &target, Some(via)) {
+                    queue.push_back((bwb.clone(), target, false));
+                }
+            }
+        }
+        crossings
+    }
+
+    /// Turn one binding into an edge: inside the law through its own
+    /// producers, or out through the producers of the law it names. A binding
+    /// that resolves to nothing is left alone; the facts report it.
+    fn binding_edge(
+        &mut self,
+        from: &Node,
+        binding: &Binding,
+        internal: &mut Vec<(String, EdgeKind)>,
+        crossings: &mut Vec<Crossing>,
+    ) {
+        let target_law = match &binding.regulation {
+            None => from.bwb_id.clone(),
+            Some(law_id) => match self.graphs.bwb_of(law_id) {
+                Some(bwb) => bwb,
+                None => {
+                    self.gap(GapKind::OutsideCorpus, law_id);
+                    return;
+                }
+            },
+        };
+        let article = match (&binding.article, &binding.output) {
+            (Some(article), _) => Some(top_article(article).to_string()),
+            (None, Some(output)) => {
+                if !self.ensure_loaded(&target_law) {
+                    return;
+                }
+                self.out
+                    .laws
+                    .get(&target_law)
+                    .and_then(|g| g.producers.get(output))
+                    .and_then(|p| p.first())
+                    .map(|p| top_article(&p.entry).to_string())
+            }
+            (None, None) => None,
+        };
+        let Some(article) = article else {
+            return;
+        };
+        if target_law == from.bwb_id {
+            if article != from.article {
+                internal.push((article, EdgeKind::Binds));
+            }
+        } else {
+            crossings.push(Crossing {
+                from: from.clone(),
+                target_law,
+                target_article: article,
+                kind: EdgeKind::Binds,
+            });
+        }
+    }
+
+    /// Charge one outward edge against the depth of the law it leaves from.
+    ///
+    /// Charging every edge at `here + 1` was wrong for an article that
+    /// surfaces late: a new article on a law already known at a shallow depth
+    /// was collected on a deep ring, and its own edges were then billed for
+    /// every jump that ring had cost.
+    fn charge(&mut self, crossing: Crossing, here: usize) {
+        let Crossing {
+            from,
+            target_law,
+            target_article,
+            kind,
+        } = crossing;
+        let from_depth = self
+            .out
+            .law_depth
+            .get(&from.bwb_id)
+            .copied()
+            .unwrap_or(here);
+        let there = from_depth + 1;
+
+        let Some(entry) = self.graphs.entry(&target_law) else {
+            self.gap(GapKind::OutsideCorpus, &target_law);
+            return;
+        };
+        // A citation into a delegated regulation ends at an open term. A
+        // binding or an implements edge into one is followed: the value read
+        // there is part of the computation.
+        if entry.is_delegated_layer() && kind == EdgeKind::Cites {
+            self.gap(GapKind::Delegated, &target_law);
+            return;
+        }
+        if !self.ensure_loaded(&target_law) {
+            self.gap(GapKind::OutsideCorpus, &target_law);
+            return;
+        }
+        // An article the target law does not have used to vanish here
+        // without a word. Checked before anything is recorded about the law,
+        // so a bogus citation neither writes a depth nor a read edge.
+        let exists = self
+            .out
+            .laws
+            .get(&target_law)
+            .is_some_and(|g| g.articles.contains(&target_article));
+        if !exists {
+            self.gap(GapKind::ArticleNotInLaw, &target_law);
+            return;
+        }
+
+        // A shorter route found later wins: the depth only ever falls.
+        let known = self.out.law_depth.get(&target_law).copied();
+        if known.is_none_or(|settled| there < settled) {
+            if there > self.walk.depth {
+                if known.is_none() {
+                    self.gap(GapKind::BeyondDepth, &target_law);
+                    return;
+                }
+            } else {
+                self.out.law_depth.insert(target_law.clone(), there);
+            }
+        } else if known.is_some_and(|settled| settled > self.walk.depth) {
+            return;
+        }
+
+        // `reads` is written once the edge is known to lead somewhere real; a
+        // citation to an article that does not exist must not create an
+        // ordering constraint.
+        self.out
+            .reads
+            .entry(from.bwb_id.clone())
+            .or_default()
+            .insert(target_law.clone());
+
+        let via = Via { from, kind };
+        if self.take(&target_law, &target_article, Some(via)) {
+            let depth = self
+                .out
+                .law_depth
+                .get(&target_law)
+                .copied()
+                .unwrap_or(there);
+            self.pending
+                .entry(depth)
+                .or_default()
+                .push((target_law, target_article));
+        }
+    }
+}
+
 /// Plan the closure from one article of one law.
 ///
 /// `start_path` is relative to `root`. Errors only when the starting law cannot
 /// be read; everything else the traversal meets and cannot follow becomes a
 /// gap, because a closure that fails on the first unharvested law would never
 /// produce a plan at all.
+///
+/// The depth per law comes from a strict breadth-first walk over laws, one
+/// whole ring at a time ([`walk_closure`]). The ring is the unit because the
+/// two kinds of step cost different things. A step inside a law is free, a
+/// step to another law costs a point, and a single queue holding both mixes
+/// them: a free step taken now and a paid step taken now come back out in the
+/// order they went in, which is arrival order and not distance. That is what a
+/// flat FIFO got wrong. It charged an article's outward edges against whatever
+/// depth its law happened to carry at the moment that article was dequeued,
+/// and a law whose depth dropped later had already spent the higher number:
+/// a law within `--depth` vanished from the plan and came back as a known gap.
+///
+/// So the depth of every law in ring `d` is settled before any article of ring
+/// `d` is looked at. Within a ring the free steps run to closure first, and
+/// only then are the outward edges of the whole ring charged together.
+///
+/// # Errors
+///
+/// When the starting law cannot be read or lacks a start article.
 pub fn plan_closure(
     root: &Path,
     start_path: &str,
@@ -406,233 +917,60 @@ pub fn plan_closure(
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+    let mut laws = StartAware {
+        inner: FsLaws::new(root, index),
+        start_bwb: start_bwb.clone(),
+        start: Some(loaded(&start_doc)),
+    };
+    let walk = Walk {
+        depth,
+        rules,
+        follow_bindings: false,
+        node_cap: None,
+    };
+    let closure = walk_closure(&mut laws, &start_bwb, start_articles, walk).map_err(|e| {
+        e.replacen(
+            &format!("law {start_bwb} "),
+            &format!("law {start_path} "),
+            1,
+        )
+    })?;
+    Ok(plan_of(closure, index))
+}
 
-    let mut laws: BTreeMap<String, Graph> = BTreeMap::new();
-    let mut docs: BTreeMap<String, Value> = BTreeMap::new();
-    laws.insert(start_bwb.clone(), Graph::scan(&start_doc));
-    docs.insert(start_bwb.clone(), start_doc);
+/// [`FsLaws`] with the starting law already read: it is named by path, and
+/// the index may not have it.
+struct StartAware<'a> {
+    inner: FsLaws<'a>,
+    start_bwb: String,
+    start: Option<LoadedLaw>,
+}
 
-    for article in start_articles {
-        if !laws
-            .get(&start_bwb)
-            .is_some_and(|g| g.articles.iter().any(|a| a == article))
+impl LawGraphs for StartAware<'_> {
+    fn entry(&self, bwb_id: &str) -> Option<LawEntry> {
+        self.inner.entry(bwb_id)
+    }
+
+    fn load(&mut self, bwb_id: &str) -> Option<LoadedLaw> {
+        if bwb_id == self.start_bwb
+            && let Some(start) = self.start.take()
         {
-            return Err(format!(
-                "law {start_path} has no article {article}; naming one it does not have is a \
-                 mistake in the query and a plan of nothing would look like a plan of nothing to do"
-            ));
+            return Some(start);
         }
+        self.inner.load(bwb_id)
     }
+}
 
-    // Depth per law, and the traversal that fixes it: a strict breadth-first
-    // walk over laws, one whole ring at a time.
-    //
-    // The ring is the unit because the two kinds of step cost different
-    // things. A step inside a law is free, a step to another law costs a
-    // point, and a single queue holding both mixes them: a free step taken now
-    // and a paid step taken now come back out in the order they went in,
-    // which is arrival order and not distance. That is what a flat FIFO got
-    // wrong. It charged an article's outward edges against whatever depth its
-    // law happened to carry at the moment that article was dequeued, and a law
-    // whose depth dropped later — because a shorter route to it turned up
-    // further down the queue — had already spent the higher number. Its
-    // children were then refused as `BeyondDepth` while the plan reported the
-    // parent as being inside the depth: a law within `--depth` vanished from
-    // the plan and came back as a known gap.
-    //
-    // Here the depth of every law in ring `d` is settled before any article of
-    // ring `d` is looked at, so no edge is ever charged at a depth that is
-    // later revised. Within a ring the free steps run to closure first, and
-    // only then are the outward edges of the whole ring charged together to
-    // form ring `d + 1`.
-    let mut law_depth: BTreeMap<String, usize> = BTreeMap::new();
-    law_depth.insert(start_bwb.clone(), 0);
-    let mut taken: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    let mut gaps: BTreeMap<(GapKind, String), usize> = BTreeMap::new();
-    // Which law reads which, over every ring. Depth alone does not order two
-    // laws that sit in the same ring: a reader and its producer can both be
-    // one jump from the start, and sorting those by name put the reader
-    // first, which is the one thing the plan promises never to do.
-    let mut reads: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-
-    // The articles this ring came in through, as (law, article). An entry
-    // point is an article the closure was pointed at; a definition article is
-    // a leaf only when it was walked into, never when it was asked for by
-    // name.
-    let mut ring: Vec<(String, String)> = Vec::new();
-    for article in start_articles {
-        if taken
-            .entry(start_bwb.clone())
-            .or_default()
-            .insert(article.clone())
-        {
-            ring.push((start_bwb.clone(), article.clone()));
-        }
-    }
-
-    // Articles waiting to be walked, bucketed by the depth they sit at. A
-    // single ring advanced by one does not hold: an article that surfaces late
-    // on an already-known law re-enters at that law's own, shallower depth.
-    let mut pending: BTreeMap<usize, Vec<(String, String)>> = BTreeMap::new();
-
-    let mut here = 0usize;
-    while !ring.is_empty() {
-        // Every outward edge this ring produces, charged after the ring is
-        // walked out. Collected rather than followed on sight, because
-        // following one would put a law of ring `here + 1` in front of the
-        // articles of ring `here` that have not run yet.
-        // `(source law, target law, target article)`. The source travels with
-        // the edge because the jump is charged against the depth of the law it
-        // leaves from, not against the ring it happened to be collected in.
-        let mut crossings: Vec<(String, String, String)> = Vec::new();
-
-        // The free walk inside the laws of this ring, to closure.
-        let mut queue: VecDeque<(String, String, bool)> = ring
-            .iter()
-            .map(|(l, a)| (l.clone(), a.clone(), true))
-            .collect();
-        while let Some((bwb, article, entry_point)) = queue.pop_front() {
-            let Some(graph) = laws.get(&bwb) else {
-                continue;
-            };
-
-            if rules.definitions_are_leaves
-                && !entry_point
-                && docs
-                    .get(&bwb)
-                    .is_some_and(|doc| is_definition_article(doc, &article))
-            {
-                continue;
-            }
-
-            let mut internal: Vec<String> = Vec::new();
-            for (from, targets) in &graph.depends_on {
-                if from.article != article || from.bwb_id != bwb {
-                    continue;
-                }
-                for target in targets {
-                    if target.bwb_id == bwb {
-                        internal.push(target.article.clone());
-                    } else {
-                        // `reads` is written once the edge is known to lead
-                        // somewhere real; a citation to an article that does
-                        // not exist must not create an ordering constraint.
-                        crossings.push((
-                            bwb.clone(),
-                            target.bwb_id.clone(),
-                            target.article.clone(),
-                        ));
-                    }
-                }
-            }
-            for (from, target_law) in &graph.outward_law_only {
-                if *from == article {
-                    *gaps
-                        .entry((GapKind::NoArticle, target_law.clone()))
-                        .or_default() += 1;
-                }
-            }
-
-            // Free inside the law.
-            for target in internal {
-                if taken.entry(bwb.clone()).or_default().insert(target.clone()) {
-                    queue.push_back((bwb.clone(), target, false));
-                }
-            }
-        }
-
-        // Charge every outward edge against the depth of the law it leaves
-        // from. Charging them all at `here + 1` was wrong for an article that
-        // surfaces late: a new article on a law already known at a shallow
-        // depth was collected on a deep ring, and its own edges were then
-        // billed for every jump that ring had cost. The error equals the
-        // distance between the two and is unbounded, so a law read straight
-        // from the root could be reported as a BeyondDepth gap.
-        for (source_law, target_law, target_article) in crossings {
-            let from_depth = law_depth.get(&source_law).copied().unwrap_or(here);
-            let there = from_depth + 1;
-
-            let Some(entry) = index.get(&target_law) else {
-                *gaps
-                    .entry((GapKind::OutsideCorpus, target_law.clone()))
-                    .or_default() += 1;
-                continue;
-            };
-            if entry.is_delegated_layer() {
-                *gaps
-                    .entry((GapKind::Delegated, target_law.clone()))
-                    .or_default() += 1;
-                continue;
-            }
-
-            if !laws.contains_key(&target_law) {
-                let Some(doc) = read_law(&root.join(&entry.path)) else {
-                    *gaps
-                        .entry((GapKind::OutsideCorpus, target_law.clone()))
-                        .or_default() += 1;
-                    continue;
-                };
-                laws.insert(target_law.clone(), Graph::scan(&doc));
-                docs.insert(target_law.clone(), doc);
-            }
-
-            // An article the target law does not have used to vanish here
-            // without a word. Checked before anything is recorded about the
-            // law, so a bogus citation neither writes a depth nor a read edge.
-            let exists = laws
-                .get(&target_law)
-                .is_some_and(|g| g.articles.contains(&target_article));
-            if !exists {
-                *gaps
-                    .entry((GapKind::ArticleNotInLaw, target_law.clone()))
-                    .or_default() += 1;
-                continue;
-            }
-
-            // A shorter route found later wins: the depth only ever falls.
-            let known = law_depth.get(&target_law).copied();
-            if known.is_none_or(|settled| there < settled) {
-                if there > depth {
-                    if known.is_none() {
-                        *gaps
-                            .entry((GapKind::BeyondDepth, target_law.clone()))
-                            .or_default() += 1;
-                        continue;
-                    }
-                } else {
-                    law_depth.insert(target_law.clone(), there);
-                }
-            } else if known.is_some_and(|settled| settled > depth) {
-                continue;
-            }
-
-            reads
-                .entry(source_law.clone())
-                .or_default()
-                .insert(target_law.clone());
-
-            if taken
-                .entry(target_law.clone())
-                .or_default()
-                .insert(target_article.clone())
-            {
-                pending
-                    .entry(law_depth.get(&target_law).copied().unwrap_or(there))
-                    .or_default()
-                    .push((target_law, target_article));
-            }
-        }
-
-        // The next ring is the shallowest bucket with work left, which is not
-        // always `here + 1`: a late article re-enters at its own law's depth.
-        let Some(next_depth) = pending.keys().copied().next() else {
-            break;
-        };
-        ring = pending.remove(&next_depth).unwrap_or_default();
-        here = next_depth;
-    }
-
-    // Deepest first, so a producer is translated before its reader.
+/// Order the walk's laws into tasks, producers before readers.
+fn plan_of(closure: Closure, index: &LawIndex) -> Plan {
+    let Closure {
+        taken,
+        law_depth,
+        reads,
+        laws,
+        gaps,
+        ..
+    } = closure;
     let mut tasks: Vec<Task> = Vec::new();
     for (bwb, articles) in taken {
         let Some(graph) = laws.get(&bwb) else {
@@ -648,7 +986,7 @@ pub fn plan_closure(
         let entries = graph
             .entries
             .iter()
-            .filter(|e| ordered.iter().any(|a| a == super::refgraph::top_article(e)))
+            .filter(|e| ordered.iter().any(|a| a == top_article(e)))
             .count();
         tasks.push(Task {
             depth: law_depth.get(&bwb).copied().unwrap_or(0),
@@ -659,13 +997,6 @@ pub fn plan_closure(
             entries,
         });
     }
-    // Deepest first, so a producer is translated before its reader. Within one
-    // depth that key decides nothing, and the alphabetical fallback it used to
-    // fall through to is not an order at all: where `aaa` reads `mmm` and both
-    // sit at depth 1, `aaa` came first and was translated against a producer
-    // that did not exist yet. A law that reads another in the same ring sorts
-    // after it; the name only breaks a tie between laws that do not read each
-    // other, so the result stays stable.
     // Producers before readers, over the whole plan rather than within one
     // depth. Depth alone cannot carry this: a law reached shallowly through
     // one article can be read through *another* article by a law that sits
@@ -700,10 +1031,9 @@ pub fn plan_closure(
         placed.insert(task.bwb_id.clone());
         ordered.push(task);
     }
-    let tasks = ordered;
 
-    Ok(Plan {
-        tasks,
+    Plan {
+        tasks: ordered,
         gaps: gaps
             .into_iter()
             .map(|((kind, bwb_id), occurrences)| Gap {
@@ -712,7 +1042,7 @@ pub fn plan_closure(
                 occurrences,
             })
             .collect(),
-    })
+    }
 }
 
 fn read_law(path: &Path) -> Option<Value> {
@@ -1606,5 +1936,201 @@ articles:
         assert!(plan.refuse_above(100).is_none());
         let refusal = plan.refuse_above(1).unwrap();
         assert!(refusal.contains("articles"), "{refusal}");
+    }
+
+    /// Laws held in memory, as a server holds the facts of a traject.
+    struct MemLaws {
+        docs: BTreeMap<String, Value>,
+        layers: BTreeMap<String, String>,
+    }
+
+    impl MemLaws {
+        fn new(laws: &[(&str, &str, &str)]) -> Self {
+            let mut docs = BTreeMap::new();
+            let mut layers = BTreeMap::new();
+            for (bwb, layer, yaml) in laws {
+                docs.insert((*bwb).to_string(), serde_yaml_ng::from_str(yaml).unwrap());
+                layers.insert((*bwb).to_string(), (*layer).to_string());
+            }
+            Self { docs, layers }
+        }
+    }
+
+    impl LawGraphs for MemLaws {
+        fn entry(&self, bwb_id: &str) -> Option<LawEntry> {
+            let doc = self.docs.get(bwb_id)?;
+            Some(LawEntry {
+                bwb_id: bwb_id.to_string(),
+                law_id: doc
+                    .get("$id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                path: String::new(),
+                layer: self.layers.get(bwb_id).cloned().unwrap_or_default(),
+            })
+        }
+
+        fn load(&mut self, bwb_id: &str) -> Option<LoadedLaw> {
+            self.docs.get(bwb_id).map(loaded)
+        }
+
+        fn bwb_of(&self, law_id: &str) -> Option<String> {
+            self.docs
+                .iter()
+                .find(|(_, d)| d.get("$id").and_then(Value::as_str) == Some(law_id))
+                .map(|(bwb, _)| bwb.clone())
+        }
+    }
+
+    /// A reads a value of B through its model only (the text names no
+    /// article), and B's producer reads a regeling through a binding.
+    fn bound_laws() -> MemLaws {
+        MemLaws::new(&[
+            (
+                "BWBA",
+                "WET",
+                r"
+$id: wet_a
+bwb_id: BWBA
+articles:
+  - number: '1'
+    text: Het recht op toeslag.
+    machine_readable:
+      execution:
+        input:
+          - name: inkomen
+            source:
+              regulation: wet_b
+              output: toetsingsinkomen
+",
+            ),
+            (
+                "BWBB",
+                "WET",
+                r"
+$id: wet_b
+bwb_id: BWBB
+articles:
+  - number: '7'
+    text: Niets.
+  - number: '8'
+    text: Het toetsingsinkomen.
+    machine_readable:
+      execution:
+        input:
+          - name: bedrag
+            source:
+              regulation: regeling_c
+              output: bedrag
+        output:
+          - name: toetsingsinkomen
+",
+            ),
+            (
+                "BWBC",
+                "MINISTERIELE_REGELING",
+                r"
+$id: regeling_c
+bwb_id: BWBC
+articles:
+  - number: '2'
+    text: Het bedrag.
+    machine_readable:
+      execution:
+        output:
+          - name: bedrag
+",
+            ),
+        ])
+    }
+
+    fn bound_walk(follow_bindings: bool, node_cap: Option<usize>) -> Walk {
+        Walk {
+            depth: 3,
+            rules: StopRules::default(),
+            follow_bindings,
+            node_cap,
+        }
+    }
+
+    #[test]
+    fn bindings_are_walked_only_when_asked_and_into_a_delegated_regulation() {
+        let mut laws = bound_laws();
+        let cited_only = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(false, None),
+        )
+        .unwrap();
+        assert_eq!(cited_only.taken.len(), 1, "the text names no other law");
+
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(true, None),
+        )
+        .unwrap();
+        assert!(closure.taken["BWBB"].contains("8"));
+        // A binding into a ministerial regulation is followed: the value read
+        // there is part of the computation.
+        assert!(closure.taken["BWBC"].contains("2"));
+        assert_eq!(closure.law_depth["BWBC"], 2);
+        let via = &closure.via[&Node::new("BWBC", "2")];
+        assert_eq!(via.from, Node::new("BWBB", "8"));
+        assert_eq!(via.kind, EdgeKind::Binds);
+        assert!(!closure.via.contains_key(&Node::new("BWBA", "1")));
+    }
+
+    #[test]
+    fn the_node_cap_stops_the_walk_and_says_so() {
+        let mut laws = bound_laws();
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(true, Some(2)),
+        )
+        .unwrap();
+        let taken: usize = closure.taken.values().map(BTreeSet::len).sum();
+        assert_eq!(taken, 2);
+        assert!(closure.node_capped);
+    }
+
+    #[test]
+    fn a_binding_to_a_law_outside_the_corpus_is_a_known_gap() {
+        let mut laws = MemLaws::new(&[(
+            "BWBA",
+            "WET",
+            r"
+$id: wet_a
+bwb_id: BWBA
+articles:
+  - number: '1'
+    text: Het recht.
+    machine_readable:
+      execution:
+        input:
+          - name: x
+            source:
+              regulation: onbekend
+              output: x
+",
+        )]);
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(true, None),
+        )
+        .unwrap();
+        assert_eq!(
+            closure
+                .gaps
+                .get(&(GapKind::OutsideCorpus, "onbekend".to_string())),
+            Some(&1)
+        );
     }
 }

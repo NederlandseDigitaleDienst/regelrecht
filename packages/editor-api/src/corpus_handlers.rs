@@ -1185,6 +1185,137 @@ pub async fn list_traject_law_consumers(
     }
 }
 
+/// Whether the chain and hotspots routes are on. Off answers 404, as if the
+/// route did not exist: the flag gates the feature server-side, not only its
+/// buttons. Without a database the registered default (off) holds.
+async fn require_hotspots_flag(state: &AppState) -> Result<(), (StatusCode, String)> {
+    let enabled = match state.pool.as_ref() {
+        Some(pool) => {
+            crate::feature_flags::flag_enabled(pool, crate::feature_flags::ENRICH_HOTSPOTS)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "reading the hotspots flag failed");
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "feature flag unreadable".to_string(),
+                    )
+                })?
+        }
+        None => false,
+    };
+    if enabled {
+        Ok(())
+    } else {
+        Err((StatusCode::NOT_FOUND, "not found".to_string()))
+    }
+}
+
+/// Query of the chain route.
+#[derive(serde::Deserialize)]
+pub struct ChainQuery {
+    /// Law jumps, default [`crate::enrich_chain::DEFAULT_DEPTH`], at most
+    /// [`crate::enrich_chain::MAX_DEPTH`].
+    depth: Option<usize>,
+}
+
+/// GET /api/trajects/{traject_ref}/corpus/laws/{law_id}/articles/{article}/chain
+///
+/// What enriching one article touches: the articles it reaches in the
+/// traject's corpus by citation, binding and implementation, each with its
+/// gaps and how it was reached. Behind the `enrich.hotspots` flag.
+pub async fn get_traject_article_chain(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    session: Session,
+    Path((traject_ref, law_id, article)): Path<(String, String, String)>,
+    Query(query): Query<ChainQuery>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<crate::enrich_chain::Chain>, (StatusCode, String)> {
+    require_hotspots_flag(&state).await?;
+    let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
+    let ReadScope::Traject(ts) = &scope else {
+        return Err((StatusCode::NOT_FOUND, "no traject corpus".to_string()));
+    };
+    let snapshot = ts.traject.facts().await;
+    let depth = query
+        .depth
+        .unwrap_or(crate::enrich_chain::DEFAULT_DEPTH)
+        .min(crate::enrich_chain::MAX_DEPTH);
+    // A walk over a large stelsel is CPU work; keep it off the async workers.
+    let chain = tokio::task::spawn_blocking(move || {
+        let stelsel = crate::enrich_chain::Stelsel::new(snapshot.laws());
+        stelsel.chain(&law_id, &article, depth, snapshot.unread())
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "chain computation panicked");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "chain failed".to_string(),
+        )
+    })?;
+    match chain {
+        Ok(chain) => Ok(Json(chain)),
+        Err(crate::enrich_chain::ChainError::UnknownLaw) => {
+            Err((StatusCode::NOT_FOUND, "Regelwerk niet gevonden".to_string()))
+        }
+        Err(crate::enrich_chain::ChainError::UnknownArticle) => {
+            Err((StatusCode::NOT_FOUND, "Artikel niet gevonden".to_string()))
+        }
+    }
+}
+
+/// Query of the hotspots route.
+#[derive(serde::Deserialize)]
+pub struct HotspotsQuery {
+    /// How many to list, default 5, at most 50.
+    limit: Option<usize>,
+    /// Only the hotspots of this law.
+    law_id: Option<String>,
+}
+
+/// Default and ceiling of `limit` on the hotspots route.
+const HOTSPOTS_DEFAULT_LIMIT: usize = 5;
+const HOTSPOTS_MAX_LIMIT: usize = 50;
+
+/// GET /api/trajects/{traject_ref}/hotspots?limit=5&law_id=…
+///
+/// The articles of the traject where enrichment would help most, with the
+/// signals behind each score. Behind the `enrich.hotspots` flag.
+pub async fn list_traject_hotspots(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    session: Session,
+    Path(traject_ref): Path<String>,
+    Query(query): Query<HotspotsQuery>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<crate::enrich_chain::Hotspots>, (StatusCode, String)> {
+    require_hotspots_flag(&state).await?;
+    let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
+    let ReadScope::Traject(ts) = &scope else {
+        return Err((StatusCode::NOT_FOUND, "no traject corpus".to_string()));
+    };
+    let snapshot = ts.traject.facts().await;
+    let limit = query
+        .limit
+        .unwrap_or(HOTSPOTS_DEFAULT_LIMIT)
+        .min(HOTSPOTS_MAX_LIMIT);
+    let law_id = query.law_id.filter(|id| !id.is_empty());
+    let hotspots = tokio::task::spawn_blocking(move || {
+        let stelsel = crate::enrich_chain::Stelsel::new(snapshot.laws());
+        stelsel.hotspots(limit, law_id.as_deref(), snapshot.unread())
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "hotspots computation panicked");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "hotspots failed".to_string(),
+        )
+    })?;
+    Ok(Json(hotspots))
+}
+
 async fn implementors_in_scope(scope: &ReadScope, law_id: &str) -> Vec<String> {
     match scope {
         // Traject: federated laws are metadata-only until first read, so

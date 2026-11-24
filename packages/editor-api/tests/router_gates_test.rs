@@ -217,6 +217,16 @@ const ROUTES: &[Route] = &[
     ),
     route(
         Method::GET,
+        "/api/trajects/{traject_ref}/corpus/laws/{law_id}/articles/{article}/chain",
+        RoleAndAccount(READER),
+    ),
+    route(
+        Method::GET,
+        "/api/trajects/{traject_ref}/hotspots",
+        RoleAndAccount(READER),
+    ),
+    route(
+        Method::GET,
         "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
         RoleAndAccount(READER),
     ),
