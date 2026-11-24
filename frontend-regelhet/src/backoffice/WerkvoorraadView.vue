@@ -304,7 +304,7 @@ async function klaar(naam: string) {
         <template v-if="zichtbaar.length">
           <nldd-title id="lijst-titel" size="display-3">
             <h3>{{ huidigeLijst.tekst }}</h3>
-            <nldd-icon-button slot="end" appearance="neutral-base" icon="info" :text="`Over ${huidigeLijst.tekst}`">
+            <nldd-icon-button slot="end" appearance="neutral-base" size="sm" icon="info" tooltip-timing="never" :text="`Over ${huidigeLijst.tekst}`">
               <nldd-popover slot="popup" role="region" :accessible-label="`Over ${huidigeLijst.tekst}`">
                 <nldd-container padding="16">
                   <nldd-text><p>{{ huidigeLijst.uitleg }}</p></nldd-text>
