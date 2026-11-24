@@ -38,6 +38,12 @@ An employee lands on the work queue of the organisation (`/backoffice` on the fr
 
 A row opens the submission in the handling screen of its process, `/backoffice/behandelen/<cel>/<id>`, through the hand-off. A process that does not answer, or answers with an error, gets a notice above the list with the reason, and the rows of the other processes stay. The asking itself is one function, `perProces` in `frontend-regelhet/src/organisatie/perProces.ts`, which gives per process its answer or why there was none.
 
+## A citizen's applications
+
+The citizens' side of the front has two tabs: **Aanvragen**, the page of tiles, and **Mijn aanvragen**, the citizen's applications in every process of the organisation in one list, newest first. The front has no route of its own for that list. The screen asks each process for `casus` and `dossier` through the passed-on routes and makes the rows with the code a process's own list uses (`frontend-regelhet/src/gedeeld/dossier.ts`). A row therefore says what the process's own screen says of the same application: what was applied for, on which day, and how it stands. A tag names the process. The row opens the application at `/burger/dossier/<id>` in its process, through `openen`, so the citizen arrives there logged in.
+
+A process that does not answer drops out of the list, and a notice above it names that process; the applications in the others stay. A process that answers `403` on `dossier` knows citizens by another identifier than the one the login carries. The statement passes every claim of the front's login on, and each process reads its own claim (`REGELHET_SUBJECT_CLAIM`, `bsn` unless set). A process that reads `kvk_nummer` finds nothing to go on in a DigiD login, and the list leaves it out without a notice, because none of its applications can be this citizen's.
+
 ## The front's routes
 
 | Method and path | Who | What |
@@ -107,4 +113,4 @@ One of the two key variables is required. A process fetches the key at its first
 
 ## What is not built
 
-Stable mode for the front, with a Keycloak of its own, the key pinned in each process, and its sessions in PostgreSQL, follows later. A restart of the front ends its sessions, and a new process in the file restarts it. The front reaches the processes over the cluster network without mutual TLS; in test mode someone inside the cluster could offer another key at a process's key URL, which adds nothing to what the open test login already allows. The hand-off is a link a browser follows, so someone could fetch a hand-off for their own account and get another person's browser to follow it within its minute; that browser is then logged in at the process as the first person. Binding the hand-off to the browser that asked for it is not built. A citizen's list of their applications over all processes is not built; the passed-on routes above are what it will read.
+Stable mode for the front, with a Keycloak of its own, the key pinned in each process, and its sessions in PostgreSQL, follows later. A restart of the front ends its sessions, and a new process in the file restarts it. The front reaches the processes over the cluster network without mutual TLS; in test mode someone inside the cluster could offer another key at a process's key URL, which adds nothing to what the open test login already allows. The hand-off is a link a browser follows, so someone could fetch a hand-off for their own account and get another person's browser to follow it within its minute; that browser is then logged in at the process as the first person. Binding the hand-off to the browser that asked for it is not built.

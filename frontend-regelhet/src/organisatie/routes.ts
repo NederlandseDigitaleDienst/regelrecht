@@ -1,7 +1,8 @@
 // The routes of an organisation's front, under the paths a process uses for
 // its sides, so the login and the router of the shared shell (router.ts) send
-// each account to its own side as they do in a process. A citizen gets one
-// page of tiles. An employee gets the work queue over every process, and the
+// each account to its own side as they do in a process. A citizen gets the
+// tiles of what one can apply for, and "Mijn aanvragen" over every process as
+// a second tab. An employee gets the work queue over every process, and the
 // tiles of the processes as a second tab (`meta.tabs`, gedeeld/schil.ts). The
 // bar carries the organisation's name (gedeeld/uiterlijk.ts).
 import { RouterView } from 'vue-router';
@@ -10,10 +11,18 @@ import type { RouteRecordRaw } from 'vue-router';
 export const organisatieRoutes: RouteRecordRaw[] = [
   {
     path: '/burger',
-    name: 'organisatie-burger',
-    component: () => import('./OrganisatieHome.vue'),
-    props: { kant: 'burger' },
-    meta: { kant: 'burger' },
+    component: RouterView,
+    meta: {
+      kant: 'burger',
+      tabs: [
+        { naam: 'organisatie-burger', tekst: 'Aanvragen', pad: '/burger', icoon: 'add' },
+        { naam: 'organisatie-mijn-aanvragen', tekst: 'Mijn aanvragen', pad: '/burger/aanvragen', icoon: 'inbox' },
+      ],
+    },
+    children: [
+      { path: '', name: 'organisatie-burger', component: () => import('./OrganisatieHome.vue'), props: { kant: 'burger' } },
+      { path: 'aanvragen', name: 'organisatie-mijn-aanvragen', component: () => import('./MijnAanvragenView.vue') },
+    ],
   },
   {
     path: '/backoffice',

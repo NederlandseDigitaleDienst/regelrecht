@@ -4,7 +4,8 @@
 // /api/dossier`). A row says what was applied for, when and where, how it
 // stands (`stand`: what answers it now), and how far the acts after its grant
 // are, in the words the case gives them (`na_toekenning`), such as "Uw kaart
-// ligt klaar.". Each row opens the application on a page one level deeper,
+// ligt klaar.". The rows are made in gedeeld/dossier.ts, which the list over
+// every process of an organisation shares. Each row opens the application on a page one level deeper,
 // whose back button returns to the list (StukPaneel.vue). What followed on it
 // opens from there: its decision, and every record in the timeline of the
 // application (gedeeld/TijdlijnLijst.vue, `GET /api/dossier/tijdlijn/{id}`), a
@@ -16,12 +17,12 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { antwoordOp, celNaam, herroeping, isBesluit, isIndiening, ketens, omschrijving, onderVerzoeken, rolVan, toegewezen } from '../gedeeld/keten';
-import type { Knoop } from '../gedeeld/keten';
-import { burgerStand, doorHetSysteem as doorHetSysteemTekst } from '../gedeeld/vervolg';
+import { aanvraagStand, aanvragen as aanvragenVan } from '../gedeeld/dossier';
+import type { Dossier } from '../gedeeld/dossier';
+import { celNaam, isBesluit } from '../gedeeld/keten';
 import { foutTekst } from '../gedeeld/http';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
-import type { Casus, Gram, Tijdlijn, Vervolgaanvraag } from '../gedeeld/types';
+import type { Casus, Gram, Tijdlijn } from '../gedeeld/types';
 import { wijsDeWeg } from '../gedeeld/wegwijs';
 import AanvraagView from './AanvraagView.vue';
 import { AANVRAAG, AANVRAAG_WETTEN } from './routes';
@@ -82,15 +83,14 @@ const ingediend = computed(() => {
   return bekend ? leesbaar(soort.toLowerCase()) : '';
 });
 
-/** The articles of an application: the case's own, and those it offers about a grant, such as a duplicate. */
-const aanvraagArtikelen = computed(
-  () => new Set([casus.value?.artikel, ...(casus.value?.na_toekenning?.aanvragen ?? []).map((a) => a.artikel)]),
-);
-const isAanvraag = (g: Gram) => isIndiening(g, standVanDossier.value) && aanvraagArtikelen.value.has(g.basis);
-/** `k` and every record under it. */
-const alleKnopen = (k: Knoop): Knoop[] => [k, ...k.onder.flatMap(alleKnopen)];
-/** The records of the application `k`: it and what follows on it, without another application under it. */
-const vanAanvraag = (k: Knoop): Gram[] => [k.gram, ...k.onder.filter((o) => !isAanvraag(o.gram)).flatMap(vanAanvraag)];
+/** The dossier as one value, for the rows made of it (gedeeld/dossier.ts). */
+const heelDossier = computed<Dossier>(() => ({
+  grammen: dossier.value,
+  stand: standVanDossier.value,
+  vervolg: vervolg.value,
+  doorHetSysteem: doorHetSysteem.value,
+  verzoeken: verzoeken.value,
+}));
 
 /**
  * Every application in the dossier, as one row each: what was applied for,
@@ -102,51 +102,18 @@ const vanAanvraag = (k: Knoop): Gram[] => [k.gram, ...k.onder.filter((o) => !isA
 const aanvragen = computed(() => {
   const c = casus.value;
   if (!c) return [];
-  return ketens(dossier.value, onderVerzoeken(verzoeken.value))
-    .flatMap(alleKnopen)
-    .filter((k) => isAanvraag(k.gram))
-    .map((k) => {
-      const stukken = vanAanvraag(k);
-      const vervolg = stukken.map(vervolgTekst).filter(Boolean).at(-1) ?? '';
-      return {
-        gram: k.gram,
-        tekst: aanvraagNaam(k.gram, c),
-        regel: [`${longDate(k.gram.recorded_on)} · ${celNaam(k.gram.recording_actor, c)}`, vervolg].filter(Boolean).join(' · '),
-        stand: aanvraagStand(k.gram),
-        vervolg,
-        aanvragen: stukken.flatMap((g) => aanvragenBij(g.id).map((a) => ({ ...a, op: g.id }))),
-      };
-    });
+  return aanvragenVan(c, heelDossier.value).map((a) => ({
+    ...a,
+    regel: [`${longDate(a.gram.recorded_on)} · ${celNaam(a.gram.recording_actor, c)}`, a.vervolg].filter(Boolean).join(' · '),
+  }));
 });
 /** What the application of the address offers after its grant, for its own page. */
 const huidige = computed(() => aanvragen.value.find((a) => a.gram.id === props.id));
 /** How the record of the address stands, an objection as well as an application. */
 const statusVanStuk = computed(() => {
   const g = dossier.value.find((x) => x.id === props.id);
-  return g ? aanvraagStand(g) : null;
+  return g && casus.value ? aanvraagStand(g, casus.value, heelDossier.value) : null;
 });
-
-/** What an application asks, in words: the case's own after its title, one about a grant by the title of its form. */
-function aanvraagNaam(g: Gram, c: Casus): string {
-  const over = c.na_toekenning?.aanvragen?.find((a) => a.artikel === g.basis);
-  if (over) return over.titel;
-  return c.titel ? `${omschrijf(g)} ${c.titel.toLowerCase()}` : omschrijf(g);
-}
-
-/** How an application stands, by what answers it now (`stand`). */
-function aanvraagStand(g: Gram): { tekst: string; kleur: string } | null {
-  const c = casus.value;
-  const a = antwoordOp(g.id, standVanDossier.value);
-  if (!c || !a) return null;
-  // Revoked with a new decision to follow, after a ruling: it waits again.
-  if (a.soort === 'open' || (a.soort === 'vervallen' && a.na)) return { tekst: 'In behandeling', kleur: 'accent' };
-  if (a.soort === 'vervallen') {
-    return { tekst: herroeping(a.besluit, standVanDossier.value, dossier.value)?.woord ?? 'Herroepen', kleur: 'warning' };
-  }
-  const t = toegewezen(a.soort === 'in_de_plaats' ? a.nieuw : (dossier.value.find((x) => x.id === a.besluit) ?? {}), c);
-  if (t === undefined) return null;
-  return t ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' };
-}
 
 // Someone with nothing in their dossier has not applied before. The screen
 // then shows nothing at all — no sidebar, no empty pane — and the shell points
@@ -156,52 +123,6 @@ function aanvraagStand(g: Gram): { tekst: string; kleur: string } | null {
 const leeg = computed(() => !laden.value && !fout.value && aanvragen.value.length === 0);
 watch(leeg, (l) => (wijsDeWeg.value = l), { immediate: true });
 
-/** A record of the dossier in words, by what the server says it is. */
-const omschrijf = (g: Gram) => (casus.value ? omschrijving(g, casus.value, rolVan(g, standVanDossier.value)) : g.kind);
-
-/** How far the acts after the grant `id` are, in the citizen's words, if `id` granted and the case names such acts. */
-function vervolgTekst(g: Gram): string {
-  const na = casus.value?.na_toekenning;
-  if (!na || !casus.value) return '';
-  const s = vervolg.value.find((v) => v.toekenning === g.id);
-  if (s) return burgerStand(s, na);
-  // A grant in an aggregate whose grant is now the decision on an
-  // application about a grant, such as a duplicate: that one took its place.
-  // Not a grant a decision on objection replaced: that is a revocation.
-  const vervangers = new Set((na.aanvragen ?? []).map((a) => a.artikel));
-  const vervangen = vervolg.value.some((v) => {
-    const nu = dossier.value.find((x) => x.id === v.toekenning);
-    return v.toekenning !== g.id && !!nu && vervangers.has(nu.basis) && hoortBij(g, v.besluit);
-  });
-  return vervangen && toegewezen(g, casus.value) === true ? (na.vervallen ?? '') : '';
-}
-
-/** Whether `g` is the record `wortel` or refers to it, however indirectly. */
-function hoortBij(g: Gram, wortel: string): boolean {
-  const gezien = new Set<string>();
-  let huidig: Gram | undefined = g;
-  while (huidig && !gezien.has(huidig.id)) {
-    if (huidig.id === wortel) return true;
-    gezien.add(huidig.id);
-    const naar: string | null | undefined = huidig.refers_to;
-    huidig = naar ? dossier.value.find((x) => x.id === naar) : undefined;
-  }
-  return false;
-}
-
-/**
- * What the citizen can apply for about the grant `id`, as the case offers it
- * (`na_toekenning.aanvragen`): only once every act after it is done, and not
- * while such an application about it waits for a decision.
- */
-function aanvragenBij(id: string): Vervolgaanvraag[] {
-  const na = casus.value?.na_toekenning;
-  const s = vervolg.value.find((v) => v.toekenning === id);
-  if (!na?.aanvragen || !s || s.volgende) return [];
-  return na.aanvragen.filter(
-    (a) => !dossier.value.some((g) => g.basis === a.artikel && g.refers_to === id && !antwoordOp(g.id, standVanDossier.value)),
-  );
-}
 
 /** Whether the record of the address is a decision, which has a pane of its own. */
 const gekozenIsBesluit = computed(() => {

@@ -465,6 +465,43 @@ async fn a_process_that_does_not_answer_is_shown_as_such() {
 }
 
 #[tokio::test]
+async fn the_identifier_in_the_statement_picks_the_dossier_a_citizen_gets_through_the_front() {
+    let (key, _) = organisation_key();
+    let process_app = process(&key, Surface::All).await;
+    let aanvraag = anna_applies(&process_app).await;
+    let intern = serve(process_app).await;
+    let (front, _dir) = front(&key, &parking_card_at(&intern)).await;
+    let id = url::form_urlencoded::byte_serialize(PROCESS.as_bytes()).collect::<String>();
+    let path = format!("/api/processen/{id}/api/dossier");
+    let ids = |dossier: &Value| -> Vec<Value> {
+        dossier["grammen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|g| g["id"].clone())
+            .collect()
+    };
+
+    let (status, dossier) = digid(&front, ANNA, "Anna Voorbeeld").await.get(&path).await;
+    assert_eq!(status, StatusCode::OK, "{dossier}");
+    assert!(ids(&dossier).contains(&aanvraag["id"]), "{dossier}");
+    let (status, dossier) = digid(&front, BRAM, "Bram Proef").await.get(&path).await;
+    assert_eq!(status, StatusCode::OK, "{dossier}");
+    assert!(ids(&dossier).is_empty(), "{dossier}");
+    // A citizen whose login carries another identifier than the process's
+    // own: the process refuses, and the front passes that on as it is.
+    let bedrijf = login(
+        &front,
+        "bedrijf-1",
+        &["regelhet-burger"],
+        json!({ "kvk_nummer": "12345678" }),
+    )
+    .await;
+    let (status, _) = bedrijf.get(&path).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn the_front_offers_its_key_and_the_accounts_of_its_processes() {
     let (key, _) = organisation_key();
     let process_app = process(&key, Surface::All).await;
