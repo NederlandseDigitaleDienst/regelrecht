@@ -13,7 +13,7 @@ export interface Tab {
   /** Other route names the tab is current on, such as a screen under it. */
   ook?: string[];
   /** A right the account needs to see the tab. */
-  recht?: 'klok_zetten' | 'partijen_invoeren';
+  recht?: 'klok_zetten' | 'partijen_invoeren' | 'uitvoerder' | 'partij';
 }
 
 /** The primary action of a side, as a button in the shell's bar beside the account. */

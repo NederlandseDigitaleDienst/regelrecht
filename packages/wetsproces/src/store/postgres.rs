@@ -28,7 +28,7 @@
 //! so two commits never wait for each other in a circle; then it checks
 //! every head and the generation, appends the records and moves the heads.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -372,7 +372,8 @@ impl ChronicleStore for PostgresStore {
         // reset; one after it names the old generation and is refused.
         sqlx::query(
             "LOCK TABLE wetsproces.receipts, wetsproces.heads, wetsproces.generation, \
-             wetsproces.grams, wetsproces.test_clock IN ACCESS EXCLUSIVE MODE",
+             wetsproces.grams, wetsproces.test_clock, wetsproces.link_deliveries \
+             IN ACCESS EXCLUSIVE MODE",
         )
         .execute(&mut *tx)
         .await
@@ -385,7 +386,7 @@ impl ChronicleStore for PostgresStore {
             .map_err(backend("opening the chronicles for a reset"))?;
         sqlx::query(
             "TRUNCATE wetsproces.grams, wetsproces.heads, wetsproces.receipts, \
-             wetsproces.test_clock",
+             wetsproces.test_clock, wetsproces.link_deliveries",
         )
         .execute(&mut *tx)
         .await
@@ -401,6 +402,29 @@ impl ChronicleStore for PostgresStore {
         let heads = lock_heads(&mut tx, &begin).await?;
         write_appends(&mut tx, heads, &begin, |_| None).await?;
         tx.commit().await.map_err(backend("committing a reset"))?;
+        Ok(())
+    }
+
+    async fn delivered(&self, to: &str) -> Result<BTreeSet<String>, StoreError> {
+        let ids: Vec<String> =
+            sqlx::query_scalar("SELECT gram_id FROM wetsproces.link_deliveries WHERE to_cell = $1")
+                .bind(to)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(backend("reading the deliveries over a link"))?;
+        Ok(ids.into_iter().collect())
+    }
+
+    async fn mark_delivered(&self, gram: &str, to: &str) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO wetsproces.link_deliveries (gram_id, to_cell) VALUES ($1, $2) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(gram)
+        .bind(to)
+        .execute(&self.pool)
+        .await
+        .map_err(backend("keeping a delivery over a link"))?;
         Ok(())
     }
 }
@@ -654,6 +678,7 @@ mod tests {
                 "generation",
                 "grams",
                 "heads",
+                "link_deliveries",
                 "receipts",
                 "stable",
                 "test_clock"

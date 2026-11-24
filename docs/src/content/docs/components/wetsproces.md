@@ -27,7 +27,7 @@ The other cells of the case stay in the process, because the steps need their ch
 
 What the executor sees of an external party follows the process. The municipality reads what the GGD sends it, which lands in the municipality's own chronicle, and not the GGD's chronicle. The admin panel shows of a party only what an input needs: the submissions that wait for its decision, and its decisions of which no other cell has received a copy. Neither the panel nor any route of the back office returns a party's chronicle.
 
-The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. That link is an open point: an exchange with the GGD's or the court's own system would replace the panel for that party, and it is not built. So is a panel of its own for an external party that executes part of the process itself, such as the GGD: its staff would log in and see their own requests, where now an admin enters what they did. It may follow later.
+The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. A party can also run on a server of its own, linked with this one: its staff log in there and see their own requests, and the two servers exchange what each has to know as signed messages. The panel then no longer takes input for that party. [A link between servers](/components/wetsproces-koppeling) describes it; it carries facts, so a party that decides, such as the court, stays in the panel.
 
 ## A request to an external party and the answer back
 
@@ -79,7 +79,7 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 
 | Table | Holds |
 |---|---|
-| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, `beheerpaneel` for what an admin entered for an external party, or `beleid` for what the server recorded by the executor's policy |
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, `beheerpaneel` for what an admin entered for an external party, `beleid` for what the server recorded by the executor's policy, or `koppeling` for what the server of another cell sent (migration `0010_link.sql`) |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request, with the account that sent it, and the answer |
 | `sessions` | The login sessions of both surfaces, made by the session store (`tower-sessions`) at startup; each carries the surface it was made on |
@@ -115,6 +115,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
 | `WETSPROCES_SUBJECT_CLAIM` | `bsn` | The claim that identifies a citizen |
 | `WETSPROCES_ACCENT_COLOR` | none | The accent colour of the screens: the name of an NLDD design-system theme, such as `paars` or `donkergroen`. The server hands it to the screens on `GET /api/uiterlijk`, a route without a login, and they set it as `data-nldd-theme`. A name that is not a theme stops the server at startup. Without it the screens keep the design system's own accent |
+| `WETSPROCES_LINK_PEERS`, `WETSPROCES_LINK_PARTY`, `WETSPROCES_LINK_KEY_FILE` or `WETSPROCES_LINK_KEY` | none | The link with the server of another cell of the case; see [A link between servers](/components/wetsproces-koppeling) |
 
 When the PostgreSQL store is chosen and the database cannot be reached or migrated, the server stops with that error. It does not fall back to memory.
 

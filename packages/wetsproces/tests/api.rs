@@ -1043,6 +1043,7 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
         panel,
         json!({
             "uitvoerder": { "cel": GEMEENTE, "cel_naam": "gemeente Wilgendaal" },
+            "gekoppeld": [],
             "partijen": [
                 {
                     "cel": GGD, "cel_naam": "GGD Wilgendaal", "open": [], "toe_te_zenden": [],

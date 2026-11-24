@@ -293,6 +293,8 @@ export interface Ik {
   cellen: CelRecht[];
   /** Whether the account enters in the admin panel what an external party did. */
   partijen_invoeren: boolean;
+  /** The external party this server works for, when it is not the executor's own: its staff enter there what it does. */
+  partij?: { cel: string; cel_naam: string } | null;
   klok_zetten: boolean;
 }
 

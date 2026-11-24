@@ -102,6 +102,30 @@ checks the same; these guards only say it earlier.
 {{- end -}}
 
 {{/*
+What a link needs, refused at render time as the server would refuse it at
+start: a release for an external party is one instance for employees, and
+stable mode pins every key.
+*/}}
+{{- define "wetsproces.checkLink" -}}
+{{- $k := .Values.koppeling -}}
+{{- if $k.partij -}}
+{{- if or .Values.surfaces.split (ne .Values.wetsproces.surface "backoffice") -}}
+{{- fail "koppeling.partij makes this the release of an external party, whose staff work in a back office: set surfaces.split false and wetsproces.surface backoffice" -}}
+{{- end -}}
+{{- end -}}
+{{- if and $k.peers (eq .Values.wetsproces.mode "stable") -}}
+{{- if not $k.keySecret -}}
+{{- fail "a link in stable mode signs with a key of its own: set koppeling.keySecret" -}}
+{{- end -}}
+{{- range $k.peers -}}
+{{- if or (not .sleutel) (not (hasPrefix "https://" .url)) -}}
+{{- fail (printf "a link in stable mode needs an https url and the public key (sleutel) of every peer: %s" .cel) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Which entry of oidc.clients an instance logs in with: the back office its
 own, `burger` and `all` the citizens' client, since both serve citizens.
 */}}

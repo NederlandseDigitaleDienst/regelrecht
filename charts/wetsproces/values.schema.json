@@ -473,6 +473,42 @@
           }
         }
       }
+    },
+    "koppeling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "partij": {
+          "type": "string"
+        },
+        "peers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cel",
+              "url"
+            ],
+            "properties": {
+              "cel": {
+                "type": "string",
+                "minLength": 1
+              },
+              "url": {
+                "type": "string",
+                "pattern": "^https?://"
+              },
+              "sleutel": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "keySecret": {
+          "type": "string"
+        }
+      }
     }
   }
 }

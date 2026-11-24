@@ -147,6 +147,7 @@ export function buildWetsproces({
   stable = false,
   testAccounts = false,
   fsc4b = false,
+  ownParties = false,
 }) {
   const name = nameFromHostname(hostname);
   const manifest = { repoUrl, ref: ref || DEFAULT_REF, path: path || DEFAULT_PATH };
@@ -159,6 +160,9 @@ export function buildWetsproces({
   // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the
   // CRD's default, so an object without it says nothing.
   if (fsc4b && !stable) spec.fsc4b = { enabled: true };
+  // A release of their own for the parties the case's regelwerken ask
+  // something of; the link signs with keys made at start, test mode only.
+  if (ownParties && !stable) spec.parties = { ownInstances: true };
   return {
     apiVersion: `${WETSPROCES_RESOURCE.group}/${WETSPROCES_RESOURCE.version}`,
     kind: 'Wetsproces',

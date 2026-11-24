@@ -48,6 +48,16 @@ describe('omleiding', () => {
     expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), { ...medewerker, klok_zetten: true })).toBeUndefined();
   });
 
+  it('opens the server of an external party on what waits for that party', () => {
+    const arts: Ik = { ...geen, niveau: 'beslisser', partijen_invoeren: true, partij: { cel: 'g', cel_naam: 'G' } };
+    expect(omleiding(naar('/'), arts)).toBe('/backoffice');
+    expect(omleiding(naar('/backoffice', 'backoffice', 'werkvoorraad'), arts)).toBe('/backoffice/beheer');
+    expect(omleiding(naar('/backoffice/kroniek', 'backoffice', 'kroniek'), arts)).toBe('/backoffice/beheer');
+    expect(omleiding({ ...naar('/backoffice/beheer', 'backoffice', 'beheer'), matched: [{ meta: { kant: 'backoffice', beheer: true } }] } as never, arts)).toBeUndefined();
+    // A reader of the party enters nothing, so has no screen there.
+    expect(omleiding(naar('/backoffice', 'backoffice', 'werkvoorraad'), { ...arts, niveau: 'lezer', partijen_invoeren: false })).toBe('/inloggen');
+  });
+
   it('keeps someone without the right out also at the old address of the clock', async () => {
     // The real routes with empty screens: the redirect and the guard are what count here.
     const leeg = (routes: RouteRecordRaw[]): RouteRecordRaw[] =>

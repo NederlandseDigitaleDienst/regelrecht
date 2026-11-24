@@ -114,7 +114,7 @@ pub fn login_method(channel: Channel) -> Option<&'static str> {
         Channel::TestLogin => Some("DigiD"),
         Channel::Keycloak => Some("Keycloak"),
         Channel::Fsc4b => Some("FSC voor Burgers"),
-        Channel::AdminPanel | Channel::Policy => None,
+        Channel::AdminPanel | Channel::Policy | Channel::Link => None,
     }
 }
 

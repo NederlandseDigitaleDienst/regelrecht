@@ -182,6 +182,35 @@ surfaces:
     # Empty means medewerkers.<host>.
     host: ''
 
+# A link with the servers of other cells of the case, for a party that runs
+# on a release of its own: the municipality's release names the GGD's as a
+# peer, and the GGD's the municipality's. Each sends the records of its own
+# cell that the other records a receipt of, as signed messages over HTTPS,
+# and takes over what the other sends. Without peers there is no link, and an
+# admin enters what an external party did in the admin panel.
+koppeling:
+  # The external party this release works for, by its cell in the case file
+  # (such as ggd_wilgendaal); its own staff then log in here and see what the
+  # executor asks of it. Empty for the executor's own release. A release for
+  # a party is one instance for employees: set surfaces.split false and
+  # wetsproces.surface backoffice. It needs peers to do anything.
+  partij: ''
+  # The releases of the other cells: per peer its cell, the https address of
+  # its server and, pinned,
+  # its public key as a JWK (`sleutel`). Without `sleutel` the key is read
+  # from the peer itself, which test mode allows and stable mode refuses.
+  # Of a release with two instances the one for employees holds the link, so
+  # that is the address a peer names; the citizens' instance has none.
+  #   - cel: ggd_wilgendaal
+  #     url: https://ggd.example.org
+  peers: []
+  # A Secret in the release's namespace whose key `key.pem` holds this
+  # release's private ES256 key (PKCS#8 PEM). Empty lets the instance that
+  # holds the link make a key when it starts, in test mode only; a peer that
+  # reads the key from the server reads it again when a signature stops
+  # verifying.
+  keySecret: ''
+
 # FSC voor Burgers: the citizens' instance also offers its routes to an app
 # that proves who the citizen is with a credential, after the standard's
 # werkversie (docs: components/wetsproces-fsc4b). Test mode only: the server

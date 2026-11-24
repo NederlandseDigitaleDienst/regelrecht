@@ -81,6 +81,16 @@ impl Cellen {
             .collect()
     }
 
+    /// The day of the latest record in any cell of the case; none while
+    /// every chronicle is empty.
+    pub fn laatste_dag(&self) -> Option<NaiveDate> {
+        std::iter::once(&self.eigen)
+            .chain(&self.andere)
+            .flat_map(|c| c.grams())
+            .map(|g| g.recorded_on)
+            .max()
+    }
+
     /// The case's cell to record in, and the others to ask.
     pub fn splits(&mut self) -> (&mut Cell, Vec<&Cell>) {
         (&mut self.eigen, self.andere.iter().collect())
@@ -1801,6 +1811,63 @@ pub(crate) fn leg_vast(
     let gram = cell.record_executogram_referring(service, feit, velden, refers_to, on)?;
     afleveren(service, cellen, &gram)?;
     Ok(gram)
+}
+
+/// A cell of the case records the fact `feit` as its own system recorded it
+/// elsewhere, on the day `on` it was recorded there, or on the day of the
+/// latest record here when that is later, since a chronicle only grows
+/// forward in time ([`Cellen::laatste_dag`]): a server that runs the
+/// case for one cell takes over what the server of another cell sends it
+/// over a link, and what the fact sends a cell arrives as for any fact
+/// ([`afleveren`]). Unlike [`vastleggen`] this does not ask whether a form
+/// offers the cell the fact, nor what comes in its turn after a grant: the
+/// cell's own system decided that, and this chronicle follows it. The fact
+/// and its receipts land together or not at all.
+///
+/// # Errors
+///
+/// Refused when `cel` is no cell of the case, and whatever the cells refuse
+/// to record, such as a fact no article in force on `on` requires or a
+/// value of the wrong type.
+pub fn overnemen(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    cel: &str,
+    feit: &str,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Gram> {
+    let service = corpus.service()?;
+    let on = cellen.laatste_dag().map_or(on, |last| last.max(on));
+    leg_vast(&service, &mut cellen.sandbox(), cel, feit, velden, None, on)?;
+    leg_vast(&service, cellen, cel, feit, velden, None, on)
+}
+
+/// The cells of the case, other than the one that recorded it, that record
+/// a receipt of the executogram `gram` ([`afleveren`]): where a server that
+/// does not hold those cells itself has to send it.
+///
+/// # Errors
+///
+/// When the article of the fact cannot be read.
+pub fn ontvangers(
+    service: &LawExecutionService,
+    cellen: &Cellen,
+    gram: &Gram,
+) -> Result<Vec<String>> {
+    let Some(fact) = &gram.fact else {
+        return Ok(Vec::new());
+    };
+    let feit = format!("{}#{fact}", gram.basis);
+    let mut cells = Vec::new();
+    for cell in std::iter::once(&cellen.eigen).chain(&cellen.andere) {
+        if cell.recording_actor() != gram.recording_actor
+            && shape::receipt_of(service, &feit, gram.recorded_on, cell.authority())?.is_some()
+        {
+            cells.push(cell.recording_actor().to_string());
+        }
+    }
+    Ok(cells)
 }
 
 /// Deliver the executogram `gram` to every other cell of the case for which

@@ -123,3 +123,9 @@ test('the discovery URL of FSC voor Burgers is on the citizens\' host', () => {
   assert.equal(fsc4bDiscoveryUrl('a', 'cluster.example.org'), 'https://a.cluster.example.org/fsc4b/discovery');
   assert.equal(fsc4bDiscoveryUrl('zorg.example.nl'), 'https://zorg.example.nl/fsc4b/discovery');
 });
+
+test('parties get an environment of their own only when chosen, and never in stable mode', () => {
+  assert.equal(buildWetsproces(base).spec.parties, undefined);
+  assert.deepEqual(buildWetsproces({ ...base, ownParties: true }).spec.parties, { ownInstances: true });
+  assert.equal(buildWetsproces({ ...base, ownParties: true, stable: true }).spec.parties, undefined);
+});

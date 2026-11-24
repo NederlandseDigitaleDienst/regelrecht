@@ -57,6 +57,7 @@ pub fn config_on(mode: Mode, surface: Surface) -> Config {
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
         fsc4b: Fsc4bChoice::Off,
         accent: None,
+        link: Default::default(),
     }
 }
 

@@ -36,7 +36,8 @@ export function laadIk(opnieuw = false): Promise<Ik | null> {
 }
 
 /** Whether the account works in the back office: it reads a cell, or it may set the clock. */
-export const isMedewerker = (wie: Ik | null): boolean => !!wie && (wie.cellen.length > 0 || wie.klok_zetten);
+export const isMedewerker = (wie: Ik | null): boolean =>
+  !!wie && (wie.cellen.length > 0 || wie.klok_zetten || (!!wie.partij && wie.partijen_invoeren));
 
 /** Where the app opens for `wie`: its own side, or the login. */
 export function startpagina(wie: Ik | null): string {

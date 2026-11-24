@@ -20,7 +20,10 @@ const (
 	// ConditionReady sums the others up: the wetsprocessysteem runs.
 	ConditionReady = "Ready"
 	// ConditionReleaseReady mirrors Ready of the HelmRelease.
-	ConditionReleaseReady = "ReleaseReady"
+	// ConditionPartiesLinked says whether the external parties the case
+	// asks something of run on releases of their own, when asked for.
+	ConditionPartiesLinked = "PartiesLinked"
+	ConditionReleaseReady  = "ReleaseReady"
 )
 
 // SecretReference names a Secret in the namespace of the Wetsproces.
@@ -103,7 +106,32 @@ type Fsc4b struct {
 	Enabled bool `json:"enabled,omitempty"`
 }
 
+// Parties are the external parties of the case, such as the GGD that
+// examines an applicant.
+type Parties struct {
+	// OwnInstances gives each external party that the executor asks
+	// something of by its own policy a release of its own, where its staff
+	// log in, linked with the executor's. Which parties those are follows
+	// from the regelwerken of the case: the running server names them, and
+	// a case that asks no party for anything gets none. Off, an admin
+	// enters what every external party did. Test mode only.
+	// +optional
+	OwnInstances bool `json:"ownInstances,omitempty"`
+}
+
+// PartyStatus is an external party that runs on a release of its own.
+type PartyStatus struct {
+	// Cell is the party as the case names it.
+	Cell string `json:"cell"`
+	// Name is what a screen calls it.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// URL is where its staff log in.
+	URL string `json:"url"`
+}
+
 // WetsprocesSpec is one wetsprocessysteem.
+// +kubebuilder:validation:XValidation:rule="!(has(self.parties) && has(self.parties.ownInstances) && self.parties.ownInstances && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="parties.ownInstances links the releases with keys made at start: test mode only"
 // +kubebuilder:validation:XValidation:rule="!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only"
 type WetsprocesSpec struct {
 	// Manifest is the case to run.
@@ -127,6 +155,11 @@ type WetsprocesSpec struct {
 	// Fsc4b is FSC voor Burgers. Empty is off.
 	// +optional
 	Fsc4b Fsc4b `json:"fsc4b,omitempty"`
+
+	// Parties says where the external parties of the case work. Empty
+	// leaves them to the admin panel.
+	// +optional
+	Parties Parties `json:"parties,omitempty"`
 
 	// Hostname is the address: a name under the plugin's base domain
 	// (`zorgtoeslag` gives zorgtoeslag.<domain> for citizens and
@@ -160,6 +193,18 @@ type WetsprocesStatus struct {
 	// where an app finds the services; empty when it is off.
 	// +optional
 	Fsc4bDiscoveryURL string `json:"fsc4bDiscoveryUrl,omitempty"`
+
+	// Parties are the external parties that run on a release of their own,
+	// as the running server last named them; empty when none does.
+	// +optional
+	// +listType=map
+	// +listMapKey=cell
+	Parties []PartyStatus `json:"parties,omitempty"`
+
+	// ExecutorCell is the cell of the case the executor's release works
+	// for, which a party's release names as its peer; set with Parties.
+	// +optional
+	ExecutorCell string `json:"executorCell,omitempty"`
 
 	// KeycloakSecret names the Secret in the namespace of this Wetsproces
 	// that the chart generates for stable mode: the Keycloak admin password

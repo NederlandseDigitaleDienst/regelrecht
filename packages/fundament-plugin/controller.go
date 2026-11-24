@@ -56,6 +56,9 @@ type WetsprocesReconciler struct {
 	Secrets client.Reader
 	Scheme  *runtime.Scheme
 	Config  pluginConfig
+	// Parties asks a running release which parties its policy asks
+	// something of; the Service inside the cluster when nil.
+	Parties PartiesReader
 	// Now is the clock of the start-up grace of a pod; time.Now when nil.
 	Now func() time.Time
 }
@@ -155,6 +158,18 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 	}
 	released := r.releaseCondition(ctx, w)
 	apimeta.SetStatusCondition(&w.Status.Conditions, released)
+	// The parties follow the executor's release: its server names them.
+	// When that changes them, the executor's release is applied again with
+	// its new peers.
+	peersChanged, requeue, err := r.reconcileParties(ctx, w, released.Status == metav1.ConditionTrue)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if peersChanged {
+		if err := r.apply(ctx, w, newHelmRelease(w, r.Config)); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 	problem, err := releasePodProblem(ctx, r.Client, w, r.now())
 	if err != nil {
 		return ctrl.Result{}, err
@@ -164,7 +179,7 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 		// timeout. The release goes on trying; once the pods run, the next
 		// event clears this.
 		refuse(w, reasonNotStarting, fmt.Sprintf("%s (%s)", problem.Message, problem.Reason))
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: requeue}, nil
 	}
 
 	ready := metav1.Condition{Type: v1alpha1.ConditionReady, Status: released.Status, Reason: released.Reason, Message: released.Message}
@@ -179,8 +194,9 @@ func (r *WetsprocesReconciler) reconcile(ctx context.Context, w *v1alpha1.Wetspr
 		w.Status.Phase = v1alpha1.PhasePending
 	}
 	// A change of the HelmRelease's status is an event of an owned object,
-	// so nothing needs to be polled.
-	return ctrl.Result{}, nil
+	// so nothing needs to be polled; only a server that did not name its
+	// parties is asked again.
+	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
 // refuse marks w failed for reason, and makes nothing for it.
@@ -201,10 +217,11 @@ func (r *WetsprocesReconciler) hostTakenBy(ctx context.Context, w *v1alpha1.Wets
 	if err := r.Client.List(ctx, &all); err != nil {
 		return "", fmt.Errorf("list wetsprocessen: %w", err)
 	}
-	mine := hostsOf(w, r.Config.Domain)
+	mine := append(hostsOf(w, r.Config.Domain).all(), partyHosts(w)...)
 	for i := range all.Items {
 		o := &all.Items[i]
-		if o.UID == w.UID || !o.DeletionTimestamp.IsZero() || !mine.overlaps(hostsOf(o, r.Config.Domain)) {
+		theirs := append(hostsOf(o, r.Config.Domain).all(), partyHosts(o)...)
+		if o.UID == w.UID || !o.DeletionTimestamp.IsZero() || !shareAnAddress(mine, theirs) {
 			continue
 		}
 		if comesFirst(o, w) {
@@ -212,6 +229,17 @@ func (r *WetsprocesReconciler) hostTakenBy(ctx context.Context, w *v1alpha1.Wets
 		}
 	}
 	return "", nil
+}
+
+func shareAnAddress(a, b []string) bool {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func comesFirst(a, b *v1alpha1.Wetsproces) bool {

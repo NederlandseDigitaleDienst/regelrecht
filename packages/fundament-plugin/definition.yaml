@@ -4,7 +4,7 @@ kind: PluginDefinition
 metadata:
   name: wetsproces
   displayName: RegelHet
-  version: v0.4.0
+  version: v0.5.0
   description: >-
     Offers the regelrecht wetsprocessysteem to the projects of a cluster.
     Installed once per cluster; project members then create a wetsproces per

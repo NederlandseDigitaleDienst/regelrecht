@@ -46,6 +46,7 @@ use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
 use crate::config::{Config, Fsc4bChoice, Mode, StoreChoice};
 use crate::fsc4b::{Fsc4b, Fsc4bError};
+use crate::link::{Link, LinkError};
 use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
@@ -88,6 +89,8 @@ pub enum StartupError {
     Service(#[from] ServiceError),
     #[error("FSC voor Burgers: {0}")]
     Fsc4b(#[from] Fsc4bError),
+    #[error("the link with other cells: {0}")]
+    Link(#[from] LinkError),
 }
 
 /// The router of the server for `config`, with its login discovered.
@@ -154,10 +157,22 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         fsc4b = ?config.fsc4b,
         "starting"
     );
-    let service = Service::start(corpus, stores.chronicles, clock).await?;
+    let service = Service::start(corpus, stores.chronicles, clock)
+        .await?
+        .with_link(
+            config.link.party.as_deref(),
+            config.link.peers.iter().map(|p| p.cell.clone()),
+        )?;
+    let link = Link::open(
+        &config.link,
+        service.own_cell(),
+        config.mode,
+        regelrecht_auth::http_client(),
+    )?;
+    let service = Arc::new(service);
     let secure = login.secure_cookie();
     let mut state = AppState::new(
-        Arc::new(service),
+        Arc::clone(&service),
         config.mode,
         config.surface,
         controllable,
@@ -167,6 +182,12 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     state = state.with_accent(config.accent);
     if let Some(fsc4b) = fsc4b {
         state = state.with_fsc4b(Arc::new(fsc4b));
+    }
+    if let Some(link) = link {
+        let link = Arc::new(link);
+        tracing::info!(own = %service.own_cell(), linked = ?link.cells().collect::<Vec<_>>(), "link open");
+        link.spawn(service);
+        state = state.with_link(link);
     }
     let frontend = config.frontend.join(config.surface.name());
     let app = with_frontend(router(state.clone()), &frontend).layer(
@@ -402,6 +423,7 @@ mod tests {
             subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
             fsc4b: Fsc4bChoice::Off,
             accent: None,
+            link: Default::default(),
         }
     }
 

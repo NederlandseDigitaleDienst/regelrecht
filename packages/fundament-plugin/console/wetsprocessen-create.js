@@ -40,6 +40,7 @@ const state = {
   stable: false,
   testAccounts: true,
   fsc4b: false,
+  ownParties: false,
   username: '',
   token: '',
   pinned: false,
@@ -124,6 +125,10 @@ const steps = [
       <div id="fsc4b"${state.stable ? ' hidden' : ''}>
         <nldd-spacer size="12"></nldd-spacer>
         <nldd-checkbox-field name="fsc4b" label="Ook FSC voor Burgers: een app mag namens een testburger aanvragen indienen en het dossier lezen, met een test-Activatiedienst die niemand controleert"${state.fsc4b ? ' checked' : ''}></nldd-checkbox-field>
+      </div>
+      <div id="ownParties"${state.stable ? ' hidden' : ''}>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-checkbox-field name="ownParties" label="Externe partijen op een eigen omgeving: een partij die volgens de regelgeving van de casus iets gevraagd wordt, zoals de GGD om een onderzoek, krijgt een eigen adres waar haar medewerkers inloggen. Vraagt de casus geen partij iets, dan komt er geen bij"${state.ownParties ? ' checked' : ''}></nldd-checkbox-field>
       </div>`,
     wire: (f) => {
       f.querySelector('nldd-radio-button-group[name="access"]').addEventListener('change', () => {
@@ -132,6 +137,7 @@ const steps = [
       f.querySelector('nldd-radio-button-group[name="login"]').addEventListener('change', () => {
         f.querySelector('#stable').hidden = chosenRadio(f, 'login') !== 'stable';
         f.querySelector('#fsc4b').hidden = chosenRadio(f, 'login') === 'stable';
+        f.querySelector('#ownParties').hidden = chosenRadio(f, 'login') === 'stable';
       });
     },
     checks: (f) => {
@@ -149,6 +155,8 @@ const steps = [
         stable: chosenRadio(f, 'login') === 'stable',
         testAccounts: Boolean(f.querySelector('nldd-checkbox-field[name="testAccounts"]')?.checked),
         fsc4b: chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked),
+        ownParties:
+          chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="ownParties"]')?.checked),
       }),
   },
   {
@@ -229,6 +237,7 @@ const steps = [
                 : 'testomgeving',
             ],
             ['FSC voor Burgers', state.fsc4b ? `aan, met het demo-stelsel: ${fsc4bDiscoveryUrl(state.hostname)}` : 'uit'],
+            ['Externe partijen', state.ownParties ? 'op een eigen omgeving, waar de casus een partij iets vraagt' : 'via het beheerpaneel'],
             ['Burgers', a.burger],
             ['Medewerkers', a.medewerkers],
             ...(state.stable

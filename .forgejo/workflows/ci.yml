@@ -205,6 +205,21 @@ jobs:
           }
           contains GIT_TOKEN $CNPG --set case.credentialsSecret=repo
           contains WETSPROCES_ACCENT_COLOR $SMALL --set theme.accentColor=paars
+          # A release for an external party, linked with the executor's.
+          contains WETSPROCES_LINK_PARTY $CNPG --set surfaces.split=false \
+            --set wetsproces.surface=backoffice --set koppeling.partij=ggd_wilgendaal \
+            --set 'koppeling.peers[0].cel=gemeente_wilgendaal' \
+            --set 'koppeling.peers[0].url=https://gemeente.example.org'
+          contains WETSPROCES_LINK_KEY_FILE $CNPG --set koppeling.keySecret=sleutel \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
+            --set 'koppeling.peers[0].url=https://ggd.example.org'
+          # Of two instances only the one for employees holds the link, so a
+          # release signs with one key.
+          n=$(helm template wetsproces "$C" --set domain=example.org $CNPG \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
+            --set 'koppeling.peers[0].url=https://ggd.example.org' \
+            | grep -c "name: WETSPROCES_LINK_PEERS")
+          [ "$n" = 1 ] || { echo "expected the link on one instance, got $n"; exit 1; }
           # FSC voor Burgers on the demo Stelsel: on the citizens' instance,
           # with that instance's host as the address apps use; off by default.
           contains "value: \"https://a.example.org\"" $CNPG --set fsc4b.enabled=true \
@@ -283,6 +298,10 @@ jobs:
             --set surfaces.burger.host=Not_A_Host
           refuse "accentColor" --set domain=example.org $CNPG \
             --set theme.accentColor=purple
+          refuse "release of an external party" --set domain=example.org $CNPG \
+            --set koppeling.partij=ggd_wilgendaal
+          refuse "does not match pattern" --set domain=example.org $CNPG \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' --set 'koppeling.peers[0].url=ggd.example.org'
           OIDC="--set wetsproces.login=oidc --set oidc.existingSecret=wetsproces-oidc
             --set oidc.issuerUrl=https://keycloak.example.org/realms/wetsproces"
           STABLE="--set domain=example.org $CNPG --set wetsproces.mode=stable"

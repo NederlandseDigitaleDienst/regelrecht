@@ -85,6 +85,7 @@ use crate::access::{self, Citizen, Level, Principal};
 use crate::clock::ControllableClock;
 use crate::config::Mode;
 use crate::fsc4b::Fsc4b;
+use crate::link::Link;
 use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
 use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
@@ -112,6 +113,8 @@ pub struct AppState {
     fsc4b: Option<Arc<Fsc4b>>,
     /// The accent colour of the screens; none keeps the design system's.
     accent: Option<AccentColor>,
+    /// The link with the servers of other cells, when one is configured.
+    link: Option<Arc<Link>>,
 }
 
 impl AppState {
@@ -133,6 +136,7 @@ impl AppState {
             http_client: regelrecht_auth::http_client(),
             fsc4b: None,
             accent: None,
+            link: None,
         }
     }
 
@@ -146,6 +150,17 @@ impl AppState {
     pub fn with_fsc4b(mut self, fsc4b: Arc<Fsc4b>) -> Self {
         self.fsc4b = Some(fsc4b);
         self
+    }
+
+    /// The state with the link `link` to the servers of other cells.
+    pub fn with_link(mut self, link: Arc<Link>) -> Self {
+        self.link = Some(link);
+        self
+    }
+
+    /// The link with the servers of other cells, when one is configured.
+    pub fn link(&self) -> Option<&Arc<Link>> {
+        self.link.as_ref()
     }
 
     /// The FSC voor Burgers channel, when it is configured.
@@ -318,7 +333,19 @@ pub fn router(state: AppState) -> Router {
             "/api/backoffice/beheer/toezendingen",
             post(send_copy_external),
         )
-        .route_layer(middleware::from_fn_with_state(state.clone(), gate_admin));
+        .route_layer(middleware::from_fn_with_state(state.clone(), gate_entering));
+    // The server of an external party: its staff enter what the party does,
+    // and nothing of the executor's back office exists. The clock and the
+    // reset stay, for an admin in test mode.
+    let mut party_tools = Router::new().route("/api/backoffice/klok", put(set_clock));
+    if state.clock.is_some() {
+        party_tools = party_tools.route(
+            "/api/backoffice/testomgeving/leegmaken",
+            post(reset_test_environment),
+        );
+    }
+    let party_tools =
+        party_tools.route_layer(middleware::from_fn_with_state(state.clone(), gate_employee));
     let fsc4b = state
         .fsc4b
         .as_ref()
@@ -333,7 +360,17 @@ pub fn router(state: AppState) -> Router {
         routes = routes.merge(citizen).merge(fsc4b);
     }
     if state.surface.serves_employees() {
-        routes = routes.merge(backoffice).merge(admin_panel);
+        routes = if state.service.party().is_some() {
+            routes.merge(party_tools).merge(admin_panel)
+        } else {
+            routes.merge(backoffice).merge(admin_panel)
+        };
+    }
+    if state.surface.serves_employees() {
+        routes = routes.route(crate::link::PARTIES_PATH, get(crate::link::parties));
+    }
+    if state.link.is_some() {
+        routes = routes.merge(Link::routes());
     }
     routes.with_state(state)
 }
@@ -382,13 +419,21 @@ async fn gate_employee(
     gate(principal, |p| p.has(Level::Reader), request, next).await
 }
 
-/// An admin, for the admin panel.
-async fn gate_admin(
+/// Who enters what an external party does: an admin, in the admin panel of
+/// the executor's server; on the server of the party itself its own staff,
+/// from the employee who decides upward.
+async fn gate_entering(
+    State(state): State<AppState>,
     principal: Principal,
     request: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
-    gate(principal, |p| p.has(Level::Admin), request, next).await
+    let allowed: fn(&Principal) -> bool = if state.service.party().is_some() {
+        |p| p.has(Level::Decider)
+    } else {
+        |p| p.has(Level::Admin)
+    };
+    gate(principal, allowed, request, next).await
 }
 
 async fn case(State(state): State<AppState>) -> ApiResult {
@@ -671,8 +716,9 @@ async fn me(
         });
     let citizen = principal.citizen(&state.subject_claim).ok();
     let service = &state.service;
-    let cells: Vec<Value> = principal
-        .has(Level::Reader)
+    // On the server of an external party nobody reads or decides for the
+    // executor: its staff enter what their own party does.
+    let cells: Vec<Value> = (principal.has(Level::Reader) && service.party().is_none())
         .then(|| {
             json!({
                 "cel": service.executor(),
@@ -690,7 +736,14 @@ async fn me(
         "identiteit": citizen.as_ref().map(access::Citizen::subject),
         "niveau": principal.level().map(Level::name),
         "cellen": cells,
-        "partijen_invoeren": principal.has(Level::Admin),
+        "partijen_invoeren": match service.party() {
+            Some(_) => principal.has(Level::Decider),
+            None => principal.has(Level::Admin),
+        },
+        "partij": service.party().map(|cel| json!({
+            "cel": cel,
+            "cel_naam": service.cell_name(cel),
+        })),
         "klok_zetten": principal.has(Level::Admin) && state.clock.is_some(),
     })))
 }
@@ -872,7 +925,12 @@ async fn perform(
     actor: &Actor,
 ) -> CitizenResult {
     let key = key(headers)?;
-    Ok(state.service.perform(key, step, actor).await?)
+    let answer = state.service.perform(key, step, actor).await?;
+    // The step may have made a record a linked cell is to receive.
+    if let Some(link) = &state.link {
+        link.wake();
+    }
+    Ok(answer)
 }
 
 /// Allow when the executor's chronicle holds the record `id`; `what` names
@@ -899,7 +957,7 @@ async fn executor_decision(state: &AppState, d: &Decide) -> Result<(), ApiError>
 /// the record in the 404 otherwise, also when the executor holds it.
 async fn external_holder(state: &AppState, id: &str, what: &str) -> Result<String, ApiError> {
     match state.service.holder(id).await? {
-        Some(cell) if state.service.is_external(&cell) => Ok(cell),
+        Some(cell) if state.service.enters_for(&cell) => Ok(cell),
         _ => Err(ApiError::not_yours(what)),
     }
 }
@@ -1121,8 +1179,23 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
             "cel_naam": state.service.executor_name(),
         },
         "partijen": parties,
+        "gekoppeld": state.service.linked_cells().map(|cel| json!({
+            "cel": cel,
+            "cel_naam": state.service.cell_name(cel),
+        })).collect::<Vec<_>>(),
         "antwoord_op_verzoek": state.service.answer_facts(),
     })))
+}
+
+/// Who enters an external party's act, as the store keeps it: an admin
+/// through the admin panel, or on the party's own server the employee
+/// themself, through the login.
+fn entering_actor(state: &AppState, principal: &Principal) -> Actor {
+    if state.service.party().is_some() {
+        principal.actor()
+    } else {
+        principal.admin_panel_actor()
+    }
 }
 
 /// A fact an external party records, entered by an admin.
@@ -1134,17 +1207,20 @@ async fn record_external(
 ) -> ApiResult {
     // As for the executor, the kern resolves `verwijst_naar` within the
     // party's own chronicle only.
-    if !state.service.is_external(&r.cell) {
+    if !state.service.enters_for(&r.cell) {
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
-            format!("'{}' is no external party of this process", r.cell),
+            format!(
+                "'{}' is no external party of this process whose acts are entered here",
+                r.cell
+            ),
         ));
     }
     perform(
         &state,
         &headers,
         Step::Record(r),
-        &principal.admin_panel_actor(),
+        &entering_actor(&state, &principal),
     )
     .await
     .map(Json)
@@ -1169,7 +1245,7 @@ async fn decide_external(
         &state,
         &headers,
         Step::Decide(d),
-        &principal.admin_panel_actor(),
+        &entering_actor(&state, &principal),
     )
     .await
     .map(Json)
@@ -1188,7 +1264,7 @@ async fn send_copy_external(
         &state,
         &headers,
         Step::SendCopy(s),
-        &principal.admin_panel_actor(),
+        &entering_actor(&state, &principal),
     )
     .await
     .map(Json)

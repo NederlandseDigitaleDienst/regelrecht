@@ -1,4 +1,5 @@
 {{- include "wetsproces.checkLogin" . }}
+{{- include "wetsproces.checkLink" . }}
 {{- range $i, $inst := include "wetsproces.instances" . | fromJsonArray }}
 {{- with $ }}
 {{- if $i }}
@@ -194,6 +195,25 @@ spec:
             - name: WETSPROCES_ACCENT_COLOR
               value: {{ . | quote }}
             {{- end }}
+            {{- /*
+            One instance of a release holds the link: the one for employees,
+            or the single one. It sends, it is the address peers send to, and
+            it signs, so a release has one key. What the citizens' instance
+            records is in the shared chronicle, where the worker finds it.
+            */}}
+            {{- $linked := and .Values.koppeling.peers (ne $inst.surface "burger") }}
+            {{- if and $linked .Values.koppeling.partij }}
+            - name: WETSPROCES_LINK_PARTY
+              value: {{ .Values.koppeling.partij | quote }}
+            {{- end }}
+            {{- if $linked }}
+            - name: WETSPROCES_LINK_PEERS
+              value: {{ .Values.koppeling.peers | toJson | quote }}
+            {{- end }}
+            {{- if and $linked .Values.koppeling.keySecret }}
+            - name: WETSPROCES_LINK_KEY_FILE
+              value: /koppeling/key.pem
+            {{- end }}
           ports:
             - name: http
               containerPort: 8000
@@ -228,7 +248,20 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            {{- if and .Values.koppeling.peers .Values.koppeling.keySecret (ne $inst.surface "burger") }}
+            - name: koppeling
+              mountPath: /koppeling
+              readOnly: true
+            {{- end }}
       volumes:
+        {{- if and .Values.koppeling.peers .Values.koppeling.keySecret (ne $inst.surface "burger") }}
+        - name: koppeling
+          secret:
+            secretName: {{ .Values.koppeling.keySecret }}
+            items:
+              - key: key.pem
+                path: key.pem
+        {{- end }}
         - name: case
           emptyDir:
             sizeLimit: 2Gi

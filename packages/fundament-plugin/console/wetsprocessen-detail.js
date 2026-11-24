@@ -57,6 +57,7 @@ function show(item) {
       ${linkRow('Medewerkers', item.status?.backofficeUrl)}
       ${linkRow('Inloggen (Keycloak)', item.status?.loginUrl)}
       ${linkRow('FSC voor Burgers (discovery)', item.status?.fsc4bDiscoveryUrl)}
+      ${(item.status?.parties ?? []).map((p) => linkRow(p.name || p.cell, p.url)).join('')}
     </nldd-list>
     ${item.status?.keycloakSecret ? keycloakHtml(item) : ''}
     <nldd-spacer size="16"></nldd-spacer>
@@ -76,6 +77,7 @@ function show(item) {
             : 'testomgeving',
         ],
         ['FSC voor Burgers', spec.fsc4b?.enabled ? 'aan, met het demo-stelsel' : 'uit'],
+        ['Externe partijen', spec.parties?.ownInstances ? 'op een eigen omgeving, waar de casus een partij iets vraagt' : 'via het beheerpaneel'],
         ['Hostnaam', spec.hostname ?? ''],
       ],
       'Instellingen',

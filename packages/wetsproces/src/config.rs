@@ -308,6 +308,54 @@ pub struct Config {
     pub fsc4b: Fsc4bChoice,
     /// The accent colour of the screens; none keeps the design system's.
     pub accent: Option<AccentColor>,
+    /// The link with the servers of other cells of the case.
+    pub link: LinkSettings,
+}
+
+/// The server of another cell of the case, as `WETSPROCES_LINK_PEERS` names
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PeerSetting {
+    /// The cell that server works for.
+    #[serde(rename = "cel")]
+    pub cell: String,
+    /// Where it is reached, without a trailing slash.
+    pub url: String,
+    /// Its public key, a JWK as JSON text; none reads it from the server
+    /// itself, in test mode only.
+    #[serde(default, rename = "sleutel", deserialize_with = "jwk_text")]
+    pub key: Option<String>,
+}
+
+/// A JWK in the configuration, kept as text until the link opens.
+fn jwk_text<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let value: Option<serde_json::Value> = serde::Deserialize::deserialize(d)?;
+    Ok(value.map(|v| v.to_string()))
+}
+
+/// The link with the servers of other cells of the case
+/// ([`crate::link`]).
+#[derive(Clone, Default)]
+pub struct LinkSettings {
+    /// The external party this server works for, when it is not the
+    /// executor's own server.
+    pub party: Option<String>,
+    pub peers: Vec<PeerSetting>,
+    /// This server's private ES256 key; none makes one at every start, in
+    /// test mode only.
+    pub key: Option<KeySource>,
+}
+
+impl std::fmt::Debug for LinkSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never the key.
+        f.debug_struct("LinkSettings")
+            .field("party", &self.party)
+            .field("peers", &self.peers)
+            .field("key", &self.key.is_some())
+            .finish()
+    }
 }
 
 /// Why the environment gives no configuration.
@@ -334,6 +382,23 @@ pub enum ConfigError {
          belongs on WETSPROCES_SURFACE=burger"
     )]
     Fsc4bOnBackoffice,
+    #[error(
+        "WETSPROCES_LINK_PEERS is not a JSON list of `{{\"cel\", \"url\", \"sleutel\"}}`, each cell \
+         once and each url an http(s) address: {0}"
+    )]
+    BadLinkPeers(String),
+    #[error("set WETSPROCES_LINK_KEY or WETSPROCES_LINK_KEY_FILE, not both")]
+    LinkTwoKeys,
+    #[error(
+        "WETSPROCES_LINK_PARTY makes this the server of an external party, whose staff work in \
+         a back office: set WETSPROCES_SURFACE to `backoffice`"
+    )]
+    LinkPartyNeedsBackoffice,
+    #[error(
+        "a link in stable mode needs a key of its own (WETSPROCES_LINK_KEY or _KEY_FILE), and \
+         for every peer an https address and its public key (`sleutel`): {0}"
+    )]
+    StableLinkNeedsKeys(String),
     #[error("WETSPROCES_LOGIN is `{0}`: it is `testlogin` or `oidc`")]
     UnknownLogin(String),
     #[error(
@@ -459,6 +524,7 @@ impl Config {
         if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
             return Err(ConfigError::Fsc4bOnBackoffice);
         }
+        let link = link_settings(mode, surface, &set)?;
         Ok(Self {
             mode,
             surface,
@@ -470,6 +536,7 @@ impl Config {
             subject_claim,
             fsc4b,
             accent,
+            link,
         })
     }
 }
@@ -536,6 +603,64 @@ fn login_choice(
         return Err(ConfigError::StableNeedsBaseUrl);
     }
     Ok(LoginChoice::Oidc { oidc, base_url })
+}
+
+/// The link the environment `set` configures for `mode` on `surface`.
+fn link_settings(
+    mode: Mode,
+    surface: Surface,
+    set: &impl Fn(&str) -> Option<String>,
+) -> Result<LinkSettings, ConfigError> {
+    let party = set("WETSPROCES_LINK_PARTY").map(|p| p.trim().to_string());
+    if party.is_some() && surface != Surface::Backoffice {
+        return Err(ConfigError::LinkPartyNeedsBackoffice);
+    }
+    let mut peers: Vec<PeerSetting> = match set("WETSPROCES_LINK_PEERS") {
+        Some(text) => {
+            serde_json::from_str(&text).map_err(|e| ConfigError::BadLinkPeers(e.to_string()))?
+        }
+        None => Vec::new(),
+    };
+    for peer in &mut peers {
+        peer.url = peer.url.trim().trim_end_matches('/').to_string();
+        if !(peer.url.starts_with("https://") || peer.url.starts_with("http://")) {
+            return Err(ConfigError::BadLinkPeers(format!(
+                "`{}` is no http(s) address",
+                peer.url
+            )));
+        }
+    }
+    let mut cells: Vec<&str> = peers.iter().map(|p| p.cell.as_str()).collect();
+    cells.sort_unstable();
+    if let Some(twice) = cells.windows(2).find(|w| w[0] == w[1]) {
+        return Err(ConfigError::BadLinkPeers(format!(
+            "'{}' is named twice",
+            twice[0]
+        )));
+    }
+    let key = match (set("WETSPROCES_LINK_KEY"), set("WETSPROCES_LINK_KEY_FILE")) {
+        (Some(pem), None) => Some(KeySource::Pem(pem)),
+        (None, Some(path)) => Some(KeySource::File(PathBuf::from(path.trim()))),
+        (Some(_), Some(_)) => return Err(ConfigError::LinkTwoKeys),
+        (None, None) => None,
+    };
+    if mode == Mode::Stable && !peers.is_empty() {
+        if key.is_none() {
+            return Err(ConfigError::StableLinkNeedsKeys(
+                "this server has no key".into(),
+            ));
+        }
+        if let Some(peer) = peers
+            .iter()
+            .find(|p| p.key.is_none() || !p.url.starts_with("https://"))
+        {
+            return Err(ConfigError::StableLinkNeedsKeys(format!(
+                "the peer '{}'",
+                peer.cell
+            )));
+        }
+    }
+    Ok(LinkSettings { party, peers, key })
 }
 
 /// The FSC voor Burgers channel the environment `set` configures for

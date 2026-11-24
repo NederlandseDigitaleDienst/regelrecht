@@ -36,13 +36,15 @@ const naam = computed(() => (ik.value ? ik.value.naam || ik.value.sub : null));
 const onder = computed(() => {
   const i = ik.value;
   if (!i || i.burger || !i.niveau) return null;
-  const cel = i.cellen[0]?.cel_naam;
+  const cel = i.partij?.cel_naam ?? i.cellen[0]?.cel_naam;
   const rol = cel ? `${hoofdletter(i.niveau)} bij ${cel}` : hoofdletter(i.niveau);
   return rol.toLowerCase() === naam.value?.trim().toLowerCase() ? null : rol;
 });
 const rechten = computed<Tab['recht'][]>(() => [
   ...(ik.value?.klok_zetten ? (['klok_zetten'] as const) : []),
-  ...(ik.value?.partijen_invoeren ? (['partijen_invoeren'] as const) : []),
+  ...(ik.value?.partijen_invoeren && !ik.value.partij ? (['partijen_invoeren'] as const) : []),
+  ...(ik.value?.partijen_invoeren && ik.value.partij ? (['partij'] as const) : []),
+  ...(ik.value && !ik.value.partij ? (['uitvoerder'] as const) : []),
 ]);
 </script>
 

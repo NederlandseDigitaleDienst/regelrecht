@@ -56,6 +56,7 @@ status:
 | `auth.mode` | `test` (the default: the test login and a clock the admin sets) or `stable` (a Keycloak of its own, and the real date) |
 | `auth.testAccounts` | in stable mode, give that Keycloak the test accounts of the case, with one generated password |
 | `fsc4b.enabled` | also offer the citizens' routes to an app through FSC voor Burgers, on the demo Stelsel with a test Activatiedienst that checks no identity. Test mode only: with `auth.mode: stable` the API server and the plugin refuse it. `status.fsc4bDiscoveryUrl` then names `https://<citizens' host>/fsc4b/discovery`. A `version` from before chart 0.5.0 ignores it |
+| `parties.ownInstances` | give each external party that the executor asks something of by its own policy a release of its own, where its staff log in, linked with the executor's release (see [External parties on a release of their own](#external-parties-on-a-release-of-their-own)). Test mode only |
 
 The name of the object is at most 40 characters, because it names the Helm
 release and every object of the chart.
@@ -396,6 +397,58 @@ The pages never read a Secret.
 The two ClusterRoles aggregate into `admin` and `view`, the roles Fundament
 binds project admins and viewers to. Admins may create and delete
 wetsprocessen; viewers may read them.
+
+## External parties on a release of their own
+
+A case names its external parties, and its regelwerken say which of them the
+executor asks something of by its own policy. For the parking card that is the
+GGD, which examines the applicant; the court is asked nothing. With
+`parties.ownInstances` each such party gets a release of its own, where its
+staff log in and see what the executor asks of it. The two releases exchange
+requests and answers as signed messages (the chart's `koppeling` values; the
+server's side is described on the docs page `components/wetsproces-koppeling`).
+
+The plugin does not read the case. The server does, and names those parties on
+`GET /koppeling/v1/partijen`. So the plugin works in two steps:
+
+1. It installs the executor's release without a link.
+2. Once that release is ready, it asks the Service of the employees' instance
+   inside the cluster, writes the answer to `status.parties`, makes a
+   HelmRelease `<name>-<party>` per party and applies the executor's release
+   again with those parties as its peers.
+
+A party's address is `<hostname>-<party>.<domain>`, where the party is its cell
+with dashes: `ggd_wilgendaal` under the hostname `parkeerkaart` gives
+`parkeerkaart-ggd-wilgendaal.<domain>`. The condition `PartiesLinked` says how
+far this is and why not. A case whose regelwerken ask no party for anything
+gets no extra release, and the condition says so.
+
+While the release is ready the plugin asks again at every reconcile, and at
+least every ten minutes, so a case that gains a party follows. A party the
+server no longer names keeps its release and its data, and the condition says
+so: the answer depends on the day the server runs on, which an admin sets in
+test mode, and removing a release removes its database. Turning
+`parties.ownInstances` off removes every party release. While the release is
+not ready, or the server does not answer, what runs is left alone and the
+plugin asks again after thirty seconds.
+
+A party is left out, with the reason in the condition, when its name gives no
+valid address or release name, when it comes to the same name as another
+party or as a part of the executor's own release (`burger`, `backoffice`,
+`medewerkers`, `login`, `keycloak`, `db`, `chart`), or when a release or a
+Wetsproces with that name or address exists already. The names come from the
+case, so the plugin never applies to or deletes a release it did not make for
+that party.
+
+What this leans on:
+
+- The plugin's pod must reach a Service in a project namespace. The cluster
+  does not separate namespaces on the network today; where it does, this call
+  needs an allowance.
+- A build of the server from before this route answers 404, which the
+  condition reports as a version that is too old.
+- The link runs with keys made at start, which the server allows in test mode
+  only, so `auth.mode: stable` refuses `parties.ownInstances`.
 
 ## Develop
 

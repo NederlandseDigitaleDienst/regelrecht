@@ -181,6 +181,12 @@ func TestChartValuesExistInChart(t *testing.T) {
 	w.Spec.Auth = v1alpha1.Auth{}
 	w.Spec.Fsc4b.Enabled = true
 	check("", chartValues(w, validConfig()), chart)
+	// With a party on a release of its own: both releases' values.
+	w.Spec.Parties.OwnInstances = true
+	party := v1alpha1.PartyStatus{Cell: "ggd_voorbeeld", URL: "https://a-ggd-voorbeeld.cluster.example.org/"}
+	w.Status.Parties, w.Status.ExecutorCell = []v1alpha1.PartyStatus{party}, "gemeente_voorbeeld"
+	check("", chartValues(w, validConfig()), chart)
+	check("", partyValues(w, validConfig(), party), chart)
 }
 
 func newReconciler(t *testing.T, objs ...client.Object) *WetsprocesReconciler {

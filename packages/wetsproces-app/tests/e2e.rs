@@ -55,6 +55,7 @@ async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::Jo
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
         fsc4b,
         accent: None,
+        link: Default::default(),
     };
     let router = app::build_with(&config, Login::TestLogin)
         .await

@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.20.0
   name: wetsprocessen.wetsproces.regelrecht.nl
 spec:
   group: wetsproces.regelrecht.nl
@@ -133,6 +133,21 @@ spec:
                 required:
                 - repoUrl
                 type: object
+              parties:
+                description: |-
+                  Parties says where the external parties of the case work. Empty
+                  leaves them to the admin panel.
+                properties:
+                  ownInstances:
+                    description: |-
+                      OwnInstances gives each external party that the executor asks
+                      something of by its own policy a release of its own, where its staff
+                      log in, linked with the executor's. Which parties those are follows
+                      from the regelwerken of the case: the running server names them, and
+                      a case that asks no party for anything gets none. Off, an admin
+                      enters what every external party did. Test mode only.
+                    type: boolean
+                type: object
               theme:
                 description: Theme is how the screens look.
                 properties:
@@ -173,6 +188,10 @@ spec:
             - manifest
             type: object
             x-kubernetes-validations:
+            - message: 'parties.ownInstances links the releases with keys made at
+                start: test mode only'
+              rule: '!(has(self.parties) && has(self.parties.ownInstances) && self.parties.ownInstances
+                && has(self.auth) && has(self.auth.mode) && self.auth.mode == ''stable'')'
             - message: 'fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst
                 checks no identity: test mode only'
               rule: '!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled
@@ -243,6 +262,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              executorCell:
+                description: |-
+                  ExecutorCell is the cell of the case the executor's release works
+                  for, which a party's release names as its peer; set with Parties.
+                type: string
               fsc4bDiscoveryUrl:
                 description: |-
                   Fsc4bDiscoveryURL is the discovery configuration of FSC voor Burgers,
@@ -267,6 +291,31 @@ spec:
                   status is about.
                 format: int64
                 type: integer
+              parties:
+                description: |-
+                  Parties are the external parties that run on a release of their own,
+                  as the running server last named them; empty when none does.
+                items:
+                  description: PartyStatus is an external party that runs on a release
+                    of its own.
+                  properties:
+                    cell:
+                      description: Cell is the party as the case names it.
+                      type: string
+                    name:
+                      description: Name is what a screen calls it.
+                      type: string
+                    url:
+                      description: URL is where its staff log in.
+                      type: string
+                  required:
+                  - cell
+                  - url
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - cell
+                x-kubernetes-list-type: map
               phase:
                 description: Phase is Pending, Ready or Failed.
                 type: string

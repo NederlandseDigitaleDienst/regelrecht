@@ -23,6 +23,11 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): RouteLoc
   const kant = to.matched.find((r) => r.meta.kant)?.meta.kant;
   if (kant === 'burger' && !wie?.burger) return startpagina(wie);
   if (kant === 'backoffice' && !isMedewerker(wie)) return startpagina(wie);
+  // The server of an external party has no work queue or chronicle of the
+  // executor: its staff start at what waits for their own party.
+  if (wie?.partij && wie.partijen_invoeren && (to.name === 'werkvoorraad' || to.name === 'behandelen' || to.name === 'kroniek')) {
+    return '/backoffice/beheer';
+  }
   if (to.name === 'simulatie' && !wie?.klok_zetten) return '/backoffice';
   if (to.matched.some((r) => r.meta.beheer) && !wie?.partijen_invoeren) return '/backoffice';
   return undefined;

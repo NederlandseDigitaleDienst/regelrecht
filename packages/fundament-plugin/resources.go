@@ -124,6 +124,9 @@ func validateSpec(w *v1alpha1.Wetsproces, domain string) error {
 	if strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
 		return fmt.Errorf("manifest.path must be a relative path inside the repository, got %q", path)
 	}
+	if w.Spec.Parties.OwnInstances && isStable(w) {
+		return fmt.Errorf("parties.ownInstances links the releases with keys made at start: test mode only")
+	}
 	if w.Spec.Fsc4b.Enabled && isStable(w) {
 		return fmt.Errorf("fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only")
 	}
@@ -230,6 +233,12 @@ func chartValues(w *v1alpha1.Wetsproces, cfg pluginConfig) map[string]any {
 		// The chart sets the demo Stelsel on the citizens' instance; its
 		// keys are made in memory at start, so there is no Secret to name.
 		values["fsc4b"] = map[string]any{"enabled": true}
+	}
+	if peers := executorPeers(w); w.Spec.Parties.OwnInstances && len(peers) > 0 {
+		// The parties the running server named, each on a release of its
+		// own (parties.go): the executor's release sends them what they are
+		// to receive, and no admin enters their acts here.
+		values["koppeling"] = map[string]any{"peers": peers}
 	}
 	if isStable(w) {
 		// The chart's stable mode: PostgreSQL and an instance per side are
