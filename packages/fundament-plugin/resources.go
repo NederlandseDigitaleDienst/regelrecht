@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -137,7 +138,30 @@ func validateSpec(w *v1alpha1.RegelHet, domain string) error {
 	if w.Spec.Fsc4b.Enabled && isStable(w) {
 		return fmt.Errorf("fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only")
 	}
+	if err := validateFsc4bOrigins(w.Spec.Fsc4b); err != nil {
+		return err
+	}
 	return validateHosts(w.Spec.Hostname, hostsOf(w, domain))
+}
+
+// fsc4bOrigin is an origin a browser app may call FSC voor Burgers from:
+// https with a host and an optional port, or http on the developer's own
+// machine. No path, no trailing slash: the server compares it with the
+// Origin header as it is. The CRD's schema holds the same pattern.
+var fsc4bOrigin = regexp.MustCompile(`^(https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?|http://(localhost|127\.0\.0\.1)(:[0-9]{1,5})?)$`)
+
+// validateFsc4bOrigins checks spec.fsc4b.origins as the CRD's schema does,
+// for an object that did not come through the API server.
+func validateFsc4bOrigins(f v1alpha1.Fsc4b) error {
+	if len(f.Origins) > 0 && !f.Enabled {
+		return fmt.Errorf("fsc4b.origins lets browser apps call FSC voor Burgers: only with fsc4b.enabled")
+	}
+	for _, o := range f.Origins {
+		if !fsc4bOrigin.MatchString(o) {
+			return fmt.Errorf("fsc4b.origins: %q is no origin: https://host or https://host:port, or http on localhost, without a path", o)
+		}
+	}
+	return nil
 }
 
 // validatePartij checks what spec.partij asks of the rest of the spec. The
@@ -276,7 +300,17 @@ func chartValues(w *v1alpha1.RegelHet, cfg pluginConfig, snap *snapshot) map[str
 	if w.Spec.Fsc4b.Enabled {
 		// The chart sets the demo Stelsel on the citizens' instance; its
 		// keys are made in memory at start, so there is no Secret to name.
-		values["fsc4b"] = map[string]any{"enabled": true}
+		fsc4b := map[string]any{"enabled": true}
+		if len(w.Spec.Fsc4b.Origins) > 0 {
+			// The browser apps that call the channel from their own
+			// address (REGELHET_FSC4B_ORIGINS).
+			origins := make([]any, 0, len(w.Spec.Fsc4b.Origins))
+			for _, o := range w.Spec.Fsc4b.Origins {
+				origins = append(origins, o)
+			}
+			fsc4b["origins"] = origins
+		}
+		values["fsc4b"] = fsc4b
 	}
 	if peers := executorPeers(w); len(peers) > 0 {
 		// The RegelHet instances that run as its parties (parties.go): the

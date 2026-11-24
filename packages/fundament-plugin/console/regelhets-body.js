@@ -103,6 +103,27 @@ export function casusError(value) {
   return value.length > CASUS_MAX ? `Ten hoogste ${CASUS_MAX} tekens.` : null;
 }
 
+// An origin a browser app may call FSC voor Burgers from
+// (spec.fsc4b.origins): https with a host and an optional port, or http on
+// the developer's own machine; no path. The CRD holds the same pattern.
+const FSC4B_ORIGIN = /^(https:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?|http:\/\/(localhost|127\.0\.0\.1)(:[0-9]{1,5})?)$/;
+export const FSC4B_ORIGINS_MAX = 20;
+
+/** The origins in `value`: one per line or separated by commas or spaces, without empty ones. */
+export function fsc4bOrigins(value) {
+  return value
+    .split(/[\s,]+/)
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+export function fsc4bOriginsError(value) {
+  const origins = fsc4bOrigins(value);
+  const fout = origins.find((o) => !FSC4B_ORIGIN.test(o));
+  if (fout) return `${fout} is geen herkomst: https://host of https://host:poort, of http op localhost, zonder pad.`;
+  return origins.length > FSC4B_ORIGINS_MAX ? `Ten hoogste ${FSC4B_ORIGINS_MAX} adressen.` : null;
+}
+
 export function titleError(value) {
   if (!value) return null;
   if (CONTROL.test(value)) return 'Eén regel tekst.';
@@ -231,6 +252,7 @@ export function buildRegelHet({
   stable = false,
   testAccounts = false,
   fsc4b = false,
+  fsc4bOrigins: origins = [],
   partij,
   organisatie,
 }) {
@@ -254,7 +276,9 @@ export function buildRegelHet({
   } else {
     // FSC voor Burgers runs on the demo Stelsel, test mode only; off is the
     // CRD's default, so an object without it says nothing.
-    if (fsc4b && !stable) spec.fsc4b = { enabled: true };
+    // The browser apps that may call it from their own address, such as the
+    // citizen's app (frontend-regelhet, burgerapp), only with it on.
+    if (fsc4b && !stable) spec.fsc4b = origins.length ? { enabled: true, origins } : { enabled: true };
     // The Organisatie whose front lists it (organisaties-body.js,
     // organisatieReference); without one it runs on its own.
     if (organisatie) spec.organisatie = organisatie;

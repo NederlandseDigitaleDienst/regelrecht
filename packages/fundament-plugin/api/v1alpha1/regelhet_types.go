@@ -133,6 +133,17 @@ type Fsc4b struct {
 	// Activatiedienst that checks no identity. Test mode only.
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
+
+	// Origins are the browser apps that may call the channel from an
+	// address of their own, such as the citizen's app: each an origin,
+	// https://host or https://host:port, or http on localhost or 127.0.0.1
+	// for an app run on a developer's machine. The server answers them with
+	// CORS headers on /fsc4b/ (the chart's fsc4b.origins). Only with
+	// enabled.
+	// +optional
+	// +kubebuilder:validation:MaxItems=20
+	// +kubebuilder:validation:items:Pattern=`^(https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?|http://(localhost|127\.0\.0\.1)(:[0-9]{1,5})?)$`
+	Origins []string `json:"origins,omitempty"`
 }
 
 // Partij makes a RegelHet the server of one external party of the case of
@@ -198,6 +209,7 @@ type PartyStatus struct {
 // +kubebuilder:validation:XValidation:rule="!(has(self.partij) && has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled)",message="partij runs a server for the staff of a party, without a citizens' side for fsc4b"
 // +kubebuilder:validation:XValidation:rule="!(has(self.partij) && has(self.organisatie))",message="partij runs a server for the staff of a party, without a citizens' side to put behind the front of an organisatie"
 // +kubebuilder:validation:XValidation:rule="!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled && has(self.auth) && has(self.auth.mode) && self.auth.mode == 'stable')",message="fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst checks no identity: test mode only"
+// +kubebuilder:validation:XValidation:rule="!(has(self.fsc4b) && has(self.fsc4b.origins) && size(self.fsc4b.origins) > 0 && !(has(self.fsc4b.enabled) && self.fsc4b.enabled))",message="fsc4b.origins lets browser apps call FSC voor Burgers: only with fsc4b.enabled"
 type RegelHetSpec struct {
 	// Manifest is the case to run.
 	Manifest Manifest `json:"manifest"`

@@ -10,6 +10,8 @@ import {
   buildSecret,
   buildRegelHet,
   fsc4bDiscoveryUrl,
+  fsc4bOrigins,
+  fsc4bOriginsError,
   keycloakSecretName,
   commitError,
   hostnameError,
@@ -125,6 +127,18 @@ test('FSC voor Burgers is in the spec only when chosen, and never in stable mode
   assert.equal(buildRegelHet(base).spec.fsc4b, undefined);
   assert.deepEqual(buildRegelHet({ ...base, fsc4b: true }).spec.fsc4b, { enabled: true });
   assert.equal(buildRegelHet({ ...base, fsc4b: true, stable: true }).spec.fsc4b, undefined);
+});
+
+test('the browser apps of FSC voor Burgers go in the spec with it, and only origins pass the check', () => {
+  const origins = ['https://burgerapp.cluster-a.fieldlab2026.nl', 'http://localhost:7150'];
+  assert.deepEqual(buildRegelHet({ ...base, fsc4b: true, fsc4bOrigins: origins }).spec.fsc4b, { enabled: true, origins });
+  assert.equal(buildRegelHet({ ...base, fsc4bOrigins: origins }).spec.fsc4b, undefined);
+  assert.deepEqual(fsc4bOrigins(' https://a.example.org,\nhttp://localhost:7150  '), ['https://a.example.org', 'http://localhost:7150']);
+  assert.equal(fsc4bOriginsError(''), null);
+  assert.equal(fsc4bOriginsError('https://a.example.org:8443, http://127.0.0.1'), null);
+  for (const fout of ['http://a.example.org', 'https://a.example.org/', 'https://a.example.org/app', '*']) {
+    assert.match(fsc4bOriginsError(fout), /geen herkomst/, fout);
+  }
 });
 
 test('the discovery URL of FSC voor Burgers is on the citizens\' host', () => {

@@ -89,6 +89,7 @@ function show(item) {
           ? [['Partij van', partijStatusText(spec.partij, item)]]
           : [
               ['FSC voor Burgers', spec.fsc4b?.enabled ? 'aan, met het demo-stelsel' : 'uit'],
+              ...(spec.fsc4b?.origins?.length ? [['Apps in de browser', spec.fsc4b.origins.join(', ')]] : []),
               ['Externe partijen', partiesText(item)],
               ['Organisatie', organisatieText(spec.organisatie, item)],
             ]),

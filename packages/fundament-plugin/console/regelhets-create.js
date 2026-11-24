@@ -59,6 +59,8 @@ import {
   partyChoices,
   partijReference,
   partyAccentColor,
+  fsc4bOrigins,
+  fsc4bOriginsError,
 } from './regelhets-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
@@ -75,6 +77,7 @@ const state = {
   stable: false,
   testAccounts: true,
   fsc4b: false,
+  fsc4bOrigins: '',
   role: ROLE_EXECUTOR,
   partyChoice: '',
   username: '',
@@ -190,6 +193,10 @@ const steps = [
       <div id="fsc4b"${state.stable ? ' hidden' : ''}>
         <nldd-spacer size="12"></nldd-spacer>
         <nldd-checkbox-field name="fsc4b" label="Ook FSC voor Burgers: een app mag namens een testburger aanvragen indienen en het dossier lezen, met een test-Activatiedienst die niemand controleert"${state.fsc4b ? ' checked' : ''}></nldd-checkbox-field>
+        <div id="fsc4bOrigins"${state.fsc4b ? '' : ' hidden'}>
+          <nldd-spacer size="12"></nldd-spacer>
+          ${field('Apps in de browser', textField('fsc4bOrigins', state.fsc4bOrigins, 'placeholder="https://burgerapp.cluster-a.fieldlab2026.nl"'), { errorId: 'e-fsc4b-origins', hint: 'De adressen van apps die vanaf hun eigen adres FSC voor Burgers aanroepen, zoals de burgerapp. Meer dan één met komma\'s ertussen. Leeg: alleen apps die geen browser zijn.' })}
+        </div>
       </div>`,
     wire: (f) => {
       f.querySelector('nldd-radio-button-group[name="access"]').addEventListener('change', () => {
@@ -199,12 +206,20 @@ const steps = [
         f.querySelector('#stable').hidden = chosenRadio(f, 'login') !== 'stable';
         f.querySelector('#fsc4b').hidden = chosenRadio(f, 'login') === 'stable';
       });
+      f.querySelector('nldd-checkbox-field[name="fsc4b"]').addEventListener('change', (e) => {
+        f.querySelector('#fsc4bOrigins').hidden = !e.currentTarget.checked;
+      });
     },
     checks: (f) => {
-      if (chosenRadio(f, 'access') !== 'private') return [];
+      const fsc4b = chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked);
       return [
-        [f.querySelector('[name="username"]'), usernameError],
-        [f.querySelector('[name="token"]'), tokenError],
+        ...(chosenRadio(f, 'access') === 'private'
+          ? [
+              [f.querySelector('[name="username"]'), usernameError],
+              [f.querySelector('[name="token"]'), tokenError],
+            ]
+          : []),
+        ...(fsc4b ? [[f.querySelector('[name="fsc4bOrigins"]'), fsc4bOriginsError]] : []),
       ];
     },
     keep: (v, f) =>
@@ -215,6 +230,7 @@ const steps = [
         stable: chosenRadio(f, 'login') === 'stable',
         testAccounts: Boolean(f.querySelector('nldd-checkbox-field[name="testAccounts"]')?.checked),
         fsc4b: chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked),
+        fsc4bOrigins: v('fsc4bOrigins'),
       }),
   },
   {
@@ -393,6 +409,9 @@ const steps = [
               : [
                   ['Organisatie', organisatieSummary()],
                   ['FSC voor Burgers', state.fsc4b ? `aan, met het demo-stelsel: ${fsc4bDiscoveryUrl(state.hostname)}` : 'uit'],
+                  ...(state.fsc4b && fsc4bOrigins(state.fsc4bOrigins).length
+                    ? [['Apps in de browser', fsc4bOrigins(state.fsc4bOrigins).join(', ')]]
+                    : []),
                   ['Burgers', a.burger],
                   ['Medewerkers', a.medewerkers],
                 ]),
@@ -463,6 +482,7 @@ async function create() {
 
   const regelhet = buildRegelHet({
     ...state,
+    fsc4bOrigins: fsc4bOrigins(state.fsc4bOrigins),
     accentColor: accentColor(),
     partij: isParty() ? partijReference(state.partyChoice, namespace) : undefined,
     organisatie: organisatieReference(
