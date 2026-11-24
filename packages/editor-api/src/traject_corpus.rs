@@ -2557,7 +2557,7 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
         facts_index: RwLock::new(None),
         facts_build_lock: Mutex::new(()),
         facts_gen: AtomicU64::new(0),
-        facts_memo: old.facts_memo.clone(),
+        facts_memo: Arc::clone(&old.facts_memo),
         changed_cache: old.changed_cache.clone(),
         changed_refresh_in_flight: old.changed_refresh_in_flight.clone(),
         changed_refresh_gate: old.changed_refresh_gate.clone(),

@@ -2398,6 +2398,19 @@ async fn finalize_failed_task_job_tx(
     Ok(())
 }
 
+/// `run` to its end, or `None` when `stop` fires first. Returning drops
+/// `run`, and with it the agent subprocess: its process group is killed on
+/// drop (see the supervisor).
+async fn unless_stopped<T>(
+    run: impl std::future::Future<Output = T>,
+    stop: &tokio_util::sync::CancellationToken,
+) -> Option<T> {
+    tokio::select! {
+        out = run => Some(out),
+        () = stop.cancelled() => None,
+    }
+}
+
 /// End a task-flow enrichment that a member stopped: its input blobs go, the
 /// job is marked cancelled, and nothing follows. No review task (there is no
 /// result), no failure task (nothing failed), no continuation.
@@ -2615,15 +2628,10 @@ async fn process_enrich_task_job(
             execute_enrich(payload, workdir.path(), &bounded_config, ""),
         ),
     );
-    let outcome = tokio::select! {
-        outcome = run => outcome,
-        () = stop.cancelled() => {
-            // Leaving this arm drops `run`, and with it the agent subprocess:
-            // its process group is killed on drop (see the supervisor).
-            tracing::info!(job_id = %job.id, law_id = %job.law_id, "enrich task job stopped on request");
-            cancel_enrich_task_job(pool, job).await?;
-            return Ok(JobOutcome::Processed);
-        }
+    let Some(outcome) = unless_stopped(run, &stop).await else {
+        tracing::info!(job_id = %job.id, law_id = %job.law_id, "enrich task job stopped on request");
+        cancel_enrich_task_job(pool, job).await?;
+        return Ok(JobOutcome::Processed);
     };
 
     match outcome {
@@ -4353,6 +4361,15 @@ articles:
             scoped_task_config(&base, &scoped("law", &["1", "3", "5"])).expect("valid");
         assert_eq!(config.target_articles, vec!["1", "3", "5"]);
         assert_eq!(remaining, Some(vec![]));
+    }
+
+    #[tokio::test]
+    async fn a_stop_drops_the_run_and_a_run_that_ends_first_is_kept() {
+        let stop = tokio_util::sync::CancellationToken::new();
+        assert_eq!(unless_stopped(async { 7 }, &stop).await, Some(7));
+        stop.cancel();
+        let never = std::future::pending::<u8>();
+        assert_eq!(unless_stopped(never, &stop).await, None);
     }
 
     #[test]

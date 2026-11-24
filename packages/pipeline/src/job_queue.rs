@@ -484,6 +484,10 @@ pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 /// finished, failed, was reaped, or was claimed again), which tells the
 /// heartbeat to stop, and [`Beat::StopRequested`] when a member asked to stop
 /// the run.
+///
+/// # Errors
+///
+/// Returns a database error.
 pub async fn heartbeat<'e, E>(
     executor: E,
     job_id: Uuid,

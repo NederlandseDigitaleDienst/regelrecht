@@ -1223,6 +1223,12 @@ pub struct ChainQuery {
 /// What enriching one article touches: the articles it reaches in the
 /// traject's corpus by citation, binding and implementation, each with its
 /// gaps and how it was reached. Behind the `enrich.hotspots` flag.
+///
+/// # Errors
+///
+/// 404 while the flag is off, outside a traject, or for a law or article
+/// the traject does not have; the traject scope's own refusals (401, 403,
+/// 428); 500 when the flag cannot be read.
 pub async fn get_traject_article_chain(
     State(state): State<AppState>,
     Extension(account): Extension<AccountRecord>,
@@ -1282,6 +1288,11 @@ const HOTSPOTS_MAX_LIMIT: usize = 50;
 ///
 /// The articles of the traject where enrichment would help most, with the
 /// signals behind each score. Behind the `enrich.hotspots` flag.
+///
+/// # Errors
+///
+/// 404 while the flag is off or outside a traject; the traject scope's own
+/// refusals (401, 403, 428); 500 when the flag cannot be read.
 pub async fn list_traject_hotspots(
     State(state): State<AppState>,
     Extension(account): Extension<AccountRecord>,

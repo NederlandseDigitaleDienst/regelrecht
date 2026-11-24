@@ -81,6 +81,11 @@ pub struct StopResponse {
 /// the caller must be a member; any member may stop any member's run, as the
 /// runs list shows every run to every member. Idempotent: a run that already
 /// ended, or that is not an enrichment of this traject, answers `done`.
+///
+/// # Errors
+///
+/// 503 without a database, 400 or 404 for a malformed or unknown traject
+/// ref, 403 for a non-member, 500 when the queries fail.
 pub async fn stop(
     State(state): State<AppState>,
     Extension(account): Extension<AccountRecord>,
