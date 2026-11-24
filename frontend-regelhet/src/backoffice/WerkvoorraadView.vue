@@ -368,9 +368,10 @@ async function klaar(naam: string) {
         :terug="huidigeLijst.tekst"
         @besloten="laad(true)"
       />
+      <!-- Nothing open: invite a choice only when the list beside it has something to choose. -->
       <nldd-page v-else landmarks="page">
-        <nldd-simple-section width="full">
-          <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de lijst."></nldd-inline-dialog>
+        <nldd-simple-section v-if="zichtbaar.length" width="full">
+          <nldd-inline-dialog text="Kies een indiening"></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </div>

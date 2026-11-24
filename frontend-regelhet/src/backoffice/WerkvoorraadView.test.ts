@@ -200,6 +200,7 @@ describe('the work queue', () => {
 
   it('puts what waits on a step here in Te doen, what waited longest first', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
+    expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).toContain('Kies een indiening');
     // The grant waits since its last act, 14 October; the submission came in on the 13th.
     const rijen = rijenVan(w).map((r) => r.find('nldd-text-cell'));
     expect(rijen).toHaveLength(2);
@@ -267,6 +268,8 @@ describe('the work queue', () => {
       expect(dialoog.attributes('heading-level')).toBe('3');
       // No title and no description above an empty list: the dialog says what matters.
       expect(w.find('#lijst-titel').exists()).toBe(false);
+      // Nothing to choose, so the main pane does not ask for a choice.
+      expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).not.toContain('Kies een indiening');
       expect(w.findAll('nldd-text').map((t) => t.text())).not.toContain('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
     } finally {
       vervolg.push(...bewaard);
