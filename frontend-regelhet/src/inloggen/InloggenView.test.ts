@@ -7,16 +7,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { BURGER } from '../gedeeld/terug';
 import type { Ik } from '../gedeeld/types';
+import type { Persona } from './api';
 import InloggenView from './InloggenView.vue';
 import { markeerUitgelogd } from './uitgelogd';
 
 const oidc = vi.fn<(terug: string) => void>();
 const uitloggen = vi.fn();
 const status = vi.fn(async () => ({ authenticated: false, oidc_configured: true }));
+const testpersonen = vi.fn<() => Promise<Persona[]>>(async () => []);
+const testlogin = vi.fn();
 vi.mock('./api', () => ({
   inloggenApi: {
     status: () => status(),
-    testpersonen: async () => [],
+    testpersonen: () => testpersonen(),
+    testlogin: () => testlogin(),
     oidc: (terug: string) => oidc(terug),
     uitloggen: () => uitloggen(),
   },
@@ -32,6 +36,8 @@ beforeEach(() => {
   oidc.mockReset();
   uitloggen.mockReset();
   status.mockReset().mockResolvedValue({ authenticated: false, oidc_configured: true });
+  testpersonen.mockReset().mockResolvedValue([]);
+  testlogin.mockReset();
   ik.mockReset().mockRejectedValue(new ApiError('niet ingelogd', { status: 401 }));
   sessionStorage.clear();
 });
@@ -40,7 +46,7 @@ async function open(query: Record<string, string>, naar?: readonly string[]) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
   // In the app the router has asked already; here the screen asks itself.
   await router.push({ path: '/inloggen', query });
-  const w = mount(InloggenView, { props: naar ? { naar } : {}, global: { plugins: [router] } });
+  const w = mount(InloggenView, { props: naar ? { naar } : {}, global: { plugins: [router], stubs: { teleport: true } } });
   await flushPromises();
   return { w, router };
 }
@@ -125,5 +131,25 @@ describe('the login through Keycloak', () => {
     const { w } = await open({});
     expect(oidc).not.toHaveBeenCalled();
     expect(dialoog(w)).toBe('Inloggen lukt niet');
+  });
+});
+
+describe('the test login', () => {
+  it('shows a failed login in a dialog over the accounts, and stays', async () => {
+    status.mockResolvedValue({ authenticated: false, oidc_configured: false });
+    testpersonen.mockResolvedValue([{ soort: 'beheerder', sub: 'b', rollen: [] }]);
+    testlogin.mockRejectedValue(new ApiError('De server weigert dit', { status: 422 }));
+    const { w, router } = await open({});
+    expect(w.find('nldd-modal-dialog').attributes('open')).toBeUndefined();
+    await w.find('nldd-list-item').trigger('click');
+    await flushPromises();
+    const melding = w.find('nldd-modal-dialog');
+    expect(melding.attributes('open')).toBeDefined();
+    expect(melding.attributes('text')).toBe('Inloggen lukt niet');
+    expect(melding.attributes('supporting-text')).toBe('De server weigert dit');
+    expect(w.find('nldd-list[accessible-label="Testaccounts"]').exists()).toBe(true);
+    expect(router.currentRoute.value.path).toBe('/inloggen');
+    await melding.find('nldd-button').trigger('click');
+    expect(w.find('nldd-modal-dialog').attributes('open')).toBeUndefined();
   });
 });

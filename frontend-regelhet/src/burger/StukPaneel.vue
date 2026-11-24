@@ -18,7 +18,7 @@ import { computed } from 'vue';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
-import { herkomsten, kaalSchermveld, opVolgorde, stukWaarde } from '../gedeeld/formulier';
+import { herkomstenOpStuk, kaalSchermveld, opVolgorde, stukWaarde } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import {
   antwoordOp,
@@ -68,8 +68,8 @@ const noemId = (id: string) => {
 // What it is goes in the title; when and where stand under it.
 const titel = computed(() => props.naam ?? (stuk.value ? omschrijf(stuk.value) : 'Stuk'));
 const indiening = computed(() => !!stuk.value && isIndiening(stuk.value, props.stand));
-/** Where the system filled a field of this submission, by its form's UI spec. */
-const herkomst = computed(() => (stuk.value ? herkomsten(props.vormen?.indieningen[stuk.value.basis]) : {}));
+/** Per field a rule derived in this submission, the article of that rule ([`herkomstenOpStuk`]). */
+const herkomst = computed(() => (stuk.value ? herkomstenOpStuk(props.vormen?.indieningen[stuk.value.basis]) : {}));
 const over = computed(() => (stuk.value ? waarover(stuk.value, props.dossier) : undefined));
 /** The fields of this record the UI spec puts in its summary, in the order of the UI spec. */
 const samenvatting = computed(() => {
@@ -146,7 +146,6 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
       ><h3>{{ titel }}</h3></nldd-title>
       <nldd-inline-dialog
         v-if="!stuk"
-        icon="info"
         text="Dit stuk staat niet in uw dossier"
         supporting-text="Kies een stuk uit de lijst. U ziet alleen wat over u is vastgelegd."
       ></nldd-inline-dialog>
@@ -250,7 +249,7 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
           <nldd-title size="display-5"><h4>{{ indiening ? 'Wat u indiende' : 'Wat er is vastgelegd' }}</h4></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
         </template>
-        <!-- When and where stand under the title of the page; the article it rests on closes the record. -->
+        <!-- When and where stand under the title of the page; the article it rests on closes what the record is about. -->
         <Gegevens
           :waarden="rest"
           :teksten="vormen?.teksten"

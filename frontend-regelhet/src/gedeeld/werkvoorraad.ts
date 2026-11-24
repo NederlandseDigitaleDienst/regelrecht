@@ -4,8 +4,8 @@
 // the same of a submission.
 import { longDate } from './datum';
 import { indieningTitel } from './formulier';
-import { artikelNaam, omschrijving, rolVan } from './keten';
-import type { Casus, EigenVerzoek, Gram, Indieningsvorm, Kroniek } from './types';
+import { omschrijving, rolVan } from './keten';
+import type { Casus, EigenVerzoek, Gram, Kroniek, Vormen } from './types';
 import { verzoekenBij } from './verzoek';
 
 /** Whom the open submission `stuk` waits on: the parties of its open requests among `verzoeken`. */
@@ -17,7 +17,7 @@ export const wachtOpBij = (stuk: Gram, verzoeken: readonly EigenVerzoek[]): stri
 export interface IndieningInWoorden {
   /** The submission, by its kind and the name its form records. */
   tekst: string;
-  /** When it came in and under what; then what it waits for, or when it was decided. */
+  /** When it came in; then what it waits for, or when it was decided. The article stands with what was submitted. */
   regel: string;
   /** Whether its last decision was revoked, so it is to be decided again. */
   opnieuw: boolean;
@@ -29,8 +29,8 @@ export interface IndieningInWoorden {
 export interface IndieningBron {
   stuk: Gram;
   casus: Casus | null;
-  /** Its form, for the name the form records. */
-  vorm?: Indieningsvorm;
+  /** The forms, for the name a form records, on this record or the one it is about. */
+  vormen?: Vormen | null;
   /** The executor's chronicle, to name the record to decide after. */
   kroniek?: Kroniek;
   /** The record to decide after, when its last decision was revoked. */
@@ -39,16 +39,18 @@ export interface IndieningBron {
   wachtOp?: readonly string[];
   /** The day it was decided, once it was. */
   besloten?: string;
+  /** Every record at hand, to name the applicant of the application an objection is about. */
+  grammen?: Gram[];
 }
 
 /**
  * A submission in words. Without the chronicle a revoked decision is still
  * marked (`opnieuw`), only without naming after what.
  */
-export function indieningInWoorden({ stuk, casus, vorm, kroniek, na, wachtOp = [], besloten }: IndieningBron): IndieningInWoorden {
+export function indieningInWoorden({ stuk, casus, vormen, kroniek, na, wachtOp = [], besloten, grammen = [] }: IndieningBron): IndieningInWoorden {
   const naGram = na ? kroniek?.grammen.find((g) => g.id === na) : undefined;
   const regel = [
-    `Ontvangen ${longDate(stuk.recorded_on)} · onder ${artikelNaam(stuk.basis)}`,
+    `Ontvangen ${longDate(stuk.recorded_on)}`,
     naGram && casus && kroniek
       ? `Opnieuw beslissen na ${omschrijving(naGram, casus, rolVan(naGram, kroniek.stand)).toLowerCase()} van ${longDate(naGram.recorded_on)}`
       : '',
@@ -56,7 +58,7 @@ export function indieningInWoorden({ stuk, casus, vorm, kroniek, na, wachtOp = [
     besloten ? `Besloten ${longDate(besloten)}` : '',
   ];
   return {
-    tekst: casus ? indieningTitel(stuk, casus, vorm) : stuk.kind,
+    tekst: casus ? indieningTitel(stuk, casus, vormen, grammen) : stuk.kind,
     regel: regel.filter(Boolean).join(' · '),
     opnieuw: !!na,
     sinds: naGram?.recorded_on ?? stuk.recorded_on,

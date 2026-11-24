@@ -47,6 +47,18 @@ const weigeringen: [RegExp, (w: Woorden, ...groepen: string[]) => string][] = [
   ],
 ];
 
+/**
+ * The field a refusal of a missing finding names: one the authority still has
+ * to judge, so a form can mark that question rather than the whole form.
+ */
+export function ontbrekendeBevinding(fout: unknown): string | null {
+  for (const [patroon] of weigeringen.slice(0, 2)) {
+    const gevonden = String(fout).match(patroon);
+    if (gevonden) return gevonden[1] ?? null;
+  }
+  return null;
+}
+
 /** The Dutch sentence for the refusal `fout`, or null when there is none. */
 export function weigeringInWoorden(fout: unknown, w: Woorden): string | null {
   for (const [patroon, zin] of weigeringen) {

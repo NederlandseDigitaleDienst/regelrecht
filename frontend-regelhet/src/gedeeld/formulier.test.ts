@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, indieningTitel, inGroepen, kaalSchermveld, naamVeld, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
-import type { Casus, Gram, Indieningsvorm } from './types';
+import { aanvraagformulier, aanvraagVelden, beginwaarden, gevraagd, herkomst, herkomsten, herkomstenOpStuk, indieningTitel, inGroepen, kaalSchermveld, naamVeld, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
+import type { Casus, Gram, Indieningsvorm, Vormen } from './types';
 
 // A made-up application, not of any case: the form follows from what the
 // server derives from the law and what the UI spec says of each field.
@@ -116,6 +116,28 @@ describe('inGroepen', () => {
       ['G', ['y']],
       ['', ['z']],
     ]);
+  });
+});
+
+describe('herkomstenOpStuk', () => {
+  const vorm = {
+    systeem: {
+      naam: { soort: 'inloggen', inlog: 'naam' },
+      middel: { soort: 'inlogmiddel', waarde: 'DigiD' },
+      ondertekend: { soort: 'waarde', waarde: true, bron: 'beleid#8#ondertekend' },
+      gevraagd: { soort: 'waarde', waarde: 'kaart' },
+      dag: { soort: 'datum' },
+      besluit: { soort: 'gevraagd_besluit', waarde: 'wet#1' },
+      over: { soort: 'verwezen' },
+    },
+  } as unknown as Indieningsvorm;
+
+  it('keeps only a value a rule derived, not how the form works', () => {
+    expect(herkomstenOpStuk(vorm)).toEqual({ ondertekend: 'Volgt uit Beleid artikel 8.' });
+  });
+
+  it('leaves every line to the page that explains the form', () => {
+    expect(Object.keys(herkomsten(vorm))).toHaveLength(7);
   });
 });
 
@@ -240,22 +262,52 @@ describe('schermveld', () => {
 
 describe('indieningTitel', () => {
   const metNaam: Indieningsvorm = { ...vorm, systeem: { ...vorm.systeem, naam_aanvrager: { soort: 'inloggen', inlog: 'naam' } } };
-  // Only the cell is read, to tell an own decision from another's; a submission does not get that far.
-  const casus = { cel: 'voorbeeldcel' } as Casus;
-  const stuk = (fields: Record<string, unknown>): Gram => ({ id: 's', kind: 'AANVRAAG', basis: 'voorbeeldwet#3', fields, recorded_on: '2026-10-13', recording_actor: 'voorbeeldcel' });
+  const vormen = { indieningen: { 'voorbeeldwet#3': metNaam, 'voorbeeldwet#9': vorm } } as unknown as Vormen;
+  const casus = {
+    cel: 'voorbeeldcel',
+    titel: 'Voorbeeldvergunning',
+    na_toekenning: { stand: '', handelingen: [], aanvragen: [{ artikel: 'voorbeeldwet#5', titel: 'Vergunning kwijt' }] },
+  } as unknown as Casus;
+  const stuk = (over: Partial<Gram>): Gram => ({
+    id: 's',
+    kind: 'AANVRAAG',
+    basis: 'voorbeeldwet#3',
+    fields: {},
+    recorded_on: '2026-10-13',
+    recording_actor: 'voorbeeldcel',
+    ...over,
+  });
 
   it('finds the field the login fills with the name, not the one it fills with the identifier', () => {
     expect(naamVeld(metNaam)).toBe('naam_aanvrager');
     expect(naamVeld(vorm)).toBeUndefined();
   });
 
-  it('names a submission by its kind and the applicant', () => {
-    expect(indieningTitel(stuk({ naam_aanvrager: 'P. Voorbeeld' }), casus, metNaam)).toBe('Aanvraag P. Voorbeeld');
+  it('names an application by what it asks for and the applicant', () => {
+    expect(indieningTitel(stuk({ fields: { naam_aanvrager: 'P. Voorbeeld' } }), casus, vormen)).toBe('Voorbeeldvergunning · P. Voorbeeld');
   });
 
-  it('keeps to the kind when the form takes no name or the submission holds none', () => {
-    expect(indieningTitel(stuk({ naam_aanvrager: 'P. Voorbeeld' }), casus, vorm)).toBe('Aanvraag');
-    expect(indieningTitel(stuk({ naam_aanvrager: ' ' }), casus, metNaam)).toBe('Aanvraag');
-    expect(indieningTitel(stuk({}), casus, undefined)).toBe('Aanvraag');
+  it('names a request after a grant by the title the case gives it', () => {
+    const vervolg = stuk({ basis: 'voorbeeldwet#5', refers_to: 'b' });
+    expect(gevraagd(vervolg, casus)).toBe('Vergunning kwijt');
+  });
+
+  it('names an objection by its kind and the applicant of the application it is about', () => {
+    const aanvraag = stuk({ id: 'a', fields: { naam_aanvrager: 'P. Voorbeeld' } });
+    const besluit = stuk({ id: 'b', kind: 'BESCHIKKING', refers_to: 'a' });
+    const bezwaar = stuk({ id: 'z', kind: 'BEZWAAR', basis: 'voorbeeldwet#9', refers_to: 'b' });
+    expect(indieningTitel(bezwaar, casus, vormen, [aanvraag, besluit, bezwaar])).toBe('Bezwaar voorbeeldvergunning · P. Voorbeeld');
+  });
+
+  it('keeps to what is asked when no name is known', () => {
+    expect(indieningTitel(stuk({ basis: 'voorbeeldwet#9', fields: { naam_aanvrager: 'P. Voorbeeld' } }), casus, vormen)).toBe('Voorbeeldvergunning');
+    expect(indieningTitel(stuk({ fields: { naam_aanvrager: ' ' } }), casus, vormen)).toBe('Voorbeeldvergunning');
+    expect(indieningTitel(stuk({}), casus, undefined)).toBe('Voorbeeldvergunning');
+  });
+
+  it('stops at a loop of links', () => {
+    const a = stuk({ id: 'a', kind: 'BEZWAAR', basis: 'voorbeeldwet#9', refers_to: 'b' });
+    const b = stuk({ id: 'b', kind: 'BEZWAAR', basis: 'voorbeeldwet#9', refers_to: 'a' });
+    expect(indieningTitel(a, casus, vormen, [a, b])).toBe('Bezwaar voorbeeldvergunning');
   });
 });

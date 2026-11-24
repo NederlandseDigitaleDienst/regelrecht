@@ -22,8 +22,10 @@ const props = withDefaults(
     artikelen?: boolean;
     /** A caption over each list of what is already known, in the words of whoever the form speaks to. */
     bekendKop?: string;
+    /** Per field, what its answer still lacks. */
+    fouten?: Record<string, string>;
   }>(),
-  { oordeel: false, volgorde: () => [], artikelen: true, bekendKop: '' },
+  { oordeel: false, volgorde: () => [], artikelen: true, bekendKop: '', fouten: () => ({}) },
 );
 const emit = defineEmits<{ zet: [naam: string, waarde: unknown] }>();
 /** The questions, in their groups. */
@@ -61,8 +63,9 @@ const onder = (v: Formulierveld) =>
 </script>
 
 <template>
-  <nldd-container gap="16">
-    <nldd-container v-for="(g, i) in groepen" :key="i" gap="16">
+  <nldd-container>
+    <template v-for="(g, i) in groepen" :key="i">
+      <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
       <nldd-form-field v-if="vinkjesGroep(g)" :label="g.titel">
         <nldd-checkbox-group>
           <SpecVeld
@@ -78,19 +81,25 @@ const onder = (v: Formulierveld) =>
         <nldd-form-field-help-text v-if="artikelen && groepsArtikel(g)">Volgens {{ groepsArtikel(g) }}.</nldd-form-field-help-text>
       </nldd-form-field>
       <template v-else>
-        <nldd-title v-if="g.titel" heading-level="4" size="display-6" :text="g.titel"></nldd-title>
-        <SpecVeld
-          v-for="v in g.velden"
-          :key="v.veld.naam"
-          :veld="v"
-          :oordeel="oordeel"
-          :artikel="artikelen"
-          :model-value="waarden[v.veld.naam]"
-          @update:model-value="emit('zet', v.veld.naam, $event)"
-        />
+        <template v-if="g.titel">
+          <nldd-title heading-level="4" size="display-6" :text="g.titel"></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
+        </template>
+        <template v-for="(v, j) in g.velden" :key="v.veld.naam">
+          <nldd-spacer v-if="j > 0" size="16"></nldd-spacer>
+          <SpecVeld
+            :veld="v"
+            :oordeel="oordeel"
+            :artikel="artikelen"
+            :fout="fouten[v.veld.naam]"
+            :model-value="waarden[v.veld.naam]"
+            @update:model-value="emit('zet', v.veld.naam, $event)"
+          />
+        </template>
       </template>
-    </nldd-container>
-    <nldd-container v-if="bekendeVelden.length">
+    </template>
+    <template v-if="bekendeVelden.length">
+      <nldd-spacer v-if="groepen.length" size="24"></nldd-spacer>
       <nldd-title heading-level="4" size="display-6" text="Wat al bekend is"></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <template v-if="bekendKop">
@@ -104,6 +113,6 @@ const onder = (v: Formulierveld) =>
           <nldd-text-cell :text="bekend(v)" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
         </nldd-list-item>
       </nldd-list>
-    </nldd-container>
+    </template>
   </nldd-container>
 </template>

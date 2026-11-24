@@ -9,6 +9,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import type { RouteRecordNormalized } from 'vue-router';
 import Schil from './Schil.vue';
 import { isHuidig, tabsVan } from './schil';
+import { organisatie } from './uiterlijk';
 import type { Tab } from './schil';
 import { zetUiterlijk } from './uiterlijk';
 
@@ -78,6 +79,19 @@ describe('the shell', () => {
     const midden = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-toolbar-title[slot="center"]').map((t) => t.attributes('text'));
     expect(midden(await toon({ uitvoerder: 'Gemeente Voorbeeld' }))).toEqual(['Gemeente Voorbeeld']);
     expect(midden(await toon({ tabs: [], titel: 'Vergunningen', uitvoerder: 'Gemeente Voorbeeld' }))).toEqual([]);
+  });
+
+  it('gives the bar extra room on the left only when its title sits at the left edge', async () => {
+    const links = (w: Awaited<ReturnType<typeof toon>>) => w.find('[slot="primary-bar"]').attributes('padding-left');
+    expect(links(await toon({ titel: 'Vergunningen' }))).toBe('16');
+    expect(links(await toon({}))).toBeUndefined();
+    // A way back to the organisation's front comes before the title, so the title is not at the edge.
+    organisatie.value = { naam: 'Gemeente Voorbeeld', url: 'https://voorbeeld.example' };
+    try {
+      expect(links(await toon({ titel: 'Vergunningen' }))).toBeUndefined();
+    } finally {
+      organisatie.value = null;
+    }
   });
 
   it('carries the title the server names on a side without tabs, unless the route names its own', async () => {

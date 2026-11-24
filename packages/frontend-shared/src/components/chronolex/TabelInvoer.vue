@@ -1,15 +1,15 @@
 <script setup lang="ts">
 // A field that holds a table (schema v0.8.20): the rows in an nldd-table, a
-// column per column the law declares. A row is edited in a sheet, as the
-// NLDD pattern "bewerken in een sheet" does it: the table stays in view, the
-// way out sits in the title bar, and "Bewaar" under the last field. Every
-// column may stay empty; an empty cell is null. A yes-or-no column therefore
-// asks ja, nee or leeg in a dropdown, not with a checkbox, which knows only on
+// column per column the law declares. A row is edited in a sheet, as the NLDD
+// pattern "bewerken in een sheet" does it: the table stays in view, the way out
+// sits in the title bar, and "Bewaar" under the last field. Every column may
+// stay empty; an empty cell is null. A yes-or-no column therefore asks ja, nee
+// or leeg with three toggle buttons, not with a checkbox, which knows only on
 // and off. A row added or removed, or a row saved, gives the form the whole
 // table anew; removing the last row empties the field, and saving a new row
-// with nothing filled in adds nothing. A table the system fills
-// (`alleenLezen`) shows its rows without the buttons. Shared by the
-// chronolexografie poc and RegelHet.
+// with nothing filled in adds nothing. A table the system fills (`alleenLezen`)
+// shows its rows without the buttons. Shared by the chronolexografie poc and
+// RegelHet.
 import { computed, ref } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
 import { bronRij, celTekst, kolomVeld, sleutelKolommen } from '../../chronolex/tabel';
@@ -73,11 +73,17 @@ function bewaar() {
   emit('update:modelValue', uit);
 }
 
-/** A yes-or-no cell as the dropdown holds it, and back. */
-const jaNeeKeuze = (v: unknown) => (v === true ? 'ja' : v === false ? 'nee' : '');
+/** A yes-or-no cell as the toggle buttons hold it, and back. */
+const jaNeeKeuze = (v: unknown) => (v === true ? 'ja' : v === false ? 'nee' : 'leeg');
+const jaNeeOpties = [
+  { value: 'leeg', text: 'Leeg' },
+  { value: 'ja', text: 'Ja' },
+  { value: 'nee', text: 'Nee' },
+];
 const jaNeeWaarde = (k: string) => (k === 'ja' ? true : k === 'nee' ? false : null);
 const zetJaNee = (naam: string, e: Event) => {
-  if (concept.value) concept.value.rij[naam] = jaNeeWaarde((e.target as HTMLSelectElement | null)?.value ?? '');
+  const detail = (e as CustomEvent<{ selected: boolean; value: string } | null>).detail;
+  if (concept.value && detail?.selected) concept.value.rij[naam] = jaNeeWaarde(detail.value);
 };
 const zetCel = (naam: string, waarde: unknown) => {
   if (concept.value) concept.value.rij[naam] = waarde;
@@ -147,16 +153,15 @@ function verwijder(index: number) {
           <nldd-form @submit.prevent="bewaar">
             <template v-for="k in kolommen" :key="k.naam">
               <nldd-form-field v-if="k.type === 'boolean'" :label="leesbaar(k.naam)" optional>
-                <nldd-dropdown>
-                  <select
-                    :value="jaNeeKeuze(concept.rij[k.naam])"
-                    @change="zetJaNee(k.naam, $event)"
-                  >
-                    <option value="">Leeg</option>
-                    <option value="ja">Ja</option>
-                    <option value="nee">Nee</option>
-                  </select>
-                </nldd-dropdown>
+                <nldd-toggle-button-group type="radio" @change="zetJaNee(k.naam, $event)">
+                  <nldd-toggle-button
+                    v-for="o in jaNeeOpties"
+                    :key="o.value"
+                    :value="o.value"
+                    :text="o.text"
+                    :selected="jaNeeKeuze(concept.rij[k.naam]) === o.value || undefined"
+                  ></nldd-toggle-button>
+                </nldd-toggle-button-group>
               </nldd-form-field>
               <VeldInvoer
                 v-else

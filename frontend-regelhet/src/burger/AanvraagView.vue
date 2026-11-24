@@ -10,12 +10,13 @@
 // server fills it itself, so the form does not send it. What the UI spec
 // hides stays off the form. Once submitted, the sheet says so and offers to
 // open the application in the dossier or to start another.
-import { hoofdletter, leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { hoofdletter, kleineLetter, leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
 import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomsten, schermveld } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
+import { artikelNaam } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Gram } from '../gedeeld/types';
 import { burgerApi } from './api';
@@ -58,22 +59,25 @@ let sleutel = nieuweSleutel();
 // ("Gehandicaptenparkeerkaart"), so it takes an article here; a case whose
 // title does not take "een" needs its own words. An application about a grant
 // says it in the case's own words (`overToekenning.uitleg`), so it gets none.
-/** Every value the law asks for this application: what it is called, the
- *  article it rests on, and who fills it. The ones the system fills are in it
- *  too: those are the ones a reader wonders about most. */
-const gegevens = computed(() => {
+/** Every value the law asks for this application, per article that asks for
+ *  it, in the order of the first value of each: what it is called and who
+ *  fills it. The ones the system fills are in it too: those are the ones a
+ *  reader wonders about most. */
+const herkomstPerArtikel = computed(() => {
   const v = vorm.value;
   if (!v) return [];
   const uitSysteem = herkomsten(v);
-  return v.velden.map((veld) => {
+  const per = new Map<string, { naam: string; tekst: string }[]>();
+  for (const veld of v.velden) {
     const scherm = schermveld(veld, vormen.value?.teksten, true);
-    return {
-      naam: veld.naam,
-      label: scherm.label,
-      artikel: scherm.veld.basis ?? '',
-      herkomst: uitSysteem[veld.naam] ?? 'U vult dit zelf in.',
-    };
-  });
+    const basis = scherm.veld.basis;
+    const artikel = basis ? artikelNaam(basis) : 'Zonder artikel';
+    const bij = per.get(artikel) ?? [];
+    per.set(artikel, bij);
+    const wie = uitSysteem[veld.naam];
+    bij.push({ naam: veld.naam, tekst: `${scherm.label}: ${wie ? kleineLetter(wie) : 'u vult dit zelf in.'}` });
+  }
+  return [...per].map(([artikel, gegevens]) => ({ artikel, gegevens }));
 });
 
 // The rest of the introduction names the values the law asks, and links them
@@ -182,53 +186,63 @@ async function indienen() {
           </nldd-inline-dialog>
         </nldd-simple-section>
         <nldd-simple-section v-else-if="pagina === 'herkomst'">
-          <nldd-container gap="16">
-            <nldd-title id="aanvraag-wetten-titel" size="display-2"><h2>Waar deze gegevens vandaan komen</h2></nldd-title>
+          <nldd-container>
+            <nldd-title id="aanvraag-wetten-titel" size="display-2" heading-level="2" text="Waar deze gegevens vandaan komen"></nldd-title>
+            <nldd-spacer size="8"></nldd-spacer>
             <nldd-text>
-              <p>
-                Elk gegeven hieronder komt uit de wet. Achter elk gegeven staat het artikel dat erom vraagt, en wie het
-                invult.
-              </p>
+              <p>Elk gegeven komt uit de wet. Hieronder staat per artikel welke gegevens het vraagt, en wie elk gegeven invult.</p>
             </nldd-text>
-            <nldd-list appearance="simple" accessible-label="Waar elk gegeven vandaan komt">
-              <nldd-list-item v-for="g in gegevens" :key="g.naam" size="md">
-                <nldd-text-cell :text="g.label" :supporting-text="g.herkomst"></nldd-text-cell>
-                <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <nldd-cell horizontal-alignment="right">
-                  <nldd-text size="sm" color="secondary"><p>{{ g.artikel }}</p></nldd-text>
-                </nldd-cell>
-              </nldd-list-item>
-            </nldd-list>
+            <template v-for="a in herkomstPerArtikel" :key="a.artikel">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-title heading-level="3" size="display-6" :text="a.artikel"></nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-rich-text>
+                <ul>
+                  <li v-for="g in a.gegevens" :key="g.naam">{{ g.tekst }}</li>
+                </ul>
+              </nldd-rich-text>
+            </template>
           </nldd-container>
         </nldd-simple-section>
         <nldd-simple-section v-else>
-          <nldd-container gap="24">
+          <nldd-container>
             <nldd-title id="aanvraag-titel" size="display-2"><h2>Nieuwe aanvraag</h2></nldd-title>
-            <nldd-text v-if="formulier">
-              <p>
-                {{ aanhef }}Hieronder staan de
-                <nldd-link :href="AANVRAAG_WETTEN" text="gegevens die de wet voor deze beslissing nodig heeft"></nldd-link>.
-                Wat al bekend is, hoeft u niet in te vullen.
-              </p>
-            </nldd-text>
+            <template v-if="formulier">
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-text>
+                <p>
+                  {{ aanhef }}Hieronder staan de
+                  <nldd-link :href="AANVRAAG_WETTEN" text="gegevens die de wet voor deze beslissing nodig heeft"></nldd-link>.
+                  Wat al bekend is, hoeft u niet in te vullen.
+                </p>
+              </nldd-text>
+            </template>
+            <nldd-spacer size="24"></nldd-spacer>
             <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
             <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het formulier laadt niet" :supporting-text="fout"></nldd-inline-dialog>
             <template v-else-if="formulier">
-              <nldd-text v-if="overToekenning"><p>{{ overToekenning.uitleg }}</p></nldd-text>
-              <nldd-inline-dialog
-                v-if="overToekenning && !op"
-                icon="warning"
-                icon-color="critical"
-                text="Het is niet duidelijk waar deze aanvraag over gaat"
-                supporting-text="Begin bij het besluit in uw dossier."
-              ></nldd-inline-dialog>
-              <nldd-inline-dialog
-                v-if="vorm?.systeem_fout"
-                icon="warning"
-                icon-color="critical"
-                text="Niet alles wat de gemeente invult, is te tonen"
-                :supporting-text="vorm.systeem_fout"
-              ></nldd-inline-dialog>
+              <template v-if="overToekenning">
+                <nldd-text><p>{{ overToekenning.uitleg }}</p></nldd-text>
+                <nldd-spacer size="16"></nldd-spacer>
+              </template>
+              <template v-if="overToekenning && !op">
+                <nldd-inline-dialog
+                  icon="warning"
+                  icon-color="critical"
+                  text="Het is niet duidelijk waar deze aanvraag over gaat"
+                  supporting-text="Begin bij het besluit in uw dossier."
+                ></nldd-inline-dialog>
+                <nldd-spacer size="16"></nldd-spacer>
+              </template>
+              <template v-if="vorm?.systeem_fout">
+                <nldd-inline-dialog
+                  icon="warning"
+                  icon-color="critical"
+                  text="Niet alles wat de gemeente invult, is te tonen"
+                  :supporting-text="vorm.systeem_fout"
+                ></nldd-inline-dialog>
+                <nldd-spacer size="16"></nldd-spacer>
+              </template>
               <!-- The browser judges the fields on submit: a field the UI spec
                    requires that is empty stops it, and nldd-form marks it. -->
               <nldd-form>
@@ -239,7 +253,10 @@ async function indienen() {
                     :artikelen="false"
                     bekend-kop="We gebruiken de volgende gegevens voor uw aanvraag. Deze zijn al bij ons bekend."
                     @zet="(n, v) => (waarden[n] = v)" />
-                  <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
+                  <template v-if="melding">
+                    <nldd-spacer size="16"></nldd-spacer>
+                    <nldd-inline-dialog icon="warning" icon-color="critical" text="De aanvraag is niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
+                  </template>
                   <nldd-form-actions>
                     <nldd-button-group orientation="vertical">
                       <nldd-button appearance="primary" type="submit" text="Dien aanvraag in" :loading="bezig || undefined"></nldd-button>

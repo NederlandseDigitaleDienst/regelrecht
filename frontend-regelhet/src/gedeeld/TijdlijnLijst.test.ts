@@ -95,17 +95,21 @@ describe('the timeline of an application', () => {
     ]);
   });
 
-  it('opens a record where the side has a screen for it, but not the one on screen', async () => {
-    const naar = (g: Gram) => (g.kind === 'AANVRAAG' ? undefined : { name: 'stuk', params: { id: g.id } });
-    const { w, router } = await toon({ naar, huidig: 'b' });
+  it('opens a record with a details button where the side can show it, but not the one on screen', async () => {
+    const geopend: string[] = [];
+    const opent = (g: Gram) => (g.kind === 'AANVRAAG' ? undefined : () => geopend.push(g.id));
+    const { w } = await toon({ opent, huidig: 'b' });
     const rijen = w.findAll('nldd-list-item');
-    expect(rijen[0]?.attributes('button')).toBeUndefined();
+    // No row is a button itself.
+    expect(rijen.some((r) => r.attributes('button') !== undefined)).toBe(false);
     // The decision is on screen: its row neither opens nor stands out.
-    expect(rijen[2]?.attributes('button')).toBeUndefined();
+    expect(rijen.map((r) => r.find('nldd-icon-button').exists())).toEqual([false, true, false, false, false]);
     expect(rijen.some((r) => r.attributes('current'))).toBe(false);
-    await rijen[1]?.trigger('click');
-    await flushPromises();
-    expect(router.currentRoute.value.fullPath).toBe('/stuk/v');
+    const knop = rijen[1]!.find('nldd-icon-button');
+    expect([knop.attributes('icon'), knop.attributes('text')]).toEqual(['info', 'Details']);
+    await knop.trigger('click');
+    expect(geopend).toEqual(['v']);
+    w.unmount();
   });
 
   it('puts the stages of a request of the policy under it, the receipts as minor steps, and opens what it adds in a sheet', async () => {
@@ -124,7 +128,7 @@ describe('the timeline of an application', () => {
       volgende: [],
     };
     const verzoeken = [{ verzoek: 'v', ontvangen: 'o', antwoord: 'n', antwoord_ontvangen: null }];
-    const { w } = await toon({ tijdlijn: metVerzoek, casus: metGgd, verzoeken, naar: (g: Gram) => ({ name: 'stuk', params: { id: g.id } }) });
+    const { w } = await toon({ tijdlijn: metVerzoek, casus: metGgd, verzoeken, opent: () => () => {} });
     expect(cellen(w)).toEqual([
       ['', 'Aanvraag', '13 oktober 2026 · gemeente Voorbeeld'],
       ['', 'Onderzoek aangevraagd', '13 oktober 2026 · gemeente Voorbeeld aan GGD Voorbeeld'],
@@ -140,12 +144,11 @@ describe('the timeline of an application', () => {
       ['major', 'check-mark'],
       ['major', 'check-mark'],
     ]);
-    // A stage is no record of its own to open; the request is no link either,
-    // but has a button that opens its sheet.
+    // A stage is no record of its own to open; the request has a button that opens its own sheet.
     const rijen = w.findAll('nldd-list-item');
-    expect(rijen.map((r) => r.attributes('button') !== undefined)).toEqual([true, false, false, false, true]);
-    const info = w.findAll('nldd-icon-button');
-    expect(info.map((b) => [b.attributes('icon'), b.attributes('size'), b.attributes('text')])).toEqual([['info', 'sm', 'Over dit verzoek']]);
+    expect(rijen.map((r) => r.element.querySelector('nldd-icon-button')?.getAttribute('text') ?? '')).toEqual(['Details', 'Over dit verzoek', '', '', 'Details']);
+    const info = w.findAll('nldd-icon-button[text="Over dit verzoek"]');
+    expect(info.map((b) => [b.attributes('icon'), b.attributes('size')])).toEqual([['info', 'sm']]);
     const sheet = () => document.body.querySelector('nldd-sheet')!;
     expect(sheet().hasAttribute('open')).toBe(false);
     await info[0]!.trigger('click');
@@ -190,7 +193,7 @@ describe('the timeline of an application', () => {
 
   it('keeps every record as its own row where no requests are given, as the back office shows them', async () => {
     const { w } = await toon();
-    expect(w.findAll('nldd-list-item[button]')).toHaveLength(0);
+    expect(w.findAll('nldd-icon-button')).toHaveLength(0);
     expect(document.body.querySelector('nldd-sheet')).toBeNull();
     w.unmount();
   });

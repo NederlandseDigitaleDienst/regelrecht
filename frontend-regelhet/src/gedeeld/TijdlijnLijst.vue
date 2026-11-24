@@ -4,7 +4,8 @@
 // it what can or must happen next and who is to act. The server derives both
 // (`GET /api/dossier/tijdlijn/{id}`, `GET /api/backoffice/tijdlijn/{id}`) and
 // keeps them to what the reader may see; this names them (tijdlijn.ts). A
-// row opens the record's own screen where the side has one (`naar`).
+// row whose record this side can show has a details button at its end, which
+// opens it (`opent`): the row itself does not.
 // Built as the design system draws steps under each other: an `nldd-list`
 // with an `nldd-step-cell` per row, wide enough for a check mark on what is
 // done. The past is done, the first step still to come current and the steps
@@ -15,8 +16,6 @@
 // steps. An info button on the request opens a sheet with what it adds
 // (VerzoekSheet.vue).
 import { computed, ref } from 'vue';
-import type { RouteLocationRaw } from 'vue-router';
-import { useRouter } from 'vue-router';
 import { metVerzoeken, regels, stap } from './tijdlijn';
 import type { Kant, Regel, Verzoekregel } from './tijdlijn';
 import type { Casus, Gram, Tijdlijn, Veldtekst, VerzoekInDossier } from './types';
@@ -29,14 +28,13 @@ const props = defineProps<{
   teksten?: Record<string, Veldtekst>;
   /** The record on screen beside it, which its row does not open. */
   huidig?: string;
-  /** Where a record opens, if this side has a screen for it. */
-  naar?: (g: Gram) => RouteLocationRaw | undefined;
+  /** What opens a record, if this side can show it. */
+  opent?: (g: Gram) => (() => void) | undefined;
   /** Why the timeline did not load. */
   fout?: string;
   /** The requests of the policy in it, each shown as one row. */
   verzoeken?: VerzoekInDossier[];
 }>();
-const router = useRouter();
 
 const isVerzoek = (r: Regel): r is Verzoekregel => 'verzoek' in r;
 
@@ -48,7 +46,7 @@ interface Lijnrij {
   tekst: string;
   regel: string;
   stand?: Regel['stand'];
-  naar?: RouteLocationRaw;
+  opent?: () => void;
   verzoek?: Verzoekregel;
 }
 
@@ -67,7 +65,7 @@ const lijn = computed((): Lijnrij[] => {
         tekst: r.tekst,
         regel: r.regel,
         stand: r.stand,
-        naar: isVerzoek(r) || r.gram.id === props.huidig ? undefined : props.naar?.(r.gram),
+        opent: isVerzoek(r) || r.gram.id === props.huidig ? undefined : props.opent?.(r.gram),
         verzoek: isVerzoek(r) ? r : undefined,
       },
       ...(isVerzoek(r) ? r.verzoek.stappen : []).map((s, j): Lijnrij => ({ sleutel: `${r.gram.id}-${j}`, ...s })),
@@ -100,13 +98,7 @@ const verzoek = ref<Verzoekregel | null>(null);
       <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="De tijdlijn laadt niet" :supporting-text="fout"></nldd-inline-dialog>
       <nldd-activity-indicator v-else-if="!tijdlijn" text="De tijdlijn laden" show-text></nldd-activity-indicator>
       <nldd-list v-else appearance="simple" accessible-label="Tijdlijn van de aanvraag">
-        <nldd-list-item
-          v-for="(r, i) in lijn"
-          :key="r.sleutel"
-          size="md"
-          :button="r.naar ? true : undefined"
-          @click="r.naar && router.push(r.naar)"
-        >
+        <nldd-list-item v-for="(r, i) in lijn" :key="r.sleutel" size="md">
           <nldd-step-cell
             size="md"
             :level="r.level"
@@ -131,9 +123,18 @@ const verzoek = ref<Verzoekregel | null>(null);
               ></nldd-icon-button>
             </nldd-cell>
           </template>
-          <template v-else-if="r.naar">
+          <template v-else-if="r.opent">
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+            <nldd-cell>
+              <nldd-icon-button
+                size="sm"
+                appearance="neutral-base"
+                icon="info"
+                text="Details"
+                :accessible-label="`Details van ${r.tekst.toLowerCase()}`"
+                @click="r.opent()"
+              ></nldd-icon-button>
+            </nldd-cell>
           </template>
         </nldd-list-item>
       </nldd-list>

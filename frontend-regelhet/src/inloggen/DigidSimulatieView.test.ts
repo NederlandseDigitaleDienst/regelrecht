@@ -53,7 +53,7 @@ async function toon() {
     ],
   });
   await router.push('/toegang');
-  const w = mount({ template: '<RouterView />' }, { global: { plugins: [router] } });
+  const w = mount({ template: '<RouterView />' }, { global: { plugins: [router], stubs: { teleport: true } } });
   await flushPromises();
   return { w, router };
 }
@@ -107,7 +107,9 @@ describe('the simulated DigiD', () => {
     await veld(w, 'BSN').trigger('input', { detail: { value: '999990033' } });
     await knop(w, 'Inloggen').trigger('click');
     await flushPromises();
-    expect(w.find('nldd-inline-dialog').attributes('supporting-text')).toBe('Dit BSN haalt de elfproef niet. Kijk de cijfers na.');
+    const modal = w.find('nldd-modal-dialog');
+    expect(modal.attributes('open')).toBeDefined();
+    expect(modal.attributes('supporting-text')).toBe('Dit BSN haalt de elfproef niet. Kijk de cijfers na.');
     expect(router.currentRoute.value.path).toBe('/toegang');
   });
 });

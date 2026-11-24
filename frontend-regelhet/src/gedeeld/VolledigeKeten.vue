@@ -1,8 +1,13 @@
 <script setup lang="ts">
-// The full chain of a decision, folded away under one row ("Meer
-// informatie"): every article the decision ran, every outcome and open term
+// The full chain of a decision in a sheet of its own, opened from a link in
+// one sentence: every article the decision ran, every outcome and open term
 // with who filled it in, as the chronolexografie poc shows it on its decision
-// page. The steps are the shared ones (frontend-shared KetenStap.vue); this
+// page. The chain has no address, so the link's href only makes it a link
+// (focusable, announced as one); the click opens the sheet and does not
+// navigate. The sentence and its sheet come together, so any screen of an
+// application that has the chain can call it up where it stands, without
+// unfolding it inline. The sheet rises from the bottom, with the full width
+// for the chain, and its steps are md rows that fold. The steps are the shared ones (frontend-shared KetenStap.vue); this
 // app names a regelwerk by the case and a field by the label of the UI spec.
 import { computed, ref } from 'vue';
 import KetenStap from '@regelrecht/frontend-shared/components/chronolex/KetenStap.vue';
@@ -14,6 +19,7 @@ import type { Casus, Vormen } from './types';
 
 const props = defineProps<{ keten: Stap[]; casus: Casus; teksten?: Vormen['teksten'] }>();
 
+const OMSCHRIJVING = 'Elk artikel dat het besluit uitvoerde, wat het opleverde en wie elk open begrip invulde';
 const open = ref(false);
 const knopen = computed(() => genummerd(props.keten));
 const regelwerk = (wet: string) => props.casus.regelwerken?.find((r) => r.id === wet);
@@ -27,15 +33,28 @@ const laag = (wet: string) => laagVanMap(regelwerk(wet)?.map ?? '');
 </script>
 
 <template>
-  <nldd-list v-if="knopen.length" type="tree" appearance="box-base" accessible-label="Volledige keten van het besluit">
-    <nldd-list-item size="md" button :expanded="open" @click.stop="open = !open">
-      <nldd-icon-cell disclosure icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
-      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-      <nldd-text-cell
-        text="Meer informatie: de volledige keten"
-        supporting-text="Elk artikel dat het besluit uitvoerde, elke uitkomst en wie elk open begrip invulde."
-      ></nldd-text-cell>
-      <KetenStap v-for="k in knopen" :key="k.nummer" slot="children" :knoop="k" :namen="namen" :laag="laag" :diepte="1" />
-    </nldd-list-item>
-  </nldd-list>
+  <template v-if="knopen.length">
+    <nldd-text>
+      <p>
+        {{ OMSCHRIJVING }}, staat in de
+        <nldd-link><a href="#volledige-keten" @click.prevent="open = true">volledige keten</a></nldd-link>.
+      </p>
+    </nldd-text>
+    <Teleport to="body">
+      <nldd-sheet placement="bottom" accessible-label="Volledige keten" :open="open || undefined" @close="open = false">
+        <nldd-page>
+          <nldd-top-title-bar slot="header" heading-level="2" text="Volledige keten" dismiss-text="Sluit"></nldd-top-title-bar>
+          <nldd-simple-section>
+            <nldd-text color="secondary">
+              <p>{{ OMSCHRIJVING }}.</p>
+            </nldd-text>
+            <nldd-spacer size="16"></nldd-spacer>
+            <nldd-list type="tree" appearance="box-base" accessible-label="Stappen van het besluit">
+              <KetenStap v-for="k in knopen" :key="k.nummer" :knoop="k" :namen="namen" :laag="laag" size="md" />
+            </nldd-list>
+          </nldd-simple-section>
+        </nldd-page>
+      </nldd-sheet>
+    </Teleport>
+  </template>
 </template>

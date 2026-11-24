@@ -28,6 +28,9 @@ const terug = computed(() => terugNaar(route.query.terug, props.naar, ''));
 const status = ref<AuthStatus | null>(null);
 const personen = ref<Persona[]>([]);
 const fout = ref('');
+/** Why the last attempt to log in failed, shown in a dialog over the screen. */
+const waarom = ref('');
+const mislukt = ref(false);
 const stap = ref<Stap | null>(null);
 
 /**
@@ -82,7 +85,7 @@ onMounted(async () => {
 const herlaad = () => window.location.reload();
 
 async function kies(p: Persona) {
-  fout.value = '';
+  mislukt.value = false;
   try {
     // A citizen logs in as the simulated DigiD does it: by number and name.
     if (p.soort === 'burger' && p.identiteit) await inloggenApi.digid(p.identiteit, p.naam ?? personaNaam(p));
@@ -92,7 +95,8 @@ async function kies(p: Persona) {
     const wie = await laadIk(true);
     await router.push(terug.value || startpagina(wie));
   } catch (e) {
-    fout.value = foutTekst(e);
+    waarom.value = foutTekst(e);
+    mislukt.value = true;
   }
 }
 </script>
@@ -103,7 +107,7 @@ async function kies(p: Persona) {
     <nldd-simple-section>
       <nldd-title id="inloggen-titel" size="display-3"><h3>Inloggen</h3></nldd-title>
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-container gap="16">
+      <nldd-container>
         <nldd-activity-indicator v-if="stap?.soort === 'doorsturen'" text="U gaat verder naar het inloggen" show-text></nldd-activity-indicator>
         <nldd-activity-indicator v-else-if="stap?.soort === 'binnen'" text="Een moment" show-text></nldd-activity-indicator>
         <nldd-inline-dialog
@@ -147,6 +151,7 @@ async function kies(p: Persona) {
             text="Testomgeving: kies een account"
             supporting-text="Hier logt u in zonder wachtwoord, als een van de accounts hieronder. Dat kan alleen in de testmodus zonder Keycloak. Elk account is verzonnen."
           ></nldd-banner>
+          <nldd-spacer size="16"></nldd-spacer>
           <nldd-list appearance="box-base" accessible-label="Testaccounts">
             <nldd-list-item v-for="p in personen" :key="p.sub" button @click="kies(p)">
               <nldd-text-cell :text="personaNaam(p)" :supporting-text="personaUitleg(p)"></nldd-text-cell>
@@ -154,8 +159,23 @@ async function kies(p: Persona) {
             </nldd-list-item>
           </nldd-list>
         </template>
-        <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Inloggen lukt niet" :supporting-text="fout"></nldd-inline-dialog>
+        <template v-if="fout">
+          <nldd-spacer size="16"></nldd-spacer>
+          <nldd-inline-dialog icon="warning" icon-color="critical" text="Inloggen lukt niet" :supporting-text="fout"></nldd-inline-dialog>
+        </template>
       </nldd-container>
     </nldd-simple-section>
   </nldd-page>
+
+  <Teleport to="body">
+    <nldd-modal-dialog
+      variant="alert"
+      :open="mislukt || undefined"
+      text="Inloggen lukt niet"
+      :supporting-text="waarom"
+      @close="mislukt = false"
+    >
+      <nldd-button slot="actions" appearance="primary" text="Sluit" @click="mislukt = false"></nldd-button>
+    </nldd-modal-dialog>
+  </Teleport>
 </template>

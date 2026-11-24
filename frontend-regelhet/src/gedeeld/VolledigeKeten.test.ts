@@ -38,22 +38,36 @@ const keten = [
 ];
 
 describe('the full chain', () => {
-  it('folds away under one row, with readable names and what filled each term in', async () => {
+  it('opens in a sheet of its own from a link in a sentence, with readable names and what filled each term in', async () => {
     const w = mount(VolledigeKeten, {
       props: { keten, casus, teksten: { loopbeperking: { label: 'Langdurige loopbeperking' } } },
+      global: { stubs: { teleport: true } },
     });
-    const kop = w.find('nldd-list-item');
-    expect(kop.attributes('expanded')).toBe('false');
-    await kop.trigger('click');
-    expect(kop.attributes('expanded')).toBe('true');
-    const regels = w.findAll('nldd-text-cell').map((c) => c.attributes('text'));
+    const sheet = () => w.find('nldd-sheet');
+    expect(sheet().attributes('open')).toBeUndefined();
+    // A link in a sentence; it opens the sheet and does not navigate.
+    expect(w.find('nldd-text').text()).toBe(
+      'Elk artikel dat het besluit uitvoerde, wat het opleverde en wie elk open begrip invulde, staat in de volledige keten.',
+    );
+    const link = w.find('nldd-text nldd-link a');
+    expect(link.attributes('href')).toBe('#volledige-keten');
+    await link.trigger('click');
+    expect(sheet().attributes('open')).toBe('true');
+    // From the bottom, with md rows that fold.
+    expect(sheet().attributes('placement')).toBe('bottom');
+    const stappen = sheet().findAll('nldd-list[type="tree"] nldd-list-item');
+    expect(new Set(stappen.map((r) => r.attributes('size')))).toEqual(new Set(['md']));
+    expect(stappen.some((r) => r.attributes('expanded') !== undefined)).toBe(true);
+    const regels = sheet().findAll('nldd-text-cell').map((c) => c.attributes('text'));
     expect(regels).toContain('BABW artikel 49 wordt uitgevoerd');
     expect(regels).toContain('Langdurige loopbeperking: ja');
-    expect(w.findAll('nldd-tag').map((t) => t.attributes('text'))).toEqual(['wet', 'beleid']);
+    expect(sheet().findAll('nldd-tag').map((t) => t.attributes('text'))).toEqual(['wet', 'beleid']);
+    await sheet().trigger('close');
+    expect(sheet().attributes('open')).toBeUndefined();
   });
 
   it('shows nothing for a decision without a chain', () => {
     const w = mount(VolledigeKeten, { props: { keten: [], casus } });
-    expect(w.find('nldd-list').exists()).toBe(false);
+    expect(w.find('nldd-link').exists()).toBe(false);
   });
 });

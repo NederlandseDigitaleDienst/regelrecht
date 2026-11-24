@@ -58,29 +58,31 @@ elements:
         label: Wat vraagt u aan?
         record: {label: Gevraagd besluit, summary: true}
       # De twee keuzes delen het begin van de zin; dat staat één keer in de
-      # kop, zodat elke keuze alleen noemt waarin ze verschilt.
+      # kop, zodat elke keuze alleen noemt waarin ze verschilt. Op een scherm
+      # dat de aanvraag toont, staan ze direct onder het gevraagde besluit:
+      # ze zeggen welke kaart er gevraagd is.
       - name: kaart_als_bestuurder
         group: Vraag gehandicaptenparkeerkaart aan als
         label: Bestuurder van de auto
-        record: {group: Gevraagde kaart, label: Kaart als bestuurder, summary: true,
+        record: {group: Over deze aanvraag, label: Kaart als bestuurder, summary: true,
                  when_true: Aangevraagd, when_false: Niet aangevraagd}
       - name: kaart_als_passagier
         group: Vraag gehandicaptenparkeerkaart aan als
         label: Passagier
-        record: {group: Gevraagde kaart, label: Kaart als passagier, summary: true,
+        record: {group: Over deze aanvraag, label: Kaart als passagier, summary: true,
                  when_true: Aangevraagd, when_false: Niet aangevraagd}
       - name: naam_aanvrager
         group: Uw persoonsgegevens
         visibility: shown
         fill: {by: system, login: naam}
         label: Naam
-        record: {group: Persoonsgegevens}
+        record: {group: Aanvrager}
       - name: bsn_aanvrager
         group: Uw persoonsgegevens
         visibility: shown
         fill: {by: system}
         label: Burgerservicenummer
-        record: {group: Persoonsgegevens}
+        record: {group: Aanvrager}
       # De wet vraagt één adres (Awb 4:2, eerste lid, onder a); het scherm
       # vraagt het in de stukken waarin mensen het kennen. Het formulier voegt
       # ze in deze volgorde samen tot de ene waarde die de wet kent.
@@ -91,7 +93,7 @@ elements:
       - name: adres_aanvrager
         group: Uw persoonsgegevens
         label: Adres
-        record: {group: Persoonsgegevens}
+        record: {group: Aanvrager}
         required: true
         parts:
           - name: straat_huisnummer
@@ -210,10 +212,12 @@ elements:
         group: Het verzoek
         label: Dag van het verzoek
         help: De dag waarop de aanvraag binnenkwam en de gemeente de GGD om een onderzoek vroeg.
+        record: {summary: true}
       - name: aanvraag
         group: Het verzoek
         label: Bij de aanvraag
         help: De aanvraag waarvoor de gemeente het onderzoek vroeg.
+        record: {summary: true}
   # De aanvraag om een duplicaat van een kaart die kwijt is (artikel 52 van
   # het BABW). Burgerservicenummer, naam, dagtekening en ondertekening vult
   # het systeem zoals bij de aanvraag (UI1); de burger vult de rest.
@@ -243,3 +247,108 @@ elements:
         group: Wat er gebeurde
         label: Ik verklaar dat de kaart kwijt is en dat ik dit naar waarheid heb ingevuld
         record: {label: Verklaard naar waarheid}
+  # De oordelen die het recht aan een cel laat: wat de beslisser van de
+  # gemeente invult, en wat de GGD en de rechtbank via het beheerpaneel
+  # invullen. Het label blijft het begrip uit het regelwerk; `when_true` en
+  # `when_false` zeggen het antwoord als een uitspraak, zodat wie de
+  # bevindingen scant het antwoord leest zonder de vraag. Zonder die twee
+  # staat er ja of nee.
+  - id: UI6
+    element: oordelen
+    fields:
+      - name: geneeskundig_onderzoek_achterwege_gelaten
+        when_true: Onderzoek achterwege laten
+        when_false: Onderzoek is nog nodig
+      - name: bekend_dat_aanvrager_nog_steeds_voldoet
+        when_true: Aanvrager voldoet nog steeds
+        when_false: Niet bekend of aanvrager nog voldoet
+      - name: keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet
+        when_true: Aanvrager voldoet nog steeds
+        when_false: Aanvrager voldoet niet meer
+      - name: bevoegdheid_tot_verstrekken_gebruikt
+        when_true: Bevoegdheid is gebruikt
+        when_false: Bevoegdheid is niet gebruikt
+      - name: verloren_kaart_is_uitgereikt_en_geldig
+        when_true: Kaart is uitgereikt en geldig
+        when_false: Kaart is niet uitgereikt of niet geldig
+      - name: langdurige_loopbeperking
+        when_true: Aanvrager heeft een langdurige loopbeperking
+        when_false: Aanvrager heeft geen langdurige loopbeperking
+      - name: continu_afhankelijk_van_hulp_bestuurder
+        when_true: Aanvrager is continu afhankelijk van hulp
+        when_false: Aanvrager is niet continu afhankelijk van hulp
+      - name: permanent_rolstoelgebonden
+        when_true: Aanvrager is permanent rolstoelgebonden
+        when_false: Aanvrager is niet permanent rolstoelgebonden
+      - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+        when_true: Aanvrager heeft andere ernstige beperkingen dan loopbeperkingen
+        when_false: Aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen
+      - name: geneeskundig_onderzoek_heeft_plaatsgehad
+        when_true: Onderzoek heeft plaatsgehad
+        when_false: Onderzoek heeft niet plaatsgehad
+      - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+        when_true: Aanvrager heeft eerder een kaart gekregen
+        when_false: Aanvrager heeft niet eerder een kaart gekregen
+      - name: indiener_bezwaarschrift_is_belanghebbende
+        when_true: Indiener is belanghebbende
+        when_false: Indiener is geen belanghebbende
+      - name: indiener_bezwaarschrift_niet_in_verzuim
+        when_true: Indiener is niet in verzuim
+        when_false: Indiener is in verzuim
+      - name: indiener_is_belanghebbende
+        when_true: Indiener is belanghebbende
+        when_false: Indiener is geen belanghebbende
+      - name: indiener_beroepschrift_niet_in_verzuim
+        when_true: Indiener is niet in verzuim
+        when_false: Indiener is in verzuim
+      - name: rechtsregel_geschonden
+        when_true: Er is een rechtsregel geschonden
+        when_false: Er is geen rechtsregel geschonden
+      - name: rechtsgevolgen_in_stand
+        when_true: Rechtsgevolgen blijven in stand
+        when_false: Rechtsgevolgen vervallen
+      - name: uitspraak_treedt_in_de_plaats
+        when_true: Uitspraak treedt in de plaats van het besluit
+        when_false: Uitspraak treedt niet in de plaats van het besluit
+      - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college
+        when_true: Aanvrager heeft eerder een kaart gekregen
+        when_false: Aanvrager heeft niet eerder een kaart gekregen
+      - name: aanvrager_eerder_kaart_verstrekt
+        when_true: Aanvrager heeft eerder een kaart gekregen
+        when_false: Aanvrager heeft niet eerder een kaart gekregen
+      - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+        when_true: Aanvrager heeft een geldige kaart
+        when_false: Aanvrager heeft geen geldige kaart
+      - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college
+        when_true: Aanvrager heeft een geldige kaart
+        when_false: Aanvrager heeft geen geldige kaart
+      - name: geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
+        when_true: Onderzoek heeft plaatsgehad
+        when_false: Onderzoek heeft niet plaatsgehad
+      - name: verzoek_om_geneeskundig_onderzoek_staat_open
+        when_true: Verzoek om onderzoek loopt nog
+        when_false: Er loopt geen verzoek om onderzoek
+      - name: langdurige_loopbeperking_volgens_college
+        when_true: Aanvrager heeft een langdurige loopbeperking
+        when_false: Aanvrager heeft geen langdurige loopbeperking
+      - name: continu_afhankelijk_van_hulp_bestuurder_volgens_college
+        when_true: Aanvrager is continu afhankelijk van hulp
+        when_false: Aanvrager is niet continu afhankelijk van hulp
+      - name: permanent_rolstoelgebonden_volgens_college
+        when_true: Aanvrager is permanent rolstoelgebonden
+        when_false: Aanvrager is niet permanent rolstoelgebonden
+      - name: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
+        when_true: Aanvrager heeft andere ernstige beperkingen dan loopbeperkingen
+        when_false: Aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen
+      - name: advies_langdurige_loopbeperking_volgens_college
+        when_true: "Advies: aanvrager heeft een langdurige loopbeperking"
+        when_false: "Advies: aanvrager heeft geen langdurige loopbeperking"
+      - name: advies_continu_afhankelijk_van_hulp_bestuurder_volgens_college
+        when_true: "Advies: aanvrager is continu afhankelijk van hulp"
+        when_false: "Advies: aanvrager is niet continu afhankelijk van hulp"
+      - name: advies_permanent_rolstoelgebonden_volgens_college
+        when_true: "Advies: aanvrager is permanent rolstoelgebonden"
+        when_false: "Advies: aanvrager is niet permanent rolstoelgebonden"
+      - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
+        when_true: "Advies: aanvrager heeft andere ernstige beperkingen dan loopbeperkingen"
+        when_false: "Advies: aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen"

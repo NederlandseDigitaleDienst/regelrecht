@@ -24,6 +24,9 @@ export interface Veldtekst {
   help?: string;
   /** The heading of the group the field stands in. */
   group?: string;
+  /** A yes and a no in words on a form, such as "Onderzoek nodig" for no. */
+  when_true?: string;
+  when_false?: string;
   /** The texts on a screen that shows a recorded submission, where they differ from the form's. */
   record?: { label?: string; help?: string; group?: string; summary?: boolean; when_true?: string; when_false?: string };
 }
@@ -328,6 +331,8 @@ export interface Voorvertoning {
   voorlopig?: { besluit: Gram; waarom?: Waarom };
   geweigerd?: string;
   stil: Veld[];
+  /** Every finding a policy may leave to the authority, whether or not this case reaches it. */
+  mogelijk?: Veld[];
   /** What the system would then record itself: per act its fact, the article and the record it refers to. */
   automatisch?: { feit: string; artikel: string; verwijst_naar?: string | null }[];
 }

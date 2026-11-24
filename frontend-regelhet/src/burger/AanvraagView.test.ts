@@ -92,4 +92,15 @@ describe('AanvraagView', () => {
     expect(w.find('form').exists()).toBe(true);
     expect(w.text()).not.toContain('Dagtekening');
   });
+
+  it('groups the values the law asks for per article, each with who fills it', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: burgerRoutes });
+    await router.push('/burger#aanvraag-wetten');
+    const w = mount({ template: '<RouterView />' }, { global: { plugins: [router], stubs: { teleport: true } } });
+    await flushPromises();
+    const koppen = w.findAll('nldd-title[heading-level="3"]');
+    expect(koppen).toHaveLength(1);
+    expect(koppen[0]?.attributes('text')).toBe('Wet artikel 1');
+    expect(w.findAll('nldd-rich-text li').map((li) => li.text())).toEqual([expect.stringMatching(/: u vult dit zelf in\.$/)]);
+  });
 });

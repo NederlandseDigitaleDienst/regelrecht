@@ -18,6 +18,9 @@ export interface Schermveld {
   help: string;
   /** The heading of the group it stands under: the UI spec's `group`, or none. */
   groep: string;
+  /** A yes and a no in words (`when_true`, `when_false`), where the UI spec gives them. */
+  ja?: string;
+  nee?: string;
 }
 
 /**
@@ -36,6 +39,8 @@ export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}, stuk = f
     label: tekst.label ?? hoofdletter(leesbaar(veld.naam)),
     help: tekst.help ?? '',
     groep: tekst.group ?? '',
+    ja: tekst.when_true,
+    nee: tekst.when_false,
   };
 }
 
@@ -45,13 +50,16 @@ export const kaalSchermveld = (naam: string, teksten: Vormen['teksten'] = {}): S
 
 /**
  * The value `v` of the field `naam` of a record in words, as it stands on its
- * own in a row: a yes or no as the UI spec's `record` names it, anything else
+ * own in a row: a yes or no as the UI spec names it (under `record`, else on
+ * the form), anything else
  * as `waardeTekst` does, with a capital.
  */
 export function stukWaarde(naam: string, v: unknown, teksten: Vormen['teksten'] = {}, noem?: (id: string) => string | undefined): string {
-  const record = teksten?.[naam]?.record;
-  if (v === true && record?.when_true) return record.when_true;
-  if (v === false && record?.when_false) return record.when_false;
+  const t = teksten?.[naam];
+  const ja = t?.record?.when_true ?? t?.when_true;
+  const nee = t?.record?.when_false ?? t?.when_false;
+  if (v === true && ja) return ja;
+  if (v === false && nee) return nee;
   return hoofdletter(waardeTekst(v, noem));
 }
 
@@ -68,15 +76,62 @@ export const naamVeld = (vorm: Indieningsvorm | undefined): string | undefined =
   Object.entries(vorm?.systeem ?? {}).find(([, hoe]) => hoe.soort === 'inloggen' && hoe.inlog === 'naam')?.[0];
 
 /**
- * What a submission is called on a list and on its own screen: its kind and
- * the applicant's name, as its form has the login fill it. The kind alone
- * when the form takes no name or the submission holds none.
+ * Whether a submission is an application: the case's own, which refers to no
+ * other record, or a request after a grant (`na_toekenning.aanvragen`), such
+ * as a lost card. An objection or an appeal refers to the decision it
+ * contests.
  */
-export function indieningTitel(g: Gram, casus: Casus, vorm: Indieningsvorm | undefined): string {
+export function isAanvraag(g: Gram, casus: Casus): boolean {
+  return (!g.refers_to && !g.received) || !!casus.na_toekenning?.aanvragen?.some((a) => a.artikel === g.basis);
+}
+
+/**
+ * What a submission asks for, in words: the title the case gives a request
+ * after a grant, such as a lost card; for the case's own application the
+ * title of the case; for anything else, such as an objection, its kind before
+ * that title.
+ */
+export function gevraagd(g: Gram, casus: Casus): string {
+  const na = casus.na_toekenning?.aanvragen?.find((a) => a.artikel === g.basis);
+  if (na) return na.titel;
   const soort = omschrijving(g, casus, 'indiening');
-  const veld = naamVeld(vorm);
-  const naam = veld ? g.fields?.[veld] : undefined;
-  return typeof naam === 'string' && naam.trim() ? `${soort} ${naam.trim()}` : soort;
+  if (!casus.titel) return soort;
+  return isAanvraag(g, casus) ? casus.titel : `${soort} ${casus.titel.toLowerCase()}`;
+}
+
+/**
+ * The applicant's name a submission carries, as its form has the login fill
+ * it; else the name on the record it links to (`refers_to`, `after`,
+ * `received`), however many links away: an objection is about the decision
+ * on an application, and that application holds the name.
+ */
+export function aanvragerNaam(g: Gram, vormen: Vormen | null | undefined, grammen: Gram[]): string | undefined {
+  const opId = new Map(grammen.map((x) => [x.id, x]));
+  const gezien = new Set<string>();
+  const wachtrij = [g];
+  for (let x = wachtrij.shift(); x; x = wachtrij.shift()) {
+    if (gezien.has(x.id)) continue;
+    gezien.add(x.id);
+    const veld = naamVeld(vormen?.indieningen[x.basis]);
+    const naam = veld ? x.fields?.[veld] : undefined;
+    if (typeof naam === 'string' && naam.trim()) return naam.trim();
+    for (const id of [x.refers_to, x.after, x.received?.id]) {
+      const volgende = id ? opId.get(id) : undefined;
+      if (volgende) wachtrij.push(volgende);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * What a submission is called on a list and on its own screen: what it asks
+ * for and who asks it, `Gehandicaptenparkeerkaart · P. Voorbeeld`. What it
+ * asks for alone when no name is known.
+ */
+export function indieningTitel(g: Gram, casus: Casus, vormen: Vormen | null | undefined, grammen: Gram[] = []): string {
+  const wat = gevraagd(g, casus);
+  const naam = aanvragerNaam(g, vormen, grammen);
+  return naam ? `${wat} · ${naam}` : wat;
 }
 
 /** `<regelwerk>#<article>#<name>` without its last part: the article of a rule or a fact. */
@@ -193,6 +248,15 @@ export const geordend = <V extends Schermveld>(velden: V[], volgorde?: string[])
  */
 export const herkomsten = (vorm: Indieningsvorm | undefined): Record<string, string> =>
   Object.fromEntries(Object.entries(vorm?.systeem ?? {}).map(([naam, hoe]) => [naam, herkomst(hoe)]));
+
+/**
+ * [`herkomsten`] for a screen that shows one recorded submission: only a
+ * value a rule derived, with the article of that rule, which a decider may
+ * want to follow. The rest says how the form works (the login, the clock, a
+ * value that is the same on every submission) and nothing about this one.
+ */
+export const herkomstenOpStuk = (vorm: Indieningsvorm | undefined): Record<string, string> =>
+  Object.fromEntries(Object.entries(vorm?.systeem ?? {}).flatMap(([naam, hoe]) => (hoe.bron ? [[naam, herkomst(hoe)]] : [])));
 
 /**
  * The application form of `vorm`. Every field of the law but those the UI

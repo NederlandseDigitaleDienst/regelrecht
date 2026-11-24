@@ -7,7 +7,7 @@
 // on the step emits it (`kies`); the row is segmented then: the chevron
 // folds, the rest opens. Shared by the chronolexografie poc and the
 // RegelHet; each says how it names a regelwerk and a field
-// (`namen`) and where a regelwerk sits (`laag`).
+// (`namen`), where a regelwerk sits (`laag`), and how tall a row is (`size`).
 import { computed, ref } from 'vue';
 import { herkomstVan, klikbaar, SOORTEN, stapTekst } from '../../chronolex/keten';
 import type { Herkomst, Knoop, Laag, Namen } from '../../chronolex/keten';
@@ -22,8 +22,10 @@ const props = withDefaults(
     diepte?: number;
     /** Whether a click on a step with an origin shows that origin. */
     kanOpenen?: boolean;
+    /** The size of the rows, this one and those below it. */
+    size?: 'sm' | 'md';
   }>(),
-  { diepte: 0, kanOpenen: false },
+  { diepte: 0, kanOpenen: false, size: 'sm' },
 );
 const emit = defineEmits<{ kies: [herkomst: Herkomst] }>();
 
@@ -40,7 +42,7 @@ function kies() {
 
 <template>
   <nldd-list-item
-    size="sm"
+    :size="size"
     :button="(tak && !knop) || undefined"
     :expanded="tak ? open : undefined"
     @click.stop="tak && !knop && (open = !open)"
@@ -75,6 +77,7 @@ function kies() {
       :laag="laag"
       :diepte="diepte + 1"
       :kan-openen="kanOpenen"
+      :size="size"
       @kies="(h: Herkomst) => emit('kies', h)"
     />
   </nldd-list-item>

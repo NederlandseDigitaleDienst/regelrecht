@@ -35,10 +35,26 @@ describe('SpecFormulier', () => {
     // A yes or no that may stay empty asks ja, nee or nothing.
     const keuze = w.findAll('nldd-form-field').map((e) => e.attributes('label')).filter(Boolean);
     expect(keuze).toEqual(['Ondertekend', 'Dagtekening']);
-    expect(w.find('select').findAll('option').map((o) => o.text())).toEqual(['Niet opgegeven', 'Ja', 'Nee']);
+    // Three choices stand side by side, not in a dropdown.
+    expect(w.find('nldd-dropdown').exists()).toBe(false);
+    expect(w.findAll('nldd-radio-button-group nldd-radio-button-field').map((o) => o.attributes('label'))).toEqual(['Niet opgegeven', 'Ja', 'Nee']);
+    expect(w.find('nldd-radio-button-field[checked]').attributes('value')).toBe('leeg');
     expect(w.findAll('nldd-date-field')).toHaveLength(1);
     expect(w.html()).not.toContain('Nummer aanvrager');
     expect(w.html()).not.toContain('Geheim');
+  });
+
+  it('names the answers of a judgement as the UI spec words them, and else yes and no', () => {
+    const { invullen } = aanvraagformulier(vorm, { ondertekend: { when_true: 'Ondertekend', when_false: 'Niet ondertekend' } }, '999990019');
+    const w = mount(SpecFormulier, { props: { velden: invullen, waarden: {}, oordeel: true } });
+    const keuzes = (label: string) =>
+      w
+        .findAll('nldd-form-field')
+        .find((f) => f.attributes('label') === label)!
+        .findAll('nldd-radio-button-field')
+        .map((o) => o.attributes('label'));
+    expect(keuzes('Ondertekend')).toEqual(['Niet beoordeeld', 'Ondertekend', 'Niet ondertekend']);
+    expect(keuzes('Wil een vergunning')).toEqual(['Niet beoordeeld', 'Ja', 'Nee']);
   });
 
   it('takes the label and help the UI spec gives a field', () => {
@@ -159,7 +175,7 @@ describe('SpecFormulier', () => {
 
   it('sends a change of a field up by its name', async () => {
     const w = teken();
-    await w.find('select').setValue('ja');
+    await w.find('nldd-radio-button-field[value="ja"]').trigger('change', { detail: { checked: true, value: 'ja' } });
     expect(w.emitted('zet')).toEqual([['ondertekend', true]]);
   });
 });

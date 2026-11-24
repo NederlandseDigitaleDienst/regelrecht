@@ -61,14 +61,16 @@ async function toon() {
   return { w, router };
 }
 const rijen = (w: Awaited<ReturnType<typeof toon>>['w']) =>
-  w.findAll('nldd-list-item').filter((r) => r.find('nldd-text-cell').attributes('overline'));
+  w.findAll('nldd-list[accessible-label="Kroniek van gemeente Voorbeeld"] nldd-list-item');
 const knop = (w: Awaited<ReturnType<typeof toon>>['w'], tekst: string) =>
   w.findAll('nldd-button').find((b) => b.attributes('text') === tekst);
 
 describe('the chronicle', () => {
-  it('lets every record open', async () => {
+  it('lists the newest record first, each with its number in the chronicle, and lets every one open', async () => {
     const { w } = await toon();
-    expect(rijen(w).length).toBe(3);
+    const teksten = rijen(w).map((r) => r.find('nldd-text-cell').attributes('text'));
+    expect(teksten.map((t) => t?.split(':')[0])).toEqual(['3', '2', '1']);
+    expect(rijen(w)[1]!.find('nldd-text-cell').attributes('supporting-text')).toContain('verwijst naar nr. 1');
     expect(rijen(w).every((r) => r.attributes('button') !== undefined)).toBe(true);
   });
 
@@ -84,7 +86,7 @@ describe('the chronicle', () => {
 
   it('leads from a submission straight to its panel', async () => {
     const { w, router } = await toon();
-    await rijen(w)[0]!.trigger('click');
+    await rijen(w)[2]!.trigger('click');
     await knop(w, 'Open in Aanvragen')!.trigger('click');
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/backoffice/behandelen/gemeente/a');
@@ -92,7 +94,7 @@ describe('the chronicle', () => {
 
   it('shows a recorded fact with what it holds, and no way to the work queue', async () => {
     const { w } = await toon();
-    await rijen(w)[2]!.trigger('click');
+    await rijen(w)[0]!.trigger('click');
     expect(w.find('nldd-sheet').attributes('open')).toBeDefined();
     expect(knop(w, 'Open in Aanvragen')).toBeUndefined();
   });

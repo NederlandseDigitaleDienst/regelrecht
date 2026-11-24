@@ -54,7 +54,9 @@
 //! among the few such a screen shows first, before the rest of the record.
 //! `when_true` and `when_false` there name a yes-or-no value in words, such
 //! as "aangevraagd" for a card that was asked for, where a bare "ja" would
-//! leave the reader to work out what it answers. Without them a screen names the
+//! leave the reader to work out what it answers. The same two keys on the
+//! field itself name the answers on a form, such as the findings a decider
+//! gives ("Onderzoek nodig" rather than "nee"); a record falls back on them. Without them a screen names the
 //! field after the regelwerk. They count by field name over every element
 //! and every form, so the same field is named the same on the application,
 //! the objection and the decision; two elements that name one field
@@ -117,6 +119,8 @@ struct Field {
     label: Option<String>,
     help: Option<String>,
     group: Option<String>,
+    when_true: Option<String>,
+    when_false: Option<String>,
     record: Option<Record>,
     parts: Option<Vec<Part>>,
     #[serde(default)]
@@ -195,6 +199,12 @@ pub struct Veldtekst {
     pub help: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// The answer `true` in words on a form, such as "onderzoek achterwege".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when_true: Option<String>,
+    /// The answer `false` in words on a form, such as "onderzoek nodig".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when_false: Option<String>,
     /// The texts on a screen that shows a recorded submission, where they differ.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub record: Option<Stuktekst>,
@@ -609,6 +619,8 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
                 ("label", field.label.as_ref()),
                 ("help", field.help.as_ref()),
                 ("group", field.group.as_ref()),
+                ("when_true", field.when_true.as_ref()),
+                ("when_false", field.when_false.as_ref()),
                 ("record.label", record.and_then(|r| r.label.as_ref())),
                 ("record.help", record.and_then(|r| r.help.as_ref())),
                 ("record.group", record.and_then(|r| r.group.as_ref())),
@@ -627,7 +639,7 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
             }
             let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
                 return Err(format!(
-                    "the UI spec: {naam} gives a `label`, `help`, `group` or `record` to a field without a `name`"
+                    "the UI spec: {naam} gives a `label`, `help`, `group`, `when_true`, `when_false` or `record` to a field without a `name`"
                 ));
             };
             if in_samenvatting {
@@ -656,6 +668,8 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
             "label" => t.label = Some(tekst),
             "help" => t.help = Some(tekst),
             "group" => t.group = Some(tekst),
+            "when_true" => t.when_true = Some(tekst),
+            "when_false" => t.when_false = Some(tekst),
             "record.label" => t.record.get_or_insert_default().label = Some(tekst),
             "record.help" => t.record.get_or_insert_default().help = Some(tekst),
             "record.when_true" => t.record.get_or_insert_default().when_true = Some(tekst),
@@ -1394,6 +1408,7 @@ elements:
                         help: Some("Zoals op het kentekenbewijs".into()),
                         group: None,
                         record: None,
+                        ..Veldtekst::default()
                     }
                 ),
                 (
@@ -1403,6 +1418,7 @@ elements:
                         help: Some("Zoals in uw paspoort".into()),
                         group: None,
                         record: None,
+                        ..Veldtekst::default()
                     }
                 ),
             ])
@@ -1436,7 +1452,7 @@ elements:
         let e = lees("elements: [{id: UI1, fields: [{label: Een}]}]").unwrap_err();
         assert!(
             e.contains(
-                "UI1 gives a `label`, `help`, `group` or `record` to a field without a `name`"
+                "UI1 gives a `label`, `help`, `group`, `when_true`, `when_false` or `record` to a field without a `name`"
             ),
             "{e}"
         );
@@ -1487,6 +1503,20 @@ elements:
         let record = spec.teksten["x"].record.as_ref().unwrap();
         assert_eq!(record.when_true.as_deref(), Some("Aangevraagd"));
         assert_eq!(record.when_false.as_deref(), Some("Niet aangevraagd"));
+        // And on a form, on the field itself; two elements that word it differently are refused.
+        let spec = lees(
+            "elements: [{id: UI1, fields: [{name: x, when_true: Achterwege, when_false: Nodig}]}]",
+        )
+        .unwrap();
+        assert_eq!(spec.teksten["x"].when_true.as_deref(), Some("Achterwege"));
+        assert_eq!(spec.teksten["x"].when_false.as_deref(), Some("Nodig"));
+        assert!(spec.teksten["x"].record.is_none());
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, when_true: Een}]},
+                        {id: UI2, fields: [{name: x, when_true: Twee}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("`when_true`"), "{e}");
         // Two elements that name one field differently on such a screen are refused.
         let e = lees(
             "elements: [{id: UI1, fields: [{name: x, record: {label: Een}}]},

@@ -141,7 +141,7 @@ async function toezenden(besluit: Gram) {
               <nldd-inline-dialog icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
               <nldd-spacer size="16"></nldd-spacer>
             </template>
-            <nldd-inline-dialog v-if="partijen.length === 0 && !gekoppeld" icon="info" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
+            <nldd-inline-dialog v-if="partijen.length === 0 && !gekoppeld" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
             <template v-for="(p, i) in partijen" :key="p.cel">
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
@@ -247,8 +247,8 @@ async function toezenden(besluit: Gram) {
         @besloten="laadAlles"
       />
       <nldd-page v-else landmarks="page">
-        <nldd-simple-section width="full">
-          <nldd-inline-dialog text="Kies wat op een partij wacht" supporting-text="Een indiening opent hier, naast het beheerpaneel."></nldd-inline-dialog>
+        <nldd-simple-section>
+          <nldd-inline-dialog text="Kies wat op een partij wacht" supporting-text="Een aanvraag opent hier, naast het beheerpaneel."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </div>

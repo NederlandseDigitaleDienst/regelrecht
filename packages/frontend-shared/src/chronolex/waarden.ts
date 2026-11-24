@@ -13,6 +13,9 @@ export const leesbaar = (naam: unknown): string => String(naam).replaceAll('_', 
 /** `verlof verleend` → `Verlof verleend`. */
 export const hoofdletter = (tekst: string): string => tekst.charAt(0).toUpperCase() + tekst.slice(1);
 
+/** `Verlof verleend` → `verlof verleend`, to go on within a sentence; an abbreviation such as `BSN` keeps its capitals. */
+export const kleineLetter = (tekst: string): string => (/^[A-Z][a-z]/.test(tekst) ? tekst.charAt(0).toLowerCase() + tekst.slice(1) : tekst);
+
 /** Regelwerken that go by their abbreviation everywhere. */
 const AFKORTINGEN: Record<string, string> = {
   algemene_wet_bestuursrecht: 'Awb',

@@ -73,18 +73,28 @@ elements:
       - name: motivering_vereist
         label: Het besluit moet gemotiveerd worden
       # De oordelen die de beleidsregels aan het college laten. Leeg laten
-      # betekent dat het college de bevoegdheid niet gebruikt.
+      # betekent dat het college de bevoegdheid niet gebruikt. `when_true` en
+      # `when_false` zeggen het antwoord in woorden, zodat de beslisser het
+      # zonder de vraag leest.
       - name: oordeel_college_recht_op_iit
         label: Oordeel van het college over uitzicht en inspanningen (beleidsregels artikel 2)
+        when_true: Recht op de toeslag
+        when_false: Geen recht op de toeslag
         help: >-
           Alleen nodig als geen van de artikelen 3, 4 en 5 van de beleidsregels van toepassing is. Neem de krachten en
           bekwaamheden en de inspanningen van de aanvrager mee (artikel 36, tweede lid, van de Participatiewet).
       - name: afwijzing_op_grond_van_artikel_3_derde_lid
         label: Toch uitzicht op inkomensverbetering, dus afwijzen (beleidsregels artikel 3, derde lid)
+        when_true: Afwijzen
+        when_false: Niet afwijzen
       - name: toekenning_op_grond_van_artikel_4_derde_lid
         label: Toch geen uitzicht op inkomensverbetering, dus toekennen (beleidsregels artikel 4, derde lid)
+        when_true: Toekennen
+        when_false: Niet toekennen
       - name: afwijzing_op_grond_van_artikel_5_derde_lid
         label: Onvoldoende inspanningen, dus afwijzen (beleidsregels artikel 5, derde lid)
+        when_true: Afwijzen
+        when_false: Niet afwijzen
   # Wat de behandelaar na een aanvraag vastlegt (artikel 1 van het fictieve
   # beleid). De dag van de vastlegging is de dag van de klok van de server.
   # Het burgerservicenummer staat hier niet: een veld heeft in alle elementen

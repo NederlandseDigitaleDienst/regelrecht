@@ -63,7 +63,7 @@ watch(
   },
   { immediate: true },
 );
-/** What the timeline under the chosen record shows; every record of it opens in the dossier. */
+/** What the timeline under the chosen record shows; every record of it opens on its own screen in the dossier. */
 const tijdlijnVan = (c: Casus) => ({
   tijdlijn: tijdlijn.value,
   fout: tijdlijnFout.value,
@@ -71,7 +71,7 @@ const tijdlijnVan = (c: Casus) => ({
   kant: 'burger' as const,
   teksten: vormen.value?.teksten,
   huidig: props.id,
-  naar: (g: Gram) => ({ name: 'stuk', params: { id: g.id } }),
+  opent: (g: Gram) => () => void router.push({ name: 'stuk', params: { id: g.id } }),
   verzoeken: verzoeken.value,
 });
 

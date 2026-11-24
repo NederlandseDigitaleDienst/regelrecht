@@ -90,6 +90,17 @@ watch(
   (id, voor) => id && id !== voor && laad(true),
 );
 
+/**
+ * The submission open in the main pane: the one the address names, once the
+ * chronicle holds it. An address that names no submission of this cell, such
+ * as one from a test store since emptied, opens nothing.
+ */
+const gekozen = computed(() => {
+  if (!props.id) return undefined;
+  const bekend = kronieken.value.find((k) => k.cel === props.cel)?.grammen.some((g) => g.id === props.id);
+  return bekend || laden.value ? props.id : undefined;
+});
+
 /** What the account may do at the executor; none when it may not read its chronicle. */
 const recht = computed(() => wie.value?.cellen.find((c) => c.cel === casus.value?.cel));
 
@@ -137,11 +148,12 @@ function indieningsRij(stuk: Gram, open: { na?: string } | undefined, kroniek: K
   const woorden = indieningInWoorden({
     stuk,
     casus: casus.value,
-    vorm: vormen.value?.indieningen[stuk.basis],
+    vormen: vormen.value,
     kroniek,
     na: open?.na,
     wachtOp,
     besloten: open ? undefined : beslotenOp(stuk, kroniek),
+    grammen: kronieken.value.flatMap((k) => k.grammen),
   });
   return {
     soort: 'indiening',
@@ -269,7 +281,7 @@ async function klaar(naam: string) {
         <nldd-activity-indicator v-if="laden" text="De aanvragen laden" show-text></nldd-activity-indicator>
         <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De aanvragen laden niet" :supporting-text="fout"></nldd-inline-dialog>
         <template v-else-if="casus">
-          <nldd-inline-dialog v-if="!recht" icon="info" text="Geen aanvragen" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
+          <nldd-inline-dialog v-if="!recht" text="Geen aanvragen" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
           <template v-else>
             <nldd-list appearance="simple" accessible-label="Lijsten">
               <nldd-list-item
@@ -377,25 +389,24 @@ async function klaar(naam: string) {
         <nldd-inline-dialog
           v-else
           heading-level="3"
-          :icon="lijst === 'te-doen' ? 'done' : undefined"
           :text="leeg.tekst"
           :supporting-text="leeg.uitleg"
         ></nldd-inline-dialog>
         <template v-if="!recht.beslissen && zichtbaar.some((r) => r.soort === 'indiening')">
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-text size="sm" color="secondary">
-            <p>Een beslisser neemt het besluit; u ziet de indieningen wel.</p>
+            <p>Een beslisser neemt het besluit; u ziet de aanvragen wel.</p>
           </nldd-text>
         </template>
       </nldd-simple-section>
     </nldd-page>
 
-    <div slot="main" :empty="id ? undefined : true">
+    <div slot="main" :empty="gekozen ? undefined : true">
       <BehandelenPaneel
-        v-if="cel && id && casus"
-        :key="id"
+        v-if="cel && gekozen && casus"
+        :key="gekozen"
         :cel="cel"
-        :id="id"
+        :id="gekozen"
         :casus="casus"
         :vormen="vormen"
         :wie="wie"
@@ -406,8 +417,8 @@ async function klaar(naam: string) {
       />
       <!-- Nothing open: invite a choice only when the list beside it has something to choose. -->
       <nldd-page v-else landmarks="page">
-        <nldd-simple-section v-if="zichtbaar.length" width="full">
-          <nldd-inline-dialog text="Kies een indiening"></nldd-inline-dialog>
+        <nldd-simple-section v-if="zichtbaar.length">
+          <nldd-inline-dialog text="Kies een aanvraag"></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </div>

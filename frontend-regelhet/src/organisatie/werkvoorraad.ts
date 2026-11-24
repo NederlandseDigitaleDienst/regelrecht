@@ -82,8 +82,9 @@ export function samenvoegen(antwoorden: readonly ProcesAntwoord<ProcesWerkvoorra
       const woorden = indieningInWoorden({
         stuk: w.stuk,
         casus,
-        vorm: vormen.indieningen[w.stuk.basis],
+        vormen,
         kroniek,
+        grammen: kroniek?.grammen,
         na: w.na,
         wachtOp: wachtOpBij(w.stuk, verzoeken),
       });

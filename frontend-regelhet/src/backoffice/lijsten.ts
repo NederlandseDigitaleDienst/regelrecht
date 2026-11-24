@@ -40,10 +40,10 @@ export const LIJSTEN = [
     naam: 'alle',
     tekst: 'Alle aanvragen',
     icoon: 'all-tasks',
-    uitleg: 'Elke indiening die is binnengekomen, besloten of niet, de nieuwste bovenaan.',
+    uitleg: 'Elke aanvraag die is binnengekomen, besloten of niet, de nieuwste bovenaan.',
     leeg: {
       tekst: 'Nog niets binnengekomen',
-      uitleg: 'Een indiening die binnenkomt, staat hier.',
+      uitleg: 'Een aanvraag die binnenkomt, staat hier.',
     },
   },
 ] as const;

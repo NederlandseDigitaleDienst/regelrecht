@@ -73,30 +73,45 @@ async function zet() {
       <nldd-text color="secondary"><p>De testomgeving bijsturen: de datum waarop alles gebeurt, en een lege start.</p></nldd-text>
       <nldd-spacer size="24"></nldd-spacer>
       <nldd-inline-dialog v-if="!klok && melding" icon="warning" icon-color="critical" text="De klok laadt niet" :supporting-text="melding"></nldd-inline-dialog>
-      <nldd-container v-if="klok" gap="16">
+      <nldd-container v-if="klok">
         <nldd-inline-dialog v-if="!klok.bestuurbaar" icon="info" text="De klok volgt de echte datum" supporting-text="Alleen in de testmodus is de klok te zetten."></nldd-inline-dialog>
         <template v-else>
           <nldd-title size="display-5"><h4>Klok</h4></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
           <nldd-text color="secondary"><p>Elke stap in deze testomgeving krijgt deze dag als datum.</p></nldd-text>
+          <nldd-spacer size="16"></nldd-spacer>
           <nldd-text><p>Het is nu {{ longDate(klok.datum) }}.</p></nldd-text>
+          <nldd-spacer size="16"></nldd-spacer>
           <nldd-form-field label="Nieuwe datum">
             <nldd-date-field :value="datum" @change="lees"></nldd-date-field>
           </nldd-form-field>
-          <nldd-banner v-if="gezet" variant="success" :text="`De klok staat op ${longDate(klok.datum)}`"></nldd-banner>
-          <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De klok is niet gezet" :supporting-text="melding"></nldd-inline-dialog>
+          <template v-if="gezet">
+            <nldd-spacer size="16"></nldd-spacer>
+            <nldd-banner variant="success" :text="`De klok staat op ${longDate(klok.datum)}`"></nldd-banner>
+          </template>
+          <template v-if="melding">
+            <nldd-spacer size="16"></nldd-spacer>
+            <nldd-inline-dialog icon="warning" icon-color="critical" text="De klok is niet gezet" :supporting-text="melding"></nldd-inline-dialog>
+          </template>
+          <nldd-spacer size="16"></nldd-spacer>
           <nldd-button-group>
             <nldd-button appearance="primary" text="Klok zetten" @click="zet"></nldd-button>
           </nldd-button-group>
 
           <nldd-spacer size="24"></nldd-spacer>
           <nldd-title size="display-5"><h4>Testomgeving leegmaken</h4></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
           <nldd-text color="secondary">
             <p>
               Begin opnieuw met een lege testomgeving: alle kronieken zijn daarna leeg en de klok staat weer op de
               begindatum van de casus. Wie is ingelogd, blijft ingelogd.
             </p>
           </nldd-text>
-          <nldd-banner v-if="leeg" variant="success" :text="`De testomgeving is leeg; de klok staat op ${longDate(klok.datum)}`"></nldd-banner>
+          <template v-if="leeg">
+            <nldd-spacer size="16"></nldd-spacer>
+            <nldd-banner variant="success" :text="`De testomgeving is leeg; de klok staat op ${longDate(klok.datum)}`"></nldd-banner>
+          </template>
+          <nldd-spacer size="16"></nldd-spacer>
           <nldd-button-group>
             <nldd-button appearance="critical-tinted" start-icon="delete" text="Testomgeving leegmaken" :loading="bezig || undefined" @click="bevestigen = true"></nldd-button>
           </nldd-button-group>

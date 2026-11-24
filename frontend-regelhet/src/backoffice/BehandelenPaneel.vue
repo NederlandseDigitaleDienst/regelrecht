@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // One submission, for the decider of the cell that holds it: what was
-// submitted, the findings the deciding article asks of the authority
+// submitted, and under its title the button "Besluiten". That opens a sheet
+// with the findings the deciding article asks of the authority
 // (`GET /api/formulier`, `besluiten`), the decision as it would be taken, and
-// the button that takes it. The preview is the server's (`voorvertoning`): it
+// the button that takes it, after a question whether the decider is sure: a
+// decision is not undone. The preview is the server's (`voorvertoning`): it
 // runs when the pane opens and again when a finding changes, the chronicles
 // change (a fact recorded, an advice received) or the test clock moves. It
 // may ask more: a finding a policy leaves to the authority for this case
@@ -15,7 +17,7 @@
 // new one in its place; or a later record revoked it with nothing in its
 // place. Whether it waits for a decision, the server's queue says (`open`:
 // the work queue of the executor, or what waits for an external party), and
-// nothing else: the form and the button show only for a submission in it.
+// nothing else: the button and the sheet show only for a submission in it.
 // When the queue names a record to decide after (`na`), such as the receipt
 // of a judgment that annulled a decision on objection, the decider decides
 // again after it; after a withdrawal nothing waits.
@@ -25,22 +27,28 @@
 // is one of what the panel shows of that party (`open`), and the admin
 // decides on its behalf through the panel's routes.
 //
-// For the executor it also shows what its policy asked of another party for
-// this application, such as the examination by the GGD, and whether the
-// answer came back (`GET /api/backoffice/verzoeken`): from the executor's own
-// records, never from the party's chronicle. Under it, the timeline of the
-// application (gedeeld/TijdlijnLijst.vue, `GET /api/backoffice/tijdlijn/{id}`).
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
-import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
+// What the executor's policy asked of another party for this application,
+// such as the examination by the GGD, stands in the timeline of the
+// application at the bottom (gedeeld/TijdlijnLijst.vue,
+// `GET /api/backoffice/tijdlijn/{id}`). A request made for an earlier
+// application of the same person, which this one waits on as well, is not in
+// that timeline; the pane shows it on its own (`GET /api/backoffice/verzoeken`),
+// from the executor's own records, never from the party's chronicle. A
+// record of the executor in the timeline opens in a sheet over the pane
+// (StukSheet.vue), not on the Kroniek tab.
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ontbrekendeBevinding, weigeringInWoorden } from '@regelrecht/frontend-shared/chronolex/weigering';
+import { kleineLetter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { herkomsten, indieningTitel, kaalSchermveld, schermveld } from '../gedeeld/formulier';
+import { geordend, herkomstenOpStuk, opVolgorde, indieningTitel, isAanvraag, kaalSchermveld, schermveld } from '../gedeeld/formulier';
 import type { Schermveld } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { antwoordOp, artikelNaam, celNaam, herroeping as herroepingVan, herroepingTekst, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
+import StukSheet from './StukSheet.vue';
 import type { Casus, Gram, Ik, Rol, Tijdlijn, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import { backofficeApi, beheerApi } from './api';
 import BesluitWeergave from './BesluitWeergave.vue';
@@ -78,9 +86,9 @@ const gevonden = computed(() => (props.namens ? wachtend.value?.stuk : kroniek.v
 const onthouden = ref<Gram | null>(null);
 watch(gevonden, (g) => (onthouden.value = g ?? onthouden.value), { immediate: true });
 const indiening = computed(() => gevonden.value ?? onthouden.value);
-/** Per field the system filled in the submission, where its value came from: for the case's application only. */
+/** Per field a rule derived in the submission, the article of that rule ([`herkomstenOpStuk`]): for the case's application only. */
 const herkomstVan = computed(() =>
-  indiening.value?.basis === props.casus.artikel ? herkomsten(props.vormen?.indieningen[props.casus.artikel]) : {},
+  indiening.value?.basis === props.casus.artikel ? herkomstenOpStuk(props.vormen?.indieningen[props.casus.artikel]) : {},
 );
 const mag = computed(() =>
   props.namens ? (props.wie?.partijen_invoeren ?? false) : (props.wie?.cellen.find((c) => c.cel === props.cel)?.beslissen ?? false),
@@ -101,7 +109,14 @@ const noemStuk = (id: string) => {
 const noem = (g: Gram, rol: Rol | undefined) =>
   `${omschrijving(g, props.casus, rol).toLowerCase()} van ${longDate(g.recorded_on)}`;
 const titel = computed(() =>
-  indiening.value ? indieningTitel(indiening.value, props.casus, props.vormen?.indieningen[indiening.value.basis]) : 'Indiening',
+  indiening.value
+    ? indieningTitel(
+        indiening.value,
+        props.casus,
+        props.vormen,
+        props.kronieken.flatMap((k) => k.grammen),
+      )
+    : 'Aanvraag',
 );
 
 /** The decision form of the article the submission asks a decision of. */
@@ -119,6 +134,42 @@ const velden = computed<Schermveld[]>(() => {
   return [...eigen, ...extra].map((v) => schermveld(v, props.vormen?.teksten));
 });
 const bevindingen = ref<Record<string, unknown>>({});
+/**
+ * The order the findings stand in on the sheet: those there from the start in
+ * the order of the UI spec, and each one the preview asks for later under
+ * them, so a new question never pushes in between answers already given.
+ */
+const verschenen = ref<string[]>([]);
+let verschenenVoor = '';
+watch(
+  [velden, () => props.id],
+  ([nu, id]) => {
+    if (id !== verschenenVoor) [verschenenVoor, verschenen.value] = [id, []];
+    const nieuw = nu.filter((v) => !verschenen.value.includes(v.veld.naam));
+    if (nieuw.length) verschenen.value = [...verschenen.value, ...opVolgorde(nieuw, props.vormen?.volgorde, (v) => v.veld.naam).map((v) => v.veld.naam)];
+  },
+  { immediate: true },
+);
+/**
+ * Per article, the findings it leaves to the executor, for the page that says
+ * where they come from: the articles in the order of their first finding on
+ * the form, and under each its findings in that order. Apart from those, per
+ * article the findings a policy may still leave to it, which only a later
+ * answer can bring onto the form.
+ */
+const herkomstPerArtikel = computed(() => {
+  const per = new Map<string, { punten: string[]; mogelijk: string[] }>();
+  const van = (basis: string | undefined) => {
+    const artikel = basis ? artikelNaam(basis) : 'Zonder artikel';
+    const bij = per.get(artikel) ?? { punten: [], mogelijk: [] };
+    per.set(artikel, bij);
+    return bij;
+  };
+  for (const v of geordend(velden.value, verschenen.value).flatMap((g) => g.velden)) van(v.veld.basis).punten.push(v.label);
+  const nogNietGevraagd = (voorvertoning.value?.mogelijk ?? []).filter((m) => !velden.value.some((v) => v.veld.naam === m.naam));
+  for (const m of opVolgorde(nogNietGevraagd, props.vormen?.volgorde)) van(m.basis).mogelijk.push(schermveld(m, props.vormen?.teksten).label);
+  return [...per].map(([artikel, bij]) => ({ artikel, ...bij }));
+});
 
 const voorvertoning = ref<Voorvertoning | null>(null);
 const genomen = ref<{ besluit: Gram; waarom: Waarom } | null>(null);
@@ -172,12 +223,28 @@ async function laadVerzoeken() {
 }
 onMounted(laadVerzoeken);
 
-/** The requests this submission waits on ([`verzoekenBij`]). */
-const verzoeken = computed(() => (indiening.value ? verzoekenBij(indiening.value, alleVerzoeken.value) : []));
+/**
+ * Whom this submission waits on and why: its open requests, each in words with
+ * the day and the article it was asked by. Nothing once it is decided here.
+ */
+const wachtOp = computed(() => {
+  if (!indiening.value || genomen.value) return null;
+  const open = verzoekenBij(indiening.value, alleVerzoeken.value).filter((v) => v.open);
+  if (!open.length) return null;
+  const wie = [...new Set(open.map((v) => v.aan_naam))];
+  const waarom = open.map(
+    (v) =>
+      `${omschrijving(v.verzoek, props.casus, 'vastlegging')} op ${longDate(v.verzoek.recorded_on)}${v.eerder ? ', bij een eerdere aanvraag' : ''}, volgens ${artikelNaam(v.verzoek.basis)}.`,
+  );
+  return { tekst: `Wacht op ${wie.join(' en ')}`, waarom: waarom.join(' ') };
+});
+
+/** The requests made for an earlier submission that this one waits on as well ([`verzoekenBij`]); the timeline holds the rest. */
+const eerdereVerzoeken = computed(() => (indiening.value ? verzoekenBij(indiening.value, alleVerzoeken.value).filter((v) => v.eerder) : []));
 
 /** What became of a request, in words. */
 function standVan(v: VerzoekBij): string {
-  const gevraagd = `Aan ${v.aan_naam}, op ${longDate(v.verzoek.recorded_on)}${v.eerder ? ', bij een eerdere aanvraag' : ''}`;
+  const gevraagd = `Aan ${v.aan_naam}, op ${longDate(v.verzoek.recorded_on)}`;
   const antwoord = v.antwoord_ontvangen;
   if (!antwoord) return `${gevraagd}. Het antwoord is nog niet binnen.`;
   return `${gevraagd}. ${omschrijving(antwoord, props.casus, 'vastlegging')} op ${longDate(antwoord.recorded_on)}.`;
@@ -260,16 +327,114 @@ async function laadTijdlijn() {
   }
 }
 watch(() => props.kronieken.map((k) => k.kop).join(','), laadTijdlijn, { immediate: true });
+/** The record of the timeline open in a sheet over this panel, looked up in the chronicles as they now stand. */
+const stukId = ref<string | null>(null);
+const stukKroniek = computed(() => props.kronieken.find((k) => k.cel === props.casus.cel));
+const stuk = computed(() => stukKroniek.value?.grammen.find((g) => g.id === stukId.value) ?? null);
+/** A record of the executor opens in that sheet; a record of another cell has no screen on this side. */
+function opent(g: Gram) {
+  if (g.recording_actor !== props.casus.cel || !stukKroniek.value?.grammen.some((x) => x.id === g.id)) return undefined;
+  return () => (stukId.value = g.id);
+}
+
+/** The submission decided on, with the day it came in to tell it from another of the same person. */
+const besluitOver = computed(() => (indiening.value ? `${titel.value} · ${longDate(indiening.value.recorded_on)}` : titel.value));
+
 /**
- * Where a record of the timeline opens: a submission of the executor here,
- * in the work queue; another record of the executor in its chronicle. A
- * record of another cell has no screen on this side.
+ * The addresses of the sheet in which the decider decides: a hash on the
+ * address of the submission, as the citizen's new application has one, so a
+ * link opens it and the back button closes it. It has two pages: the findings
+ * first, then the summary with the decision as it would be taken and the
+ * button that takes it. Beside the findings, as on the citizen's new
+ * application, a page says which article leaves each to the executor.
  */
-function naar(g: Gram) {
-  if (g.recording_actor !== props.casus.cel) return undefined;
-  return tijdlijn.value?.stand.rollen[g.id] === 'indiening'
-    ? { name: 'behandelen', params: { cel: g.recording_actor, id: g.id } }
-    : { name: 'kroniek', params: { cel: g.recording_actor }, query: { stuk: g.id } };
+const BESLUITEN = '#besluiten';
+const SAMENVATTING = '#besluiten-samenvatting';
+const HERKOMST = '#besluiten-herkomst';
+const route = useRoute();
+const router = useRouter();
+/** Whether the sheet in which the decider decides is open. */
+const besluiten = computed(() => [BESLUITEN, SAMENVATTING, HERKOMST].includes(route.hash));
+/**
+ * The page of that sheet: the findings, where they come from, or the summary.
+ * A decision that asks no findings has only the summary.
+ */
+const pagina = computed(() =>
+  route.hash === SAMENVATTING || !velden.value.length ? 'samenvatting' : route.hash === HERKOMST ? 'herkomst' : 'bevindingen',
+);
+const paginaTitel = computed(() =>
+  pagina.value === 'samenvatting' ? `Samenvatting: ${kleineLetter(besluitOver.value)}` : pagina.value === 'herkomst' ? 'Waar deze punten vandaan komen' : `Besluiten: ${kleineLetter(besluitOver.value)}`,
+);
+/** The finding on the sheet the preview still needs a judgement on, if the refusal names one. */
+const ontbreekt = computed(() => {
+  const naam = ontbrekendeBevinding(voorvertoning.value?.geweigerd);
+  return naam && velden.value.some((v) => v.veld.naam === naam) ? naam : '';
+});
+/** Whether the decider tried to go on without it; from then on that question says what it lacks. */
+const verderGeprobeerd = ref(false);
+watch([besluiten, () => props.id], () => (verderGeprobeerd.value = false));
+const fouten = computed(() =>
+  verderGeprobeerd.value && ontbreekt.value ? { [ontbreekt.value]: 'Een oordeel: het besluit kan niet zonder deze bevinding.' } : {},
+);
+const bevindingenEl = ref<HTMLElement>();
+async function verder() {
+  if (!ontbreekt.value) return naarSamenvatting();
+  verderGeprobeerd.value = true;
+  await nextTick();
+  bevindingenEl.value?.querySelector('[invalid]')?.closest('nldd-form-field')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+}
+/** Whether the question if the decider is sure is open. */
+const bevestigen = ref(false);
+/** Why the button did not ask yet; it goes once the preview changes or the sheet opens again. */
+const nogNiet = ref('');
+watch([voorvertoning, voorvertoningFout, besluiten, rekent], () => (nogNiet.value = ''));
+/**
+ * Whether the decision as previewed grants the application. Undefined when
+ * the submission is no application, such as an objection, or when the preview
+ * on screen does not say: it failed or computes no decision.
+ */
+const toewijzing = computed(() => {
+  const v = voorvertoning.value?.voorlopig;
+  if (!v || voorvertoningFout.value || !indiening.value || !isAanvraag(indiening.value, props.casus)) return undefined;
+  return toegewezen(v.besluit, props.casus);
+});
+/** The button that takes the decision names what it does, as an order: a direct action. A refusal is a destructive one. */
+const beslisKnop = computed(() => (toewijzing.value === true ? 'Wijs aanvraag toe' : toewijzing.value === false ? 'Wijs aanvraag af' : 'Neem besluit'));
+/** What going on does, above the button: the decision as previewed, with what is known now. */
+const gevolg = computed(() => {
+  const wat = toewijzing.value === true ? 'wordt de aanvraag toegewezen' : toewijzing.value === false ? 'wordt de aanvraag afgewezen' : 'wordt het besluit genomen';
+  return `Als u verdergaat, ${wat} zoals hierboven staat, met de bevindingen en de kroniek van dit moment.`;
+});
+/** On the findings page, above the way on: how the application would be decided on these findings. */
+const uitkomst = computed(() =>
+  toewijzing.value === undefined
+    ? undefined
+    : `Op basis van deze bevindingen wordt de aanvraag ${toewijzing.value ? 'toegewezen' : 'afgewezen'}.`,
+);
+const bevestigVraag = computed(() =>
+  toewijzing.value === true ? 'Aanvraag toewijzen?' : toewijzing.value === false ? 'Aanvraag afwijzen?' : 'Besluit nemen?',
+);
+
+/**
+ * Ask whether the decider is sure, since a decision is not undone. While the
+ * preview is being updated, say so instead: the button names the outcome of
+ * the preview, and a stale one may name the wrong one.
+ */
+function bevestig() {
+  melding.value = '';
+  if (rekent.value) nogNiet.value = 'De voorvertoning wordt nog bijgewerkt. Kijk of de uitkomst klopt en probeer het dan opnieuw.';
+  else bevestigen.value = true;
+}
+
+function openBesluiten() {
+  melding.value = '';
+  if (!besluiten.value) void router.push({ path: route.path, query: route.query, hash: BESLUITEN });
+}
+function naarSamenvatting() {
+  void router.push({ path: route.path, query: route.query, hash: SAMENVATTING });
+}
+function sluitBesluiten() {
+  if (besluiten.value) void router.push({ path: route.path, query: route.query });
 }
 
 async function beslissen() {
@@ -278,12 +443,14 @@ async function beslissen() {
   try {
     genomen.value = await api.beslissen({ op: props.id, na: na.value, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
     sleutel = nieuweSleutel();
+    sluitBesluiten();
     emit('besloten');
     await laadVerzoeken();
   } catch (e) {
     melding.value = foutTekst(e);
   } finally {
     bezig.value = false;
+    bevestigen.value = false;
   }
 }
 </script>
@@ -291,68 +458,88 @@ async function beslissen() {
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
     <nldd-top-title-bar slot="header" :text="titel" :back-text="terug ?? (namens ? 'Beheerpaneel' : 'Aanvragen')" collapse-anchor="indiening-titel"></nldd-top-title-bar>
-    <nldd-simple-section width="full">
+    <nldd-simple-section>
       <nldd-inline-dialog
         v-if="!indiening"
-        icon="info"
-        :text="namens ? 'Deze indiening wacht niet op een externe partij' : 'Deze indiening staat niet in een kroniek die u mag lezen'"
+        :text="namens ? 'Deze aanvraag wacht niet op een externe partij' : 'Deze aanvraag staat niet in een kroniek die u mag lezen'"
       ></nldd-inline-dialog>
-      <nldd-container v-else gap="24">
-        <nldd-banner
-          v-if="namens"
-          variant="neutral"
-          :text="`U voert dit besluit in namens ${naamVanCel(cel)}`"
-          supporting-text="De kroniek legt vast dat het via het beheerpaneel is ingevoerd, door uw account."
-        ></nldd-banner>
+      <nldd-container v-else>
+        <template v-if="namens">
+          <nldd-banner
+            variant="neutral"
+            :text="`U voert dit besluit in namens ${naamVanCel(cel)}`"
+            supporting-text="De kroniek legt vast dat het via het beheerpaneel is ingevoerd, door uw account."
+          ></nldd-banner>
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
+        <template v-if="wachtOp">
+          <nldd-banner variant="neutral" icon="time" :text="wachtOp.tekst" :supporting-text="wachtOp.waarom"></nldd-banner>
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
         <nldd-title
           id="indiening-titel"
           size="display-3"
           heading-level="3"
           :text="titel"
-          :supporting-text="`Ontvangen ${longDate(indiening.recorded_on)} door ${naamVanCel(indiening.recording_actor)} · onder ${artikelNaam(indiening.basis)}`"
+          :supporting-text="`Ontvangen ${longDate(indiening.recorded_on)} door ${naamVanCel(indiening.recording_actor)}`"
         ></nldd-title>
+        <template v-if="kanBeslissen">
+          <nldd-spacer size="16"></nldd-spacer>
+          <nldd-button-group orientation="horizontal">
+            <nldd-button appearance="primary" text="Besluiten" @click="openBesluiten"></nldd-button>
+          </nldd-button-group>
+        </template>
+        <nldd-spacer size="24"></nldd-spacer>
+        <Gegevens
+          :waarden="indiening.fields"
+          :teksten="vormen?.teksten"
+          :volgorde="vormen?.volgorde"
+          :noem="noemStuk"
+          :herkomst="herkomstVan"
+          :bij="[{ naam: 'grondslag', label: 'Op grond van', waarde: artikelNaam(indiening.basis) }]"
+          label="Gegevens van de aanvraag"
+        />
 
-        <nldd-container gap="8">
-          <nldd-title heading-level="4" size="display-5" text="Wat er is ingediend"></nldd-title>
-          <nldd-container>
-            <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
-          </nldd-container>
-        </nldd-container>
-
-        <nldd-inline-dialog
-          v-if="verzoekenFout"
-          icon="warning"
-          icon-color="critical"
-          text="Wat aan anderen is gevraagd, laadt niet"
-          :supporting-text="verzoekenFout"
-        ></nldd-inline-dialog>
-        <nldd-container v-if="verzoeken.length" gap="8">
-          <nldd-title heading-level="4" size="display-5" text="Gevraagd aan anderen"></nldd-title>
-          <nldd-list appearance="box-base" accessible-label="Gevraagd aan anderen">
-            <nldd-list-item v-for="v in verzoeken" :key="v.verzoek.id" size="md">
+        <template v-if="verzoekenFout">
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-inline-dialog icon="warning" icon-color="critical" text="Wat aan anderen is gevraagd, laadt niet" :supporting-text="verzoekenFout"></nldd-inline-dialog>
+        </template>
+        <template v-if="eerdereVerzoeken.length">
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-title
+            heading-level="4"
+            size="display-5"
+            text="Gevraagd bij een eerdere aanvraag"
+            supporting-text="Deze aanvraag wacht ook op het antwoord."
+          ></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
+          <nldd-list appearance="box-base" accessible-label="Gevraagd bij een eerdere aanvraag">
+            <nldd-list-item v-for="v in eerdereVerzoeken" :key="v.verzoek.id" size="md">
               <nldd-text-cell :text="omschrijving(v.verzoek, casus, 'vastlegging')" :supporting-text="standVan(v)"></nldd-text-cell>
               <nldd-cell>
                 <nldd-tag :text="v.open ? 'Loopt' : 'Antwoord binnen'" :color="v.open ? 'warning' : 'success'" size="sm"></nldd-tag>
               </nldd-cell>
             </nldd-list-item>
           </nldd-list>
-        </nldd-container>
+        </template>
 
-        <nldd-container v-if="laatste && herroeping && !genomen" gap="16">
+        <template v-if="laatste && herroeping && !genomen">
+          <nldd-spacer size="24"></nldd-spacer>
           <nldd-title heading-level="4" size="display-5" text="Het eerdere besluit">
             <nldd-badge slot="end" :text="herroeping.woord" color="warning" size="sm"></nldd-badge>
           </nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
           <nldd-banner
             variant="warning"
             :text="`Het besluit van ${longDate(laatste.recorded_on)} geldt niet meer`"
             :supporting-text="`${herroeping.tekst}.`"
           ></nldd-banner>
-          <nldd-container>
-            <Gegevens :waarden="laatste.outputs" :teksten="vormen?.teksten" label="Uitkomst van het eerdere besluit" />
-          </nldd-container>
-        </nldd-container>
+          <nldd-spacer size="16"></nldd-spacer>
+          <Gegevens :waarden="laatste.outputs" :teksten="vormen?.teksten" label="Uitkomst van het eerdere besluit" />
+        </template>
 
-        <nldd-container v-if="inDePlaats && herroeping && !genomen" gap="16">
+        <template v-if="inDePlaats && herroeping && !genomen">
+          <nldd-spacer size="24"></nldd-spacer>
           <nldd-title
             heading-level="4"
             size="display-5"
@@ -366,93 +553,223 @@ async function beslissen() {
               :color="stand(inDePlaats) ? 'success' : 'critical'"
             ></nldd-tag>
           </nldd-title>
-          <nldd-container>
-            <Gegevens :waarden="inDePlaats.outputs" :teksten="vormen?.teksten" label="Uitkomst van het geldende besluit" />
-          </nldd-container>
-        </nldd-container>
+          <nldd-spacer size="8"></nldd-spacer>
+          <Gegevens :waarden="inDePlaats.outputs" :teksten="vormen?.teksten" label="Uitkomst van het geldende besluit" />
+        </template>
 
-        <nldd-container v-if="besluit" gap="16">
+        <template v-if="besluit">
+          <nldd-spacer size="24"></nldd-spacer>
           <nldd-banner
             :variant="genomen ? 'success' : 'neutral'"
-            :text="genomen ? 'Het besluit is genomen' : `Op deze indiening is besloten op ${longDate(besluit.recorded_on)}`"
+            :text="genomen ? 'Het besluit is genomen' : `Op deze aanvraag is besloten op ${longDate(besluit.recorded_on)}`"
           ></nldd-banner>
+          <nldd-spacer size="24"></nldd-spacer>
           <BesluitWeergave :besluit="besluit" :waarom="waarom" :casus="casus" :vormen="vormen" :cel-naam="naamVanCel" />
-        </nldd-container>
+        </template>
+        <template v-else-if="wacht && !mag">
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-inline-dialog icon="info" text="Een beslisser van deze cel neemt het besluit"></nldd-inline-dialog>
+        </template>
 
-        <nldd-container v-else-if="wacht && mag" gap="16">
-          <nldd-banner
-            v-if="na"
-            variant="neutral"
-            text="Opnieuw beslissen"
-            :supporting-text="`Het nieuwe besluit volgt op ${noemStuk(na) ?? 'het stuk dat het eerdere besluit vernietigde'}.`"
-          ></nldd-banner>
-          <nldd-title
-            heading-level="4"
-            size="display-5"
-            text="Bevindingen"
-            :supporting-text="`Het artikel laat deze punten aan ${naamVanCel(cel)} over. Een oordeel dat u leeg laat, gaat niet mee.`"
-          ></nldd-title>
-          <SpecFormulier
-            v-if="velden.length"
-            :velden="velden"
-            :waarden="bevindingen"
-            :volgorde="vormen?.volgorde"
-            oordeel
-            @zet="(n, v) => (bevindingen[n] = v)"
-          />
-          <nldd-text v-else color="secondary"><p>Dit besluit vraagt {{ naamVanCel(cel) }} geen bevindingen.</p></nldd-text>
-
-          <nldd-inline-dialog
-            v-if="voorvertoningFout"
-            icon="warning"
-            icon-color="critical"
-            text="De voorvertoning lukt niet"
-            :supporting-text="voorvertoningFout"
-          ></nldd-inline-dialog>
-          <nldd-inline-dialog v-else-if="!voorvertoning" variant="loading" text="Het besluit wordt berekend"></nldd-inline-dialog>
-          <nldd-inline-dialog
-            v-else-if="voorvertoning.geweigerd"
-            icon="warning"
-            text="Er is nog geen besluit te berekenen"
-            :supporting-text="weigering"
-          ></nldd-inline-dialog>
-          <BesluitWeergave
-            v-else-if="voorvertoning.voorlopig"
-            :besluit="voorvertoning.voorlopig.besluit"
-            :waarom="voorvertoning.voorlopig.waarom"
+        <template v-if="!namens">
+          <nldd-spacer size="24"></nldd-spacer>
+          <TijdlijnLijst
+            :tijdlijn="tijdlijn"
+            :fout="tijdlijnFout"
             :casus="casus"
-            :vormen="vormen"
-            :cel-naam="naamVanCel"
-            voorlopig
+            kant="medewerker"
+            :teksten="vormen?.teksten"
+            :huidig="id"
+            :opent="opent"
           />
-          <template v-if="voorvertoning?.voorlopig && voorvertoning.automatisch?.length">
-            <nldd-title heading-level="5" size="display-6" text="Daarna doet het systeem zelf"></nldd-title>
-            <nldd-list appearance="box-base" accessible-label="Wat het systeem daarna zelf vastlegt">
-              <nldd-list-item v-for="(a, i) in voorvertoning.automatisch" :key="i" size="md">
-                <nldd-text-cell :text="feitNaam(a.feit)" :supporting-text="`Volgens ${artikelNaam(a.artikel)}`"></nldd-text-cell>
-              </nldd-list-item>
-            </nldd-list>
-          </template>
-          <nldd-text v-if="rekent && voorvertoning" size="sm" color="secondary"><p>De voorvertoning wordt bijgewerkt.</p></nldd-text>
-
-          <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
-          <nldd-button-group>
-            <nldd-button appearance="primary" text="Besluit nemen" :loading="bezig || undefined" @click="beslissen"></nldd-button>
-          </nldd-button-group>
-        </nldd-container>
-        <nldd-inline-dialog v-else-if="wacht" icon="info" text="Een beslisser van deze cel neemt het besluit"></nldd-inline-dialog>
-
-        <TijdlijnLijst
-          v-if="!namens"
-          :tijdlijn="tijdlijn"
-          :fout="tijdlijnFout"
-          :casus="casus"
-          kant="medewerker"
-          :teksten="vormen?.teksten"
-          :huidig="id"
-          :naar="naar"
-        />
+        </template>
       </nldd-container>
     </nldd-simple-section>
   </nldd-page>
+
+  <Teleport to="body">
+    <nldd-sheet width="720px" :open="besluiten && kanBeslissen ? true : undefined" accessible-label="Besluiten" @close="sluitBesluiten">
+      <nldd-page :key="pagina" sticky-header>
+        <nldd-top-title-bar
+          slot="header"
+          heading-level="2"
+          :text="paginaTitel"
+          :back-text="pagina !== 'bevindingen' && velden.length ? 'Besluiten' : ''"
+          :back-href="pagina !== 'bevindingen' && velden.length ? BESLUITEN : ''"
+          dismiss-text="Annuleer"
+          :collapse-anchor="`${pagina}-titel`"
+        ></nldd-top-title-bar>
+        <nldd-simple-section v-if="kanBeslissen">
+          <nldd-container v-if="pagina === 'bevindingen'" ref="bevindingenEl">
+            <nldd-title id="bevindingen-titel" size="display-2" heading-level="2" text="Besluiten" :supporting-text="besluitOver"></nldd-title>
+            <nldd-spacer size="24"></nldd-spacer>
+            <template v-if="na">
+              <nldd-banner
+                variant="neutral"
+                text="Opnieuw beslissen"
+                :supporting-text="`Het nieuwe besluit volgt op ${noemStuk(na) ?? 'het stuk dat het eerdere besluit vernietigde'}.`"
+              ></nldd-banner>
+              <nldd-spacer size="24"></nldd-spacer>
+            </template>
+            <nldd-text>
+              <p>
+                Hieronder staan de
+                <nldd-link :href="HERKOMST" :text="`punten die de wet aan ${naamVanCel(cel)} overlaat`"></nldd-link>.
+              </p>
+            </nldd-text>
+            <nldd-spacer size="16"></nldd-spacer>
+            <SpecFormulier
+              :velden="velden"
+              :waarden="bevindingen"
+              :volgorde="verschenen"
+              :artikelen="false"
+              :fouten="fouten"
+              oordeel
+              @zet="(n, v) => (bevindingen[n] = v)"
+            />
+            <nldd-spacer size="24"></nldd-spacer>
+            <nldd-banner v-if="voorvertoningFout" variant="critical" text="De voorvertoning lukt niet" :supporting-text="voorvertoningFout"></nldd-banner>
+            <nldd-activity-indicator v-else-if="!voorvertoning" text="Het besluit wordt berekend" show-text></nldd-activity-indicator>
+            <nldd-banner
+              v-else-if="voorvertoning.geweigerd && !ontbreekt"
+              variant="warning"
+              text="Er is nog geen besluit te berekenen"
+              :supporting-text="weigering"
+            ></nldd-banner>
+            <template v-else-if="voorvertoning.voorlopig || ontbreekt">
+              <template v-if="rekent || uitkomst">
+                <nldd-text :color="rekent ? 'secondary' : undefined"><p>{{ rekent ? 'De uitkomst wordt bijgewerkt.' : uitkomst }}</p></nldd-text>
+                <nldd-spacer size="16"></nldd-spacer>
+              </template>
+              <nldd-button-group orientation="vertical">
+                <nldd-button appearance="primary" text="Verder naar samenvatting" @click="verder"></nldd-button>
+              </nldd-button-group>
+            </template>
+          </nldd-container>
+
+          <nldd-container v-else-if="pagina === 'herkomst'">
+            <nldd-title id="herkomst-titel" size="display-2" heading-level="2" text="Waar deze punten vandaan komen"></nldd-title>
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-text>
+              <p>Elk punt komt uit de wet. Hieronder staat per artikel welke punten het aan {{ naamVanCel(cel) }} overlaat.</p>
+            </nldd-text>
+            <template v-for="a in herkomstPerArtikel" :key="a.artikel">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-title heading-level="3" size="display-6" :text="a.artikel"></nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-rich-text v-if="a.punten.length">
+                <ul>
+                  <li v-for="p in a.punten" :key="p">{{ p }}</li>
+                </ul>
+              </nldd-rich-text>
+              <template v-if="a.mogelijk.length">
+                <nldd-spacer v-if="a.punten.length" size="16"></nldd-spacer>
+                <nldd-text><p>Kan nog gevraagd worden, afhankelijk van eerdere antwoorden:</p></nldd-text>
+                <nldd-spacer size="8"></nldd-spacer>
+                <nldd-rich-text>
+                  <ul>
+                    <li v-for="p in a.mogelijk" :key="p">{{ p }}</li>
+                  </ul>
+                </nldd-rich-text>
+              </template>
+            </template>
+          </nldd-container>
+
+          <nldd-container v-else>
+            <nldd-title id="samenvatting-titel" size="display-2" heading-level="2" text="Samenvatting" :supporting-text="besluitOver"></nldd-title>
+            <nldd-spacer size="24"></nldd-spacer>
+            <template v-if="na && !velden.length">
+              <nldd-banner
+                variant="neutral"
+                text="Opnieuw beslissen"
+                :supporting-text="`Het nieuwe besluit volgt op ${noemStuk(na) ?? 'het stuk dat het eerdere besluit vernietigde'}.`"
+              ></nldd-banner>
+              <nldd-spacer size="24"></nldd-spacer>
+            </template>
+            <template v-if="!velden.length">
+              <nldd-text color="secondary"><p>Dit besluit vraagt {{ naamVanCel(cel) }} geen bevindingen.</p></nldd-text>
+              <nldd-spacer size="24"></nldd-spacer>
+            </template>
+            <nldd-banner v-if="voorvertoningFout" variant="critical" text="De voorvertoning lukt niet" :supporting-text="voorvertoningFout"></nldd-banner>
+            <nldd-activity-indicator v-else-if="!voorvertoning" text="Het besluit wordt berekend" show-text></nldd-activity-indicator>
+            <nldd-banner
+              v-else-if="voorvertoning.geweigerd"
+              variant="warning"
+              text="Er is nog geen besluit te berekenen"
+              :supporting-text="weigering"
+            ></nldd-banner>
+            <BesluitWeergave
+              v-else-if="voorvertoning.voorlopig"
+              :besluit="voorvertoning.voorlopig.besluit"
+              :waarom="voorvertoning.voorlopig.waarom"
+              :casus="casus"
+              :vormen="vormen"
+              :cel-naam="naamVanCel"
+              :niveau="3"
+              voorlopig
+            />
+            <template v-if="voorvertoning?.voorlopig && voorvertoning.automatisch?.length">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-title heading-level="3" size="display-5" text="Daarna doet het systeem zelf"></nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-list appearance="box-base" accessible-label="Wat het systeem daarna zelf vastlegt">
+                <nldd-list-item v-for="(a, i) in voorvertoning.automatisch" :key="i" size="md">
+                  <nldd-text-cell :text="feitNaam(a.feit)" :supporting-text="`Volgens ${artikelNaam(a.artikel)}`"></nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </template>
+            <template v-if="rekent && voorvertoning">
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-text size="sm" color="secondary"><p>De voorvertoning wordt bijgewerkt.</p></nldd-text>
+            </template>
+
+            <template v-if="melding">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-banner variant="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-banner>
+            </template>
+            <template v-if="voorvertoning?.voorlopig && !voorvertoningFout">
+              <template v-if="nogNiet && !melding">
+                <nldd-spacer size="24"></nldd-spacer>
+                <nldd-banner variant="neutral" text="Nog niet" :supporting-text="nogNiet"></nldd-banner>
+              </template>
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-text><p>{{ gevolg }}</p></nldd-text>
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-button-group orientation="vertical">
+                <nldd-button :appearance="toewijzing === false ? 'destructive' : 'primary'" :text="beslisKnop" @click="bevestig"></nldd-button>
+              </nldd-button-group>
+            </template>
+          </nldd-container>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-sheet>
+  </Teleport>
+
+  <Teleport to="body">
+    <nldd-modal-dialog
+      v-if="kanBeslissen"
+      variant="alert"
+      :open="bevestigen || undefined"
+      :text="bevestigVraag"
+      :supporting-text="`Het besluit wordt vastgelegd in de kroniek van ${naamVanCel(cel)}. Dat is niet terug te draaien: alleen een later besluit kan het herroepen.`"
+      @close="bevestigen = false"
+    >
+      <nldd-button slot="actions" appearance="primary" text="Controleer opnieuw" @click="bevestigen = false"></nldd-button>
+      <nldd-button
+        slot="actions"
+        :appearance="toewijzing === false ? 'destructive' : 'secondary'"
+        :text="beslisKnop"
+        :loading="bezig || undefined"
+        @click="beslissen"
+      ></nldd-button>
+    </nldd-modal-dialog>
+  </Teleport>
+  <StukSheet
+    :stuk="stuk"
+    :kroniek="stukKroniek"
+    :casus="casus"
+    :vormen="vormen"
+    :huidig="id"
+    @sluit="stukId = null"
+  />
 </template>

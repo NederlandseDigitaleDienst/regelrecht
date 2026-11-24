@@ -82,7 +82,7 @@ const rechten = computed<Tab['recht'][]>(() => [
     @afmelden="inloggenApi.uitloggen()"
   >
     <nldd-page v-if="geenToegang && route.name !== 'inloggen'" landmarks="page">
-      <nldd-simple-section width="full">
+      <nldd-simple-section>
         <nldd-inline-dialog icon="warning" :text="geenToegang.kop" :supporting-text="geenToegang.reden">
           <nldd-button slot="actions" appearance="secondary" text="Opnieuw inloggen" @click="router.push('/inloggen')"></nldd-button>
         </nldd-inline-dialog>

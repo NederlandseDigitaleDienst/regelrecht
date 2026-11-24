@@ -37,9 +37,13 @@ const href = (p: Proces): string | undefined => (p.bereikbaar ? openAdres(p.id, 
   <nldd-page landmarks="page" sticky-header :accessible-label="kop">
     <nldd-top-title-bar slot="header" :text="kop" collapse-anchor="organisatie-titel"></nldd-top-title-bar>
     <nldd-simple-section>
-      <nldd-container gap="16">
-        <nldd-identity v-if="organisatie?.logo" :text="organisatie.naam" :avatar-src="organisatie.logo" avatar-alt=""></nldd-identity>
+      <nldd-container>
+        <template v-if="organisatie?.logo">
+          <nldd-identity :text="organisatie.naam" :avatar-src="organisatie.logo" avatar-alt=""></nldd-identity>
+          <nldd-spacer size="16"></nldd-spacer>
+        </template>
         <nldd-title id="organisatie-titel" size="display-3" heading-level="1" :text="kop" :supporting-text="uitleg"></nldd-title>
+        <nldd-spacer size="24"></nldd-spacer>
         <nldd-activity-indicator v-if="!organisatie && !fout" text="De regelingen worden geladen" show-text></nldd-activity-indicator>
         <nldd-inline-dialog
           v-if="fout"
@@ -50,7 +54,6 @@ const href = (p: Proces): string | undefined => (p.bereikbaar ? openAdres(p.id, 
         ></nldd-inline-dialog>
         <nldd-inline-dialog
           v-else-if="organisatie && !organisatie.processen.length"
-          icon="info"
           text="Er is hier nog niets"
           supporting-text="Bij deze organisatie is nog geen regeling aangemeld."
         ></nldd-inline-dialog>
@@ -61,8 +64,9 @@ const href = (p: Proces): string | undefined => (p.bereikbaar ? openAdres(p.id, 
             :href="href(p)"
             :accessible-label="p.bereikbaar ? `${tegelNaam(p)}: ${actie}` : `${tegelNaam(p)}: nu niet bereikbaar`"
           >
-            <nldd-container padding="20" gap="8">
+            <nldd-container padding="20">
               <nldd-title size="display-6" :text="tegelNaam(p)" heading-level="2"></nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
               <nldd-text v-if="p.bereikbaar" color="secondary"><p>{{ actie }}</p></nldd-text>
               <nldd-tag v-else color="warning" icon="warning" text="Nu niet bereikbaar" size="sm"></nldd-tag>
             </nldd-container>

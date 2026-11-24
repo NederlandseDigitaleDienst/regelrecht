@@ -163,12 +163,12 @@ describe('the work queue', () => {
     }
   });
 
-  it('names a submission by its kind and the applicant, as its form has the login fill the name', async () => {
+  it('names a submission by what it asks for and the applicant, as its form has the login fill the name', async () => {
     vormen.indieningen['wet#1'] = { soort: 'AANVRAAG', basis: 'wet#1', besluit: 'wet#1', cel: 'gemeente', velden: [], systeem: { naam_aanvrager: { soort: 'inloggen', inlog: 'naam' } } };
     werk.value = [{ stuk: { ...aanvraag, fields: { naam_aanvrager: 'P. Voorbeeld' } } }];
     try {
       const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
-      expect(rijenVan(w).map((r) => r.find('nldd-text-cell').attributes('text'))).toContain('Aanvraag P. Voorbeeld');
+      expect(rijenVan(w).map((r) => r.find('nldd-text-cell').attributes('text'))).toContain('Vergunning · P. Voorbeeld');
     } finally {
       delete vormen.indieningen['wet#1'];
       werk.value = [{ stuk: aanvraag }];
@@ -203,6 +203,17 @@ describe('the work queue', () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
     expect(teOpenen(w)).toBe(1);
     expect(knoppen(w)).not.toContain('Advies uitgebracht vastleggen');
+  });
+
+  it('opens nothing for an address that names no submission of the cell, and asks for a choice', async () => {
+    const recht = [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }];
+    const open = await toon(recht, 'alle', 'a');
+    expect(open.findComponent({ name: 'BehandelenPaneel' }).props('id')).toBe('a');
+    // Such as an address from before the test store was emptied.
+    const weg = await toon(recht, 'alle', 'weg');
+    expect(weg.findComponent({ name: 'BehandelenPaneel' }).exists()).toBe(false);
+    expect(weg.find('[slot="main"]').attributes('empty')).toBe('true');
+    expect(weg.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).toContain('Kies een aanvraag');
   });
 
   it('lets a reader open a submission to read it, and says a decider decides', async () => {
@@ -251,7 +262,7 @@ describe('the work queue', () => {
     // What the list holds is behind the button beside its title.
     const uitleg = w.find('#lijst-titel nldd-icon-button[slot="end"] nldd-popover[slot="popup"]');
     expect(uitleg.text()).toBe('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
-    expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).toContain('Kies een indiening');
+    expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).toContain('Kies een aanvraag');
     // The grant waits since its last act, 14 October; the submission came in on the 13th.
     const rijen = rijenVan(w).map((r) => r.find('nldd-text-cell'));
     expect(rijen).toHaveLength(2);
@@ -316,12 +327,13 @@ describe('the work queue', () => {
       const dialoog = w.find('nldd-inline-dialog');
       expect(dialoog.attributes('text')).toBe('U bent helemaal klaar');
       expect(dialoog.attributes('supporting-text')).toContain('Eén aanvraag wacht op een andere partij');
-      expect(dialoog.attributes('icon')).toBe('done');
+      // An empty state carries no icon.
+      expect(dialoog.attributes('icon')).toBeUndefined();
       expect(dialoog.attributes('heading-level')).toBe('3');
       // No title and no description above an empty list: the dialog says what matters.
       expect(w.find('#lijst-titel').exists()).toBe(false);
       // Nothing to choose, so the main pane does not ask for a choice.
-      expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).not.toContain('Kies een indiening');
+      expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).not.toContain('Kies een aanvraag');
       expect(w.findAll('nldd-text').map((t) => t.text())).not.toContain('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
     } finally {
       vervolg.push(...bewaard);

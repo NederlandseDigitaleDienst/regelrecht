@@ -141,7 +141,7 @@ async function indienen() {
           :color="uitkomst ? 'success' : 'critical'"
         ></nldd-tag>
       </nldd-title>
-      <nldd-inline-dialog v-if="!besluit" icon="info" text="Dit besluit staat niet in uw dossier"></nldd-inline-dialog>
+      <nldd-inline-dialog v-if="!besluit" text="Dit besluit staat niet in uw dossier"></nldd-inline-dialog>
       <template v-else>
         <template v-if="herroeping">
           <nldd-banner variant="warning" text="Dit besluit geldt niet meer" :supporting-text="herroeping"></nldd-banner>
@@ -168,7 +168,7 @@ async function indienen() {
         <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
         <nldd-spacer size="24"></nldd-spacer>
 
-        <nldd-title size="display-5"><h4>Waarom</h4></nldd-title>
+        <nldd-title size="display-5"><h4>Waarop het besluit rust</h4></nldd-title>
         <nldd-text color="secondary"><p>Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte.</p></nldd-text>
         <nldd-spacer size="8"></nldd-spacer>
         <WaaromLijst
@@ -224,15 +224,20 @@ async function indienen() {
           dismiss-text="Annuleer"
         ></nldd-top-title-bar>
         <nldd-simple-section v-if="keuze">
-          <nldd-container gap="16">
+          <nldd-container>
             <nldd-text color="secondary">
               <p>
                 De vragen komen uit de wet. Wat het besluit al vastlegt, zoals de termijn, neemt
                 {{ naamVanCel(keuze.cel) }} uit het besluit zelf.
               </p>
             </nldd-text>
+            <nldd-spacer size="16"></nldd-spacer>
             <SpecFormulier :velden="velden" :waarden="waarden" :volgorde="vormen?.volgorde" @zet="(n, v) => (waarden[n] = v)" />
-            <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
+            <template v-if="melding">
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-inline-dialog icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
+            </template>
+            <nldd-spacer size="24"></nldd-spacer>
             <nldd-button-group>
               <nldd-button appearance="primary" :text="`${soortNaam(keuze)} indienen`" :loading="bezig || undefined" @click="indienen"></nldd-button>
             </nldd-button-group>

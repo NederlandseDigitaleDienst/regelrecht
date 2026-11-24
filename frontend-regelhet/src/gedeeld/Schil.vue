@@ -61,6 +61,8 @@ const kopTitel = computed(
     props.titel ??
     (organisatie.value?.voorkant ? organisatie.value.naam : zichtbaar.value.length ? null : serverTitel.value),
 );
+/** The bar's title sits at its left edge, with no button before it: then the bar takes extra room on the left. */
+const titelLinks = computed(() => !!kopTitel.value && !terugNaarOrganisatie.value);
 const huidig = (t: Tab) => isHuidig(t, route.name);
 const open = (t: Tab) => {
   if (!huidig(t) || route.path !== t.pad) void router.push(t.pad);
@@ -82,7 +84,7 @@ const wijzen = computed(
     <nldd-bar-split-view>
       <div slot="proefstrook"><ProefStrook :klok="klok" /></div>
 
-      <nldd-container slot="primary-bar" above="md" padding="8" padding-left="16">
+      <nldd-container slot="primary-bar" above="md" padding="8" :padding-left="titelLinks ? '16' : undefined">
         <nldd-toolbar size="md">
           <nldd-toolbar-item v-if="terugNaarOrganisatie" slot="start" :priority="0">
             <nldd-button appearance="neutral-transparent" start-icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-button>
@@ -140,7 +142,7 @@ const wijzen = computed(
         </nldd-toolbar>
       </nldd-container>
 
-      <nldd-container v-if="!zichtbaar.length" slot="primary-bar-sm" only="sm" padding="8" padding-left="16">
+      <nldd-container v-if="!zichtbaar.length" slot="primary-bar-sm" only="sm" padding="8" :padding-left="titelLinks ? '16' : undefined">
         <nldd-toolbar size="md">
           <nldd-toolbar-item v-if="terugNaarOrganisatie" slot="start" :priority="0">
             <nldd-icon-button size="md" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-icon-button>

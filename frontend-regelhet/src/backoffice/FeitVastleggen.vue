@@ -126,11 +126,19 @@ async function opslaan() {
       <nldd-page>
         <nldd-top-title-bar slot="header" heading-level="2" :text="titel" dismiss-text="Annuleer"></nldd-top-title-bar>
         <nldd-simple-section v-if="keuze">
-          <nldd-container gap="16">
-            <slot></slot>
+          <nldd-container>
+            <template v-if="$slots.default">
+              <slot></slot>
+              <nldd-spacer size="16"></nldd-spacer>
+            </template>
             <nldd-text color="secondary"><p>De gegevens komen uit {{ artikelNaam(artikelVan(keuze.handeling.feit)) }}.</p></nldd-text>
+            <nldd-spacer size="16"></nldd-spacer>
             <SpecFormulier :velden="formvelden" :waarden="waarden" :volgorde="volgorde" @zet="(n, v) => (waarden[n] = v)" />
-            <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
+            <template v-if="melding">
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-inline-dialog icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
+            </template>
+            <nldd-spacer size="24"></nldd-spacer>
             <nldd-button-group>
               <nldd-button appearance="primary" text="Vastleggen" :loading="bezig || undefined" @click="opslaan"></nldd-button>
             </nldd-button-group>

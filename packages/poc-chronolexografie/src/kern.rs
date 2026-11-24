@@ -3361,6 +3361,12 @@ pub struct Voorvertoning<T> {
     /// open term of its own (RFC-048 §2), as fields of the form: the
     /// authority judges them. Such a field says so (`beleid`).
     pub stil: Vec<Value>,
+    /// Every finding a policy that fills a term of the decision may leave to
+    /// the authority, whether or not this case reaches it, as fields of the
+    /// form: so a screen can say up front what may still be asked. Only an
+    /// execution says which are (`stil`); a policy that fills a term of a
+    /// regulation the decision reads is not among these.
+    pub mogelijk: Vec<Value>,
 }
 
 /// The open term that the engine says is required and has no judgement, in
@@ -3468,10 +3474,26 @@ fn voorvertonen<T>(
             veld
         })
         .collect();
+    let mogelijk = eigen_shape
+        .terms
+        .iter()
+        .filter(|t| {
+            t.is_finding(wie)
+                && t.declared_by() != eigen_shape.basis()
+                && !gevraagd.contains(&t.id)
+                && !van_cel(&t.id)
+        })
+        .map(|t| {
+            let mut veld = veld(&decision::finding_field(t));
+            veld["beleid"] = json!(true);
+            veld
+        })
+        .collect();
     Ok(Voorvertoning {
         voorlopig,
         geweigerd,
         stil,
+        mogelijk,
     })
 }
 
@@ -4091,6 +4113,7 @@ mod tests {
             voorlopig: v.voorlopig.map(f),
             geweigerd: v.geweigerd,
             stil: v.stil,
+            mogelijk: v.mogelijk,
         }
     }
 
@@ -5577,6 +5600,14 @@ mod tests {
         let leeg = voorvertoning_besluit(&corpus, &cell, &app.id, &Map::new(), op).unwrap();
         let eerste = namen(&leeg.stil);
         assert_eq!(eerste.len(), 1);
+        // What may still be asked is known before the first answer.
+        let mogelijk = namen(&leeg.mogelijk);
+        assert_eq!(mogelijk.len(), 5, "{mogelijk:?}");
+        assert!(
+            mogelijk.iter().all(|n| n.starts_with("vermoedelijk_")),
+            "{mogelijk:?}"
+        );
+        assert!(leeg.mogelijk.iter().all(|v| v["beleid"] == json!(true)));
         assert!(eerste[0].starts_with("vermoedelijk_"), "{eerste:?}");
         assert_eq!(
             leeg.stil[0]["basis"],

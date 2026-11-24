@@ -839,7 +839,7 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
     );
     assert_eq!(
         vormen["teksten"]["adres_aanvrager"]["record"]["group"],
-        json!("Persoonsgegevens")
+        json!("Aanvrager")
     );
     // The deadline of a submission follows from the law: the date Awb 6:9
     // reads the receipt of an objection or appeal against. An application
