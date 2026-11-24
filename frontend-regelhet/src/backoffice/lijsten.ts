@@ -9,7 +9,7 @@ export const LIJSTEN = [
   {
     naam: 'te-doen',
     tekst: 'Te doen',
-    icoon: 'todos',
+    icoon: 'to-do',
     uitleg: 'Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.',
   },
   {
