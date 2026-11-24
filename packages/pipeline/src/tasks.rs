@@ -138,6 +138,11 @@ pub struct RunningTaskJob {
     pub target_path: Option<String>,
     pub status: JobStatus,
     pub created_at: DateTime<Utc>,
+    /// `article` of `law` bij een gerichte verrijking (payload `mode`), zodat
+    /// de editor kan zeggen dat artikel 3 verrijkt wordt en niet de hele wet.
+    pub mode: Option<String>,
+    /// De werklijst van een gerichte verrijking (payload `articles`).
+    pub articles: Option<serde_json::Value>,
 }
 
 /// Lopende (pending/processing) taak-flow-jobs van een account, nieuwste
@@ -151,7 +156,7 @@ pub async fn list_running_task_jobs_for_account(
     let jobs = sqlx::query_as::<_, RunningTaskJob>(
         "SELECT id AS job_id, job_type, law_id, traject_ref, \
                 COALESCE(payload->>'target_path', payload->>'filename') AS target_path, \
-                status, created_at \
+                status, created_at, payload->>'mode' AS mode, payload->'articles' AS articles \
          FROM jobs \
          WHERE job_type IN ('enrich', 'document_convert', 'law_convert', 'traject_harvest') \
            AND status IN ('pending', 'processing') \
