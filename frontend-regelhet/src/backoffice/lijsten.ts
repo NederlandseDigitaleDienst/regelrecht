@@ -1,8 +1,8 @@
 // The lists the work queue sorts its rows into (WerkvoorraadView.vue). Te
-// doen holds everything whose next step is on the executor's side, the
-// others are views on the same rows: what waits for a decision, the grants
-// whose acts are not all done, and what waits on someone else, such as an
-// external party's answer to a request or an act the system takes itself.
+// doen holds everything whose next step is on the executor's side, Wacht op
+// anderen what waits on someone else, such as an external party's answer to a
+// request or an act the system takes itself. Na toekenning shows the grants
+// whose acts are not all done, how far each is, whoever takes the next act.
 
 /** The lists, in the order the sidebar shows them. */
 export const LIJSTEN = [
@@ -12,7 +12,6 @@ export const LIJSTEN = [
     icoon: 'todos',
     uitleg: 'Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.',
   },
-  { naam: 'te-beslissen', tekst: 'Te beslissen', icoon: 'inbox', uitleg: 'De indieningen die op een besluit wachten.' },
   {
     naam: 'na-toekenning',
     tekst: 'Na toekenning',
@@ -34,12 +33,9 @@ export function lijstVan(waarde: unknown): Lijst {
   return LIJSTEN.find((l) => l.naam === waarde)?.naam ?? 'te-doen';
 }
 
-/**
- * The lists a submission without a decision is in: it is to decide, and
- * to do unless it waits on the answer to a request.
- */
+/** The list a submission without a decision is in: to do, unless it waits on the answer to a request. */
 export function lijstenVanIndiening(wachtOpAntwoord: boolean): Lijst[] {
-  return wachtOpAntwoord ? ['te-beslissen', 'wacht'] : ['te-doen', 'te-beslissen'];
+  return wachtOpAntwoord ? ['wacht'] : ['te-doen'];
 }
 
 /**

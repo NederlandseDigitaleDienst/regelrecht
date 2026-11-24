@@ -9,8 +9,8 @@ describe('the lists of the work queue', () => {
   });
 
   it('keeps a submission that waits on an answer out of Te doen', () => {
-    expect(lijstenVanIndiening(false)).toEqual(['te-doen', 'te-beslissen']);
-    expect(lijstenVanIndiening(true)).toEqual(['te-beslissen', 'wacht']);
+    expect(lijstenVanIndiening(false)).toEqual(['te-doen']);
+    expect(lijstenVanIndiening(true)).toEqual(['wacht']);
   });
 
   it('keeps a grant whose next act the system takes out of Te doen', () => {

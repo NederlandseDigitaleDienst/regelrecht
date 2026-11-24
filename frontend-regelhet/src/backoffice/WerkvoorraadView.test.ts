@@ -109,8 +109,9 @@ type Scherm = Awaited<ReturnType<typeof toon>>;
 const knoppen = (w: Scherm) => w.findAll('nldd-button').map((b) => b.attributes('text'));
 /** The rows of the open list. */
 const rijenVan = (w: Scherm, lijst = 'Te doen') => w.findAll(`nldd-list[accessible-label="${lijst}"] nldd-list-item`);
-/** The rows of Te beslissen, which holds only submissions, that open one beside it. */
-const teOpenen = (w: Scherm) => rijenVan(w, 'Te beslissen').filter((r) => r.attributes('button') !== undefined).length;
+/** The rows of Te doen that open a submission beside it. */
+const teOpenen = (w: Scherm) =>
+  rijenVan(w).filter((r) => r.attributes('button') !== undefined && r.find('nldd-text-cell').attributes('supporting-text')?.startsWith('Ontvangen')).length;
 /** The lists the sidebar offers, with how many rows each holds. */
 const lijsten = (w: Scherm) =>
   w.findAll('nldd-list[accessible-label="Lijsten"] nldd-list-item').map((r) => r.findAll('nldd-text-cell').map((c) => c.attributes('text')).join(' '));
@@ -148,13 +149,13 @@ describe('the work queue', () => {
   });
 
   it('lets a decider of the cell open a submission to decide on it', async () => {
-    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], 'te-beslissen');
+    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
     expect(teOpenen(w)).toBe(1);
     expect(knoppen(w)).not.toContain('Advies uitgebracht vastleggen');
   });
 
   it('lets a reader open a submission to read it, and says a decider decides', async () => {
-    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: false }], 'te-beslissen');
+    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: false }]);
     expect(teOpenen(w)).toBe(1);
     expect(w.text()).toContain('Een beslisser neemt het besluit');
   });
@@ -201,14 +202,14 @@ describe('the work queue', () => {
     expect(rijen).toHaveLength(2);
     expect(rijen[0]?.attributes('supporting-text')).toContain('Ontvangen 13 oktober 2026');
     expect(rijen[1]?.attributes('text')).toBe('Vergunning voor A. de Vries');
-    expect(lijsten(w)).toEqual(['Te doen 2', 'Te beslissen 1', 'Na toekenning 1']);
+    expect(lijsten(w)).toEqual(['Te doen 2', 'Na toekenning 1']);
   });
 
   it('moves a submission that waits on the answer to a request out of Te doen', async () => {
     verzoeken.value = [verzoek];
     try {
       const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
-      expect(lijsten(w)).toEqual(['Te doen 1', 'Te beslissen 1', 'Na toekenning 1', 'Wacht op anderen 1']);
+      expect(lijsten(w)).toEqual(['Te doen 1', 'Na toekenning 1', 'Wacht op anderen 1']);
       const wacht = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], 'wacht');
       const rij = rijenVan(wacht, 'Wacht op anderen');
       expect(rij).toHaveLength(1);
@@ -217,7 +218,6 @@ describe('the work queue', () => {
       verzoeken.value = [{ ...verzoek, open: false }];
       expect(lijsten(await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]))).toEqual([
         'Te doen 2',
-        'Te beslissen 1',
         'Na toekenning 1',
       ]);
     } finally {
