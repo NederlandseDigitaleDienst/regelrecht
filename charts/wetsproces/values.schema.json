@@ -270,6 +270,96 @@
         }
       }
     },
+    "voorkant": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/definitions/objectIdOrEmpty"
+        },
+        "naam": {
+          "type": "string"
+        },
+        "logo": {
+          "type": "string",
+          "pattern": "^$|^https://[^\\s]+$"
+        },
+        "processen": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "naam",
+              "burger",
+              "backoffice"
+            ],
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/objectId"
+              },
+              "naam": {
+                "type": "string",
+                "minLength": 1
+              },
+              "burger": {
+                "$ref": "#/definitions/procesSide"
+              },
+              "backoffice": {
+                "$ref": "#/definitions/procesSide"
+              }
+            }
+          }
+        },
+        "keyImage": {
+          "type": "object",
+          "required": [
+            "ref"
+          ],
+          "properties": {
+            "ref": {
+              "type": "string",
+              "minLength": 1
+            },
+            "pullPolicy": {
+              "enum": [
+                "Always",
+                "IfNotPresent",
+                "Never"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "organisatie": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/objectIdOrEmpty"
+        },
+        "naam": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^$|^https://[^\\s/]+/?$"
+        },
+        "medewerkersUrl": {
+          "type": "string",
+          "pattern": "^$|^https://[^\\s/]+/?$"
+        },
+        "sleutelUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://[^\\s]+$"
+        },
+        "sleutelJwk": {
+          "type": "string"
+        }
+      }
+    },
     "theme": {
       "type": "object",
       "properties": {
@@ -507,6 +597,33 @@
         },
         "keySecret": {
           "type": "string"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "objectId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?/[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "objectIdOrEmpty": {
+      "type": "string",
+      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?/[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    },
+    "procesSide": {
+      "type": "object",
+      "required": [
+        "intern",
+        "publiek"
+      ],
+      "properties": {
+        "intern": {
+          "type": "string",
+          "pattern": "^https?://[^\\s/]+(:[0-9]+)?/?$"
+        },
+        "publiek": {
+          "type": "string",
+          "pattern": "^https://[^\\s/]+/?$"
         }
       }
     }

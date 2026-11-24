@@ -1,10 +1,23 @@
-{{/* The hostname the app is served on. */}}
+{{/*
+The hostname the app is served on; for an organisation's front the base of
+its two hosts, by default <release>.<domain>.
+*/}}
 {{- define "wetsproces.host" -}}
 {{- if .Values.host -}}
 {{- .Values.host -}}
+{{- else if .Values.voorkant.enabled -}}
+{{- printf "%s.%s" .Release.Name (required "domain is required" .Values.domain) -}}
 {{- else -}}
 {{- printf "wetsproces.%s" (required "domain is required" .Values.domain) -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+"true" when the release keeps its chronicles in PostgreSQL: database.enabled,
+except on an organisation's front, which keeps none.
+*/}}
+{{- define "wetsproces.database" -}}
+{{- if and .Values.database.enabled (not .Values.voorkant.enabled) -}}true{{- end -}}
 {{- end -}}
 
 {{/* The case path, refused when it climbs out of the clone. */}}
@@ -39,15 +52,20 @@ wetsproces.surface on the host of wetsproces.host, or, with surfaces.split,
 one per surface on a host of its own. Each item has `name` (the name of its
 Deployment and Service), `surface`, `host` and `suffix` (empty for the single
 instance, so its names stay what they were).
+
+An organisation's front always has an instance per side, which share
+nothing, by default on <host> and <first label of host>-medewerkers.
 */}}
 {{- define "wetsproces.instances" -}}
 {{- $base := include "wetsproces.host" . -}}
-{{- if .Values.surfaces.split -}}
-{{- if not .Values.database.enabled -}}
+{{- $front := .Values.voorkant.enabled -}}
+{{- if or .Values.surfaces.split $front -}}
+{{- if not (or .Values.database.enabled $front) -}}
 {{- fail "surfaces.split needs database.enabled: the two instances share their chronicles, and the store in memory cannot be shared" -}}
 {{- end -}}
-{{- $burger := .Values.surfaces.burger.host | default (printf "burger.%s" $base) -}}
-{{- $backoffice := .Values.surfaces.backoffice.host | default (printf "medewerkers.%s" $base) -}}
+{{- $labels := splitList "." $base -}}
+{{- $burger := .Values.surfaces.burger.host | default (ternary $base (printf "burger.%s" $base) $front) -}}
+{{- $backoffice := .Values.surfaces.backoffice.host | default (ternary (printf "%s-medewerkers.%s" (first $labels) (rest $labels | join ".")) (printf "medewerkers.%s" $base) $front) -}}
 {{- if eq $burger $backoffice -}}
 {{- fail "surfaces.burger.host and surfaces.backoffice.host must differ: two HTTPS listeners on one host conflict" -}}
 {{- end -}}
@@ -67,8 +85,9 @@ checks the same; these guards only say it earlier.
 */}}
 {{- define "wetsproces.checkLogin" -}}
 {{- $w := .Values.wetsproces -}}
+{{- include "wetsproces.checkOrganisatie" . -}}
 {{- if eq $w.mode "stable" -}}
-{{- if not .Values.database.enabled -}}
+{{- if not (include "wetsproces.database" .) -}}
 {{- fail "wetsproces.mode stable keeps the chronicles in PostgreSQL: set database.enabled" -}}
 {{- end -}}
 {{- range include "wetsproces.instances" . | fromJsonArray -}}
@@ -258,5 +277,71 @@ empty when the only instance is the back office.
 {{- if ne .surface "backoffice" -}}
 {{- .host -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+What an organisation's front (voorkant) and a process of an organisation
+(organisatie) need, refused at render time like the login above.
+*/}}
+{{- define "wetsproces.checkOrganisatie" -}}
+{{- $v := .Values.voorkant -}}
+{{- $o := .Values.organisatie -}}
+{{- if $v.enabled -}}
+{{- if $o.id -}}
+{{- fail "voorkant.enabled and organisatie.id exclude each other: a release is an organisation's front or a process" -}}
+{{- end -}}
+{{- if not $v.id -}}
+{{- fail "voorkant.enabled needs voorkant.id, <namespace>/<name> of the Organisatie" -}}
+{{- end -}}
+{{- if not $v.naam -}}
+{{- fail "voorkant.enabled needs voorkant.naam, the name the front shows" -}}
+{{- end -}}
+{{- if ne .Values.wetsproces.mode "test" -}}
+{{- fail "voorkant.enabled runs in test mode only for now: the front keeps its sessions in memory" -}}
+{{- end -}}
+{{- if .Values.fsc4b.enabled -}}
+{{- fail "fsc4b.enabled is for a process: an organisation's front serves no FSC voor Burgers" -}}
+{{- end -}}
+{{- if or .Values.koppeling.partij .Values.koppeling.peers .Values.koppeling.keySecret -}}
+{{- fail "koppeling links the processes of a case: an organisation's front has no cell, so set it on the processes" -}}
+{{- end -}}
+{{- $ids := list -}}
+{{- range $v.processen -}}
+{{- if has .id $ids -}}
+{{- fail (printf "voorkant.processen names %s twice" .id) -}}
+{{- end -}}
+{{- $ids = append $ids .id -}}
+{{- end -}}
+{{- end -}}
+{{- if $o.id -}}
+{{- if not (and $o.url $o.medewerkersUrl) -}}
+{{- fail "organisatie.id needs organisatie.url and organisatie.medewerkersUrl, for the link back" -}}
+{{- end -}}
+{{- if eq .Values.wetsproces.mode "stable" -}}
+{{- if not $o.sleutelJwk -}}
+{{- fail "organisatie.id in stable mode needs organisatie.sleutelJwk: a stable process fetches no key over the network" -}}
+{{- end -}}
+{{- else if not (or $o.sleutelUrl $o.sleutelJwk) -}}
+{{- fail "organisatie.id needs organisatie.sleutelUrl or organisatie.sleutelJwk, the key of the front" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/* The ConfigMap with the processes and the Secret with the key of a front. */}}
+{{- define "wetsproces.organisatieName" -}}
+{{- printf "%s-organisatie" .Release.Name -}}
+{{- end -}}
+
+{{/*
+The name of the Job that generates the Secrets. With Keycloak it keeps the
+name it had when it made only the Secret of Keycloak, so an upgrade replaces
+its objects instead of leaving the old ones behind.
+*/}}
+{{- define "wetsproces.secretsJobName" -}}
+{{- if .Values.keycloak.enabled -}}
+{{- printf "%s-secrets" (include "wetsproces.keycloakName" .) -}}
+{{- else -}}
+{{- printf "%s-secrets" .Release.Name -}}
 {{- end -}}
 {{- end -}}

@@ -1,4 +1,4 @@
-{{- if .Values.database.enabled }}
+{{- if include "wetsproces.database" . }}
 {{- if not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1/Cluster") }}
 {{- fail "database.enabled needs the CloudNativePG operator on the cluster (postgresql.cnpg.io/v1 Cluster); set database.enabled=false and surfaces.split=false for the setup in memory" }}
 {{- end }}

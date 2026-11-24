@@ -1,6 +1,17 @@
+{{- if .Values.voorkant.enabled -}}
+wetsproces runs as the front of {{ .Values.voorkant.naam }} ({{ .Values.voorkant.id }}),
+in {{ .Values.wetsproces.mode }} mode, {{ ternary "logging in through Keycloak" "with the test login" (eq .Values.wetsproces.login "oidc") }}.
+Registered processes: {{ len (.Values.voorkant.processen | default list) }}{{ range .Values.voorkant.processen }}
+  {{ .id }}{{ end }}
+Signing key: Secret {{ include "wetsproces.organisatieName" . }}, key private-key.
+{{- else -}}
 wetsproces runs the case from {{ .Values.case.repoUrl }} at {{ .Values.case.ref }} ({{ .Values.case.path }}),
 in {{ .Values.wetsproces.mode }} mode, {{ ternary "logging in through Keycloak" "with the test login" (eq .Values.wetsproces.login "oidc") }}.
-Chronicles: {{ if .Values.database.enabled }}PostgreSQL, CNPG Cluster {{ include "wetsproces.dbCluster" . }}{{ else }}in memory, gone at every restart{{ end }}.
+Chronicles: {{ if include "wetsproces.database" . }}PostgreSQL, CNPG Cluster {{ include "wetsproces.dbCluster" . }}{{ else }}in memory, gone at every restart{{ end }}.
+{{- with .Values.organisatie }}{{ if .id }}
+Organisation: {{ .id }}, front at {{ .url }}.
+{{- end }}{{ end }}
+{{- end }}
 {{- if .Values.gateway.enabled }}
 
 Addresses:

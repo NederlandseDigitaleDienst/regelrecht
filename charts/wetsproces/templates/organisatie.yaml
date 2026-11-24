@@ -1,0 +1,16 @@
+{{- if .Values.voorkant.enabled }}
+# The processes registered with this organisation's front, as the file the
+# server reads at WETSPROCES_PROCESSEN. The Fundament plugin writes the list
+# into the values; the checksum on the Deployments restarts the front on a
+# change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "wetsproces.organisatieName" . }}
+  labels:
+    {{- include "wetsproces.labels" . | nindent 4 }}
+    app.kubernetes.io/component: organisatie
+data:
+  processen.yaml: |
+    {{- dict "processen" (.Values.voorkant.processen | default list) | toYaml | nindent 4 }}
+{{- end }}

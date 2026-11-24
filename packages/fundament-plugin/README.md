@@ -322,6 +322,67 @@ helm template wetsproces charts/wetsproces --set domain=cluster-a.fieldlab2026.n
 The operator fills the client secrets and the test password in from the Secret
 `secretName`, in the namespace of the import.
 
+## The chart for an organisation
+
+An organisation is one front over several wetsprocessen: one address for
+citizens, one for employees, one login. The front is the same server in the
+role `organisatie`, installed from the same chart with `voorkant.enabled`. Each
+process stays a release of its own and, with `organisatie.id`, accepts what
+the front signs. Both blocks are off by default, and a release that sets
+neither renders as it did before.
+
+With `voorkant.enabled` the chart:
+
+- runs an instance per side, citizens on `host` and employees on `<first label
+  of host>-medewerkers` beside it, so behind the shared Gateway both stay one
+  label under the wildcard. Without `host` the base is `<release>.<domain>`,
+  and `surfaces.*.host` overrides either;
+- clones no case and makes no database, whatever `case` and `database` say;
+  the sessions of the front live in memory, so it refuses stable mode for now;
+- writes `voorkant.processen` into the ConfigMap `<release>-organisatie`, as the
+  file the server reads at `WETSPROCES_PROCESSEN`. A checksum of the list on
+  the pods restarts the front when a process registers or leaves;
+- generates a P-256 key once, in the Secret `<release>-organisatie` under
+  `private-key`, with the same Job that makes the Secret of Keycloak. A step
+  with `alpine/openssl` writes the key to a volume in memory, because the image
+  with `kubectl` has no openssl. The Secret stays behind after an uninstall,
+  like the one of Keycloak.
+
+```yaml
+voorkant:
+  enabled: true
+  id: tnt-rr-voorbeeld--wilgendaal/wilgendaal    # <namespace>/<name> of the Organisatie
+  naam: Gemeente Wilgendaal
+  logo: https://wilgendaal.example.org/logo.svg  # optional
+  processen:
+    - id: tnt-rr-voorbeeld--parkeerkaart/parkeerkaart
+      naam: parkeerkaart
+      burger:
+        intern: http://parkeerkaart-burger.tnt-rr-voorbeeld--parkeerkaart.svc.cluster.local:8000
+        publiek: https://parkeerkaart.cluster-a.fieldlab2026.nl
+      backoffice:
+        intern: http://parkeerkaart-backoffice.tnt-rr-voorbeeld--parkeerkaart.svc.cluster.local:8000
+        publiek: https://parkeerkaart-medewerkers.cluster-a.fieldlab2026.nl
+```
+
+A process of that organisation keeps its own hosts, case and database. The
+chart gives both its instances the process id `<namespace>/<release>`, the
+organisation's id, name and key address, and a link back: the citizens'
+instance to `url`, the employees' instance to `medewerkersUrl`.
+
+```yaml
+organisatie:
+  id: tnt-rr-voorbeeld--wilgendaal/wilgendaal
+  naam: Gemeente Wilgendaal
+  url: https://wilgendaal.cluster-a.fieldlab2026.nl
+  medewerkersUrl: https://wilgendaal-medewerkers.cluster-a.fieldlab2026.nl
+  sleutelUrl: http://wilgendaal-backoffice.tnt-rr-voorbeeld--wilgendaal.svc.cluster.local:8000/organisatie/v1/sleutel
+```
+
+`sleutelUrl` is for test mode. A process in stable mode fetches no key over the
+network and needs `sleutelJwk`, the front's public key pinned in the values.
+Both examples are complete in `charts/wetsproces/ci/`, where CI renders them.
+
 ## Console
 
 The plugin adds **Wetsprocessen** to the project sidebar, under the heading

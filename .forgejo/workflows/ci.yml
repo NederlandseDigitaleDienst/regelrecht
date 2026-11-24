@@ -266,6 +266,56 @@ jobs:
             --set keycloak.enabled=true --set keycloak.host=a-login.example.org \
             | grep -cE "hostname: a(-medewerkers|-login)?\.example\.org")
           [ "$n" = 3 ] || { echo "expected 3 listeners for the plugin's stable mode, got $n"; exit 1; }
+          # The front of an organisation and a process of one, from the
+          # example values in the chart's ci/ (the values contract of the
+          # plugin). The front needs no CloudNativePG: it keeps no chronicles.
+          FRONT="-f $C/ci/voorkant-values.yaml"
+          PROC="-f $C/ci/organisatie-values.yaml"
+          lacks() {
+            unwanted="$1"; shift
+            out="$(helm template wetsproces "$C" --set domain=example.org "$@")"
+            case "$out" in
+              *"$unwanted"*) echo "the render has '$unwanted': $*"; exit 1 ;;
+            esac
+          }
+          helm lint "$C" --strict $FRONT
+          helm lint "$C" --strict $PROC $SMALL
+          front="$(helm template wilgendaal "$C" -n org $FRONT)"
+          n=$(printf '%s\n' "$front" | grep -c "^kind: Deployment")
+          [ "$n" = 2 ] || { echo "expected a Deployment per side for the front, got $n"; exit 1; }
+          n=$(printf '%s\n' "$front" | grep -cE "hostname: wilgendaal(-medewerkers)?\.cluster-a\.fieldlab2026\.nl")
+          [ "$n" = 2 ] || { echo "expected 2 listeners for the front, got $n"; exit 1; }
+          n=$(printf '%s\n' "$front" | grep -c "value: organisatie$")
+          [ "$n" = 2 ] || { echo "expected WETSPROCES_ROL organisatie on both instances, got $n"; exit 1; }
+          case "$front" in *clone-case*|*WETSPROCES_MANIFEST*|*"kind: Cluster"*)
+            echo "the front clones a case or has a database"; exit 1 ;; esac
+          case "$front" in *"id: tnt-rr-voorbeeld--parkeerkaart/parkeerkaart"*) ;;
+            *) echo "the ConfigMap of the front lacks its processes"; exit 1 ;; esac
+          case "$front" in *"checksum/processen:"*) ;;
+            *) echo "the front does not restart on a new process"; exit 1 ;; esac
+          case "$front" in *"ec_paramgen_curve:P-256"*) ;;
+            *) echo "the Job makes no signing key for the front"; exit 1 ;; esac
+          # Without hosts the front sits on <release> and <release>-medewerkers
+          # (here the release is called wetsproces).
+          contains "hostname: wetsproces-medewerkers.example.org" --set voorkant.enabled=true \
+            --set voorkant.id=org/w --set voorkant.naam=W --show-only templates/exposure.yaml
+          proc="$(helm template parkeerkaart "$C" -n pk $CNPG $PROC)"
+          n=$(printf '%s\n' "$proc" | grep -c 'value: "pk/parkeerkaart"')
+          [ "$n" = 2 ] || { echo "expected WETSPROCES_PROCES_ID on both instances, got $n"; exit 1; }
+          case "$proc" in *'value: "https://wilgendaal-medewerkers.cluster-a.fieldlab2026.nl"'*) ;;
+            *) echo "the employees' instance does not link back to the employees' front"; exit 1 ;; esac
+          case "$proc" in *WETSPROCES_ORGANISATIE_SLEUTEL_URL*) ;;
+            *) echo "the process does not know where the key is"; exit 1 ;; esac
+          # Both blocks are off by default: a release that sets neither
+          # renders as it did before them.
+          case "$front" in *WETSPROCES_LINK_*|*WETSPROCES_FSC4B*)
+            echo "the front links or serves FSC voor Burgers"; exit 1 ;; esac
+          for unwanted in WETSPROCES_ROL WETSPROCES_ORGANISATIE WETSPROCES_PROCES_ID \
+            organisatie wetsproces-secrets; do
+            lacks "$unwanted" $CNPG
+            lacks "$unwanted" $SMALL
+            lacks "$unwanted" $CNPG --set fsc4b.enabled=true
+          done
       # Each refusal must fail for its own reason, so the check matches the
       # message: a render that breaks for another reason does not pass.
       - name: The chart refuses what cannot work
@@ -323,3 +373,21 @@ jobs:
           refuse "fsc4b.enabled is for citizens" --set domain=example.org \
             --set database.enabled=false --set surfaces.split=false \
             --set wetsproces.surface=backoffice --set fsc4b.enabled=true
+          FRONT="-f $C/ci/voorkant-values.yaml"
+          PROC="-f $C/ci/organisatie-values.yaml $CNPG"
+          refuse "exclude each other" $FRONT --set organisatie.id=a/b
+          refuse "needs voorkant.id" $FRONT --set voorkant.id=
+          refuse "needs voorkant.naam" $FRONT --set voorkant.naam=
+          refuse "test mode only for now" $FRONT --set wetsproces.mode=stable
+          refuse "an organisation's front serves no FSC voor Burgers" $FRONT --set fsc4b.enabled=true
+          refuse "an organisation's front has no cell" $FRONT \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' --set 'koppeling.peers[0].url=https://ggd.example.org'
+          refuse "names a/b twice" $FRONT --set-json \
+            'voorkant.processen=[{"id":"a/b","naam":"b","burger":{"intern":"http://b","publiek":"https://b"},"backoffice":{"intern":"http://c","publiek":"https://c"}},{"id":"a/b","naam":"b","burger":{"intern":"http://b","publiek":"https://b"},"backoffice":{"intern":"http://c","publiek":"https://c"}}]'
+          refuse "missing property 'backoffice'" $FRONT --set-json \
+            'voorkant.processen=[{"id":"a/b","naam":"b","burger":{"intern":"http://b","publiek":"https://b"}}]'
+          refuse "/voorkant/id" $FRONT --set voorkant.id=wilgendaal
+          refuse "organisatie.id needs organisatie.url" $PROC --set organisatie.medewerkersUrl=
+          refuse "needs organisatie.sleutelUrl or organisatie.sleutelJwk" $PROC --set organisatie.sleutelUrl=
+          refuse "needs organisatie.sleutelJwk" $PROC --set wetsproces.mode=stable --set wetsproces.login=oidc \
+            --set keycloak.enabled=true

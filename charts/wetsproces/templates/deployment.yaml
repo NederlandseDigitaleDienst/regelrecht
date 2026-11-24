@@ -2,6 +2,7 @@
 {{- include "wetsproces.checkLink" . }}
 {{- range $i, $inst := include "wetsproces.instances" . | fromJsonArray }}
 {{- with $ }}
+{{- $front := .Values.voorkant.enabled }}
 {{- if $i }}
 ---
 {{- end }}
@@ -16,7 +17,7 @@ metadata:
     {{- end }}
 spec:
   replicas: 1
-  {{- if .Values.database.enabled }}
+  {{- if include "wetsproces.database" . }}
   # The chronicles are in PostgreSQL, so the old pod serves until the new one
   # is ready. The new one migrates under the advisory lock at startup and
   # only listens, and so only turns ready, once that is done; a pod killed
@@ -27,6 +28,7 @@ spec:
       maxSurge: 1
       maxUnavailable: 0
   {{- else }}
+  {{- /* On a front the store in memory holds the sessions, not chronicles. */}}
   # Memory store: a second replica would hold a second, separate set of
   # chronicles. Recreate keeps it at one during a rollout too.
   strategy:
@@ -40,6 +42,12 @@ spec:
       {{- end }}
   template:
     metadata:
+      {{- if $front }}
+      # A process that registers or leaves changes the ConfigMap; this
+      # restarts the front, which reads it at start.
+      annotations:
+        checksum/processen: {{ .Values.voorkant.processen | default list | toYaml | sha256sum }}
+      {{- end }}
       labels:
         {{- include "wetsproces.selectorLabels" . | nindent 8 }}
         {{- if $inst.suffix }}
@@ -55,6 +63,7 @@ spec:
         fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
+      {{- if not $front }}
       initContainers:
         - name: clone-case
           image: {{ .Values.gitImage.ref }}
@@ -128,6 +137,7 @@ spec:
               mountPath: /case
             - name: tmp
               mountPath: /tmp
+      {{- end }}
       containers:
         - name: wetsproces
           image: {{ .Values.image.ref }}
@@ -140,7 +150,7 @@ spec:
               value: {{ .Values.wetsproces.mode | quote }}
             - name: WETSPROCES_SURFACE
               value: {{ $inst.surface | quote }}
-            {{- if .Values.database.enabled }}
+            {{- if include "wetsproces.database" . }}
             - name: WETSPROCES_STORE
               value: postgres
             # The connection string CNPG writes for the app user of the
@@ -177,8 +187,52 @@ spec:
             - name: BASE_URL
               value: {{ printf "https://%s" $inst.host | quote }}
             {{- end }}
+            {{- if $front }}
+            # The front of an organisation: no case, the registered processes
+            # and the key it signs its statements with instead.
+            - name: WETSPROCES_ROL
+              value: organisatie
+            - name: WETSPROCES_ORGANISATIE_ID
+              value: {{ .Values.voorkant.id | quote }}
+            - name: WETSPROCES_ORGANISATIE_NAAM
+              value: {{ .Values.voorkant.naam | quote }}
+            {{- with .Values.voorkant.logo }}
+            - name: WETSPROCES_ORGANISATIE_LOGO
+              value: {{ . | quote }}
+            {{- end }}
+            - name: WETSPROCES_PROCESSEN
+              value: /etc/wetsproces/organisatie/processen.yaml
+            - name: WETSPROCES_ORGANISATIE_SLEUTEL
+              value: /etc/wetsproces/organisatie-sleutel/private-key.pem
+            {{- else }}
             - name: WETSPROCES_MANIFEST
               value: {{ printf "/case/%s" (include "wetsproces.casePath" .) | quote }}
+            {{- end }}
+            {{- with .Values.organisatie }}
+            {{- if .id }}
+            # A process of an organisation: it accepts statements for
+            # <id>#<surface> signed by the front's key, and links back to the
+            # front of its side.
+            - name: WETSPROCES_PROCES_ID
+              value: {{ printf "%s/%s" $.Release.Namespace $.Release.Name | quote }}
+            - name: WETSPROCES_ORGANISATIE_ID
+              value: {{ .id | quote }}
+            {{- with .naam }}
+            - name: WETSPROCES_ORGANISATIE_NAAM
+              value: {{ . | quote }}
+            {{- end }}
+            - name: WETSPROCES_ORGANISATIE_URL
+              value: {{ ternary .medewerkersUrl .url (eq $inst.surface "backoffice") | quote }}
+            {{- with .sleutelUrl }}
+            - name: WETSPROCES_ORGANISATIE_SLEUTEL_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .sleutelJwk }}
+            - name: WETSPROCES_ORGANISATIE_SLEUTEL_JWK
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             - name: WETSPROCES_PORT
               value: "8000"
             {{- if and .Values.fsc4b.enabled (ne $inst.surface "backoffice") }}
@@ -243,9 +297,18 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- if $front }}
+            - name: processen
+              mountPath: /etc/wetsproces/organisatie
+              readOnly: true
+            - name: sleutel
+              mountPath: /etc/wetsproces/organisatie-sleutel
+              readOnly: true
+            {{- else }}
             - name: case
               mountPath: /case
               readOnly: true
+            {{- end }}
             - name: tmp
               mountPath: /tmp
             {{- if and .Values.koppeling.peers .Values.koppeling.keySecret (ne $inst.surface "burger") }}
@@ -262,9 +325,23 @@ spec:
               - key: key.pem
                 path: key.pem
         {{- end }}
+        {{- if $front }}
+        - name: processen
+          configMap:
+            name: {{ include "wetsproces.organisatieName" . }}
+        # Generated by the Job in templates/secrets-job.yaml.
+        - name: sleutel
+          secret:
+            secretName: {{ include "wetsproces.organisatieName" . }}
+            defaultMode: 0440
+            items:
+              - key: private-key
+                path: private-key.pem
+        {{- else }}
         - name: case
           emptyDir:
             sizeLimit: 2Gi
+        {{- end }}
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
