@@ -13,7 +13,7 @@ export const backofficeRoutes: RouteRecordRaw[] = [
     meta: {
       kant: 'backoffice',
       tabs: [
-        { naam: 'werkvoorraad', tekst: 'Werkvoorraad', pad: '/backoffice', icoon: 'inbox', ook: ['behandelen'] },
+        { naam: 'werkvoorraad', tekst: 'Aanvragen', pad: '/backoffice', icoon: 'inbox', ook: ['behandelen'] },
         { naam: 'kroniek', tekst: 'Kroniek', pad: '/backoffice/kroniek', icoon: 'history' },
         {
           naam: 'beheer',

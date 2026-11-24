@@ -77,7 +77,7 @@ describe('the chronicle', () => {
     await rijen(w)[1]!.trigger('click');
     expect(w.find('nldd-sheet').attributes('open')).toBeDefined();
     expect(w.findAll('nldd-list').some((l) => l.attributes('accessible-label') === 'Uitkomst van het besluit')).toBe(true);
-    await knop(w, 'Open in de werkvoorraad')!.trigger('click');
+    await knop(w, 'Open in Aanvragen')!.trigger('click');
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/backoffice/behandelen/gemeente/a');
   });
@@ -85,7 +85,7 @@ describe('the chronicle', () => {
   it('leads from a submission straight to its panel', async () => {
     const { w, router } = await toon();
     await rijen(w)[0]!.trigger('click');
-    await knop(w, 'Open in de werkvoorraad')!.trigger('click');
+    await knop(w, 'Open in Aanvragen')!.trigger('click');
     await flushPromises();
     expect(router.currentRoute.value.path).toBe('/backoffice/behandelen/gemeente/a');
   });
@@ -94,6 +94,6 @@ describe('the chronicle', () => {
     const { w } = await toon();
     await rijen(w)[2]!.trigger('click');
     expect(w.find('nldd-sheet').attributes('open')).toBeDefined();
-    expect(knop(w, 'Open in de werkvoorraad')).toBeUndefined();
+    expect(knop(w, 'Open in Aanvragen')).toBeUndefined();
   });
 });

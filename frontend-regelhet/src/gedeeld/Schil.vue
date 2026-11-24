@@ -75,7 +75,6 @@ const wijzen = computed(
                 v-for="t in zichtbaar"
                 :key="t.naam"
                 :text="t.tekst"
-                :icon="t.icoon"
                 :href="t.pad"
                 :current="huidig(t) || undefined"
                 @click.prevent="open(t)"

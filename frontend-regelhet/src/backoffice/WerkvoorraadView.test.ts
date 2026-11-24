@@ -102,7 +102,7 @@ async function toon(cellen: Ik['cellen']) {
 const knoppen = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-button').map((b) => b.attributes('text'));
 /** The rows of the queue that open a submission beside it. */
 const teOpenen = (w: Awaited<ReturnType<typeof toon>>) =>
-  w.findAll('nldd-list[accessible-label^="Werkvoorraad"] nldd-list-item').filter((r) => r.attributes('button') !== undefined).length;
+  w.findAll('nldd-list[accessible-label^="Aanvragen"] nldd-list-item').filter((r) => r.attributes('button') !== undefined).length;
 
 describe('the work queue', () => {
   it('shows a submission whose decision was annulled as one to decide again, after the receipt', async () => {
@@ -119,7 +119,7 @@ describe('the work queue', () => {
     werk.value = [{ stuk: aanvraag, na: 'r' }];
     try {
       const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
-      const rij = w.find('nldd-list[accessible-label^="Werkvoorraad"] nldd-list-item');
+      const rij = w.find('nldd-list[accessible-label^="Aanvragen"] nldd-list-item');
       expect(rij.find('nldd-badge').attributes('text')).toBe('Opnieuw beslissen');
       expect(rij.find('nldd-text-cell').attributes('supporting-text')).toContain('Opnieuw beslissen na afschrift van de uitspraak');
       expect(rij.find('nldd-text-cell').attributes('supporting-text')).toContain('20 november 2026');

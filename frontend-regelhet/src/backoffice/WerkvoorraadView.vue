@@ -144,24 +144,24 @@ async function klaar(naam: string) {
 
 <template>
   <nldd-navigation-split-view @back="router.push('/backoffice')">
-    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Werkvoorraad">
-        <nldd-top-title-bar slot="header" text="Werkvoorraad" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Aanvragen">
+        <nldd-top-title-bar slot="header" text="Aanvragen" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
-          <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Werkvoorraad</h3></nldd-title>
+          <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Aanvragen</h3></nldd-title>
           <nldd-text color="secondary"><p>De indieningen die op een besluit wachten.</p></nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
-          <nldd-activity-indicator v-if="laden" text="De werkvoorraad laden" show-text></nldd-activity-indicator>
-          <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De werkvoorraad laadt niet" :supporting-text="fout"></nldd-inline-dialog>
+          <nldd-activity-indicator v-if="laden" text="De aanvragen laden" show-text></nldd-activity-indicator>
+          <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De aanvragen laden niet" :supporting-text="fout"></nldd-inline-dialog>
           <template v-else-if="casus">
             <template v-if="vastgelegd">
               <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
               <nldd-spacer size="16"></nldd-spacer>
             </template>
-            <nldd-inline-dialog v-if="cellen.length === 0" icon="info" text="Geen werkvoorraad" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
+            <nldd-inline-dialog v-if="cellen.length === 0" icon="info" text="Geen aanvragen" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
             <template v-for="(c, i) in cellen" :key="c.recht.cel">
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ hoofdletter(c.recht.cel_naam) }}</h4></nldd-title>
-              <nldd-list v-if="c.open.length" appearance="simple" :accessible-label="`Werkvoorraad van ${c.recht.cel_naam}`">
+              <nldd-list v-if="c.open.length" appearance="simple" :accessible-label="`Aanvragen van ${c.recht.cel_naam}`">
                 <nldd-list-item
                   v-for="r in c.open"
                   :key="r.stuk.id"
@@ -239,7 +239,7 @@ async function klaar(naam: string) {
       />
       <nldd-page v-else landmarks="page">
         <nldd-simple-section width="full">
-          <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de werkvoorraad."></nldd-inline-dialog>
+          <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de aanvragen."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </div>
