@@ -143,8 +143,8 @@ stable mode pins every key.
 {{- fail "a link in stable mode signs with a key of its own: set koppeling.keySecret" -}}
 {{- end -}}
 {{- range $k.peers -}}
-{{- if or (not .sleutel) (not (hasPrefix "https://" .url)) -}}
-{{- fail (printf "a link in stable mode needs an https url and the public key (sleutel) of every peer: %s" .cel) -}}
+{{- if or (not .sleutel) (not (or (hasPrefix "https://" .url) .grantHash)) -}}
+{{- fail (printf "a link in stable mode needs the public key (sleutel) of every peer, and an https url or an FSC grant (grantHash): %s" .cel) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

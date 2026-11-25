@@ -4,7 +4,7 @@ kind: PluginDefinition
 metadata:
   name: regelhet
   displayName: RegelHet
-  version: v0.7.0
+  version: v0.8.0
   description: >-
     Offers the regelrecht RegelHet to the projects of a cluster.
     Installed once per cluster; project members then create a regelhet per

@@ -165,6 +165,47 @@ type Partij struct {
 	Uitvoerder RegelHetReference `json:"uitvoerder"`
 }
 
+// Fsc reaches the RegelHet instances this one is linked with through
+// OpenFSC instead of on their public address: a request goes to this
+// RegelHet's own outway, which calls the other's inway over the mutual TLS
+// of the FSC group, under a contract both sides signed. The plugin makes
+// none of that: the FSCInstallation, the service and the contracts are made
+// beside it, and their outcome is entered here.
+type Fsc struct {
+	// Outway is the address of this RegelHet's FSC outway inside the
+	// cluster, such as http://fsc-outway-default.<namespace>, without a
+	// slash at the end.
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^https?://[A-Za-z0-9.-]+(:[0-9]+)?$`
+	Outway string `json:"outway"`
+
+	// Grants are, per cell this RegelHet is linked with, the grant under
+	// which the outway may call that cell's service. A linked cell without
+	// one is reached on its public address.
+	// +optional
+	// +listType=map
+	// +listMapKey=cel
+	// +kubebuilder:validation:MaxItems=20
+	Grants []FscGrant `json:"grants,omitempty"`
+}
+
+// FscGrant is the FSC grant to call the service of one linked cell.
+type FscGrant struct {
+	// Cel is the linked cell as the case names it: for a party its
+	// executor's cell, for an executor the cell of a party.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=100
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9_-]+$`
+	Cel string `json:"cel"`
+
+	// GrantHash is the hash of the service connection grant, as the
+	// contract in OpenFSC holds it.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=200
+	// +kubebuilder:validation:Pattern=`^[!-~]+$`
+	GrantHash string `json:"grantHash"`
+}
+
 // RegelHetReference names a RegelHet.
 type RegelHetReference struct {
 	// Name of the RegelHet.
@@ -202,6 +243,10 @@ type PartyStatus struct {
 	// Procedure is the RegelHet the party runs on.
 	// +optional
 	Procedure *RegelHetReference `json:"procedure,omitempty"`
+	// Via is how this RegelHet reaches the party: `fsc` through its FSC
+	// outway, `direct` on the party's public address.
+	// +optional
+	Via string `json:"via,omitempty"`
 }
 
 // RegelHetSpec is one RegelHet.
@@ -260,6 +305,11 @@ type RegelHetSpec struct {
 	// are entered by an admin in the admin panel. Test mode only.
 	// +optional
 	Partij *Partij `json:"partij,omitempty"`
+
+	// Fsc sends what this RegelHet has for a linked RegelHet through
+	// OpenFSC. Empty reaches every linked RegelHet on its public address.
+	// +optional
+	Fsc *Fsc `json:"fsc,omitempty"`
 
 	// Hostname is the address: a name under the plugin's base domain
 	// (`zorgtoeslag` gives zorgtoeslag.<domain> for citizens and

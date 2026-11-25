@@ -60,7 +60,7 @@ None of these routes has a login. The first proves its sender by the signature, 
 
 | Variable | Meaning |
 |---|---|
-| `REGELHET_LINK_PEERS` | A JSON list of the other servers: per peer its `cel`, its `url` and, pinned, its public key as a JWK under `sleutel` |
+| `REGELHET_LINK_PEERS` | A JSON list of the other servers: per peer its `cel`, its `url` and, pinned, its public key as a JWK under `sleutel`. With `grantHash`, `url` is this server's FSC outway ([Through OpenFSC](#through-openfsc)) |
 | `REGELHET_LINK_PARTY` | The external party this server works for, by its cell. Not set on the executor's server. It requires `REGELHET_SURFACE=backoffice` |
 | `REGELHET_LINK_KEY_FILE` or `REGELHET_LINK_KEY` | This server's private ES256 key, PKCS#8 PEM, as a file path or as the value itself |
 
@@ -86,13 +86,55 @@ The regelwerken of a case say which external parties do work of their own in the
 
 On Fundament the party's server is a RegelHet of its own, installed through the wizard like the executor's, with its own address, namespace, colour and title. Its `spec.partij` names its cell and the executor's RegelHet. The plugin links the two once that cell is on the executor's list, and refuses a cell that is not (`packages/fundament-plugin/README.md`).
 
+## Through OpenFSC
+
+A peer can be reached through [FSC](https://fsc-standaard.nl) instead of directly. FSC is the standard for traffic between government organizations: each organization is a peer in a group, with an outway for the calls it makes and an inway for the services it offers, and a contract both peers signed says which outway may call which service. On the Fieldlab clusters the plugin `rinis-openfsc` installs a peer per namespace (resource `FSCInstallation`).
+
+With a `grantHash` on a peer, `url` is this server's own outway. Every request to that peer, a message as well as its public key, goes to the outway under the header `Fsc-Grant-Hash`. The outway fetches a token from the peer's Manager and calls the peer's inway over the mutual TLS of the group, and the inway hands the request to the peer's server on the same routes as a direct call.
+
+```json
+[{"cel": "ggd_wilgendaal", "url": "http://fsc-outway-default-open-fsc-outway", "grantHash": "$1$4$..."}]
+```
+
+| | Direct | Through OpenFSC |
+|---|---|---|
+| Who may call | Whoever holds the peer's key | The peer a signed contract names |
+| Transport | TLS to the peer's public address | Mutual TLS between outway and inway, with certificates of the group |
+| Log | The server's own log | Also OpenFSC's transaction log, at both peers |
+| The message | Signed (JWS) | The same, signed |
+
+Nothing else changes. The chronicle is still the outbox, a message is still recorded once, and the receiver still checks the signature: FSC establishes which organization calls, and the signature which cell made the record. In stable mode a peer with a grant may have an `http` address, since that address is inside the cluster and the TLS sits behind the outway; its public key stays pinned.
+
+What each side needs before the first message, all of it outside this server:
+
+1. An `FSCInstallation` in its own namespace, with an inway and an outway, in the same group as the other side. On cluster-a the group `fsc-fieldlab` has a Directory to join (`directory.mode: External`, with its address, its peer ID and its certificate portal).
+2. Its link routes registered as a service on its inway, with the in-cluster address of the instance for employees as the endpoint.
+3. A contract that publishes that service in the Directory, which the Directory signs by itself.
+4. A contract in which it grants the other peer's outway a connection to the service, accepted by the other peer. The hash of that grant is the other side's `grantHash`.
+
+Steps 2 to 4 go through the Controller's screens, or through two APIs inside the namespace that take the Controller's internal client certificate (Secret `fsc-open-fsc-controller-internal-tls`):
+
+| Step | Call |
+|---|---|
+| Register the service | `POST /v1/services` on the Controller's Administration API (`fsc-open-fsc-controller`, port 9444), with `name`, `endpoint_url` and `inway_address` |
+| Propose a contract | `POST /v1/contracts` on the Manager's internal API (`fsc-open-fsc-manager-internal`, port 9443), with a `contract_content` of `iv` (a UUID), `group_id`, `hash_algorithm`, `created_at`, `validity` and `grants` |
+| Accept a contract | `PUT /v1/contracts/{hash}/accept` on the accepting peer's Manager |
+
+A publication grant names the Directory's peer and the service (`type: GRANT_TYPE_SERVICE_PUBLICATION`, `directory.peer_id`, `service` with `peer_id`, `name` and `protocol`). A connection grant names the service and the calling outway by the thumbprint of its public key (`type: GRANT_TYPE_SERVICE_CONNECTION`, `service` with `type: SERVICE_TYPE_SERVICE`, and `outway` with `peer_id` and `identification`). The grant's own `hash` in the stored contract is the `grantHash`. An outway takes about half a minute to learn a contract that just became valid.
+
+How far this was tried, on 24 November 2026 on cluster-a with OpenFSC 2.9.1: two installations of ours joined `fsc-fieldlab`, one registered the link routes of a running procedure as a service and published it, and granted the other a connection. A `GET` of the key, a `GET` of the parties and a `POST` of a message then passed from the second installation's outway to that procedure, under the grant; without the header, or before the contract was accepted, the outway refused with `UNKNOWN_GRANT_HASH_IN_HEADER`. The calls were made by hand at the outway. The server's own sending under a grant is tested against a stand-in outway that requires the header and forwards the request (`tests/link.rs`), since the image on the cluster did not hold this change yet; the two have not run together.
+
+Two things follow from the plugin as it stands. An installation is one per namespace, so two procedures in one namespace cannot be two peers. And the test group's certificate portal hands a certificate for any peer to whoever reaches it, so the group proves no identity.
+
+The direct routes stay open while a server is linked through FSC. Closing them, so that a message can only arrive through the inway, takes a network policy or a release without a public address for those paths; neither is here.
+
 ## The test clock
 
 Each server of a test setup has a clock of its own. When a message taken over is dated later than the receiver's test clock, the clock moves on to that day, so the next step there does not fall before it. A reset of one server empties its chronicles and its confirmations and leaves the other server as it was, so reset both.
 
 ## What is not here
 
-- **FSC.** The routes are shaped after the inway and outway of FSC, the standard for traffic between government organizations: one address that takes signed messages from known organizations and one worker that sends. Contracts, a directory and mutual TLS with PKIoverheid certificates are not built. FSC could replace this transport without changing what is recorded.
+- **FSC set up for you.** The server can send through an OpenFSC outway ([above](#through-openfsc)), and the Fundament plugin passes an outway and a grant per linked cell on from `spec.fsc` of a RegelHet. The installation, the service and the contracts are made by hand; the plugin makes none of them. PKIoverheid certificates are not involved.
 - **Several executors for one party.** A cell has one peer. A GGD that serves several municipalities needs a cell per municipality in its case, or a way to tell them apart inside one cell, and the corpus has one fictitious municipality.
 - **A case of the party's own.** The party's server loads the executor's case and shows the part that concerns the party. It has no application of its own and no citizens' side, so a citizen sees the GGD's part of their dossier at the municipality only.
 - **Decisions and copies.** Only facts cross the link. A party that decides on a submission and sends a copy of its decision, as the court does, still goes through the admin panel.

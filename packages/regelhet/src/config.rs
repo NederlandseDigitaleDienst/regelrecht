@@ -435,8 +435,16 @@ pub struct PeerSetting {
     /// The cell that server works for.
     #[serde(rename = "cel")]
     pub cell: String,
-    /// Where it is reached, without a trailing slash.
+    /// Where it is reached, without a trailing slash: its own address, or
+    /// with `grant_hash` the address of this server's FSC outway.
     pub url: String,
+    /// The hash of the FSC grant that lets this server call the peer's
+    /// service. With it, every request to the peer goes to the outway at
+    /// `url` under the header `Fsc-Grant-Hash`, and the outway reaches the
+    /// peer's inway over the mutual TLS of the FSC group; none calls the
+    /// peer directly.
+    #[serde(default, rename = "grantHash")]
+    pub grant_hash: Option<String>,
     /// Its public key, a JWK as JSON text; none reads it from the server
     /// itself, in test mode only.
     #[serde(default, rename = "sleutel", deserialize_with = "jwk_text")]
@@ -511,7 +519,7 @@ pub enum ConfigError {
     LinkPartyNeedsBackoffice,
     #[error(
         "a link in stable mode needs a key of its own (REGELHET_LINK_KEY or _KEY_FILE), and \
-         for every peer an https address and its public key (`sleutel`): {0}"
+         for every peer its public key (`sleutel`) and an https address or an FSC grant (`grantHash`): {0}"
     )]
     StableLinkNeedsKeys(String),
     #[error("REGELHET_LOGIN is `{0}`: it is `testlogin` or `oidc`")]
@@ -850,6 +858,18 @@ fn link_settings(
             )));
         }
     }
+    for peer in &mut peers {
+        peer.grant_hash = peer.grant_hash.take().map(|h| h.trim().to_string());
+        // It travels as a header value.
+        if let Some(hash) = &peer.grant_hash
+            && (hash.is_empty() || !hash.bytes().all(|b| b.is_ascii_graphic()))
+        {
+            return Err(ConfigError::BadLinkPeers(format!(
+                "the `grantHash` of '{}' is empty or holds a space or a character outside ASCII",
+                peer.cell
+            )));
+        }
+    }
     let mut cells: Vec<&str> = peers.iter().map(|p| p.cell.as_str()).collect();
     cells.sort_unstable();
     if let Some(twice) = cells.windows(2).find(|w| w[0] == w[1]) {
@@ -872,7 +892,9 @@ fn link_settings(
         }
         if let Some(peer) = peers
             .iter()
-            .find(|p| p.key.is_none() || !p.url.starts_with("https://"))
+            // Through an outway the address is one inside the cluster, and
+            // the TLS is between the outway and the peer's inway.
+            .find(|p| p.key.is_none() || !(p.url.starts_with("https://") || p.grant_hash.is_some()))
         {
             return Err(ConfigError::StableLinkNeedsKeys(format!(
                 "the peer '{}'",
@@ -1039,6 +1061,50 @@ mod tests {
         ("REGELHET_SURFACE", "burger"),
         ("DATABASE_URL", "postgres://db/regelrecht"),
     ];
+
+    #[test]
+    fn a_peer_is_reached_directly_or_through_an_outway_under_a_grant() {
+        let test: Pairs = &[("REGELHET_MODE", "test")];
+        let peers = |json: &'static str| -> &'static [(&'static str, &'static str)] {
+            Box::leak(Box::new([("REGELHET_LINK_PEERS", json)]))
+        };
+        let config = Config::from_env(env(&[
+            test,
+            peers(r#"[{"cel":"ggd","url":"http://fsc-outway.ns.svc/","grantHash":" $1$4$abc "}]"#),
+        ]))
+        .unwrap();
+        assert_eq!(config.link.peers[0].url, "http://fsc-outway.ns.svc");
+        assert_eq!(config.link.peers[0].grant_hash.as_deref(), Some("$1$4$abc"));
+        // A grant is a header value: no spaces, not empty.
+        for bad in [
+            r#"[{"cel":"ggd","url":"http://outway","grantHash":""}]"#,
+            r#"[{"cel":"ggd","url":"http://outway","grantHash":"a b"}]"#,
+        ] {
+            assert!(matches!(
+                error(&[test, peers(bad)]),
+                ConfigError::BadLinkPeers(_)
+            ));
+        }
+        // Stable mode: a pinned key always, and https or a grant.
+        let stable: Pairs = &[
+            ("REGELHET_SURFACE", "backoffice"),
+            ("REGELHET_LINK_KEY", "pem"),
+        ];
+        let jwk = r#"{"kty":"EC","crv":"P-256","x":"x","y":"y"}"#;
+        let plain: &'static str = Box::leak(
+            format!(r#"[{{"cel":"ggd","url":"http://outway","sleutel":{jwk}}}]"#).into_boxed_str(),
+        );
+        let granted: &'static str = Box::leak(
+            format!(r#"[{{"cel":"ggd","url":"http://outway","grantHash":"h","sleutel":{jwk}}}]"#)
+                .into_boxed_str(),
+        );
+        assert!(matches!(
+            error(&[STABLE, OIDC, stable, peers(plain)]),
+            ConfigError::StableLinkNeedsKeys(_)
+        ));
+        let config = Config::from_env(env(&[STABLE, OIDC, stable, peers(granted)])).unwrap();
+        assert_eq!(config.link.peers[0].grant_hash.as_deref(), Some("h"));
+    }
 
     #[test]
     fn the_mode_is_required_and_has_no_default() {

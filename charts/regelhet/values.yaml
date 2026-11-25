@@ -230,6 +230,13 @@ koppeling:
   # that is the address a peer names; the citizens' instance has none.
   #   - cel: ggd_wilgendaal
   #     url: https://ggd.example.org
+  # Through OpenFSC instead (docs: components/regelhet-koppeling): `url` is
+  # then this release's own FSC outway inside the cluster, and `grantHash`
+  # the hash of the grant under which that outway may call the peer's
+  # service. Nothing is sent to the peer directly.
+  #   - cel: ggd_wilgendaal
+  #     url: http://fsc-outway-default-open-fsc-outway
+  #     grantHash: $1$4$...
   peers: []
   # A Secret in the release's namespace whose key `key.pem` holds this
   # release's private ES256 key (PKCS#8 PEM). Empty lets the instance that

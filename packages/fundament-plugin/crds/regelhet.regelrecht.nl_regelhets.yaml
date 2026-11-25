@@ -92,6 +92,56 @@ spec:
                 maxLength: 100
                 pattern: ^([a-z0-9][a-z0-9_-]*)?$
                 type: string
+              fsc:
+                description: |-
+                  Fsc sends what this RegelHet has for a linked RegelHet through
+                  OpenFSC. Empty reaches every linked RegelHet on its public address.
+                properties:
+                  grants:
+                    description: |-
+                      Grants are, per cell this RegelHet is linked with, the grant under
+                      which the outway may call that cell's service. A linked cell without
+                      one is reached on its public address.
+                    items:
+                      description: FscGrant is the FSC grant to call the service of
+                        one linked cell.
+                      properties:
+                        cel:
+                          description: |-
+                            Cel is the linked cell as the case names it: for a party its
+                            executor's cell, for an executor the cell of a party.
+                          maxLength: 100
+                          minLength: 1
+                          pattern: ^[A-Za-z0-9_-]+$
+                          type: string
+                        grantHash:
+                          description: |-
+                            GrantHash is the hash of the service connection grant, as the
+                            contract in OpenFSC holds it.
+                          maxLength: 200
+                          minLength: 1
+                          pattern: ^[!-~]+$
+                          type: string
+                      required:
+                      - cel
+                      - grantHash
+                      type: object
+                    maxItems: 20
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - cel
+                    x-kubernetes-list-type: map
+                  outway:
+                    description: |-
+                      Outway is the address of this RegelHet's FSC outway inside the
+                      cluster, such as http://fsc-outway-default.<namespace>, without a
+                      slash at the end.
+                    maxLength: 253
+                    pattern: ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$
+                    type: string
+                required:
+                - outway
+                type: object
               fsc4b:
                 description: Fsc4b is FSC voor Burgers. Empty is off.
                 properties:
@@ -450,6 +500,11 @@ spec:
                       type: object
                     url:
                       description: URL is where its staff log in.
+                      type: string
+                    via:
+                      description: |-
+                        Via is how this RegelHet reaches the party: `fsc` through its FSC
+                        outway, `direct` on the party's public address.
                       type: string
                   required:
                   - cell

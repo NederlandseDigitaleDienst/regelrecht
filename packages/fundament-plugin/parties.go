@@ -155,11 +155,49 @@ func partyHost(w *v1alpha1.RegelHet, domain string) string {
 // slash at the end.
 func linkURL(host string) string { return "https://" + host }
 
+// How a RegelHet reaches a linked cell (PartyStatus.Via).
+const (
+	viaFsc    = "fsc"
+	viaDirect = "direct"
+)
+
+// fscGrant is the grant of w for the linked cell, or "" when w reaches that
+// cell on its public address.
+func fscGrant(w *v1alpha1.RegelHet, cell string) string {
+	if w.Spec.Fsc == nil {
+		return ""
+	}
+	for _, g := range w.Spec.Fsc.Grants {
+		if g.Cel == cell {
+			return g.GrantHash
+		}
+	}
+	return ""
+}
+
+// via says how w reaches the linked cell.
+func via(w *v1alpha1.RegelHet, cell string) string {
+	if fscGrant(w, cell) != "" {
+		return viaFsc
+	}
+	return viaDirect
+}
+
+// linkPeer is the linked cell as the release of w names it (the chart's
+// koppeling.peers): on its public address direct, or with a grant for it on
+// w's own FSC outway under that grant.
+func linkPeer(w *v1alpha1.RegelHet, cell, direct string) map[string]any {
+	if grant := fscGrant(w, cell); grant != "" {
+		return map[string]any{"cel": cell, "url": strings.TrimSuffix(w.Spec.Fsc.Outway, "/"), "grantHash": grant}
+	}
+	return map[string]any{"cel": cell, "url": direct}
+}
+
 // executorPeers are the parties of w as the executor's release names them.
 func executorPeers(w *v1alpha1.RegelHet) []any {
 	peers := make([]any, 0, len(w.Status.Parties))
 	for _, p := range w.Status.Parties {
-		peers = append(peers, map[string]any{"cel": p.Cell, "url": strings.TrimSuffix(p.URL, "/")})
+		peers = append(peers, linkPeer(w, p.Cell, strings.TrimSuffix(p.URL, "/")))
 	}
 	return peers
 }
@@ -172,10 +210,7 @@ func partyValues(values map[string]any, w, e *v1alpha1.RegelHet, cfg pluginConfi
 	values["regelhet"] = map[string]any{"surface": "backoffice"}
 	values["koppeling"] = map[string]any{
 		"partij": w.Spec.Partij.Cel,
-		"peers": []any{map[string]any{
-			"cel": e.Status.ExecutorCell,
-			"url": linkURL(hostsOf(e, cfg.Domain).backoffice),
-		}},
+		"peers":  []any{linkPeer(w, e.Status.ExecutorCell, linkURL(hostsOf(e, cfg.Domain).backoffice))},
 	}
 	if w.Spec.Theme.AccentColor == "" {
 		// Another organization than the executor's, so another colour:
@@ -247,7 +282,11 @@ func resolveExecutor(ctx context.Context, c client.Reader, namespaces client.Rea
 	if reason != "" {
 		return cond(metav1.ConditionFalse, reason, message), nil
 	}
-	link := cond(metav1.ConditionTrue, reasonPartiesLinked, fmt.Sprintf("runs as %s for the executor, RegelHet %s", w.Spec.Partij.Cel, key))
+	linked := fmt.Sprintf("runs as %s for the executor, RegelHet %s", w.Spec.Partij.Cel, key)
+	if via(w, e.Status.ExecutorCell) == viaFsc {
+		linked += ", and reaches it through its FSC outway"
+	}
+	link := cond(metav1.ConditionTrue, reasonPartiesLinked, linked)
 	link.executor = &e
 	return link, nil
 }
@@ -460,12 +499,19 @@ func (r *RegelHetReconciler) reconcileParties(ctx context.Context, w *v1alpha1.R
 	if err != nil {
 		return false, 0, err
 	}
+	for i := range parties {
+		parties[i].Via = via(w, parties[i].Cell)
+	}
 	w.Status.Parties = parties
 	switch {
 	case len(parties) > 0:
 		cells := make([]string, 0, len(parties))
 		for _, p := range parties {
-			cells = append(cells, fmt.Sprintf("%s on RegelHet %s/%s", p.Cell, p.Procedure.Namespace, p.Procedure.Name))
+			cell := fmt.Sprintf("%s on RegelHet %s/%s", p.Cell, p.Procedure.Namespace, p.Procedure.Name)
+			if p.Via == viaFsc {
+				cell += " through FSC"
+			}
+			cells = append(cells, cell)
 		}
 		condition.Message = "linked with " + strings.Join(cells, ", ")
 	case w.Status.ExecutorCell != "" && len(w.Status.AskedParties) == 0:

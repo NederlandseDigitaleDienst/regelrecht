@@ -651,6 +651,10 @@
               },
               "sleutel": {
                 "type": "object"
+              },
+              "grantHash": {
+                "type": "string",
+                "pattern": "^[!-~]+$"
               }
             }
           }

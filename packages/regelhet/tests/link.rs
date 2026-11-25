@@ -38,6 +38,7 @@ fn peer(cell: &str, url: &str) -> Vec<PeerSetting> {
     vec![PeerSetting {
         cell: cell.into(),
         url: url.into(),
+        grant_hash: None,
         key: None,
     }]
 }
@@ -296,4 +297,154 @@ async fn a_message_under_another_key_is_refused() {
             .unwrap()
             .is_empty()
     );
+}
+
+/// A stand-in for an FSC outway: it takes a request only under the grant
+/// hash `grant`, as OpenFSC's outway does, and hands it to the server at
+/// `target`, as that peer's inway would. It counts what it let through.
+async fn outway(
+    grant: &'static str,
+    target: String,
+) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    use axum::body::Bytes;
+    use axum::extract::Request;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let passed = Arc::new(AtomicUsize::new(0));
+    let count = Arc::clone(&passed);
+    let http = reqwest::Client::new();
+    let app = Router::new().fallback(move |request: Request| {
+        let (http, target, count) = (http.clone(), target.clone(), Arc::clone(&count));
+        async move {
+            let hash = request
+                .headers()
+                .get("Fsc-Grant-Hash")
+                .and_then(|h| h.to_str().ok())
+                .map(str::to_string);
+            if hash.as_deref() != Some(grant) {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Bytes::from("no valid Fsc-Grant-Hash"),
+                );
+            }
+            let method = reqwest::Method::from_bytes(request.method().as_str().as_bytes()).unwrap();
+            let path = request.uri().path().to_string();
+            let body = axum::body::to_bytes(request.into_body(), 1 << 20)
+                .await
+                .unwrap();
+            let answer = http
+                .request(method, format!("{target}{path}"))
+                .body(body)
+                .send()
+                .await
+                .unwrap();
+            count.fetch_add(1, Ordering::SeqCst);
+            let status = StatusCode::from_u16(answer.status().as_u16()).unwrap();
+            (status, answer.bytes().await.unwrap())
+        }
+    });
+    let (at, url) = listener().await;
+    tokio::spawn(async move { axum::serve(at, app).await.unwrap() });
+    (url, passed)
+}
+
+#[tokio::test]
+async fn with_a_grant_every_request_to_a_peer_goes_through_the_outway() {
+    regelrecht_auth::install_crypto_provider();
+    let (at_gemeente, gemeente_url) = listener().await;
+    let (at_ggd, ggd_url) = listener().await;
+    // Each server knows its peer only by its own outway and a grant.
+    let (to_ggd, through_to_ggd) = outway("$1$4$naar-de-ggd", ggd_url).await;
+    let (to_gemeente, through_to_gemeente) = outway("$1$4$naar-de-gemeente", gemeente_url).await;
+    let via = |cell: &str, url: &str, grant: &str| {
+        vec![PeerSetting {
+            cell: cell.into(),
+            url: url.into(),
+            grant_hash: Some(grant.into()),
+            key: None,
+        }]
+    };
+    let mut config = config_on(Mode::Test, Surface::All);
+    config.link = LinkSettings {
+        party: None,
+        peers: via(GGD, &to_ggd, "$1$4$naar-de-ggd"),
+        key: None,
+    };
+    let gemeente = app::build_with(&config, Login::TestLogin).await.unwrap();
+    let mut config = config_on(Mode::Test, Surface::Backoffice);
+    config.link = LinkSettings {
+        party: Some(GGD.into()),
+        peers: via(GEMEENTE, &to_gemeente, "$1$4$naar-de-gemeente"),
+        key: None,
+    };
+    let ggd = app::build_with(&config, Login::TestLogin).await.unwrap();
+    for (listener, app) in [(at_gemeente, gemeente.clone()), (at_ggd, ggd.clone())] {
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    }
+
+    anna_applies(&gemeente).await;
+    let verzoek = eventually(
+        "the request arriving at the GGD through the outway",
+        async || {
+            ggd_panel(&ggd).await["partijen"][0]["verzoeken"][0]["verzoek"]
+                .as_object()
+                .map(|v| Value::Object(v.clone()))
+        },
+    )
+    .await;
+    let mut body = advice(ANNA);
+    body["verzoek"] = verzoek["id"].clone();
+    body["velden"]
+        .as_object_mut()
+        .unwrap()
+        .remove("bsn_aanvrager");
+    let (status, advies) = employee(&ggd, "arts-1", "regelhet-beslisser")
+        .await
+        .post("/api/backoffice/beheer/vastleggingen", body)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{advies}");
+    eventually(
+        "the advice arriving at the municipality through the outway",
+        async || (request_at(&gemeente).await["open"] == json!(false)).then_some(()),
+    )
+    .await;
+    // Both the messages and the keys they verify under went that way: the
+    // message itself, and the GGD reading the municipality's key back
+    // through its own outway.
+    use std::sync::atomic::Ordering;
+    assert!(through_to_ggd.load(Ordering::SeqCst) >= 1);
+    assert!(through_to_gemeente.load(Ordering::SeqCst) >= 2);
+}
+
+#[tokio::test]
+async fn under_a_grant_the_outway_does_not_know_nothing_arrives_and_the_record_waits() {
+    regelrecht_auth::install_crypto_provider();
+    let (at_ggd, ggd_url) = listener().await;
+    let (to_ggd, through) = outway("$1$4$het-echte-grant", ggd_url.clone()).await;
+    let mut config = config_on(Mode::Test, Surface::All);
+    config.link = LinkSettings {
+        party: None,
+        peers: vec![PeerSetting {
+            cell: GGD.into(),
+            url: to_ggd,
+            grant_hash: Some("$1$4$een-ander-grant".into()),
+            key: None,
+        }],
+        key: None,
+    };
+    let gemeente = app::build_with(&config, Login::TestLogin).await.unwrap();
+    let mut config = config_on(Mode::Test, Surface::Backoffice);
+    config.link = LinkSettings {
+        party: Some(GGD.into()),
+        peers: peer(GEMEENTE, "http://127.0.0.1:9"),
+        key: None,
+    };
+    let ggd = app::build_with(&config, Login::TestLogin).await.unwrap();
+    tokio::spawn(async move { axum::serve(at_ggd, ggd.clone()).await.unwrap() });
+    anna_applies(&gemeente).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert_eq!(through.load(std::sync::atomic::Ordering::SeqCst), 0);
+    // The request stays open at the municipality, to be sent again.
+    assert_eq!(request_at(&gemeente).await["open"], json!(true));
 }

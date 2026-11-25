@@ -36,9 +36,15 @@
 //! parties the executor asks something of by its policy, which is what a
 //! deployment reads to decide which party gets a server of its own.
 //!
-//! FSC itself (contracts, a directory, mutual TLS with PKIoverheid) is not
-//! used; it could take the place of this transport without touching what is
-//! recorded.
+//! **Through FSC.** A peer with a grant hash is not called directly: every
+//! request to it goes to this server's own FSC outway under the header
+//! `Fsc-Grant-Hash`, and the outway reaches the peer's inway over the mutual
+//! TLS of the FSC group, under a contract both organizations signed. The
+//! inway hands the request to the same routes as a direct call. What is sent
+//! and what is recorded stay the same, signature included: FSC says which
+//! organization may call, the signature says which cell made the record.
+//! The contracts, the directory and the certificates are OpenFSC's, set up
+//! outside this server.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -66,6 +72,10 @@ pub const KEY_PATH: &str = "/koppeling/v1/sleutel";
 /// Where a server says which parties of its case do work of their own, for
 /// whoever deploys it.
 pub const PARTIES_PATH: &str = "/koppeling/v1/partijen";
+
+/// The header by which a request to an FSC outway names the grant it is
+/// made under (FSC Core; OpenFSC's outway refuses a request without it).
+pub const GRANT_HASH_HEADER: &str = "Fsc-Grant-Hash";
 
 /// How far the moment of sending may lie from this server's clock.
 const MAX_SKEW: Duration = Duration::from_secs(300);
@@ -98,6 +108,8 @@ pub enum LinkError {
 #[derive(Debug)]
 struct Peer {
     url: String,
+    /// The FSC grant under which `url`, an outway, reaches the peer.
+    grant_hash: Option<String>,
     /// Its public key when the configuration pins one.
     pinned: Option<Jwk>,
 }
@@ -181,6 +193,7 @@ impl Link {
                 peer.cell.clone(),
                 Peer {
                     url: peer.url.clone(),
+                    grant_hash: peer.grant_hash.clone(),
                     pinned,
                 },
             );
@@ -266,6 +279,17 @@ impl Link {
         sent
     }
 
+    /// A request for `path` on the server of `peer`: straight to its
+    /// address, or with a grant to this server's FSC outway, which the
+    /// header tells which service of which peer it is for.
+    fn to(&self, peer: &Peer, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        let request = self.http.request(method, format!("{}{path}", peer.url));
+        match &peer.grant_hash {
+            Some(hash) => request.header(GRANT_HASH_HEADER, hash),
+            None => request,
+        }
+    }
+
     /// Send the record `o` to the server of its cell.
     async fn send(&self, o: &Outbound) -> Result<(), String> {
         let peer = self
@@ -284,8 +308,7 @@ impl Link {
         });
         let jws = self.key.sign(&claims, &[]).map_err(|e| e.to_string())?;
         let response = self
-            .http
-            .post(format!("{}{MESSAGES_PATH}", peer.url))
+            .to(peer, reqwest::Method::POST, MESSAGES_PATH)
             .header(reqwest::header::CONTENT_TYPE, "application/jose")
             .timeout(REQUEST_TIMEOUT)
             .body(jws)
@@ -322,8 +345,7 @@ impl Link {
             return VerifyingKey::from_jwk(&jwk).map_err(|e| e.to_string());
         }
         let answer: Value = self
-            .http
-            .get(format!("{}{KEY_PATH}", peer.url))
+            .to(peer, reqwest::Method::GET, KEY_PATH)
             .timeout(REQUEST_TIMEOUT)
             .send()
             .await
@@ -506,6 +528,7 @@ mod tests {
             peers: vec![PeerSetting {
                 cell: PEER.into(),
                 url: "https://gemeente.example.org".into(),
+                grant_hash: None,
                 key: Some(serde_json::to_string(peer.public_jwk()).unwrap()),
             }],
             key: None,

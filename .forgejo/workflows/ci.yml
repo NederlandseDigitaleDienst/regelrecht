@@ -290,6 +290,11 @@ jobs:
           contains REGELHET_LINK_KEY_FILE $CNPG --set koppeling.keySecret=sleutel \
             --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
             --set 'koppeling.peers[0].url=https://ggd.example.org'
+          # Through OpenFSC: the grant travels with the peer, to the outway.
+          contains 'grantHash' $CNPG \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
+            --set 'koppeling.peers[0].url=http://fsc-outway-default-open-fsc-outway' \
+            --set-string 'koppeling.peers[0].grantHash=$1$4$voorbeeld'
           # Of two instances only the one for employees holds the link, so a
           # release signs with one key.
           n=$(helm template regelhet "$C" --set domain=example.org $CNPG \

@@ -66,6 +66,7 @@ status:
 | `auth.mode` | `test` (the default: the test login and a clock the admin sets) or `stable` (a Keycloak of its own, and the real date) |
 | `auth.testAccounts` | in stable mode, give that Keycloak the test accounts of the case, with one generated password |
 | `fsc4b.enabled` | also offer the citizens' routes to an app through FSC voor Burgers, on the demo Stelsel with a test Activatiedienst that checks no identity. Test mode only: with `auth.mode: stable` the API server and the plugin refuse it. `status.fsc4bDiscoveryUrl` then names `https://<citizens' host>/fsc4b/discovery`. A `version` from before chart 0.5.0 ignores it |
+| `fsc.outway`, `fsc.grants` | reach linked RegelHet instances through this one's OpenFSC outway, under a grant per linked cell (see [A link through OpenFSC](#a-link-through-openfsc)) |
 | `fsc4b.origins` | the browser apps that may call FSC voor Burgers from an address of their own, such as the citizen's app in the browser (`charts/burgerapp`): each `https://host` or `https://host:port`, or `http://localhost` or `http://127.0.0.1` with a port for an app on a developer's machine, without a path; at most 20. The plugin passes them to the chart's `fsc4b.origins`, and the server answers them with CORS headers on `/fsc4b/`. Only with `fsc4b.enabled`: the API server and the plugin refuse them otherwise. The wizard asks them under FSC voor Burgers in the step Toegang |
 | `partij` | run as the server of one external party of another RegelHet's case, linked with it: `cel` is the party as that case names it, such as `ggd_wilgendaal`, and `uitvoerder` names the executor's RegelHet by `name` and, when another, `namespace` of the same Fundament project (see [External parties as a RegelHet of their own](#external-parties-as-a-regelhet-of-their-own)). Test mode only, and not with `fsc4b` or `organisatie` |
 
@@ -800,6 +801,36 @@ What this leans on:
 - The link runs with keys made at start, which the server allows in test mode
   only, so `auth.mode: stable` refuses `partij`, and an executor in stable mode
   links no party.
+
+## A link through OpenFSC
+
+Two linked RegelHet instances, an executor and a party, reach each other on
+their public addresses. With `spec.fsc` a RegelHet sends through OpenFSC
+instead: to its own FSC outway, which calls the other's inway under a
+contract both sides signed (the server's side is on the docs page
+`components/regelhet-koppeling`, under "Through OpenFSC").
+
+```yaml
+spec:
+  fsc:
+    outway: http://fsc-outway-default.tnt-voorbeeld--ggd
+    grants:
+      - cel: gemeente_wilgendaal
+        grantHash: $1$3$...
+```
+
+`grants` names, per linked cell, the grant under which the outway may call
+that cell: on a party the cell of its executor, on an executor the cells of
+its parties. A linked cell with a grant gets the outway as its `url` and the
+grant as `grantHash` in the chart's `koppeling.peers`; one without stays on
+its public address. `status.parties[].via` and the condition `PartiesLinked`
+say which of the two a link uses.
+
+The plugin makes nothing of FSC itself. The `FSCInstallation` beside each
+RegelHet (plugin `rinis-openfsc`, one per namespace), the service on its
+inway and the two contracts are made by hand, and each side's grant hash is
+then entered here. The wizard has no field for it; set it with kubectl or in
+the manifest.
 
 ## Develop
 

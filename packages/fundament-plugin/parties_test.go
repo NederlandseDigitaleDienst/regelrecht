@@ -154,6 +154,7 @@ func TestAPartyIsARegelHetOfItsOwnLinkedWithItsExecutor(t *testing.T) {
 	assert.Equal(t, []v1alpha1.PartyStatus{{
 		Cell: "ggd_voorbeeld", Name: "GGD Voorbeeld", URL: "https://ggd.cluster.example.org/",
 		Procedure: &v1alpha1.RegelHetReference{Name: "ggd", Namespace: testNamespace},
+		Via:       "direct",
 	}}, got.Status.Parties)
 	assert.True(t, apimeta.IsStatusConditionTrue(got.Status.Conditions, v1alpha1.ConditionPartiesLinked))
 	assert.Equal(t,
