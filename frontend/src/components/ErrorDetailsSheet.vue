@@ -20,7 +20,7 @@ const { detailsOpen, detailsOf } = storeToRefs(store);
           </nldd-rich-text>
           <template v-for="(error, index) in detailsOf" :key="index">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="display-5" heading-level="2"><span>{{ error.title }}</span></nldd-title>
+            <nldd-title size="display-5"><h2>{{ error.title }}</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-rich-text>
               <p>{{ error.summary }}</p>

@@ -1734,17 +1734,20 @@ const engineErrorBlocksPanes = computed(
   () => !!engineLoadError.value && !showPanesDespiteEngineError.value,
 );
 const errors = useErrorsStore();
-const ENGINE_ERROR_TITLE = 'Dit regelwerk kan niet worden uitgevoerd';
+// A notification is not next to what it is about, so its title names the
+// regelwerk. The article, when the engine names one, is in the sentence.
+const engineErrorTitle = computed(() => `${failedLawName.value || 'Dit regelwerk'} kan niet worden uitgevoerd`);
+const saveErrorTitle = computed(() => `${failedLawName.value || 'Het regelwerk'} is niet opgeslagen`);
 function showEngineErrorDetails() {
-  if (engineLoadError.value) errors.showDetails([{ title: ENGINE_ERROR_TITLE, ...engineLoadError.value }]);
+  if (engineLoadError.value) errors.showDetails([{ title: engineErrorTitle.value, ...engineLoadError.value }]);
 }
 // Beside the panes the error is a notification, shared with the other errors
 // the editor reports. In place of the panes it is the inline dialog, which
 // needs no notification next to it.
 watch(
-  [engineLoadError, engineErrorBlocksPanes],
-  ([error, blocksPanes]) => {
-    if (error && !blocksPanes) errors.report('engine-load', ENGINE_ERROR_TITLE, error);
+  [engineLoadError, engineErrorBlocksPanes, engineErrorTitle],
+  ([error, blocksPanes, title]) => {
+    if (error && !blocksPanes) errors.report('engine-load', title, error);
     else errors.clear('engine-load');
   },
   { immediate: true },
@@ -1924,9 +1927,9 @@ const saveError = computed(() => (saveFailure.value ? describeSaveError(saveFail
 // `lawSaveError` lives on until the next save; the store remembers that this
 // failure was dismissed. Dismissing also clears the review's error.
 watch(
-  saveError,
-  (error) => {
-    if (error) errors.report('save', 'Opslaan mislukt', error, () => { review.processError.value = null; });
+  [saveError, saveErrorTitle],
+  ([error, title]) => {
+    if (error) errors.report('save', title, error, () => { review.processError.value = null; });
     else errors.clear('save');
   },
   { immediate: true },
@@ -2204,7 +2207,7 @@ async function handleActionSave() {
           <nldd-simple-section width="full">
             <nldd-inline-dialog
               variant="alert"
-              text="Dit regelwerk kan niet worden uitgevoerd"
+              :text="engineErrorTitle"
               :supporting-text="engineLoadError.summary"
               data-testid="engine-load-error"
             >

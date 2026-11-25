@@ -50,6 +50,19 @@ describe('errors store', () => {
     expect(store.visible).toHaveLength(1);
   });
 
+  it('brings the title of a reported error up to date', () => {
+    const store = useErrorsStore();
+    store.report('save', 'voorbeeldwet is niet opgeslagen', SAVE);
+    store.dismissVisible();
+    store.report('save', 'Voorbeeldwet is niet opgeslagen', SAVE);
+    // Still the same failure, so still dismissed.
+    expect(store.visible).toEqual([]);
+
+    store.report('engine', 'voorbeeldwet kan niet worden uitgevoerd', ENGINE);
+    store.report('engine', 'Voorbeeldwet kan niet worden uitgevoerd', ENGINE);
+    expect(store.visible.map((e) => e.title)).toEqual(['Voorbeeldwet kan niet worden uitgevoerd']);
+  });
+
   it('opens the details with the errors it is given, and keeps them after closing', () => {
     const store = useErrorsStore();
     store.showDetails([{ title: 'Opslaan mislukt', ...SAVE }]);

@@ -257,6 +257,7 @@ function changes(): EditorChanges {
 interface EditorViewInternals {
   editorRouteFor(lawId: string | null, articleNumber: string | null): { query?: unknown };
   handleLawSave(): Promise<void>;
+  review: { processError: { value: Error | null } };
 }
 const internals = (wrapper: VueWrapper) => wrapper.vm as unknown as EditorViewInternals;
 
@@ -384,7 +385,7 @@ describe('EditorView save-failure notification', () => {
 
     law().saveError.value = new Error('Conflict');
     await settle();
-    expect(reported()).toEqual(['Opslaan mislukt: Conflict']);
+    expect(reported()).toEqual(['Kieswet is niet opgeslagen: Conflict']);
 
     // The failure outlives the dismiss (it clears on the next save), so the
     // store has to remember that this one was dismissed.
@@ -394,7 +395,7 @@ describe('EditorView save-failure notification', () => {
 
     law().saveError.value = new Error('Netwerkfout');
     await settle();
-    expect(reported()).toEqual(['Opslaan mislukt: Netwerkfout']);
+    expect(reported()).toEqual(['Kieswet is niet opgeslagen: Netwerkfout']);
   });
 
   // Writing an enrichment that fails is the same event for the user (my change
@@ -409,13 +410,14 @@ describe('EditorView save-failure notification', () => {
 
     await internals(wrapper).handleLawSave();
     await settle();
-    expect(reported()).toEqual(['Opslaan mislukt: Het regelwerk is intussen gewijzigd.']);
+    expect(reported()).toEqual(['Kieswet is niet opgeslagen: Het regelwerk is intussen gewijzigd.']);
+    expect(internals(wrapper).review.processError.value).not.toBeNull();
 
     useErrorsStore().dismissVisible();
     await settle();
     expect(reported()).toEqual([]);
     // Cleared at its source: nothing is left to report again.
-    expect(useErrorsStore().visible).toEqual([]);
+    expect(internals(wrapper).review.processError.value).toBeNull();
   });
 
   it('stops reporting when the editor goes away', async () => {

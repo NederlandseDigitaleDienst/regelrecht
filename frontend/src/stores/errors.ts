@@ -34,14 +34,18 @@ export const useErrorsStore = defineStore('errors', () => {
   );
 
   /**
-   * Report the error of one source. Reporting the same error object again
-   * changes nothing, so a dismissed error stays away until the source has a
-   * new one.
+   * Report the error of one source. The title says what failed and for which
+   * regelwerk: the notification is not next to what it is about. Reporting
+   * the same error object again only brings the title up to date, so a
+   * dismissed error stays away until the source has a new one.
    */
   function report(key: string, title: string, error: UserError, onDismiss?: () => void): void {
     // Raw on both sides: the map hands back a reactive proxy, and so may the caller.
     const previous = reports.value.get(key);
-    if (previous && toRaw(previous.source) === toRaw(error)) return;
+    if (previous && toRaw(previous.source) === toRaw(error)) {
+      previous.shown.title = title;
+      return;
+    }
     reports.value.set(key, { source: error, shown: { title, ...error }, dismissed: false, onDismiss });
   }
 

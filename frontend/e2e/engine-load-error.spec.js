@@ -11,7 +11,7 @@ import { loadFixture, gotoEditor, clearOpenTabsStorage, setYamlPane, readYamlSou
 import { mockCorpusApi } from './helpers-corpus.js';
 
 // The frontend's own parser reads this; the engine knows no such operation.
-const breakLaw = (yamlText) => yamlText.replace('operation: MAX', 'operation: NO_SUCH_OPERATION');
+const breakLaw = (yamlText, operation = 'NO_SUCH_OPERATION') => yamlText.replace('operation: MAX', `operation: ${operation}`);
 
 const splitView = (page) => page.locator('nldd-side-by-side-split-view');
 const blockingError = (page) => page.locator('[data-testid="engine-load-error"]');
@@ -33,6 +33,8 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(splitView(page)).toHaveCount(0);
     // The message is the readable sentence, not the engine's text.
     await expect(blockingError(page)).not.toHaveAttribute('supporting-text', /NO_SUCH_OPERATION/);
+    // The dialog is the message; no notification beside it.
+    await expect(notification(page)).toHaveCount(0);
 
     await blockingError(page).locator('nldd-button[text="Technische details"]').click();
     await expect(detailsSheet(page)).toHaveAttribute('open', '');
@@ -58,9 +60,33 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(notification(page)).toBeVisible({ timeout: 30_000 });
     await expect(splitView(page)).toHaveCount(1);
     await expect(blockingError(page)).toHaveCount(0);
-    await expect(notification(page)).toHaveAttribute('text', 'Dit regelwerk kan niet worden uitgevoerd');
+    await expect(notification(page)).toHaveAttribute('text', 'Wet op de zorgtoeslag kan niet worden uitgevoerd');
+
+    await expect(notification(page)).toHaveAttribute('supporting-text', /Kijk bij artikel 2\./);
 
     await notification(page).locator('nldd-button').click();
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
+  });
+
+  test('a dismissed notification stays away until the error changes', async ({ page }) => {
+    const saved = loadFixture('zorgtoeslag-full.yaml');
+    await mockLaw(page, saved);
+    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
+    const source = await readYamlSource(page);
+
+    await setYamlPane(page, breakLaw(source));
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    await notification(page).dispatchEvent('dismiss');
+    await expect(notification(page)).toHaveCount(0);
+
+    // Another edit, the same refusal: the engine reloads (300 ms debounce)
+    // and the notification does not come back.
+    await setYamlPane(page, `${breakLaw(source)}\n`);
+    await page.waitForTimeout(1_500);
+    await expect(notification(page)).toHaveCount(0);
+
+    // A different refusal is a new error.
+    await setYamlPane(page, breakLaw(source, 'ANOTHER_UNKNOWN_OPERATION'));
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
   });
 });
