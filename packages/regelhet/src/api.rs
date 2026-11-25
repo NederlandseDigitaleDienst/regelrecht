@@ -539,6 +539,7 @@ async fn forms(
 pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> CitizenResult {
     let mut forms = state.service.forms().await?;
     without_login_offer(&mut forms);
+    with_login_field_by_system(&mut forms, state.service.login_field());
     let visible = visible_records(state, principal).await?;
     only_visible_records(&mut forms, &visible);
     if let Ok(citizen) = principal.citizen(&state.subject_claim) {
@@ -685,6 +686,37 @@ fn without_login_offer(forms: &mut Value) {
         for submission in submissions.values_mut() {
             if let Some(submission) = submission.as_object_mut() {
                 submission.remove("inloggen");
+            }
+        }
+    }
+}
+
+/// Mark the login field `field` in every submission whose form asks it as
+/// filled by the login (`{"soort": "inloggen"}`), where the kern did not.
+/// A case with a login of its own (`inloggen`) leaves its login field out of
+/// what the system fills and offers it in `inloggen` instead, which
+/// [`without_login_offer`] drops; without this, a screen would ask the
+/// applicant for the number the login already carries, and the submission
+/// would refuse it.
+fn with_login_field_by_system(forms: &mut Value, field: &str) {
+    let Some(submissions) = forms.get_mut("indieningen").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for submission in submissions.values_mut() {
+        let asks = submission["velden"]
+            .as_array()
+            .is_some_and(|v| v.iter().any(|f| f["naam"] == field));
+        if !asks {
+            continue;
+        }
+        if let Some(submission) = submission.as_object_mut() {
+            let system = submission
+                .entry("systeem")
+                .or_insert_with(|| Value::Object(Map::new()));
+            if let Some(system) = system.as_object_mut() {
+                system
+                    .entry(field)
+                    .or_insert_with(|| json!({ "soort": "inloggen" }));
             }
         }
     }
@@ -1618,6 +1650,34 @@ mod tests {
         assert_eq!(
             forms["indieningen"],
             json!({ "a#1": { "soort": "AANVRAAG" }, "a#2": { "soort": "BEZWAAR" } })
+        );
+    }
+
+    #[test]
+    fn the_login_field_of_a_case_with_its_own_login_is_filled_by_the_login() {
+        let mut forms = json!({
+            "indieningen": {
+                "a#1": {
+                    "velden": [{ "naam": "kvk_nummer" }, { "naam": "kenteken" }],
+                    "systeem": { "dagtekening": { "soort": "datum" } },
+                },
+                "a#2": { "velden": [{ "naam": "kenteken" }], "systeem": {} },
+                "a#3": {
+                    "velden": [{ "naam": "kvk_nummer" }],
+                    "systeem": { "kvk_nummer": { "soort": "inloggen", "inlog": "naam" } },
+                },
+            },
+        });
+        with_login_field_by_system(&mut forms, "kvk_nummer");
+        assert_eq!(
+            forms["indieningen"]["a#1"]["systeem"],
+            json!({ "dagtekening": { "soort": "datum" }, "kvk_nummer": { "soort": "inloggen" } })
+        );
+        // A form that does not ask it gets nothing; what the kern says stays.
+        assert_eq!(forms["indieningen"]["a#2"]["systeem"], json!({}));
+        assert_eq!(
+            forms["indieningen"]["a#3"]["systeem"]["kvk_nummer"],
+            json!({ "soort": "inloggen", "inlog": "naam" })
         );
     }
 

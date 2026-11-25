@@ -146,3 +146,26 @@ async fn a_claim_setting_other_than_the_case_key_does_not_start() {
     let e = app::build_with(&c, Login::TestLogin).await.unwrap_err();
     assert!(e.to_string().contains("kvk_nummer"), "{e}");
 }
+
+#[tokio::test]
+async fn the_form_fills_the_kvk_number_from_the_login_and_does_not_ask_it() {
+    let app = server().await;
+    let (status, cookie, _) = step_login(&app, "bakker", "welkom").await;
+    assert_eq!(status, StatusCode::OK);
+    let me = common::As { app: &app, cookie };
+    let (status, forms) = me.get("/api/formulier").await;
+    assert_eq!(status, StatusCode::OK, "{forms}");
+    let application = &forms["indieningen"]["voorbeeld_vergunning_inlogstap#1"];
+    assert!(
+        application["velden"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["naam"] == "kvk_nummer"),
+        "{application}"
+    );
+    assert_eq!(
+        application["systeem"]["kvk_nummer"]["soort"], "inloggen",
+        "{application}"
+    );
+}
