@@ -54,8 +54,8 @@ vi.mock('./api', () => ({
   beheerApi: { partijen: async () => panel.value },
 }));
 
-async function toon(partijen: Partijen['partijen'], antwoord_op_verzoek: string[] = []) {
-  panel.value = { ...panel.value, partijen, antwoord_op_verzoek };
+async function toon(partijen: Partijen['partijen'], antwoord_op_verzoek: string[] = [], gekoppeld: Partijen['gekoppeld'] = []) {
+  panel.value = { ...panel.value, partijen, antwoord_op_verzoek, gekoppeld };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
   const w = mount(BeheerView, { global: { plugins: [router], stubs: { teleport: true } } });
   await flushPromises();
@@ -113,5 +113,32 @@ describe('the admin panel', () => {
     const w = await toon([{ cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] }]);
     expect(knoppen(w)).toEqual([]);
     expect(w.text()).toContain('Op dit moment vraagt het proces niets van Rechtbank Voorbeeld');
+  });
+
+  it('points to the system of a linked party, and enters for it only after the admin asks to', async () => {
+    const w = await toon(
+      [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', nooduitweg: true, open: [], toe_te_zenden: [], verzoeken: [] }],
+      [],
+      [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', voorkant: 'https://adviseur.example.org' }],
+    );
+    expect(knoppen(w)).toEqual(['Naar het systeem van Adviseur Voorbeeld', 'Toch hier invoeren']);
+    const link = w.find('nldd-button[href]');
+    expect(link.attributes('href')).toBe('https://adviseur.example.org');
+    expect(link.attributes('target')).toBe('_blank');
+    expect(w.find('nldd-banner[variant="warning"]').exists()).toBe(false);
+
+    await w.find('nldd-button[text="Toch hier invoeren"]').trigger('click');
+    expect(knoppen(w)).toEqual(['Naar het systeem van Adviseur Voorbeeld', 'Invoer hier verbergen', 'Advies uitgebracht vastleggen']);
+    expect(w.find('nldd-banner[variant="warning"]').attributes('text')).toBe('Adviseur Voorbeeld werkt in een eigen systeem');
+
+    await w.find('nldd-button[text="Invoer hier verbergen"]').trigger('click');
+    expect(knoppen(w)).toEqual(['Naar het systeem van Adviseur Voorbeeld', 'Toch hier invoeren']);
+  });
+
+  it('offers no way to enter for a linked party when the server does not', async () => {
+    const w = await toon([], [], [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', voorkant: null }]);
+    expect(knoppen(w)).toEqual([]);
+    expect(w.text()).toContain('Adviseur Voorbeeld werkt in een eigen systeem');
+    expect(w.text()).not.toContain('Deze casus kent geen externe partijen');
   });
 });

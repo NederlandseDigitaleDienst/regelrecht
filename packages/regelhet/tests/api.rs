@@ -1053,13 +1053,14 @@ async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties()
             "gekoppeld": [],
             "partijen": [
                 {
-                    "cel": GGD, "cel_naam": "GGD Wilgendaal", "open": [], "toe_te_zenden": [],
+                    "cel": GGD, "cel_naam": "GGD Wilgendaal", "nooduitweg": false,
+                    "open": [], "toe_te_zenden": [],
                     "verzoeken": [{ "verzoek": verzoek, "antwoordfeit": ADVICE }],
                     // Never the answered ones: those are for the party's own server.
                     "beantwoord": [],
                 },
                 {
-                    "cel": RECHTBANK, "cel_naam": "Rechtbank Wilgendaal", "open": [],
+                    "cel": RECHTBANK, "cel_naam": "Rechtbank Wilgendaal", "nooduitweg": false, "open": [],
                     "toe_te_zenden": [], "verzoeken": [], "beantwoord": [],
                 },
             ],

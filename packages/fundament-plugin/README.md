@@ -822,8 +822,9 @@ spec:
 `grants` names, per linked cell, the grant under which the outway may call
 that cell: on a party the cell of its executor, on an executor the cells of
 its parties. A linked cell with a grant gets the outway as its `url` and the
-grant as `grantHash` in the chart's `koppeling.peers`; one without stays on
-its public address. `status.parties[].via` and the condition `PartiesLinked`
+grant as `grantHash` in the chart's `koppeling.peers`, with its public address
+as `voorkant` for the link in the admin panel; one without stays on its
+public address. `status.parties[].via` and the condition `PartiesLinked`
 say which of the two a link uses.
 
 The plugin makes nothing of FSC itself. The `FSCInstallation` beside each

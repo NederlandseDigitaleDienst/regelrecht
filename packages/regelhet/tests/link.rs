@@ -39,6 +39,7 @@ fn peer(cell: &str, url: &str) -> Vec<PeerSetting> {
         cell: cell.into(),
         url: url.into(),
         grant_hash: None,
+        front: None,
         key: None,
     }]
 }
@@ -168,27 +169,81 @@ async fn the_request_reaches_the_ggds_server_and_its_advice_comes_back() {
 }
 
 #[tokio::test]
-async fn each_server_serves_its_own_side_only() {
+async fn an_admin_answers_for_the_linked_ggd_when_its_server_does_not() {
     let Pair { gemeente, ggd, .. } = pair().await;
-    // The municipality's admin enters nothing for the GGD any more: the
-    // panel names it as linked, and the route refuses it.
+    anna_applies(&gemeente).await;
+    // The request waits in the municipality's own copy of the GGD's cell,
+    // where the admin answers it as for a party without a server.
     let (_, panel) = admin(&gemeente)
         .await
         .get("/api/backoffice/beheer/partijen")
         .await;
-    let cells: Vec<&str> = panel["partijen"]
+    let verzoek = panel["partijen"][0]["verzoeken"][0]["verzoek"].clone();
+    assert_eq!(verzoek["fields"]["bsn_aanvrager"], json!(ANNA), "{panel}");
+    let mut body = advice(ANNA);
+    body["verzoek"] = verzoek["id"].clone();
+    body["velden"]
+        .as_object_mut()
+        .unwrap()
+        .remove("bsn_aanvrager");
+    let (status, advies) = admin(&gemeente)
+        .await
+        .post("/api/backoffice/beheer/vastleggingen", body)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{advies}");
+    assert_eq!(request_at(&gemeente).await["open"], json!(false));
+
+    // The receipt of that advice crosses the link as any record of the
+    // municipality, so the GGD's own server holds the request as answered
+    // once it is reachable, and refuses a second answer.
+    let answered = eventually("the answer arriving at the GGD", async || {
+        ggd_panel(&ggd).await["partijen"][0]["beantwoord"][0]
+            .as_object()
+            .map(|a| Value::Object(a.clone()))
+    })
+    .await;
+    assert_eq!(
+        answered["antwoord"]["fields"]["langdurige_loopbeperking"],
+        json!(true)
+    );
+    let mut body = advice(ANNA);
+    body["verzoek"] = answered["verzoek"]["id"].clone();
+    body["velden"]
+        .as_object_mut()
+        .unwrap()
+        .remove("bsn_aanvrager");
+    let (status, late) = employee(&ggd, "arts-1", "regelhet-beslisser")
+        .await
+        .post("/api/backoffice/beheer/vastleggingen", body)
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{late}");
+}
+
+#[tokio::test]
+async fn each_server_serves_its_own_side_only() {
+    let Pair {
+        gemeente,
+        ggd,
+        ggd_url,
+    } = pair().await;
+    // The municipality's panel names the GGD as linked, with where its own
+    // screens are. In test mode it lists the GGD still, marked as a
+    // fallback, beside the court it enters for as before.
+    let (_, panel) = admin(&gemeente)
+        .await
+        .get("/api/backoffice/beheer/partijen")
+        .await;
+    assert_eq!(
+        panel["gekoppeld"],
+        json!([{ "cel": GGD, "cel_naam": "GGD Wilgendaal", "voorkant": ggd_url }])
+    );
+    let fallback: Vec<(&str, bool)> = panel["partijen"]
         .as_array()
         .unwrap()
         .iter()
-        .filter_map(|p| p["cel"].as_str())
+        .filter_map(|p| Some((p["cel"].as_str()?, p["nooduitweg"].as_bool()?)))
         .collect();
-    assert_eq!(cells, [RECHTBANK]);
-    assert_eq!(panel["gekoppeld"][0]["cel"], json!(GGD));
-    let (status, _) = admin(&gemeente)
-        .await
-        .post("/api/backoffice/beheer/vastleggingen", advice(ANNA))
-        .await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(fallback, [(GGD, true), (RECHTBANK, false)]);
 
     // The GGD's server says whose it is, has no back office of the
     // municipality, and enters nothing for the court.
@@ -362,6 +417,7 @@ async fn with_a_grant_every_request_to_a_peer_goes_through_the_outway() {
             cell: cell.into(),
             url: url.into(),
             grant_hash: Some(grant.into()),
+            front: None,
             key: None,
         }]
     };
@@ -429,6 +485,7 @@ async fn under_a_grant_the_outway_does_not_know_nothing_arrives_and_the_record_w
             cell: GGD.into(),
             url: to_ggd,
             grant_hash: Some("$1$4$een-ander-grant".into()),
+            front: None,
             key: None,
         }],
         key: None,

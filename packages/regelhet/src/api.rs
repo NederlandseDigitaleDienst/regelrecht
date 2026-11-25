@@ -1332,6 +1332,7 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
             json!({
                 "cel": p.cell,
                 "cel_naam": p.name,
+                "nooduitweg": p.fallback,
                 "open": p.open,
                 "toe_te_zenden": p.unsent,
                 "verzoeken": p.requests.iter().map(|r| json!({
@@ -1354,6 +1355,7 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
         "gekoppeld": state.service.linked_cells().map(|cel| json!({
             "cel": cel,
             "cel_naam": state.service.cell_name(cel),
+            "voorkant": state.link.as_ref().and_then(|link| link.front_of(cel)),
         })).collect::<Vec<_>>(),
         "antwoord_op_verzoek": state.service.answer_facts(),
     })))

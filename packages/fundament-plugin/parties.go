@@ -185,10 +185,15 @@ func via(w *v1alpha1.RegelHet, cell string) string {
 
 // linkPeer is the linked cell as the release of w names it (the chart's
 // koppeling.peers): on its public address direct, or with a grant for it on
-// w's own FSC outway under that grant.
+// w's own FSC outway under that grant. Behind an outway the public address
+// stays as `voorkant`, where a person opens the cell's own screens; direct,
+// the server takes `url` for that, so a chart from before 0.11.0 gets no key
+// it does not know.
 func linkPeer(w *v1alpha1.RegelHet, cell, direct string) map[string]any {
 	if grant := fscGrant(w, cell); grant != "" {
-		return map[string]any{"cel": cell, "url": strings.TrimSuffix(w.Spec.Fsc.Outway, "/"), "grantHash": grant}
+		return map[string]any{
+			"cel": cell, "url": strings.TrimSuffix(w.Spec.Fsc.Outway, "/"), "grantHash": grant, "voorkant": direct,
+		}
 	}
 	return map[string]any{"cel": cell, "url": direct}
 }

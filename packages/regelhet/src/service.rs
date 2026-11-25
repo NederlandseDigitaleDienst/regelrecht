@@ -550,6 +550,9 @@ struct LinkRole {
     party: Option<String>,
     /// The cells whose own servers this one exchanges records with.
     linked: BTreeSet<String>,
+    /// Whether the executor's admin may still enter what a linked party did
+    /// ([`Service::with_fallback_entry`]).
+    fallback: bool,
 }
 
 /// A record of the cell this server works for that the server of the cell
@@ -592,6 +595,9 @@ pub struct ExternalParty {
     pub cell: String,
     /// The name a screen shows for it.
     pub name: String,
+    /// Whether it has a server of its own and is entered for here as a
+    /// fallback only ([`Service::enters_as_fallback`]).
+    pub fallback: bool,
     /// The submissions in its chronicle that wait for its decision, each
     /// with the record to decide after when an earlier decision was revoked.
     pub open: Vec<Waiting>,
@@ -1087,8 +1093,28 @@ impl Service {
         self.link = LinkRole {
             party: party.map(str::to_string),
             linked,
+            fallback: self.link.fallback,
         };
         Ok(self)
+    }
+
+    /// Let the executor's admin enter what a linked party did after all,
+    /// for when that party's own server does not work. The executor's
+    /// receipt of what is entered this way crosses the link as any of its
+    /// records, so the party's server holds the request as answered once it
+    /// is reachable. An answer the party recorded itself in the meantime is
+    /// then a second answer, which nothing reconciles. Meant for trying the
+    /// process out, so a deployment allows it in test mode only.
+    #[must_use]
+    pub fn with_fallback_entry(mut self, allowed: bool) -> Self {
+        self.link.fallback = allowed;
+        self
+    }
+
+    /// Whether an admin on the executor's server enters for the linked cell
+    /// `cell` as a fallback only ([`Service::with_fallback_entry`]).
+    pub fn enters_as_fallback(&self, cell: &str) -> bool {
+        self.party().is_none() && self.link.fallback && self.is_linked(cell)
     }
 
     /// The external party this server works for, when it is not the
@@ -1134,11 +1160,12 @@ impl Service {
 
     /// Whether a person on this server enters what the external party
     /// `cell` did: on the party's own server only that party, and on the
-    /// executor's every party without a server of its own.
+    /// executor's every party without a server of its own, or with one when
+    /// the fallback is allowed ([`Service::with_fallback_entry`]).
     pub fn enters_for(&self, cell: &str) -> bool {
         match self.party() {
             Some(party) => party == cell,
-            None => self.is_external(cell) && !self.is_linked(cell),
+            None => self.is_external(cell) && (!self.is_linked(cell) || self.link.fallback),
         }
     }
 
@@ -1285,6 +1312,7 @@ impl Service {
                 ExternalParty {
                     cell: (*cell).to_string(),
                     name: self.corpus.cel_naam(cell).to_string(),
+                    fallback: self.enters_as_fallback(cell),
                     open: stand.open(grams).into_iter().map(Waiting::from).collect(),
                     unsent: external::unsent(grams, &elsewhere, stand, afleiding)
                         .into_iter()
@@ -2153,6 +2181,22 @@ pub(crate) mod tests {
             from.confirm_delivery(&o.gram.id, &o.to).await.unwrap();
         }
         outbound.len()
+    }
+
+    #[tokio::test]
+    async fn an_admin_enters_for_a_linked_party_only_as_an_allowed_fallback() {
+        let gemeente = linked(None, GGD).await;
+        assert!(!gemeente.enters_for(GGD));
+        assert!(!gemeente.enters_as_fallback(GGD));
+        let gemeente = gemeente.with_fallback_entry(true);
+        assert!(gemeente.enters_for(GGD));
+        assert!(gemeente.enters_as_fallback(GGD));
+        // The party's own server enters for itself, never as a fallback,
+        // and never for the executor.
+        let ggd = linked(Some(GGD), GEMEENTE).await.with_fallback_entry(true);
+        assert!(ggd.enters_for(GGD));
+        assert!(!ggd.enters_as_fallback(GGD));
+        assert!(!ggd.enters_for(GEMEENTE));
     }
 
     #[tokio::test]

@@ -220,7 +220,8 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         .with_link(
             config.link.party.as_deref(),
             config.link.peers.iter().map(|p| p.cell.clone()),
-        )?;
+        )?
+        .with_fallback_entry(config.mode == Mode::Test);
     let link = Link::open(
         &config.link,
         service.own_cell(),

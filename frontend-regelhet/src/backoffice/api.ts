@@ -30,6 +30,8 @@ export interface OpenVerzoek {
 export interface Partij {
   cel: string;
   cel_naam: string;
+  /** It has a server of its own; an admin enters for it here only when that does not work. */
+  nooduitweg?: boolean;
   /** The submissions in its chronicle that wait for its decision, with the record to decide after (`na`) when one was revoked. */
   open: Wachtend[];
   /** Its decisions of which no other cell received a copy yet. */
@@ -44,8 +46,8 @@ export interface Partij {
 export interface Partijen {
   uitvoerder: { cel: string; cel_naam: string };
   partijen: Partij[];
-  /** The parties with a server of their own, linked with this one: nothing is entered for them here. */
-  gekoppeld?: { cel: string; cel_naam: string }[];
+  /** The parties with a server of their own, linked with this one, each with where its own screens are when this server knows. */
+  gekoppeld?: { cel: string; cel_naam: string; voorkant?: string | null }[];
   /** The facts by which a party answers a request, such as the GGD's advice: with a request open, it records them from that request. */
   antwoord_op_verzoek: string[];
 }

@@ -80,9 +80,30 @@ function voorWie(vast: Record<string, unknown>): string {
 }
 const gekozen = computed(() => partijen.value.find((p) => p.cel === props.cel));
 
-// The parties with a server of their own (PartijView.vue there): nothing is
-// entered for them here.
-const gekoppeld = computed(() => (panel.value?.gekoppeld ?? []).map((g) => g.cel_naam).join(', '));
+// The parties with a server of their own (PartijView.vue there). The panel
+// points to that system and enters nothing for them, until the admin says
+// to enter here after all (`hierInvoeren`), for when that system does not
+// work. The server offers that in test mode only (`nooduitweg`).
+const hierInvoeren = ref(new Set<string>());
+const gekoppeld = computed(() =>
+  (panel.value?.gekoppeld ?? []).map((g) => ({
+    ...g,
+    nooduitweg: partijen.value.some((p) => p.cel === g.cel && p.nooduitweg),
+  })),
+);
+/** The linked parties the panel only points to. */
+const verwezen = computed(() => gekoppeld.value.filter((g) => !hierInvoeren.value.has(g.cel)));
+/** The parties the admin enters for here. */
+const invoer = computed(() => partijen.value.filter((p) => !p.nooduitweg || hierInvoeren.value.has(p.cel)));
+function voorkantVan(cel: string): string | undefined {
+  return gekoppeld.value.find((g) => g.cel === cel)?.voorkant ?? undefined;
+}
+function zetHierInvoeren(cel: string, aan: boolean) {
+  const cellen = new Set(hierInvoeren.value);
+  if (aan) cellen.add(cel);
+  else cellen.delete(cel);
+  hierInvoeren.value = cellen;
+}
 
 const keuze = ref<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown> } | null>(null);
 const gedaan = ref('');
@@ -125,10 +146,6 @@ async function toezenden(besluit: Gram) {
           <nldd-text color="secondary">
             <p>Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.</p>
           </nldd-text>
-          <template v-if="gekoppeld">
-            <nldd-spacer size="16"></nldd-spacer>
-            <nldd-banner variant="neutral" :text="`${hoofdletter(gekoppeld)} werkt in een eigen systeem. Verzoeken en antwoorden gaan over de koppeling; u voert hier niets voor haar in.`"></nldd-banner>
-          </template>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden || (!panel && !fout)" text="Het beheerpaneel laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het beheerpaneel laadt niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -141,10 +158,54 @@ async function toezenden(besluit: Gram) {
               <nldd-inline-dialog icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
               <nldd-spacer size="16"></nldd-spacer>
             </template>
-            <nldd-inline-dialog v-if="partijen.length === 0 && !gekoppeld" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
-            <template v-for="(p, i) in partijen" :key="p.cel">
+            <nldd-inline-dialog v-if="partijen.length === 0 && gekoppeld.length === 0" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
+            <template v-for="(g, i) in verwezen" :key="g.cel">
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
+              <nldd-title size="display-5"><h4>{{ hoofdletter(g.cel_naam) }}</h4></nldd-title>
+              <nldd-text color="secondary">
+                <p>{{ hoofdletter(g.cel_naam) }} werkt in een eigen systeem. Verzoeken en antwoorden gaan over de koppeling; u voert hier niets voor haar in.</p>
+              </nldd-text>
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-button-group>
+                <nldd-button
+                  v-if="g.voorkant"
+                  appearance="secondary"
+                  end-icon="external-link"
+                  :text="`Naar het systeem van ${g.cel_naam}`"
+                  :href="g.voorkant"
+                  target="_blank"
+                ></nldd-button>
+                <nldd-button
+                  v-if="g.nooduitweg"
+                  appearance="neutral-transparent"
+                  text="Toch hier invoeren"
+                  @click="zetHierInvoeren(g.cel, true)"
+                ></nldd-button>
+              </nldd-button-group>
+            </template>
+            <template v-for="(p, i) in invoer" :key="p.cel">
+              <nldd-spacer v-if="i > 0 || verwezen.length" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
+              <template v-if="p.nooduitweg">
+                <nldd-banner
+                  variant="warning"
+                  :text="`${hoofdletter(p.cel_naam)} werkt in een eigen systeem`"
+                  supporting-text="Voer hier alleen in als dat systeem niet werkt. Wat u hier vastlegt, gaat over de koppeling naar haar toe zodra het weer bereikbaar is."
+                ></nldd-banner>
+                <nldd-spacer size="8"></nldd-spacer>
+                <nldd-button-group>
+                  <nldd-button
+                    v-if="voorkantVan(p.cel)"
+                    appearance="secondary"
+                    end-icon="external-link"
+                    :text="`Naar het systeem van ${p.cel_naam}`"
+                    :href="voorkantVan(p.cel)"
+                    target="_blank"
+                  ></nldd-button>
+                  <nldd-button appearance="neutral-transparent" text="Invoer hier verbergen" @click="zetHierInvoeren(p.cel, false)"></nldd-button>
+                </nldd-button-group>
+                <nldd-spacer size="8"></nldd-spacer>
+              </template>
               <template v-if="p.verzoeken.length">
                 <nldd-text color="secondary"><p>Open verzoeken. Kies er een om het antwoord vast te leggen.</p></nldd-text>
                 <nldd-list appearance="simple" :accessible-label="`Open verzoeken aan ${p.cel_naam}`">

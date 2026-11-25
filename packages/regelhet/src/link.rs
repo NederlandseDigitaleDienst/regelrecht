@@ -110,6 +110,8 @@ struct Peer {
     url: String,
     /// The FSC grant under which `url`, an outway, reaches the peer.
     grant_hash: Option<String>,
+    /// Where a person opens the peer's own screens.
+    front: Option<String>,
     /// Its public key when the configuration pins one.
     pinned: Option<Jwk>,
 }
@@ -194,6 +196,7 @@ impl Link {
                 Peer {
                     url: peer.url.clone(),
                     grant_hash: peer.grant_hash.clone(),
+                    front: peer.front(),
                     pinned,
                 },
             );
@@ -212,6 +215,12 @@ impl Link {
     /// The cells this server is linked with.
     pub fn cells(&self) -> impl Iterator<Item = &str> {
         self.peers.keys().map(String::as_str)
+    }
+
+    /// Where a person opens the screens of the linked cell `cell`, when
+    /// this server knows.
+    pub fn front_of(&self, cell: &str) -> Option<&str> {
+        self.peers.get(cell)?.front.as_deref()
     }
 
     /// The routes of the link. No session guards them: a message proves
@@ -529,6 +538,7 @@ mod tests {
                 cell: PEER.into(),
                 url: "https://gemeente.example.org".into(),
                 grant_hash: None,
+                front: None,
                 key: Some(serde_json::to_string(peer.public_jwk()).unwrap()),
             }],
             key: None,

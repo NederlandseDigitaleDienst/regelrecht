@@ -17,8 +17,16 @@ The steps of the process do not change. The municipality's policy still records 
 |---|---|---|
 | Who logs in | Citizens and the executor's employees | The party's employees |
 | Back office | Work queue, chronicle, admin panel for parties without a server | Only what waits for the party: open requests, its decisions, its facts |
-| Admin panel for the linked party | Gone; the panel names the party as linked | Used by the party's own staff, from `regelhet-beslisser` upward |
+| Admin panel for the linked party | Points to the party's own system; entering here is a [fallback](#entering-for-a-linked-party-after-all) | Used by the party's own staff, from `regelhet-beslisser` upward |
 | `recorded_via` of the party's acts | `koppeling` | The employee's own login |
+
+## Entering for a linked party after all
+
+The executor's admin panel enters nothing for a linked party. It names the party, says that it works in a system of its own, and links to that system when the server knows where it is (`voorkant` in `GET /api/backoffice/beheer/partijen`, under `gekoppeld`).
+
+In test mode the panel also offers "Toch hier invoeren", for when the party's system does not work during a demonstration. The admin then enters the party's acts as for a party without a server, under a warning, and can hide the input again. The server lists such a party under `partijen` with `nooduitweg: true`. In stable mode it leaves the party out and refuses the routes, as before.
+
+What the admin enters this way is recorded as entered through the admin panel, by that account. The executor's receipt of it crosses the link like any of its records, so the party's server holds the request as answered once it is reachable, and refuses a second answer. An answer the party recorded itself before that arrives is a second answer on the executor's side, and nothing reconciles the two.
 
 ## The party's own screen
 
@@ -60,7 +68,7 @@ None of these routes has a login. The first proves its sender by the signature, 
 
 | Variable | Meaning |
 |---|---|
-| `REGELHET_LINK_PEERS` | A JSON list of the other servers: per peer its `cel`, its `url` and, pinned, its public key as a JWK under `sleutel`. With `grantHash`, `url` is this server's FSC outway ([Through OpenFSC](#through-openfsc)) |
+| `REGELHET_LINK_PEERS` | A JSON list of the other servers: per peer its `cel`, its `url` and, pinned, its public key as a JWK under `sleutel`. With `grantHash`, `url` is this server's FSC outway ([Through OpenFSC](#through-openfsc)). `voorkant` is where a person opens the peer's own screens; without it that is `url`, and behind an outway the server knows none |
 | `REGELHET_LINK_PARTY` | The external party this server works for, by its cell. Not set on the executor's server. It requires `REGELHET_SURFACE=backoffice` |
 | `REGELHET_LINK_KEY_FILE` or `REGELHET_LINK_KEY` | This server's private ES256 key, PKCS#8 PEM, as a file path or as the value itself |
 

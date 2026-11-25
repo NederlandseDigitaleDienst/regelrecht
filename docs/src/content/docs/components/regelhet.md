@@ -27,7 +27,7 @@ The other cells of the case stay in the process, because the steps need their ch
 
 What the executor sees of an external party follows the process. The municipality reads what the GGD sends it, which lands in the municipality's own chronicle, and not the GGD's chronicle. The admin panel shows of a party only what an input needs: the submissions that wait for its decision, and its decisions of which no other cell has received a copy. Neither the panel nor any route of the back office returns a party's chronicle.
 
-The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. A party can also run on a server of its own, linked with this one: its staff log in there and see their own requests, and the two servers exchange what each has to know as signed messages. The panel then no longer takes input for that party. [A link between servers](/components/regelhet-koppeling) describes it; it carries facts, so a party that decides, such as the court, stays in the panel.
+The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. A party can also run on a server of its own, linked with this one: its staff log in there and see their own requests, and the two servers exchange what each has to know as signed messages. The panel then points to that party's own system, and takes input for it only as a fallback in test mode. [A link between servers](/components/regelhet-koppeling) describes it; it carries facts, so a party that decides, such as the court, stays in the panel.
 
 ## A request to an external party and the answer back
 
@@ -210,7 +210,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
 | `POST /api/backoffice/testomgeving/leegmaken` | admin | In test mode, empty the test setup (see [Modes](#modes)); in stable mode the route does not exist |
-| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`, each as `stuk` with `na` as in `werkvoorraad`), its decisions not sent yet (`toe_te_zenden`) and the executor's requests it has not answered (`verzoeken`); under `antwoord_op_verzoek` the facts that answer a request |
+| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`, each as `stuk` with `na` as in `werkvoorraad`), its decisions not sent yet (`toe_te_zenden`) and the executor's requests it has not answered (`verzoeken`); under `antwoord_op_verzoek` the facts that answer a request; under `gekoppeld` the parties with a server of their own ([the link](/components/regelhet-koppeling#entering-for-a-linked-party-after-all)) |
 | `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen`; an answer to an open request names its receipt under `verzoek` |
 | `POST /api/backoffice/beheer/voorvertoning` | admin | What an external party's decision would come to; records nothing |
 | `POST /api/backoffice/beheer/besluiten` | admin | An external party's decision on a submission it holds |

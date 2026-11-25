@@ -32,6 +32,7 @@ func TestWithAGrantBothSidesReachEachOtherThroughTheirOwnOutway(t *testing.T) {
 	party := reconcileOnce(t, r, p)
 	assert.Equal(t, []any{map[string]any{
 		"cel": "gemeente_voorbeeld", "url": "http://fsc-outway-default.ns-ggd", "grantHash": "$1$3$naar-gemeente_voorbeeld",
+		"voorkant": "https://a-medewerkers.cluster.example.org",
 	}}, releaseValues(t, r.Client, testNamespace, "ggd")["koppeling"].(map[string]any)["peers"])
 	cond := partiesLinked(t, party)
 	assert.Equal(t, metav1.ConditionTrue, cond.Status)
@@ -41,6 +42,7 @@ func TestWithAGrantBothSidesReachEachOtherThroughTheirOwnOutway(t *testing.T) {
 	got := reconcileOnce(t, r, e)
 	assert.Equal(t, []any{map[string]any{
 		"cel": "ggd_voorbeeld", "url": "http://fsc-outway-default.ns-gemeente", "grantHash": "$1$3$naar-ggd_voorbeeld",
+		"voorkant": "https://ggd.cluster.example.org",
 	}}, peersOf(t, fluxObject(t, r.Client, "HelmRelease", "a")))
 	assert.Equal(t, "fsc", got.Status.Parties[0].Via)
 	assert.Contains(t, partiesLinked(t, got).Message, "through FSC")
@@ -66,7 +68,7 @@ func TestFscValuesExistInTheChart(t *testing.T) {
 	e := throughFsc(newRegelHet("a", "a"), "http://fsc-outway-default.ns", "ggd_voorbeeld")
 	peer := linkPeer(e, "ggd_voorbeeld", "https://ggd.cluster.example.org")
 	// The chart's schema takes exactly these keys for a peer.
-	assert.ElementsMatch(t, []string{"cel", "url", "grantHash"}, keysOf(peer))
+	assert.ElementsMatch(t, []string{"cel", "url", "grantHash", "voorkant"}, keysOf(peer))
 }
 
 func keysOf(m map[string]any) []string {

@@ -655,6 +655,10 @@
               "grantHash": {
                 "type": "string",
                 "pattern": "^[!-~]+$"
+              },
+              "voorkant": {
+                "type": "string",
+                "pattern": "^https?://"
               }
             }
           }

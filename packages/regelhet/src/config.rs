@@ -445,10 +445,27 @@ pub struct PeerSetting {
     /// peer directly.
     #[serde(default, rename = "grantHash")]
     pub grant_hash: Option<String>,
+    /// Where a person opens the peer's own screens, for a link in the admin
+    /// panel. None takes `url` when that is the peer's own address, and
+    /// knows none behind an outway.
+    #[serde(default, rename = "voorkant")]
+    pub front: Option<String>,
     /// Its public key, a JWK as JSON text; none reads it from the server
     /// itself, in test mode only.
     #[serde(default, rename = "sleutel", deserialize_with = "jwk_text")]
     pub key: Option<String>,
+}
+
+impl PeerSetting {
+    /// Where a person opens the peer's own screens: what the configuration
+    /// names, or else the peer's own address. An outway is no such address.
+    pub fn front(&self) -> Option<String> {
+        match (&self.front, &self.grant_hash) {
+            (Some(front), _) => Some(front.clone()),
+            (None, None) => Some(self.url.clone()),
+            (None, Some(_)) => None,
+        }
+    }
 }
 
 /// A JWK in the configuration, kept as text until the link opens.
@@ -851,11 +868,13 @@ fn link_settings(
     };
     for peer in &mut peers {
         peer.url = peer.url.trim().trim_end_matches('/').to_string();
-        if !(peer.url.starts_with("https://") || peer.url.starts_with("http://")) {
-            return Err(ConfigError::BadLinkPeers(format!(
-                "`{}` is no http(s) address",
-                peer.url
-            )));
+        peer.front = peer.front.take().map(|f| f.trim().to_string());
+        for address in std::iter::once(&peer.url).chain(&peer.front) {
+            if !(address.starts_with("https://") || address.starts_with("http://")) {
+                return Err(ConfigError::BadLinkPeers(format!(
+                    "`{address}` is no http(s) address"
+                )));
+            }
         }
     }
     for peer in &mut peers {

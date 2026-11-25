@@ -237,6 +237,10 @@ koppeling:
   #   - cel: ggd_wilgendaal
   #     url: http://fsc-outway-default-open-fsc-outway
   #     grantHash: $1$4$...
+  # `voorkant` is where a person opens the peer's own screens, for the link
+  # in the admin panel. Without it that is `url`; behind an outway name it,
+  # or the panel shows no link.
+  #     voorkant: https://ggd.example.org
   peers: []
   # A Secret in the release's namespace whose key `key.pem` holds this
   # release's private ES256 key (PKCS#8 PEM). Empty lets the instance that

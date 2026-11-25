@@ -295,6 +295,12 @@ jobs:
             --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
             --set 'koppeling.peers[0].url=http://fsc-outway-default-open-fsc-outway' \
             --set-string 'koppeling.peers[0].grantHash=$1$4$voorbeeld'
+          # And where a person opens the peer's own screens.
+          contains 'voorkant' $CNPG \
+            --set 'koppeling.peers[0].cel=ggd_wilgendaal' \
+            --set 'koppeling.peers[0].url=http://fsc-outway-default-open-fsc-outway' \
+            --set-string 'koppeling.peers[0].grantHash=$1$4$voorbeeld' \
+            --set 'koppeling.peers[0].voorkant=https://ggd.example.org'
           # Of two instances only the one for employees holds the link, so a
           # release signs with one key.
           n=$(helm template regelhet "$C" --set domain=example.org $CNPG \
