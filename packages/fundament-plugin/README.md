@@ -848,7 +848,7 @@ the manifest.
 ## Develop
 
 The plugin needs Go 1.27.3 (`go.mod`). After a change to `api/v1alpha1`,
-regenerate the deep copies and the CRD with controller-gen 0.20:
+regenerate the deep copies and the CRD with controller-gen v0.20.1:
 
 ```sh
 controller-gen object paths=./api/... crd:crdVersions=v1 output:crd:dir=./crds
@@ -856,6 +856,9 @@ go -C packages/fundament-plugin test ./...
 node --test packages/fundament-plugin/console-test/*.test.js
 docker build -t regelhet-fundament-plugin:dev packages/fundament-plugin
 ```
+
+CI runs the same controller-gen command and fails when `crds/` or
+`api/v1alpha1/zz_generated.deepcopy.go` differs from what is committed.
 
 `TestChartValuesExistInChart` reads `charts/regelhet/values.yaml`, so the
 tests run from a checkout of the whole repository.

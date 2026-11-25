@@ -3,7 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -422,4 +425,47 @@ func TestSummary(t *testing.T) {
 	s := summary([]v1alpha1.RegelHet{ready, pending})
 	assert.Equal(t, pluginruntime.PhaseRunning, s.Phase)
 	assert.Equal(t, "1 of 2 RegelHet instances ready", s.Message)
+}
+
+// The chart's env vars are the other half of what the server reads: a name the
+// chart sets that no `"REGELHET_..."` literal in the server reads is dropped
+// silently, which is how a renamed variable goes unnoticed.
+func TestChartEnvVarsExistInServer(t *testing.T) {
+	t.Parallel()
+	templates, err := filepath.Glob("../../charts/regelhet/templates/*.yaml")
+	require.NoError(t, err)
+	require.NotEmpty(t, templates)
+
+	var rust strings.Builder
+	require.NoError(t, filepath.WalkDir("../regelhet/src", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".rs") {
+			return err
+		}
+		raw, err := os.ReadFile(path)
+		rust.Write(raw)
+		return err
+	}))
+	require.NotEmpty(t, rust.String(), "no Rust source under packages/regelhet/src")
+
+	name := regexp.MustCompile(`name:\s*(REGELHET_[A-Z0-9_]+)\s*$`)
+	seen := 0
+	for _, path := range templates {
+		// The Keycloak templates fill the placeholders of the realm import
+		// for Keycloak itself; the server never reads them.
+		if strings.HasPrefix(filepath.Base(path), "keycloak") {
+			continue
+		}
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		for _, line := range strings.Split(string(raw), "\n") {
+			m := name.FindStringSubmatch(line)
+			if m == nil {
+				continue
+			}
+			seen++
+			assert.True(t, strings.Contains(rust.String(), `"`+m[1]+`"`),
+				"%s sets %s, which no string literal in packages/regelhet/src reads", filepath.Base(path), m[1])
+		}
+	}
+	require.Positive(t, seen, "found no REGELHET_ env var in the chart templates: the pattern is stale")
 }

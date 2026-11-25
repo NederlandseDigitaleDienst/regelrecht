@@ -36,7 +36,7 @@ spec:
       openAPIV3Schema:
         description: |-
           Organisatie is one front, with its own name, logo and login, for the
-          regelhets that name it in spec.organisatie. Each regelhet keeps its
+          RegelHet instances that name it in spec.organisatie. Each RegelHet keeps its
           own release and database.
         properties:
           apiVersion:
@@ -57,7 +57,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: OrganisatieSpec is one front for several regelhets.
+            description: OrganisatieSpec is one front for several RegelHet instances.
             properties:
               auth:
                 description: Auth is how people log in. Empty is the test login.
@@ -66,7 +66,7 @@ spec:
                     default: test
                     description: |-
                       Mode is test: the test login, where anyone picks a test person of the
-                      regelhets of the organisatie. Stable mode comes later.
+                      RegelHet instances of the organisatie. Stable mode comes later.
                     enum:
                     - test
                     type: string
@@ -213,11 +213,10 @@ spec:
                 type: string
               processen:
                 description: |-
-                  Processen are the regelhets on the list of the front, by namespace
+                  Processen are the RegelHet instances on the list of the front, by namespace
                   and name.
                 items:
-                  description: ProcessReference is a RegelHet on the list of an
-                    Organisatie.
+                  description: ProcessReference is a RegelHet on the list of an Organisatie.
                   properties:
                     name:
                       type: string

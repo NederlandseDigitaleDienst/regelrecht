@@ -198,6 +198,20 @@ jobs:
           export PATH="$PATH:$GOPATH/bin"
           go vet ./...
           go test ./...
+      - name: Generated CRDs and deepcopy are current
+        working-directory: ${{ forgejo.workspace }}/packages/fundament-plugin
+        run: |
+          go run sigs.k8s.io/controller-tools/cmd/controller-gen@v0.20.1 \
+            object paths=./api/... crd:crdVersions=v1 output:crd:dir=./crds
+          git config --global --add safe.directory "${{ forgejo.workspace }}"
+          git status --porcelain -- crds api
+          test -z "$(git status --porcelain -- crds api)" \
+            || {
+              git diff -- crds api
+              echo "crds/ or zz_generated.deepcopy.go is stale:"
+              echo "run controller-gen as in the README (Develop) and commit the result"
+              exit 1
+            }
 
   chart:
     name: Helm chart
