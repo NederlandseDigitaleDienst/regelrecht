@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import ExecutionTraceView from './ExecutionTraceView.vue';
 import { testingPinia } from '../test-utils/testingPinia';
-import { useErrorDetailsStore } from '../stores/errorDetails';
+import { useErrorsStore } from '../stores/errors';
 
 const ENGINE_TEXT = 'Resolution error: nothing matched the reference in a very long engine message';
 
 function mountWithError(error: string) {
   const pinia = testingPinia();
   const wrapper = mount(ExecutionTraceView, { props: { error }, global: { plugins: [pinia] } });
-  return { wrapper, store: useErrorDetailsStore(pinia) };
+  return { wrapper, store: useErrorsStore(pinia) };
 }
 
 describe('ExecutionTraceView, a failed run', () => {
@@ -23,9 +23,12 @@ describe('ExecutionTraceView, a failed run', () => {
   it('hands the engine text to the details sheet', async () => {
     const { wrapper, store } = mountWithError(ENGINE_TEXT);
     await wrapper.find('[data-testid="execution-error-details"]').trigger('click');
-    expect(store.show).toHaveBeenCalledWith({
-      summary: 'Het scenario kon niet worden uitgevoerd.',
-      details: ENGINE_TEXT,
-    });
+    expect(store.showDetails).toHaveBeenCalledWith([
+      {
+        title: 'Fout bij uitvoering',
+        summary: 'Het scenario kon niet worden uitgevoerd.',
+        details: ENGINE_TEXT,
+      },
+    ]);
   });
 });

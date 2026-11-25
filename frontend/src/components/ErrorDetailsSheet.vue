@@ -1,27 +1,36 @@
 <script setup lang="ts">
-// The technical text behind a readable error message (lib/userError), for
+// The technical text behind the readable error messages (lib/userError), for
 // whoever reports or debugs the problem. Mounted once in the shell and driven
-// by the errorDetails store. The code viewer brings its own copy button.
+// by the errors store. The code viewer brings its own copy button.
 import { storeToRefs } from 'pinia';
-import { useErrorDetailsStore } from '../stores/errorDetails';
+import { useErrorsStore } from '../stores/errors';
 
-const store = useErrorDetailsStore();
-const { open, current } = storeToRefs(store);
+const store = useErrorsStore();
+const { detailsOpen, detailsOf } = storeToRefs(store);
 </script>
 
 <template>
   <Teleport to="body">
-    <nldd-sheet placement="right" width="560px" :open="open" data-testid="error-details-sheet" @close="store.close">
+    <nldd-sheet placement="right" width="560px" :open="detailsOpen" data-testid="error-details-sheet" @close="store.closeDetails">
       <nldd-page sticky-header>
         <nldd-top-title-bar slot="header" text="Technische details" dismiss-text="Sluit"></nldd-top-title-bar>
         <nldd-simple-section width="full">
           <nldd-rich-text>
-            <p>{{ current?.summary }}</p>
-            <p>Stuur de tekst hieronder mee als je dit probleem meldt.</p>
+            <p>Stuur de technische tekst mee als je een probleem meldt.</p>
           </nldd-rich-text>
-          <nldd-spacer size="16"></nldd-spacer>
-          <!-- Keyed: the viewer reads its slot once, so new text needs a new viewer. -->
-          <nldd-code-viewer :key="current?.details ?? ''" wrap data-testid="error-details-text">{{ current?.details }}</nldd-code-viewer>
+          <template v-for="(error, index) in detailsOf" :key="index">
+            <nldd-spacer size="24"></nldd-spacer>
+            <nldd-title size="display-5" heading-level="2"><span>{{ error.title }}</span></nldd-title>
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-rich-text>
+              <p>{{ error.summary }}</p>
+            </nldd-rich-text>
+            <template v-if="error.details">
+              <nldd-spacer size="12"></nldd-spacer>
+              <!-- Keyed: the viewer reads its slot once, so new text needs a new viewer. -->
+              <nldd-code-viewer :key="error.details" wrap data-testid="error-details-text">{{ error.details }}</nldd-code-viewer>
+            </template>
+          </template>
         </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>

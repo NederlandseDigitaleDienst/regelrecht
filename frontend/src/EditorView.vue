@@ -17,7 +17,7 @@ import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
 import { describeEngineLoadError, describeSaveError, type UserError } from './lib/userError';
-import { useErrorDetailsStore } from './stores/errorDetails';
+import { useErrorsStore } from './stores/errors';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
 import { quoteContext } from './lib/quoteContext';
@@ -1733,10 +1733,22 @@ const showPanesDespiteEngineError = ref(false);
 const engineErrorBlocksPanes = computed(
   () => !!engineLoadError.value && !showPanesDespiteEngineError.value,
 );
-const errorDetails = useErrorDetailsStore();
-function showErrorDetails(error: UserError | null) {
-  if (error) errorDetails.show(error);
+const errors = useErrorsStore();
+const ENGINE_ERROR_TITLE = 'Dit regelwerk kan niet worden uitgevoerd';
+function showEngineErrorDetails() {
+  if (engineLoadError.value) errors.showDetails([{ title: ENGINE_ERROR_TITLE, ...engineLoadError.value }]);
 }
+// Beside the panes the error is a notification, shared with the other errors
+// the editor reports. In place of the panes it is the inline dialog, which
+// needs no notification next to it.
+watch(
+  [engineLoadError, engineErrorBlocksPanes],
+  ([error, blocksPanes]) => {
+    if (error && !blocksPanes) errors.report('engine-load', ENGINE_ERROR_TITLE, error);
+    else errors.clear('engine-load');
+  },
+  { immediate: true },
+);
 // Another regelwerk starts clean: the previous one's verdict says nothing
 // about it.
 watch([lawId, activeTrajectRef], () => {
@@ -1785,7 +1797,13 @@ async function reloadEngineLaw(lawYaml: string | null, isReady: boolean) {
     if (engineAcceptedOpenLaw || openLaw.hasUnsavedWork.value || review.active.value) {
       showPanesDespiteEngineError.value = true;
     }
-    engineLoadError.value = describeEngineLoadError(e);
+    // The same refusal after another keystroke is the same error: a new
+    // object would bring back a notification the user dismissed.
+    const described = describeEngineLoadError(e);
+    const previous = engineLoadError.value;
+    if (previous?.summary !== described.summary || previous.details !== described.details) {
+      engineLoadError.value = described;
+    }
     // Plain first argument: the law id is user text, not a format string.
     console.warn('Failed to load law into engine:', lawId.value, e);
   }
@@ -1903,16 +1921,20 @@ async function handleLawSave() {
 // conflict.
 const saveFailure = computed(() => review.processError.value ?? lawSaveError.value);
 const saveError = computed(() => (saveFailure.value ? describeSaveError(saveFailure.value) : null));
-// The failure the user dismissed. `lawSaveError` lives on until the next save,
-// so dismissing remembers which failure it was rather than clearing it.
-const dismissedSaveFailure = ref<unknown>(null);
-const showSaveError = computed(
-  () => !!saveFailure.value && saveFailure.value !== dismissedSaveFailure.value,
+// `lawSaveError` lives on until the next save; the store remembers that this
+// failure was dismissed. Dismissing also clears the review's error.
+watch(
+  saveError,
+  (error) => {
+    if (error) errors.report('save', 'Opslaan mislukt', error, () => { review.processError.value = null; });
+    else errors.clear('save');
+  },
+  { immediate: true },
 );
-function dismissSaveError() {
-  dismissedSaveFailure.value = saveFailure.value;
-  review.processError.value = null;
-}
+onBeforeUnmount(() => {
+  errors.clear('engine-load');
+  errors.clear('save');
+});
 
 // Alias kept to minimise template churn; both panes ultimately call the
 // same whole-law save.
@@ -2187,7 +2209,7 @@ async function handleActionSave() {
               data-testid="engine-load-error"
             >
               <nldd-button slot="actions" appearance="primary" text="Toon het regelwerk toch" data-testid="engine-load-error-show-panes" @click="showPanesDespiteEngineError = true"></nldd-button>
-              <nldd-button slot="actions" appearance="secondary" text="Technische details" @click="showErrorDetails(engineLoadError)"></nldd-button>
+              <nldd-button slot="actions" appearance="secondary" text="Technische details" @click="showEngineErrorDetails"></nldd-button>
             </nldd-inline-dialog>
           </nldd-simple-section>
         </nldd-page>
@@ -2218,20 +2240,6 @@ async function handleActionSave() {
               dismissible
               @dismiss="dismissEnrichFeedback"
             ></nldd-banner>
-          </nldd-container>
-
-          <!-- The engine refused the current YAML (parse or type-check error,
-               RFC-037). Same page-wide pattern as the feedback above; not
-               dismissible, it clears when a reload succeeds. -->
-          <nldd-container v-if="engineLoadError" padding="8">
-            <nldd-banner
-              variant="critical"
-              text="Dit regelwerk kan niet worden uitgevoerd"
-              :supporting-text="engineLoadError.summary"
-              data-testid="engine-load-error-banner"
-            >
-              <nldd-button slot="actions" text="Technische details" @click="showErrorDetails(engineLoadError)"></nldd-button>
-            </nldd-banner>
           </nldd-container>
 
         <nldd-side-by-side-split-view :panes="String(paneViews.length)">
@@ -2977,18 +2985,5 @@ async function handleActionSave() {
     <nldd-button slot="actions" appearance="primary" text="Blijf hier" data-testid="leave-stay-btn" @click="answerLeave(false)"></nldd-button>
     <nldd-button slot="actions" appearance="destructive" text="Wijzigingen weggooien" data-testid="leave-discard-btn" @click="answerLeave(true)"></nldd-button>
   </nldd-modal-dialog>
-
-  <!-- Whole-law save failure, shown over the whole editor rather than inline in
-       one pane. Critical, so it stays until dismissed. -->
-  <nldd-notification
-    v-if="showSaveError"
-    variant="critical"
-    text="Opslaan mislukt"
-    :supporting-text="saveError?.summary"
-    data-testid="save-error-notification"
-    @dismiss="dismissSaveError"
-  >
-    <nldd-button v-if="saveError?.details" slot="actions" text="Technische details" @click="showErrorDetails(saveError)"></nldd-button>
-  </nldd-notification>
 
 </template>

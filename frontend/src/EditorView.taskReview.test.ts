@@ -13,6 +13,7 @@ import { useAppChromeStore, type EditorChanges } from './stores/appChrome';
 import type { OpenLaw } from './composables/useOpenLaw';
 import { installTestCorpus } from './test-utils/corpusSetup';
 import { testingPinia } from './test-utils/testingPinia';
+import { useErrorsStore } from './stores/errors';
 import { allFlagsOn } from './test-utils/featureFlagState';
 
 // --- vue-router: no real router. `route` is reactive, because the whole bug
@@ -372,26 +373,28 @@ describe('EditorView review mode', () => {
 });
 
 describe('EditorView save-failure notification', () => {
-  const notification = (wrapper: VueWrapper) => wrapper.find('[data-testid="save-error-notification"]');
+  // The notification itself is the shell's (ErrorNotification); the editor
+  // reports the failure to the errors store.
+  const reported = () => useErrorsStore().visible.map((e) => `${e.title}: ${e.summary}`);
 
   it('hides on dismiss and shows again for a new failure', async () => {
-    const wrapper = mountEditor();
+    mountEditor();
     await settle();
-    expect(notification(wrapper).exists()).toBe(false);
+    expect(reported()).toEqual([]);
 
     law().saveError.value = new Error('Conflict');
     await settle();
-    expect(notification(wrapper).attributes('supporting-text')).toBe('Conflict');
+    expect(reported()).toEqual(['Opslaan mislukt: Conflict']);
 
     // The failure outlives the dismiss (it clears on the next save), so the
-    // view has to remember that this one was dismissed.
-    notification(wrapper).element.dispatchEvent(new CustomEvent('dismiss'));
+    // store has to remember that this one was dismissed.
+    useErrorsStore().dismissVisible();
     await settle();
-    expect(notification(wrapper).exists()).toBe(false);
+    expect(reported()).toEqual([]);
 
     law().saveError.value = new Error('Netwerkfout');
     await settle();
-    expect(notification(wrapper).attributes('supporting-text')).toBe('Netwerkfout');
+    expect(reported()).toEqual(['Opslaan mislukt: Netwerkfout']);
   });
 
   // Writing an enrichment that fails is the same event for the user (my change
@@ -406,10 +409,22 @@ describe('EditorView save-failure notification', () => {
 
     await internals(wrapper).handleLawSave();
     await settle();
-    expect(notification(wrapper).attributes('supporting-text')).toBe('Het regelwerk is intussen gewijzigd.');
+    expect(reported()).toEqual(['Opslaan mislukt: Het regelwerk is intussen gewijzigd.']);
 
-    notification(wrapper).element.dispatchEvent(new CustomEvent('dismiss'));
+    useErrorsStore().dismissVisible();
     await settle();
-    expect(notification(wrapper).exists()).toBe(false);
+    expect(reported()).toEqual([]);
+    // Cleared at its source: nothing is left to report again.
+    expect(useErrorsStore().visible).toEqual([]);
+  });
+
+  it('stops reporting when the editor goes away', async () => {
+    const wrapper = mountEditor();
+    await settle();
+    law().saveError.value = new Error('Conflict');
+    await settle();
+    const store = useErrorsStore();
+    wrapper.unmount();
+    expect(store.visible).toEqual([]);
   });
 });

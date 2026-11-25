@@ -1,8 +1,8 @@
 /**
  * A regelwerk the engine refuses. Opened that way, the error takes the place
  * of the panes, as a readable message with the engine's own text one click
- * away. Broken by an unsaved edit, the panes stay, so the mistake can be
- * repaired where it was made.
+ * away. Broken by an unsaved edit, the panes stay and the error is a
+ * notification, so the mistake can be repaired where it was made.
  *
  * Requires the WASM engine to be built (frontend/public/wasm/pkg).
  */
@@ -15,7 +15,7 @@ const breakLaw = (yamlText) => yamlText.replace('operation: MAX', 'operation: NO
 
 const splitView = (page) => page.locator('nldd-side-by-side-split-view');
 const blockingError = (page) => page.locator('[data-testid="engine-load-error"]');
-const banner = (page) => page.locator('[data-testid="engine-load-error-banner"]');
+const notification = (page) => page.locator('[data-testid="error-notification"]');
 const detailsSheet = (page) => page.locator('[data-testid="error-details-sheet"]');
 
 async function mockLaw(page, content) {
@@ -39,14 +39,14 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
   });
 
-  test('opened broken: the panes come back on request, under a banner', async ({ page }) => {
+  test('opened broken: the panes come back on request, with a notification', async ({ page }) => {
     await mockLaw(page, breakLaw(loadFixture('zorgtoeslag-full.yaml')));
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
 
     await expect(blockingError(page)).toBeVisible({ timeout: 30_000 });
     await page.locator('[data-testid="engine-load-error-show-panes"]').click();
     await expect(splitView(page)).toHaveCount(1);
-    await expect(banner(page)).toBeVisible();
+    await expect(notification(page)).toBeVisible();
   });
 
   test('broken by an unsaved edit: the panes stay', async ({ page }) => {
@@ -55,8 +55,12 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(splitView(page)).toHaveCount(1);
 
     await setYamlPane(page, breakLaw(await readYamlSource(page)));
-    await expect(banner(page)).toBeVisible({ timeout: 30_000 });
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
     await expect(splitView(page)).toHaveCount(1);
     await expect(blockingError(page)).toHaveCount(0);
+    await expect(notification(page)).toHaveAttribute('text', 'Dit regelwerk kan niet worden uitgevoerd');
+
+    await notification(page).locator('nldd-button').click();
+    await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
   });
 });
