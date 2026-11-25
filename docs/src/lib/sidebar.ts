@@ -116,6 +116,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: "RegelHet: the citizen's app in the browser", link: '/components/regelhet-burgerapp' },
         { text: 'RegelHet: a link between servers', link: '/components/regelhet-koppeling' },
         { text: 'RegelHet: the organisation', link: '/components/regelhet-organisatie' },
+        { text: 'RegelHet: the Fundament plugin', link: '/components/fundament-plugin' },
       ],
     },
     {
