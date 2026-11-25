@@ -147,4 +147,21 @@ describe('Gegevens', () => {
     expect(w.findAll('nldd-list-item').map((r) => r.find('nldd-icon-cell').attributes('icon'))).toEqual(['checked', 'dismiss', 'checked']);
     expect(teken().findAll('nldd-list-item').filter((r) => r.find('nldd-icon-cell').exists()).map(labelVan)).toEqual(['Overig']);
   });
+
+  it('shows a list of rows as a table under the list, where the UI spec gives the field a table', () => {
+    const lijst = {
+      waarden: { naam: 'A. de Vries', zetels: [{ gebied: 'Wilgendaal', aantal_zetels: 3 }] },
+      teksten: { naam: { label: 'Naam' }, zetels: { label: 'Zetels per orgaan' } },
+      volgorde: ['naam', 'zetels'],
+    };
+    // Without a table for the field, the value stays a row.
+    expect(rijenVan(teken(lijst))).toEqual([['Naam', 'Zetels per orgaan']]);
+    expect(teken(lijst).find('nldd-table').exists()).toBe(false);
+    const w = teken({ ...lijst, tabellen: [{ naam: 'UI1.zetels', veld: 'zetels', kolommen: [] }] });
+    expect(rijenVan(w)).toEqual([['Naam']]);
+    const tabel = w.find('nldd-table');
+    expect(tabel.attributes('accessible-label')).toBe('Zetels per orgaan');
+    expect(tabel.attributes('columns')).toBe('minmax(max-content, 1fr) minmax(max-content, 1fr)');
+    expect(tabel.findAll('nldd-text-cell').map((c) => c.attributes('text'))).toEqual(['Gebied', 'Aantal zetels', 'Wilgendaal', '3']);
+  });
 });

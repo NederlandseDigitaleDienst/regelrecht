@@ -6,7 +6,9 @@
 // can run long, turns that round: its name is as wide as its words. Where the field has an origin or help, a small
 // info button after its name shows them in a popover, so the value stays the
 // first thing the reader sees. A yes-or-no value has a check mark or a cross
-// before its words. The fields stand
+// before its words. A list of rows in a field the UI spec gives a table
+// (`tabellen`) shows as that table under the list, as the form shows it
+// (TabelUitKroniek.vue); without `tabellen` every value is a row. The fields stand
 // in the order of the UI spec (`volgorde`) and under the headings of its
 // groups, with its label and help, as on the forms (formulier.ts). `noem`
 // names a record a field refers to, such as the contested decision of an
@@ -28,7 +30,9 @@
 import { computed, useId, useSlots } from 'vue';
 import { kleineLetter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { geordend, kaalSchermveld, stukWaarde } from './formulier';
-import type { Vormen } from './types';
+import { alsRijen } from './tabel';
+import TabelUitKroniek from './TabelUitKroniek.vue';
+import type { Tabel, Vormen } from './types';
 
 const props = defineProps<{
   waarden?: Record<string, unknown>;
@@ -42,6 +46,8 @@ const props = defineProps<{
   kopniveau?: number;
   /** Only the leading group, what the record is about (`over`), or only the groups after it (`rest`). */
   deel?: 'over' | 'rest';
+  /** The tables of the UI spec: a field one of them names shows its rows as that table. */
+  tabellen?: Tabel[];
 }>();
 const slots = useSlots();
 /** A label inside a sentence: a capital only where the word is an abbreviation. */
@@ -52,6 +58,11 @@ const groepen = computed(() => {
   const velden = Object.keys(waarden)
     .filter((naam) => waarden[naam] !== null && waarden[naam] !== undefined)
     .map((naam) => kaalSchermveld(naam, props.teksten));
+  const tabelVan = (naam: string) => {
+    const tabel = props.tabellen?.find((t) => t.veld === naam);
+    const rijen = tabel && alsRijen(waarden[naam]);
+    return tabel && rijen ? { tabel, rijen } : undefined;
+  };
   const groepen = geordend(velden, props.volgorde).map((g) => ({
     titel: g.titel,
     samenvatting: g.velden.some((s) => props.teksten?.[s.veld.naam]?.record?.summary),
@@ -61,6 +72,7 @@ const groepen = computed(() => {
       waarde: stukWaarde(s.veld.naam, waarden[s.veld.naam], props.teksten, props.noem),
       uitleg: [props.herkomst?.[s.veld.naam], s.help].filter((t): t is string => !!t),
       icoon: waarden[s.veld.naam] === true ? 'checked' : waarden[s.veld.naam] === false ? 'dismiss' : undefined,
+      tabel: tabelVan(s.veld.naam),
       bij: false,
       samenvatting: !!props.teksten?.[s.veld.naam]?.record?.summary,
     })),
@@ -68,7 +80,7 @@ const groepen = computed(() => {
   // The group that says what the record is about leads, without a heading: the screen is about that record.
   // Without such a group, what is no field of the record leads as a group of its own.
   const over = groepen.findIndex((g) => g.samenvatting);
-  const bij = (props.bij ?? []).map((b) => ({ ...b, uitleg: [] as string[], icoon: undefined, bij: true, samenvatting: false }));
+  const bij = (props.bij ?? []).map((b) => ({ ...b, uitleg: [] as string[], icoon: undefined, tabel: undefined, bij: true, samenvatting: false }));
   const rijen = over < 0 ? [] : groepen[over]!.rijen;
   const leidend = { titel: '', rijen: [...rijen.filter((r) => r.samenvatting), ...bij, ...rijen.filter((r) => !r.samenvatting)] };
   const overige = groepen.filter((_, i) => i !== over);
@@ -90,9 +102,13 @@ const groepen = computed(() => {
         <nldd-text v-else size="lg" weight="medium"><p>{{ g.titel }}</p></nldd-text>
         <nldd-spacer size="8"></nldd-spacer>
       </template>
-      <nldd-list appearance="box-base" :accessible-label="g.titel || label">
+      <nldd-list
+        v-if="g.rijen.some((r) => !r.tabel) || (i === 0 && !g.titel && $slots.voor)"
+        appearance="box-base"
+        :accessible-label="g.titel || label"
+      >
         <slot v-if="i === 0 && !g.titel" name="voor"></slot>
-        <nldd-list-item v-for="r in g.rijen" :key="r.naam" size="md">
+        <nldd-list-item v-for="r in g.rijen.filter((x) => !x.tabel)" :key="r.naam" size="md">
           <nldd-text-cell v-if="r.uitleg.length">
             <p>
               {{ r.label }}
@@ -114,10 +130,19 @@ const groepen = computed(() => {
           <nldd-text-cell :text="r.waarde" :width="r.bij ? undefined : 'fit-content'" horizontal-alignment="right"></nldd-text-cell>
         </nldd-list-item>
       </nldd-list>
+      <template v-for="r in g.rijen.filter((x) => x.tabel)" :key="r.naam">
+        <nldd-spacer v-if="g.rijen.some((x) => !x.tabel)" size="16"></nldd-spacer>
+        <TabelUitKroniek
+          v-if="r.tabel"
+          vullend
+          :tabel="{ ...r.tabel.tabel, label: r.label, help: r.uitleg.join(' ') }"
+          :rijen="r.tabel.rijen"
+        />
+      </template>
       <!-- The popovers stand beside the list: a text cell takes only its paragraph. -->
       <template v-for="r in g.rijen" :key="r.naam">
         <nldd-popover
-          v-if="r.uitleg.length"
+          v-if="r.uitleg.length && !r.tabel"
           :id="`${id}-${i}-${r.naam}`"
           role="region"
           :accessible-label="`Over ${kleineLetter(r.label)}`"

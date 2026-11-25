@@ -21,15 +21,20 @@ const props = withDefaults(
     /** The name of a cell, for the sources. */
     celNaam?: (cel: string) => string;
     teksten?: Record<string, Veldtekst>;
+    /** Spread the columns over the full width, where no column of sources takes the rest. */
+    vullend?: boolean;
   }>(),
-  { leeg: undefined, celNaam: (c: string) => c, teksten: () => ({}) },
+  { leeg: undefined, celNaam: (c: string) => c, teksten: () => ({}), vullend: false },
 );
 
 const kols = computed(() => kolommen(props.tabel, props.rijen));
 /** Whether a row names where it comes from: only on the back office, from the server. */
 const metHerkomst = computed(() => props.rijen.some((r) => r.herkomst.length || r.zonder_herkomst?.length));
 const titel = computed(() => props.tabel.label ?? props.teksten[props.tabel.veld ?? '']?.label ?? props.tabel.element ?? props.tabel.naam);
-const breedtes = computed(() => `${kols.value.map(() => 'max-content').join(' ')}${metHerkomst.value ? ' 1fr' : ''}`);
+const breedtes = computed(() => {
+  const kolom = props.vullend && !metHerkomst.value ? 'minmax(max-content, 1fr)' : 'max-content';
+  return `${kols.value.map(() => kolom).join(' ')}${metHerkomst.value ? ' 1fr' : ''}`;
+});
 </script>
 
 <template>
