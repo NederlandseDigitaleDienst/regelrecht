@@ -121,9 +121,8 @@ jobs:
       - run: npm test -w frontend-regelhet -- --maxWorkers=2
       - run: npm run typecheck -w frontend-regelhet
       # The console pages of the Fundament plugin: plain modules, no build.
-      - run: >-
-          node --test packages/fundament-plugin/console-test/regelhets-body.test.js
-          packages/fundament-plugin/console-test/organisaties-body.test.js
+      # A glob, so a new test file there runs without a change here.
+      - run: node --test packages/fundament-plugin/console-test/*.test.js
       - run: npm test -w packages/poc-chronolexografie/frontend -- --maxWorkers=2
       - run: npm test -w frontend-poc-wetsgeschiedenis -- --maxWorkers=2
 

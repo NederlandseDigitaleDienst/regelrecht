@@ -14,6 +14,7 @@ import {
   fsc4bOriginsError,
   keycloakSecretName,
   commitError,
+  failureAdvice,
   hostnameError,
   pathError,
   phaseBadge,
@@ -254,4 +255,122 @@ test('a case is in the spec only when chosen, by the name of its case file', () 
   assert.ok(casusError('a'.repeat(101)));
   const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
   assert.ok(crd.includes('pattern: ^([a-z0-9][a-z0-9_-]*)?$'), 'the wizard checks what the CRD checks');
+});
+
+// A failed procedure, as the plugin writes it: phase, message and the Ready
+// condition with its reason.
+const failed = (reason, message) => ({
+  status: {
+    phase: 'Failed',
+    message,
+    conditions: [{ type: 'Ready', status: 'False', reason, message }],
+  },
+});
+
+test('a running or starting procedure needs no advice', () => {
+  assert.equal(failureAdvice({ status: { phase: 'Ready', message: 'Flux: ok' } }), null);
+  assert.equal(failureAdvice({ status: { phase: 'Pending' } }), null);
+  assert.equal(failureAdvice({}), null);
+});
+
+test('each refusal of the plugin reads as what to do', () => {
+  for (const reason of [
+    'InvalidSpec',
+    'HostnameInUse',
+    'NameInUse',
+    'StableNeedsProductionCerts',
+    'ChartNotInCommit',
+    'ReleaseStalled',
+    'OrganisatieModeMismatch',
+  ]) {
+    const advice = failureAdvice(failed(reason, 'iets'));
+    assert.ok(advice?.text && advice?.action, reason);
+  }
+  assert.match(failureAdvice(failed('HostnameInUse', 'x')).text, /adres/);
+});
+
+test('a procedure that does not start is told apart by the last line of its container', () => {
+  const cases = [
+    ["container clone-case: fatal: Authentication failed for 'https://git.example.org/casus/a.git/' (Error)", /token/],
+    ["container clone-case: fatal: couldn't find remote ref refs/heads/mian (Error)", /bestaat niet/],
+    [
+      'container regelhet: regelhet: the case: the manifest does not read: bron.yml: No such file or directory (os error 2) (Error)',
+      /manifest/,
+    ],
+    [
+      "container regelhet: regelhet: the case: the source does not load: setup: casussen/a.yaml: unknown field `casus` (Error)",
+      /laadt niet/,
+    ],
+    [
+      'container regelhet: regelhet: the service: the case names 0 fields the login fills (CrashLoopBackOff)',
+      /kan hem zo niet uitvoeren/,
+    ],
+    [
+      'container regelhet: regelhet: the case: the manifest makes 2 cases (a, b); choose one with REGELHET_CASUS (Error)',
+      /meer dan één casus/,
+    ],
+    [
+      'container regelhet: regelhet: the case: REGELHET_CASUS is `c`, which the manifest does not make; it makes a, b (Error)',
+      /meer dan één casus/,
+    ],
+    ['container regelhet: regelhet: the case: the manifest makes no case (Error)', /laadt niet/],
+    ['container regelhet: regelhet: the case: a case does not load: casussen/a.yaml: x (Error)', /laadt niet/],
+    ['container regelhet: Back-off pulling image "x/regelhet:0123" (ImagePullBackOff)', /image/],
+    ['container regelhet: secret "a-repo" not found (CreateContainerConfigError)', /Secret/],
+    ['container regelhet: regelhet: something new (CrashLoopBackOff)', /stopt steeds/],
+  ];
+  for (const [message, expected] of cases) {
+    const advice = failureAdvice(failed('NotStarting', message));
+    assert.ok(advice, message);
+    assert.match(advice.text, expected, message);
+  }
+});
+
+test('a failure this table does not know keeps the message of the plugin alone', () => {
+  assert.equal(failureAdvice(failed('SomethingNew', 'x')), null);
+  assert.equal(failureAdvice(failed('NotStarting', 'container x: "<b>" & \'q\' (Unknown)')), null);
+});
+
+test('the message comes from the condition when the status has none', () => {
+  const item = failed('NotStarting', 'container clone-case: fatal: Authentication failed (Error)');
+  delete item.status.message;
+  assert.match(failureAdvice(item).text, /token/);
+});
+
+test('a copy of the case that fails says what to fix in the repository', () => {
+  const copy = (line) => failed('SnapshotFailed', `copying the case failed: container snapshot: ${line}`);
+  const cases = [
+    [
+      'the git server refused access to https://git.example.org/casus/a.git: check the token in the Secret of credentialsSecretRef, which needs read access (Authentication failed)',
+      /token/,
+    ],
+    ["https://git.example.org/casus/a.git has no branch, tag or commit mian (couldn't find remote ref mian)", /branch, tag of commit/],
+    ['https://git.example.org/casus/b.git is not there, or is private and needs a token in credentialsSecretRef (not found)', /bestaat niet/],
+    ['the manifest bron.yml is not in commit 0123abc of main', /manifest/],
+    ["the manifest bron.yaml names 'corpus/beëindiging' for 'regulation/nl/x', which holds no YAML file in commit 0123abc", /manifest/],
+    ['the case is 9000000 bytes packed, more than the 3000000 a snapshot holds; let the manifest name fewer directories', /te groot/],
+  ];
+  for (const [line, expected] of cases) {
+    const advice = failureAdvice(copy(line));
+    assert.ok(advice, line);
+    assert.match(advice.text, expected, line);
+  }
+  assert.match(failureAdvice(copy('something new')).text, /niet uit de repository/);
+});
+
+test('a missing token is said while the procedure waits for it', () => {
+  const item = failed('TokenMissing', 'the Secret a-repo with the token is not in the namespace');
+  item.status.phase = 'Pending';
+  assert.match(failureAdvice(item).text, /token ontbreekt/);
+  const pending = failed('SnapshotPending', 'copying the case');
+  pending.status.phase = 'Pending';
+  assert.equal(failureAdvice(pending), null);
+});
+
+test('a party the plugin refuses says what to change about it', () => {
+  // The reasons of parties.go, each refused under the Ready condition.
+  for (const reason of ['ExecutorNotFound', 'ExecutorInOtherProject', 'ExecutorNotUsable', 'PartyNotAsked', 'PartyTaken']) {
+    const advice = failureAdvice(failed(reason, 'x'));
+    assert.ok(advice?.text && advice.action, reason);
+  }
 });

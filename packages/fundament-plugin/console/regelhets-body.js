@@ -333,6 +333,147 @@ export function phaseBadge(item) {
   }
 }
 
+// What a failed procedure means and what to do about it, in the words of
+// the wizard: the reasons of the Ready condition (controller.go,
+// organisatie.go, parties.go, snapshot.go) and, for NotStarting and
+// SnapshotFailed, the messages the pods and the copy of the case leave
+// (pods.go, snapshot.sh, the server's own errors in
+// packages/regelhet/src/{app,case,service}.rs, the README under "A RegelHet
+// that does not start"). The first pattern
+// that matches counts. Null for a failure this table does not know, so the
+// page shows the plugin's own message as before.
+const BY_MESSAGE = [
+  [
+    /Authentication failed|could not read Username|terminal prompts disabled|git server refused access/,
+    'De repository met de casus weigert het token.',
+    'Maak een nieuw token dat de repository mag lezen, en zet het in het Secret van deze procedure, of maak de procedure opnieuw aan.',
+  ],
+  [
+    /couldn't find remote ref|has no branch, tag or commit/,
+    'De branch, tag of commit van de casus bestaat niet.',
+    'Controleer de ref bij Instellingen.',
+  ],
+  [
+    /repository '.*' not found|Repository not found|is not there, or is private/,
+    'De repository van de casus bestaat niet, of is privé zonder token.',
+    'Controleer het adres van de repository. Bij een privé-repository hoort een token.',
+  ],
+  [
+    /the manifest does not read|is not in commit|is no source manifest|which holds no YAML file|lies outside the repository|is no directory below the root/,
+    'Het manifest of een map die het noemt staat niet in de repository, of klopt niet.',
+    'Controleer het pad naar het manifest (meestal bron.yaml) en de mappen erin. Met regelrecht-regelhet check <manifest> zie je lokaal binnen een seconde wat er mis is.',
+  ],
+  [
+    /a snapshot holds/,
+    'De casus is te groot om te kopiëren.',
+    'Laat het manifest minder mappen noemen.',
+  ],
+  [
+    /the manifest makes \d+ cases|which the manifest does not make/,
+    'Het manifest maakt meer dan één casus, en er is geen of een onbekende casus gekozen.',
+    'Kies bij Instellingen welke casus deze procedure uitvoert. De melding hieronder noemt de casussen die het manifest maakt.',
+  ],
+  [
+    /the source does not load|a case does not load|the manifest makes no case/,
+    'De casus in de repository laadt niet.',
+    'Een casusbestand, regelwerk of cel klopt niet, of het manifest maakt geen casus. Draai regelrecht-regelhet check <manifest> op de repository: die noemt het bestand.',
+  ],
+  [
+    /the service:|the UI spec/,
+    'De casus laadt, maar de server kan hem zo niet uitvoeren.',
+    'Vaak past de UI-beschrijving of het inloggen van de casus niet bij de gekozen versie. Pas de casus aan of kies een andere versie; regelrecht-regelhet check <manifest> geeft de reden.',
+  ],
+  [
+    /ImagePullBackOff|ErrImagePull|InvalidImageName/,
+    'Er is geen image voor de gekozen versie.',
+    'Kies een commit waarvoor een image is gebouwd, of laat de versie leeg voor de laatste versie.',
+  ],
+  [
+    /CreateContainerConfigError/,
+    'Een Secret dat de procedure nodig heeft ontbreekt.',
+    'Bij een privé-repository: maak het Secret met username en token opnieuw aan in deze namespace.',
+  ],
+  [
+    /CrashLoopBackOff|\(Error\)/,
+    'De server van de procedure stopt steeds bij het starten.',
+    'De laatste regel van de server staat hieronder. Een fout in de casus vind je met regelrecht-regelhet check <manifest>.',
+  ],
+];
+
+const REASONS = {
+  InvalidSpec: ['Een instelling van de procedure klopt niet.', 'De melding hieronder noemt het veld. Pas het aan in de procedure.'],
+  HostnameInUse: [
+    'Een andere procedure gebruikt dit adres al.',
+    'Kies een andere hostnaam. Het oudste object houdt het adres.',
+  ],
+  NameInUse: [
+    'Een organisatie in deze namespace heeft dezelfde naam.',
+    'Geef de procedure of de organisatie een andere naam.',
+  ],
+  StableNeedsProductionCerts: [
+    'Stabiel inloggen werkt niet met de testcertificaten van deze installatie.',
+    'Laat de beheerder van de installatie Let’s Encrypt op production zetten, of kies inloggen in testmodus.',
+  ],
+  ChartNotInCommit: [
+    'De gekozen commit is van voor de chart waarmee RegelHet op Fundament wordt geïnstalleerd.',
+    'Kies een latere commit, of laat de versie leeg voor de laatste versie.',
+  ],
+  ReleaseStalled: [
+    'Het installeren is gestopt na herhaalde fouten.',
+    'De melding van Flux staat hieronder. Een gewijzigde procedure probeert het opnieuw.',
+  ],
+  OrganisatieModeMismatch: [
+    'Een stabiele procedure kan niet achter een organisatie in testmodus.',
+    'Kies een organisatie in dezelfde modus, of zet de procedure in testmodus.',
+  ],
+  ExecutorNotFound: [
+    'De procedure waarvoor deze partij werkt bestaat niet (meer).',
+    'Controleer bij Instellingen de naam en de namespace van de procedure van de uitvoerder.',
+  ],
+  ExecutorInOtherProject: [
+    'De procedure van de uitvoerder staat in een ander project.',
+    'Een partij en haar uitvoerder horen in hetzelfde project. Maak de partij aan in het project van de uitvoerder.',
+  ],
+  ExecutorNotUsable: [
+    'De gekozen procedure kan geen uitvoerder voor deze partij zijn.',
+    'De melding hieronder zegt waarom: zij draait zelf als partij, staat in stabiele modus, of is zelf geweigerd.',
+  ],
+  PartyNotAsked: [
+    'De casus van de uitvoerder vraagt niets van deze partij.',
+    'Kies een cel waar het beleid van de uitvoerder een verzoek aan doet. De melding hieronder noemt welke dat zijn.',
+  ],
+  PartyTaken: [
+    'Een andere procedure draait al als deze partij voor dezelfde uitvoerder.',
+    'Verwijder een van de twee, of kies een andere partij.',
+  ],
+  SnapshotFailed: [
+    'De casus kon niet uit de repository worden gekopieerd.',
+    'De melding hieronder zegt waarom. Na een wijziging van de repository, ref of het pad probeert de plugin het opnieuw.',
+  ],
+  TokenMissing: [
+    'Het Secret met het token ontbreekt.',
+    'Een nieuwe kopie van de casus heeft een token nodig, en de plugin verwijdert het Secret na elke kopie. Maak het Secret opnieuw aan in deze namespace.',
+  ],
+};
+
+// Reasons that carry the cause in their message, read with BY_MESSAGE.
+const READ_MESSAGE = new Set(['NotStarting', 'SnapshotFailed']);
+
+export function failureAdvice(item) {
+  const ready = (item?.status?.conditions ?? []).find((c) => c.type === 'Ready');
+  const reason = ready?.reason;
+  // A missing token keeps the procedure pending, but waits for a person.
+  if (item?.status?.phase !== 'Failed' && reason !== 'TokenMissing') return null;
+  const message = item.status.message ?? ready?.message ?? '';
+  if (READ_MESSAGE.has(reason)) {
+    const hit = BY_MESSAGE.find(([pattern]) => pattern.test(message));
+    if (hit) return { text: hit[1], action: hit[2] };
+    if (reason === 'NotStarting') return null;
+  }
+  const known = REASONS[reason];
+  return known ? { text: known[0], action: known[1] } : null;
+}
+
 // Where an app finds the services of FSC voor Burgers: the discovery
 // configuration on the citizens' host (resources.go, fsc4bDiscoveryPath).
 export function fsc4bDiscoveryUrl(hostname, domain) {

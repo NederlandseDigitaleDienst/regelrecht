@@ -8,7 +8,7 @@ import {
   deleteSectionHtml,
   wireDelete,
 } from './_shared.js';
-import { REGELHET_RESOURCE, phaseBadge, partijText } from './regelhets-body.js';
+import { REGELHET_RESOURCE, failureAdvice, phaseBadge, partijText } from './regelhets-body.js';
 
 await Promise.all([loadSdk(), loadNlddDesignSystem()]);
 const ctx = await fundament.init;
@@ -36,6 +36,23 @@ function keycloakHtml(item) {
     </nldd-rich-text>`;
 }
 
+// The status message as a banner; for a known failure, what it means and
+// what to do first, with the plugin's own message below it.
+function statusBanner(item, badge) {
+  const message = item.status?.message;
+  if (!message) return '';
+  const variant = badge.color === 'success' ? 'neutral' : badge.color;
+  const advice = failureAdvice(item);
+  if (!advice) {
+    return `<nldd-spacer size="12"></nldd-spacer><nldd-banner variant="${variant}" size="sm" text="${escapeHtml(message)}"></nldd-banner>`;
+  }
+  return `
+    <nldd-spacer size="12"></nldd-spacer>
+    <nldd-banner variant="${variant}" text="${escapeHtml(advice.text)}" supporting-text="${escapeHtml(advice.action)}">
+      <nldd-rich-text><p>Melding van de plugin: <code>${escapeHtml(message)}</code></p></nldd-rich-text>
+    </nldd-banner>`;
+}
+
 // Whether the token Secret is still there. The pods never need it: only a
 // new copy of the casus does, after a change of the repository, branch or
 // manifest.
@@ -55,7 +72,7 @@ function show(item) {
                 supporting-text="${escapeHtml(ctx.namespaceDisplayNames?.[namespace] ?? namespace)}">
       <nldd-badge slot="end" text="${escapeHtml(badge.text)}" color="${badge.color}"></nldd-badge>
     </nldd-title>
-    ${item.status?.message ? `<nldd-spacer size="12"></nldd-spacer><nldd-banner variant="${badge.color === 'success' ? 'neutral' : badge.color}" size="sm" text="${escapeHtml(item.status.message)}"></nldd-banner>` : ''}
+    ${statusBanner(item, badge)}
     <nldd-spacer size="16"></nldd-spacer>
     <nldd-list appearance="simple" accessible-label="Adressen">
       ${linkRow('Burgers', item.status?.url)}

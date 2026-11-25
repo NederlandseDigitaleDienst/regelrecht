@@ -208,6 +208,18 @@ sooner. Once the pods run, the status follows the release again.
 
 The snapshot Job checks that the manifest and the directories it names are in
 the commit. Whether the case itself reads, the server says when it starts.
+To find a mistake in a case before it is deployed, run
+`regelrecht-regelhet check <manifest>` on the repository
+(`docs/src/content/docs/components/regelhet.md`, "Checking a case before
+it runs").
+
+The detail page of a procedure in the console puts what a known failure
+means, and what to do first, in Dutch above the plugin's own message:
+`failureAdvice` in `console/regelhets-body.js`, with a sentence per
+reason and, for `NotStarting`, per pattern of the container's last line. A
+failure it does not know shows the message alone, as before. A new reason or
+message in the plugin or the server gets a line there and a test in
+`console-test/`.
 
 The chart then runs what it runs by default since PR #7: a CloudNativePG
 `Cluster` as the database of the release, one instance for citizens and one for
