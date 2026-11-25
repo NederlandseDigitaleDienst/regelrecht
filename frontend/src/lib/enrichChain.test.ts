@@ -3,6 +3,7 @@ import {
   articleKey,
   chainCounts,
   chainErrorText,
+  chainSuggestions,
   chainUrl,
   gapTags,
   groupChain,
@@ -119,5 +120,13 @@ describe('when the chain cannot be fetched', () => {
     expect(chain.nodes).toHaveLength(1);
     expect(chain.nodes[0]?.gaps.missing_mr).toBe(true);
     expect([...preselection(chain)]).toEqual([articleKey('glb', '26')]);
+  });
+});
+
+describe('chainSuggestions', () => {
+  it('leaves out the start article and what is fine, and puts hotspots first', () => {
+    const extra = node({ law_id: 'awir', article: '10', depth: 1, has_mr: false, gaps: { missing_mr: true, dangling: 0, unresolved: 0, open_terms: 0 } });
+    const withExtra: Chain = { ...chain, nodes: [chain.nodes[0]!, chain.nodes[1]!, extra, chain.nodes[2]!] };
+    expect(chainSuggestions(withExtra).map((n) => articleKey(n.law_id, n.article))).toEqual(['awir#8', 'awir#10']);
   });
 });

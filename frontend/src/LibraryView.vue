@@ -27,7 +27,6 @@ import TasksListPane from './components/TasksListPane.vue';
 import RunsListPane from './components/RunsListPane.vue';
 import RunDetailSheet from './components/RunDetailSheet.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
-import HotspotsSidebarBlock from './components/HotspotsSidebarBlock.vue';
 import { useHotspots } from './composables/useHotspots';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
 import { useAuth, ensureAuthReady } from './composables/useAuth';
@@ -1082,14 +1081,6 @@ async function stopEnrichWithFeedback() {
   } catch {
     enrichError.value = 'Stoppen is mislukt. Probeer het opnieuw.';
   }
-}
-// A row of "Kan verrijking gebruiken": open that article, with the enrich
-// sheet at its first step, the chain.
-function openHotspot(lawId: string, article: string) {
-  selectLawArticle(lawId, article);
-  if (!authenticated.value || !activeTrajectRef.value) return;
-  enrichSheetArticle.value = article;
-  enrichSheetMode.value = 'article';
 }
 // The stepped flow sends its own requests; a law it could not start for is
 // named in the sheet, and the pane says that not everything started.
@@ -2520,12 +2511,6 @@ watch(activeTrajectRef, () => {
                       </nldd-list-item>
                       <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
                     </nldd-list>
-                    <nldd-spacer size="24"></nldd-spacer>
-                    <HotspotsSidebarBlock
-                      :traject-ref="activeTrajectRef"
-                      :enabled="hotspotsEnabled"
-                      @open="openHotspot"
-                    />
                   </template>
                   <template
                     v-for="(section, sectionIndex) in sidebarSections"

@@ -69,7 +69,7 @@ const CHAIN: Chain = {
   partial: { unread_laws: 0, depth_capped: false, node_capped: false },
 };
 
-function mountStepped() {
+function mountArticle(stepped = true) {
   return mount(EnrichSheet, {
     props: {
       mode: 'article',
@@ -77,13 +77,17 @@ function mountStepped() {
       lawId: 'zorgtoeslag',
       trajectRef: 'traject-abcd1234',
       article: '2',
-      stepped: true,
+      stepped,
     },
     attachTo: document.body,
   });
 }
 
-describe('EnrichSheet in steps', () => {
+function click(testid: string) {
+  (document.querySelector(`[data-testid="${testid}"]`) as HTMLElement).click();
+}
+
+describe('EnrichSheet in the article mode', () => {
   beforeEach(() => {
     apiFetchJson.mockReset();
     requestEnrichPlan.mockReset();
@@ -93,30 +97,36 @@ describe('EnrichSheet in steps', () => {
     document.body.innerHTML = '';
   });
 
-  it('shows the chain first and asks the model nothing until the last button', async () => {
-    mountStepped();
+  it('suggests what on the chain could use enrichment, ticked off, and asks the model nothing', async () => {
+    mountArticle();
     await flushPromises();
     expect(apiFetchJson).toHaveBeenCalledWith(
       '/api/trajects/traject-abcd1234/corpus/laws/zorgtoeslag/articles/2/chain?depth=3',
     );
-    const bar = document.querySelector('nldd-top-title-bar');
-    expect(bar?.getAttribute('supporting-text')).toBe('Stap 1 van 3');
-    expect(document.body.textContent).toContain('Artikel 8');
+    const rows = [...document.querySelectorAll('[data-testid="chain-suggestion"] nldd-checkbox-field')];
+    // Awir 9 has a model and no hotspot: no reason to suggest it.
+    expect(rows.map((r) => r.getAttribute('label'))).toEqual(['Awir art. 8']);
+    expect(rows[0]?.hasAttribute('checked')).toBe(false);
     expect(requestEnrichPlan).not.toHaveBeenCalled();
   });
 
-  it('preselects the hotspots, and sends one request per law at the end', async () => {
-    requestEnrichPlan.mockResolvedValue({ started: ['zorgtoeslag', 'awir'], conflicts: [], tooMany: [], failed: [] });
-    const wrapper = mountStepped();
+  it('starts the article alone by default, with the stelselcontext', async () => {
+    const wrapper = mountArticle();
     await flushPromises();
-    (document.querySelector('[data-testid="step-next"]') as HTMLElement).click();
+    click('enrich-start');
     await flushPromises();
-    const checked = [...document.querySelectorAll('nldd-checkbox-field[checked]')].map((c) => c.getAttribute('label'));
-    expect(checked).toEqual(['Artikel 2', 'Artikel 8']);
+    expect(requestEnrichPlan).not.toHaveBeenCalled();
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({ mode: 'article', articles: ['2'], context: true });
+  });
 
-    (document.querySelector('[data-testid="step-next"]') as HTMLElement).click();
+  it('sends one request per law once a suggestion is ticked', async () => {
+    requestEnrichPlan.mockResolvedValue({ started: ['zorgtoeslag', 'awir'], conflicts: [], tooMany: [], failed: [] });
+    const wrapper = mountArticle();
     await flushPromises();
-    (document.querySelector('[data-testid="step-start"]') as HTMLElement).click();
+    const box = document.querySelector('[data-testid="chain-suggestion"] nldd-checkbox-field') as HTMLElement;
+    box.dispatchEvent(new CustomEvent('change', { detail: { checked: true } }));
+    await flushPromises();
+    click('enrich-start');
     await flushPromises();
     expect(requestEnrichPlan).toHaveBeenCalledWith('traject-abcd1234', [
       { lawId: 'zorgtoeslag', options: { mode: 'article', articles: ['2'], instruction: undefined, context: true } },
@@ -124,5 +134,44 @@ describe('EnrichSheet in steps', () => {
     ]);
     expect(wrapper.emitted('submitted')).toHaveLength(1);
     expect(wrapper.emitted('close')).toHaveLength(1);
+  });
+
+  it('without the chain flag, fetches no chain', async () => {
+    mountArticle(false);
+    await flushPromises();
+    expect(apiFetchJson).not.toHaveBeenCalled();
+  });
+});
+
+describe('EnrichSheet in the law mode', () => {
+  beforeEach(() => {
+    apiFetchJson.mockReset();
+    document.body.innerHTML = '';
+  });
+
+  it('says in one line what is enriched, and sends only what has no model', async () => {
+    const wrapper = mount(EnrichSheet, {
+      props: {
+        mode: 'law',
+        law: { articles: [{ number: '1', machine_readable: {} }, { number: '2' }, { number: '3' }] },
+        lawId: 'zorgtoeslag',
+        trajectRef: 'traject-abcd1234',
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(document.querySelector('[data-testid="law-summary"]')?.getAttribute('text')).toBe(
+      '2 van de 3 artikelen hebben nog geen machine_readable. Die worden verrijkt.',
+    );
+    // The article list stays closed until asked for.
+    expect(document.body.textContent).not.toContain('Alle artikelen');
+    click('enrich-start');
+    await flushPromises();
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      mode: 'law',
+      articles: ['1', '2', '3'],
+      onlyMissing: true,
+      context: true,
+    });
   });
 });

@@ -2677,7 +2677,7 @@ async function handleActionSave() {
                     v-if="scopedEnrich && canEnrichLaw && isEnrichPane(view)"
                     slot="overflow"
                     icon="ai"
-                    text="Verrijk regelwerk met opties…"
+                    text="Verrijk het hele regelwerk…"
                     data-testid="enrich-options-menu"
                     @select="openEnrichSheet('law')"
                   ></nldd-menu-item>

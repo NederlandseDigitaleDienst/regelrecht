@@ -218,6 +218,27 @@ export function preselection(chain: Chain): Set<string> {
 }
 
 /**
+ * What the article mode suggests besides the start article: the articles on
+ * its chain that could use an enrichment, the hotspots first (highest score
+ * first), then those without `machine_readable`, nearest first. Articles that
+ * are fine as they are are left out: a suggestion is a reason to tick.
+ */
+export function chainSuggestions(chain: Chain): ChainNode[] {
+  const rootKey = articleKey(chain.root.law_id, chain.root.article);
+  return chain.nodes
+    .map((node, index) => ({ node, index }))
+    .filter(({ node }) => articleKey(node.law_id, node.article) !== rootKey)
+    .filter(({ node }) => node.hotspot || !node.has_mr)
+    .sort(
+      (a, b) =>
+        (b.node.hotspot?.score ?? -1) - (a.node.hotspot?.score ?? -1) ||
+        a.node.depth - b.node.depth ||
+        a.index - b.index,
+    )
+    .map(({ node }) => node);
+}
+
+/**
  * A chain of the start article alone, for when the real chain could not be
  * fetched: the flow can still continue with just this article instead of
  * stalling on step 1.

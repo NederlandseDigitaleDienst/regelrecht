@@ -48,19 +48,19 @@ describe('MachineEmptyState', () => {
       return mount(MachineEmptyState, { props: { canEnrich: true, needs: '', scoped: true } });
     }
 
-    it('opens the sheet instead of starting a run on the whole law', async () => {
+    it('enriches the article you look at, after the sheet', async () => {
       const w = mountScoped();
-      expect(enrichLabel(w)).toBe('Verrijk…');
+      expect(enrichLabel(w)).toBe('Verrijk dit artikel');
       await w.find('[data-testid="enrich-btn"]').trigger('action-click');
       expect(w.emitted('enrich')).toBeUndefined();
-      expect(w.emitted('enrich-options')).toHaveLength(1);
+      expect(w.emitted('enrich-article')).toHaveLength(1);
     });
 
-    it('offers no menu item that starts a whole-law run at once', async () => {
+    it('puts the whole regelwerk behind the chevron, through the sheet', async () => {
       const w = mountScoped();
       expect(w.find('[data-testid="enrich-with-opencode"]').exists()).toBe(false);
-      await w.find('[data-testid="enrich-article"]').trigger('select');
-      expect(w.emitted('enrich-article')).toHaveLength(1);
+      await w.find('[data-testid="enrich-options"]').trigger('select');
+      expect(w.emitted('enrich-options')).toHaveLength(1);
       expect(w.emitted('enrich')).toBeUndefined();
     });
 
