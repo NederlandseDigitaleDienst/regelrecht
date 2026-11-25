@@ -27,9 +27,11 @@ The client in `packages/fsc4b/src/client.rs` does each step as its own function.
 | `POST /fsc4b/burger/v1/formulier` | The forms |
 | `POST /fsc4b/burger/v1/dossier` | The citizen's own dossier |
 | `POST /fsc4b/burger/v1/waarom` | Why a decision of the citizen's own dossier came out so, for `{ "id": "<decision>" }`, as `GET /api/dossier/waarom/{id}` |
+| `POST /fsc4b/burger/v1/tijdlijn` | The timeline of the application a record of the citizen's own dossier belongs to, for `{ "id": "<record>" }`, as `GET /api/dossier/tijdlijn/{id}` |
 | `POST /fsc4b/burger/v1/indieningen` | A submission, as `POST /api/indieningen` takes it, with its idempotency key as the member `idempotency_key` inside the encrypted body |
 | `POST /fsc4b/burger/v1/gegevens` | The source data the executor holds about the citizen, signed by the organization ([below](#source-data-for-the-app)) |
 | `GET /fsc4b/regelwerken` | The case as a bundle of files, without a session |
+| `GET /fsc4b/uiterlijk` | The accent colour, title and organisation of the process, as `GET /api/uiterlijk` gives anyone; without a session |
 | `GET /fsc4b/discovery` | The discovery configuration: `sessionApi` and `regelhetBurgerApi`, each in version `v1` |
 | `GET /fsc4b/openapi.json` | The OpenAPI 3 specification of these routes |
 

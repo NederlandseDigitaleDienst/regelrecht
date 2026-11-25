@@ -53,6 +53,16 @@ async fn waarom(core: State<'_, AppCore>, besluit: String) -> Answer {
 }
 
 #[tauri::command]
+async fn tijdlijn(core: State<'_, AppCore>, id: String) -> Answer {
+    core.timeline(&id).await
+}
+
+#[tauri::command]
+async fn uiterlijk(core: State<'_, AppCore>) -> Answer {
+    core.appearance().await
+}
+
+#[tauri::command]
 async fn indienen(core: State<'_, AppCore>, indiening: Value, sleutel: String) -> Answer {
     core.submit(&indiening, &sleutel).await
 }
@@ -85,7 +95,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            status, activeren, afmelden, casus, formulier, dossier, waarom, indienen
+            status, activeren, afmelden, casus, formulier, dossier, waarom, tijdlijn, uiterlijk,
+            indienen
         ])
         .run(tauri::generate_context!())?;
     Ok(())

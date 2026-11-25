@@ -27,6 +27,7 @@ Elk verzoek is een `POST` met het sessietoken in de header `Authorization` en al
 | Aanvraag indienen | `indieningen` | `{ "velden": {…}, "artikel"?: "…", "op"?: "<id>", "idempotency_key"?: "…" }` | De vastgelegde indiening: `id`, `kind` (`AANVRAAG` voor een aanvraag), de ingevulde `fields` en de regelwerkversies waaronder ze ontstond |
 | Dossier inzien | `dossier` | `{}` | `{ "grammen": [ … ], "stand": { … }, "verzoeken": [ … ], "vervolg": [ … ], "door_het_systeem": { … } }`: alles wat over deze burger is vastgelegd, en de stand van elke aanvraag |
 | Besluit laten uitleggen | `waarom` | `{ "id": "<besluit>" }` | Waarom het besluit zo uitviel, zoals `GET /api/dossier/waarom/{id}` |
+| Tijdlijn lezen | `tijdlijn` | `{ "id": "<vastlegging>" }` | De tijdlijn van de aanvraag waar de vastlegging bij hoort, binnen het dossier en met wat nog komt, zoals `GET /api/dossier/tijdlijn/{id}` |
 | Casus lezen | `casus` | `{}` | De casus en de datum van vandaag |
 | Formulieren lezen | `formulier` | `{}` | De formulieren met hun velden |
 | Brongegevens ophalen | `gegevens` | `{}` | `{ "ondertekend": "<JWS>", "gegevens": { … } }`: wat de uitvoerder over deze burger weet, ondertekend met de organisatiesleutel |
@@ -50,6 +51,8 @@ Met `gegevens` haalt een app op wat de uitvoerder al over de burger weet, zodat 
 - `bij_aanvraag`: de feiten die pas na een aanvraag komen, zoals het advies van de GGD, met de taak die erbij hoort.
 
 De casus zelf staat zonder sessie op `GET /fsc4b/regelwerken`, als `{ "<pad>": "<tekst>" }`. Dat valt buiten deze dienst, want het is de casus en geen persoonsgegeven. De bundel zelf draagt geen handtekening. Zijn hash staat als `bundel_hash` in de ondertekende gegevens, zodat een app de bundel controleert voordat ze ermee rekent. De hash is `sha256:` gevolgd door de SHA-256 in kleine hexadecimale tekens over de aaneenschakeling, per pad in oplopende bytevolgorde, van: de lengte van het pad in bytes als decimaal getal, `:`, het pad, de lengte van de tekst in bytes, `:` en de tekst, alles in UTF-8 en zonder scheidingsteken. Voor `{ "a.yaml": "x" }` zijn dat de bytes `6:a.yaml1:x`. Een manifest kan meer casussen bevatten; de casus van de server is die welke `gegevens` onder `casus` noemt.
+
+Ook het uiterlijk van de procedure staat zonder sessie op `GET /fsc4b/uiterlijk`: `{ "accentkleur", "titel", "organisatie" }`, hetzelfde antwoord als `GET /api/uiterlijk` aan iedereen op het web geeft. Een app toont de schermen daarmee in de kleur en onder de titel van de procedure. Meer van de configuratie staat er niet in.
 
 ## Wie de burger is
 

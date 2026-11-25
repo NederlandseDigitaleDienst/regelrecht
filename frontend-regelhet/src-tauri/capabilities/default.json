@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The main window calls the eight commands of the core and nothing else: no file system, no shell, no HTTP from the webview.",
+  "description": "The main window calls the ten commands of the core and nothing else: no file system, no shell, no HTTP from the webview.",
   "windows": ["main"],
   "permissions": [
     "allow-status",
@@ -11,6 +11,8 @@
     "allow-formulier",
     "allow-dossier",
     "allow-waarom",
+    "allow-tijdlijn",
+    "allow-uiterlijk",
     "allow-indienen"
   ]
 }

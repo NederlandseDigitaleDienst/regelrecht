@@ -107,6 +107,7 @@ export function ikUit(status: AppStatus): Ik | null {
 }
 
 const WAAROM = /^\/api\/dossier\/waarom\/([^/]+)$/;
+const TIJDLIJN = /^\/api\/dossier\/tijdlijn\/([^/]+)$/;
 
 /**
  * The session that sends the citizen's calls to the core. `bijOpnieuwActiveren`
@@ -132,8 +133,11 @@ export function kernSessie(invoke: Invoke, bijOpnieuwActiveren: (f: KernFout) =>
       if (pad === '/api/casus') return roep<T>('casus');
       if (pad === '/api/formulier') return roep<T>('formulier');
       if (pad === '/api/dossier') return roep<T>('dossier');
+      if (pad === '/api/uiterlijk') return roep<T>('uiterlijk');
       const waarom = WAAROM.exec(pad);
       if (waarom?.[1]) return roep<T>('waarom', { besluit: decodeURIComponent(waarom[1]) });
+      const tijdlijn = TIJDLIJN.exec(pad);
+      if (tijdlijn?.[1]) return roep<T>('tijdlijn', { id: decodeURIComponent(tijdlijn[1]) });
       throw new Error(`De app biedt ${pad} niet aan.`);
     },
     async stuur<T>(methode: string, pad: string, body: unknown, sleutel?: string): Promise<T> {

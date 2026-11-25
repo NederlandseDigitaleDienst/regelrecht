@@ -369,6 +369,27 @@ impl AppCore {
         self.call("waarom", &json!({ "id": decision }), None).await
     }
 
+    /// The timeline of the application the record `record` of the
+    /// citizen's dossier belongs to.
+    ///
+    /// # Errors
+    ///
+    /// As [`AppCore::case`].
+    pub async fn timeline(&self, record: &str) -> Result<Value, CommandError> {
+        self.call("tijdlijn", &json!({ "id": record }), None).await
+    }
+
+    /// How the screens of the server look: its accent colour, title and
+    /// organisation. Public, so no session and no activation.
+    ///
+    /// # Errors
+    ///
+    /// When the app is not configured, or the request fails or is refused.
+    pub async fn appearance(&self) -> Result<Value, CommandError> {
+        let config = self.config()?;
+        Ok(client::appearance(&self.http, config.server()).await?)
+    }
+
     /// The submission `submission`, under `idempotency_key`: sent again
     /// with the same key, it is answered as the first time.
     ///

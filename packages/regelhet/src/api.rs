@@ -1518,6 +1518,13 @@ async fn clock_state(state: &AppState) -> ApiResult {
 /// system, or `null` when none is set (the screens then wear `donkerblauw`),
 /// and the title in their bar, the deployment's or else the case's own.
 async fn appearance(State(state): State<AppState>) -> Json<Value> {
+    Json(appearance_of(&state))
+}
+
+/// [`appearance`] as a value: what anyone may know of how the screens look,
+/// and nothing else of the configuration. FSC voor Burgers gives the same
+/// (`GET /fsc4b/uiterlijk`).
+pub(crate) fn appearance_of(state: &AppState) -> Value {
     let title = state
         .title
         .as_ref()
@@ -1526,11 +1533,11 @@ async fn appearance(State(state): State<AppState>) -> Json<Value> {
         .organisation
         .as_ref()
         .map(|o| json!({ "naam": o.name, "url": o.url }));
-    Json(json!({
+    json!({
         "accentkleur": state.accent.map(AccentColor::name),
         "titel": title,
         "organisatie": organisation,
-    }))
+    })
 }
 
 async fn clock(State(state): State<AppState>) -> ApiResult {

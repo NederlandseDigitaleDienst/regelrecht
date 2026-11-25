@@ -146,6 +146,7 @@ enum Route {
     Submit,
     Explain,
     SourceData,
+    Timeline,
 }
 
 async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str) -> Response {
@@ -170,6 +171,13 @@ async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str)
             None => Err(ApiError::new(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "ask why with the id of a decision: { \"id\": \"...\" }",
+            )),
+        },
+        (Route::Timeline, Ok(payload)) => match payload.get("id").and_then(Value::as_str) {
+            Some(id) => api::timeline_for(state, p, id).await,
+            None => Err(ApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "ask the timeline with the id of a record of your dossier: { \"id\": \"...\" }",
             )),
         },
     };
@@ -239,6 +247,14 @@ pub(crate) async fn explain_route(
     body: String,
 ) -> Response {
     handle(&state, Route::Explain, &headers, &body).await
+}
+
+pub(crate) async fn timeline_route(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
+    handle(&state, Route::Timeline, &headers, &body).await
 }
 
 pub(crate) async fn source_data_route(

@@ -148,6 +148,30 @@ async fn the_core_runs_the_whole_path_against_a_demo_server() {
         Err(CommandError::Service { status: 404, .. })
     ));
 
+    // The timeline of the application holds the decision; and the look of
+    // the process needs no session.
+    let timeline = app.timeline(&id).await.unwrap();
+    assert!(
+        timeline["grammen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g["id"] == decision.as_str()),
+        "{timeline}"
+    );
+    assert!(matches!(
+        app.timeline("not-mine").await,
+        Err(CommandError::Service { status: 404, .. })
+    ));
+    let appearance = app.appearance().await.unwrap();
+    let web: Value = reqwest::get(format!("{base}/api/uiterlijk"))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(appearance, web);
+
     // The service's refusal reaches the screens with its status and body.
     let mut forged = application();
     forged["velden"]["bsn_aanvrager"] = json!("999990020");

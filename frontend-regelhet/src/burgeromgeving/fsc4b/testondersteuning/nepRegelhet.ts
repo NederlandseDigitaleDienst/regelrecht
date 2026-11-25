@@ -41,6 +41,8 @@ export interface NepRegelhet {
   zonderDemo: boolean;
   /** What `GET /fsc4b/regelwerken` serves. */
   regelwerken: Record<string, string>;
+  /** What `GET /fsc4b/uiterlijk` serves. */
+  uiterlijk: Record<string, unknown>;
   /** Whether CreateSession refuses every credential, as after a new Stelsel. */
   weigertCredentials: boolean;
   /** How the organization signs: for a test of signed data. */
@@ -65,6 +67,7 @@ export async function nepRegelhet(adres = 'https://regelhet.example.org', oin = 
     zonderDemo: false,
     weigertCredentials: false,
     regelwerken: {},
+    uiterlijk: { accentkleur: 'groen', titel: 'Parkeerkaart', organisatie: null },
     sessiesVerlopen: () => sessies.clear(),
     sessies: () => gemaakt,
     ondertekenAlsOrganisatie: (claims) => onderteken(organisatie.privateKey, claims),
@@ -78,6 +81,7 @@ export async function nepRegelhet(adres = 'https://regelhet.example.org', oin = 
         return antwoord(200, await onderteken(beheerder.privateKey, document));
       }
       if (pad === '/fsc4b/regelwerken') return antwoord(200, JSON.stringify(nep.regelwerken));
+      if (pad === '/fsc4b/uiterlijk') return antwoord(200, JSON.stringify(nep.uiterlijk));
       if (pad === '/fsc4b/discovery') {
         return antwoord(200, JSON.stringify({ sessionApi: { v1: `${adres}/fsc4b/session` }, regelhetBurgerApi: { v1: `${adres}/fsc4b/burger` } }));
       }

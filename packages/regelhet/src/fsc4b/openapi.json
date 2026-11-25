@@ -98,6 +98,15 @@
         }
       }
     },
+    "/fsc4b/burger/v1/tijdlijn": {
+      "post": {
+        "summary": "The timeline of an application of the citizen's own dossier",
+        "description": "Decrypted, the body is { \"id\": \"<id of a record of the dossier>\" } and the answer is the timeline GET /api/dossier/tijdlijn/{id} gives: the records of the application that record belongs to, within the citizen's dossier, and what comes next. A record outside the citizen's dossier answers 404, the same as one that does not exist.",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "required": true, "content": { "application/jose": { "schema": { "type": "string" } } } },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
     "/fsc4b/regelwerken": {
       "get": {
         "summary": "The case as a bundle, to compute on locally",
@@ -106,6 +115,34 @@
           "200": {
             "description": "Per path its text",
             "content": { "application/json": { "schema": { "type": "object", "additionalProperties": { "type": "string" } } } }
+          }
+        }
+      }
+    },
+    "/fsc4b/uiterlijk": {
+      "get": {
+        "summary": "How the screens of the process look",
+        "description": "Without a session: what the web front shows anyone (GET /api/uiterlijk), and nothing else of the configuration. accentkleur is a theme of the NLDD design system, or null for the default; titel is the title of the bar; organisatie is the organisation the process belongs to, { naam, url }, or null.",
+        "responses": {
+          "200": {
+            "description": "The appearance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["accentkleur", "titel", "organisatie"],
+                  "properties": {
+                    "accentkleur": { "type": "string", "nullable": true },
+                    "titel": { "type": "string", "nullable": true },
+                    "organisatie": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": { "naam": { "type": "string" }, "url": { "type": "string", "nullable": true } }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

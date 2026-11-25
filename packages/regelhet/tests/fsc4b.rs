@@ -708,6 +708,68 @@ async fn an_app_asks_why_a_decision_of_its_own_dossier_came_out_so() {
 }
 
 #[tokio::test]
+async fn an_app_reads_the_timeline_of_an_application_of_its_own_dossier() {
+    let server = demo_server(StoreChoice::Memory).await;
+    let anna = server.citizen(ANNA).await;
+    let (_, aanvraag) = anna
+        .call(&server.http, "indieningen", &application(), None)
+        .await
+        .unwrap();
+    let id = aanvraag["id"].as_str().unwrap();
+    let (status, tijdlijn) = anna
+        .call(&server.http, "tijdlijn", &json!({ "id": id }), None)
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::OK, "{tijdlijn}");
+    let grammen: Vec<&str> = tijdlijn["grammen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|g| g["id"].as_str())
+        .collect();
+    assert!(grammen.contains(&id), "{tijdlijn}");
+    // Not for another citizen, the same as a record that does not exist;
+    // and an id is required.
+    let bram = server.citizen(BRAM).await;
+    let (status, _) = bram
+        .call(&server.http, "tijdlijn", &json!({ "id": id }), None)
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = anna
+        .call(&server.http, "tijdlijn", &json!({}), None)
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn the_appearance_is_what_the_web_shows_anyone_without_a_session() {
+    let server = demo_server(StoreChoice::Memory).await;
+    let get = |path: String| {
+        let http = server.http.clone();
+        async move {
+            let response = http.get(path).send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            response.json::<Value>().await.unwrap()
+        }
+    };
+    let fsc = get(format!("{}{}", server.base, fsc4b::APPEARANCE)).await;
+    let web = get(format!("{}/api/uiterlijk", server.base)).await;
+    assert_eq!(fsc, web);
+    let keys: std::collections::BTreeSet<&str> = fsc
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        keys,
+        std::collections::BTreeSet::from(["accentkleur", "organisatie", "titel"])
+    );
+}
+
+#[tokio::test]
 async fn with_the_frontend_built_an_unknown_fsc4b_path_still_answers_404() {
     let dir = tempfile::tempdir().unwrap();
     // The build of the surface the test runs on, both sides in test mode.

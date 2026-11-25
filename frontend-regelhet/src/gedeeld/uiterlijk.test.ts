@@ -38,6 +38,26 @@ describe('the accent colour', () => {
   });
 });
 
+describe('asking again', () => {
+  it('keeps only the answer to the last request, and a failure puts back the default title too', async () => {
+    const root = document.createElement('html');
+    let laat: (r: Response) => void = () => {};
+    const eerst = new Promise<Response>((r) => (laat = r));
+    const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    vi.stubGlobal('fetch', vi.fn().mockReturnValueOnce(eerst).mockResolvedValueOnce(ok({ accentkleur: 'paars', titel: 'B' })));
+    const a = laadUiterlijk(root);
+    await laadUiterlijk(root);
+    laat(ok({ accentkleur: 'rood', titel: 'A' }));
+    await a;
+    expect([root.dataset.nlddTheme, titel.value]).toEqual(['paars', 'B']);
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await laadUiterlijk(root);
+    expect([root.dataset.nlddTheme, titel.value]).toEqual(['donkerblauw', null]);
+  });
+});
+
 describe('the title', () => {
   it('is the one the server names, and none on an answer without it', () => {
     const root = document.createElement('html');

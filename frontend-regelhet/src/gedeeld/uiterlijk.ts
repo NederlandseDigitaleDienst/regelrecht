@@ -49,12 +49,23 @@ export function zetUiterlijk(uiterlijk: Uiterlijk, root: HTMLElement = document.
   titel.value = uiterlijk.titel ?? null;
 }
 
-/** Asks the server how the screens look, and sets it. */
+/** The latest request for the look: an earlier one that answers later counts for nothing. */
+let vraag = 0;
+
+/**
+ * Asks the server how the screens look, and sets it. The citizen's app asks
+ * again for every procedure it is pointed at, so only the answer to the last
+ * request counts, and a failed one puts back the default title and
+ * organisation as well, not only the colour.
+ */
 export async function laadUiterlijk(root: HTMLElement = document.documentElement): Promise<void> {
+  const deze = ++vraag;
   try {
-    zetUiterlijk(await haal<Uiterlijk>('/api/uiterlijk'), root);
+    const uiterlijk = await haal<Uiterlijk>('/api/uiterlijk');
+    if (deze === vraag) zetUiterlijk(uiterlijk, root);
   } catch (e) {
-    root.dataset.nlddTheme = STANDAARD_ACCENTKLEUR;
+    if (deze !== vraag) return;
+    zetUiterlijk({ accentkleur: null }, root);
     console.warn('the accent colour could not be loaded; the screens wear the default', e);
   }
 }

@@ -22,9 +22,9 @@ use serde_json::{Value, json};
 
 use crate::jose::{self, AesKey, Es256Signer, JoseError, SigningKey, VerifyingKey, sign_jws};
 use crate::wire::{
-    APP_MANAGER_CERTIFICATE, CHALLENGE_RESPONSE, CHALLENGE_SUB, CITIZEN_SERVICE, DEMO_CREDENTIAL,
-    DEMO_STELSELBEHEERDER, DEMO_STELSELDOCUMENT, IDEMPOTENCY_MEMBER, SESSION_SERVICE,
-    self_signed_certificate,
+    APP_MANAGER_CERTIFICATE, APPEARANCE, CHALLENGE_RESPONSE, CHALLENGE_SUB, CITIZEN_SERVICE,
+    DEMO_CREDENTIAL, DEMO_STELSELBEHEERDER, DEMO_STELSELDOCUMENT, IDEMPOTENCY_MEMBER,
+    SESSION_SERVICE, self_signed_certificate,
 };
 
 /// Why a step of the client failed.
@@ -108,6 +108,18 @@ impl App {
             &[],
         )?)
     }
+}
+
+/// How the screens of the process at `base_url` look, without a session:
+/// the accent colour, the title and the organisation, as the web front
+/// shows anyone.
+///
+/// # Errors
+///
+/// When the request fails or is refused, or the answer is no JSON.
+pub async fn appearance(http: &reqwest::Client, base_url: &str) -> Result<Value, ClientError> {
+    let text = ok_text(http.get(format!("{base_url}{APPEARANCE}")).send().await?).await?;
+    serde_json::from_str(&text).map_err(|_| protocol("the appearance is no JSON"))
 }
 
 /// A credential for `app` and the test BSN `bsn` from the test

@@ -3,6 +3,7 @@
 // (`gekozen`). That choice is kept for the tab only (sessionStorage), so a
 // reload stays where it was; it is no key and no data of the citizen.
 import { ref } from 'vue';
+import { laadUiterlijk } from '../../gedeeld/uiterlijk';
 import { laadConfig } from './config';
 import { Burgerapp } from './kern';
 import { indexedDbOpslag } from './opslag';
@@ -32,6 +33,8 @@ export function kies(id: string | null): void {
   } catch {
     // Without storage the choice lasts until the page reloads.
   }
+  // The screens take the look of the chosen RegelHet, or the default.
+  void laadUiterlijk();
 }
 
 let app: Promise<Burgerapp> | null = null;

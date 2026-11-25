@@ -22,7 +22,7 @@ use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 
 use crate::access::Principal;
-use crate::api::{ApiError, AppState, CitizenResult};
+use crate::api::{self, ApiError, AppState, CitizenResult};
 use crate::fsc4b::session::channel;
 use crate::fsc4b::{Fsc4b, now_unix};
 use crate::service::SourceData;
@@ -107,4 +107,12 @@ pub(crate) async fn source_data_for(
 pub(crate) async fn regelwerken_route(State(state): State<AppState>) -> Result<Response, ApiError> {
     let fsc = channel(&state)?;
     Ok(([(header::CACHE_CONTROL, CACHE_CONTROL)], Json(fsc.bundle())).into_response())
+}
+
+/// `GET` [`super::APPEARANCE`]: how the screens of the process look, the
+/// same answer `GET /api/uiterlijk` gives anyone on the web
+/// ([`api::appearance_of`]), without a session.
+pub(crate) async fn appearance_route(State(state): State<AppState>) -> Result<Response, ApiError> {
+    channel(&state)?;
+    Ok(Json(api::appearance_of(&state)).into_response())
 }

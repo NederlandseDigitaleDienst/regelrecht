@@ -75,7 +75,18 @@ function alsKernFout(e: unknown, demo = false): unknown {
 const nu = (): number => Math.floor(Date.now() / 1000);
 
 /** The calls of the citizen's screens, as the commands of the core name them, and the route of the service each goes to. */
-const ROUTE: Record<string, string> = { casus: 'casus', formulier: 'formulier', dossier: 'dossier', waarom: 'waarom', indienen: 'indieningen', gegevens: 'gegevens' };
+const ROUTE: Record<string, string> = {
+  casus: 'casus',
+  formulier: 'formulier',
+  dossier: 'dossier',
+  waarom: 'waarom',
+  tijdlijn: 'tijdlijn',
+  indienen: 'indieningen',
+  gegevens: 'gegevens',
+};
+
+/** How the screens look before a RegelHet is chosen: the default, with no title or organisation (`Uiterlijk` in gedeeld/uiterlijk.ts). */
+const GEEN_UITERLIJK = { accentkleur: null, titel: null, organisatie: null };
 
 /** The app for every RegelHet of its configuration. */
 export class Burgerapp {
@@ -185,7 +196,25 @@ export class Burgerapp {
    * data.
    */
   async regelwerken(id: string): Promise<Record<string, string>> {
-    const url = `${this.regelhet(id).adres}/fsc4b/regelwerken`;
+    const bestanden = await this.publiek(id, '/fsc4b/regelwerken', 'the regelwerken');
+    if (!bestanden || typeof bestanden !== 'object' || Object.values(bestanden).some((t) => typeof t !== 'string')) {
+      throw fout({ kind: 'protocol', detail: 'the regelwerken are no object of path and text' });
+    }
+    return bestanden as Record<string, string>;
+  }
+
+  /**
+   * How the screens of `id` look (`GET /fsc4b/uiterlijk`): its accent
+   * colour, title and organisation, which its web front shows anyone. No
+   * session: it is public.
+   */
+  uiterlijk(id: string): Promise<unknown> {
+    return this.publiek(id, '/fsc4b/uiterlijk', 'the appearance');
+  }
+
+  /** The JSON at `pad` of `id`, a route without a session; `wat` names it in an error. */
+  private async publiek(id: string, pad: string, wat: string): Promise<unknown> {
+    const url = `${this.regelhet(id).adres}${pad}`;
     let antwoord: Response;
     try {
       antwoord = await this.haal(url);
@@ -194,11 +223,11 @@ export class Burgerapp {
     }
     const tekst = await antwoord.text();
     if (!antwoord.ok) throw alsKernFout(new ClientFout('status', url, antwoord.status, tekst));
-    const bestanden: unknown = JSON.parse(tekst);
-    if (!bestanden || typeof bestanden !== 'object' || Object.values(bestanden).some((t) => typeof t !== 'string')) {
-      throw fout({ kind: 'protocol', detail: 'the regelwerken are no object of path and text' });
+    try {
+      return JSON.parse(tekst) as unknown;
+    } catch {
+      throw fout({ kind: 'protocol', detail: `${wat} is no JSON` });
     }
-    return bestanden as Record<string, string>;
   }
 
   /** Forget the key, the credential and the session of `id`. */
@@ -289,11 +318,13 @@ export class Burgerapp {
   invoke(gekozen: () => string | null): Invoke {
     return async <T>(commando: string, args?: Record<string, unknown>): Promise<T> => {
       const id = gekozen();
+      if (commando === 'uiterlijk') return (id ? await this.uiterlijk(id) : GEEN_UITERLIJK) as T;
       if (!id) throw fout({ kind: 'not_activated' });
       if (commando === 'status') return (await this.status(id)) as T;
       const route = ROUTE[commando];
       if (!route) throw fout({ kind: 'input', detail: `the app has no command '${commando}'` });
       if (commando === 'waarom') return (await this.roep(id, route, { id: args?.besluit })) as T;
+      if (commando === 'tijdlijn') return (await this.roep(id, route, { id: args?.id })) as T;
       if (commando === 'indienen') {
         const indiening = (args?.indiening ?? {}) as Record<string, unknown>;
         return (await this.roep(id, route, indiening, args?.sleutel as string | undefined)) as T;

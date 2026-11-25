@@ -16,7 +16,7 @@ It is a trial on the demo Stelsel of the server. It activates with a made-up cit
 | Shell | `frontend-regelhet/src-tauri/` | A [Tauri 2](https://v2.tauri.app/) window that registers the core's commands, and nothing else |
 | Screens | `frontend-regelhet/burger.html` and `src/burgeromgeving/` | The citizen's entry, its transport, and in `tauri/` the activation screen and the session that turns a call into a command (`kern.ts`) |
 
-The app key, the credential, the session token and the AES session key stay in the core. The webview calls `status`, `activeren`, `afmelden`, `casus`, `formulier`, `dossier`, `waarom` and `indienen`; the capability of its window allows those eight and nothing else. Each takes and gives plain JSON, and none of them returns key material or the credential itself. The status names the citizen and when the credential lapses. None of the app's own modules uses the webview's storage.
+The app key, the credential, the session token and the AES session key stay in the core. The webview calls `status`, `activeren`, `afmelden`, `casus`, `formulier`, `dossier`, `waarom`, `tijdlijn`, `uiterlijk` and `indienen`; the capability of its window allows those ten and nothing else. `uiterlijk` needs no session: it is the public `GET /fsc4b/uiterlijk`, so the window wears the colour and title of the server's process. Each takes and gives plain JSON, and none of them returns key material or the credential itself. The status names the citizen and when the credential lapses. None of the app's own modules uses the webview's storage.
 
 ## One entry, two transports
 

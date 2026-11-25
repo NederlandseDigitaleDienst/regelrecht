@@ -30,6 +30,10 @@ pub const CITIZEN_SERVICE: &str = "regelhetBurgerApi";
 /// The member of a submission's payload that holds its idempotency key.
 pub const IDEMPOTENCY_MEMBER: &str = "idempotency_key";
 
+/// `GET`: how the screens of a process look (accent colour, title,
+/// organisation), without a session.
+pub const APPEARANCE: &str = "/fsc4b/uiterlijk";
+
 /// `GET`: the demo Stelseldocument.
 pub const DEMO_STELSELDOCUMENT: &str = "/fsc4b/demo/stelseldocument";
 /// `GET`: the demo Stelselbeheerder's public key.

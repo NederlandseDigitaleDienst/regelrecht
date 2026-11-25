@@ -81,9 +81,15 @@ pub const SUBMIT: &str = "/fsc4b/burger/v1/indieningen";
 pub const EXPLAIN: &str = "/fsc4b/burger/v1/waarom";
 /// `POST`: the source data the executor holds about the citizen, signed.
 pub const GEGEVENS: &str = "/fsc4b/burger/v1/gegevens";
+/// `POST`: the timeline of the application a record of the citizen's own
+/// dossier belongs to.
+pub const TIMELINE: &str = "/fsc4b/burger/v1/tijdlijn";
 /// `GET`: the case as a bundle of files, to compute on in the app; without
 /// a session.
 pub const REGELWERKEN: &str = "/fsc4b/regelwerken";
+/// `GET`: how the screens of the process look (accent colour, title,
+/// organisation), as the web front shows anyone; without a session.
+pub use regelrecht_fsc4b::wire::APPEARANCE;
 /// `GET`: the discovery configuration (§4.2).
 pub const DISCOVERY: &str = "/fsc4b/discovery";
 /// `GET`: the OpenAPI specification of the routes above.
@@ -97,7 +103,7 @@ pub const CITIZEN_BASE: &str = "/fsc4b/burger";
 
 /// Every route of the channel outside the demo, with its method: what the
 /// router registers and what the OpenAPI specification must describe.
-pub const ROUTES: [(&str, &str); 11] = [
+pub const ROUTES: [(&str, &str); 13] = [
     ("post", CHALLENGE),
     ("post", COMPLETE),
     ("post", CASE),
@@ -106,7 +112,9 @@ pub const ROUTES: [(&str, &str); 11] = [
     ("post", SUBMIT),
     ("post", EXPLAIN),
     ("post", GEGEVENS),
+    ("post", TIMELINE),
     ("get", REGELWERKEN),
+    ("get", APPEARANCE),
     ("get", DISCOVERY),
     ("get", OPENAPI),
 ];
@@ -358,7 +366,9 @@ pub fn routes(fsc4b: &Fsc4b) -> Router<AppState> {
         .route(SUBMIT, post(citizen::submit_route))
         .route(EXPLAIN, post(citizen::explain_route))
         .route(GEGEVENS, post(citizen::source_data_route))
+        .route(TIMELINE, post(citizen::timeline_route))
         .route(REGELWERKEN, get(handout::regelwerken_route))
+        .route(APPEARANCE, get(handout::appearance_route))
         .route(DISCOVERY, get(discovery::discovery_route))
         .route(OPENAPI, get(discovery::openapi_route));
     match fsc4b.demo() {

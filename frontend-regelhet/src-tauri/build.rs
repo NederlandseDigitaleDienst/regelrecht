@@ -8,6 +8,8 @@ const COMMANDS: &[&str] = &[
     "formulier",
     "dossier",
     "waarom",
+    "tijdlijn",
+    "uiterlijk",
     "indienen",
 ];
 

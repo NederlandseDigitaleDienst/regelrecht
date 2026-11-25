@@ -63,6 +63,22 @@ describe('the app at a RegelHet', () => {
     expect(gezien).toEqual([{ velden: { a: 1 }, idempotency_key: 'k1' }]);
   });
 
+  it('reads the timeline of a record through the session, and the look of the procedure without one', async () => {
+    const { app, server } = await opzet();
+    const gevraagd: unknown[] = [];
+    server.routes.tijdlijn = (v) => (gevraagd.push(v), { status: 200, body: { grammen: [{ id: 'a1' }] } });
+    const zonder = kernSessie(app.invoke(() => null));
+    // Before a procedure is chosen the screens wear the default.
+    expect(await zonder.haal('/api/uiterlijk')).toEqual({ accentkleur: null, titel: null, organisatie: null });
+    // Chosen but not yet activated: the look needs no session.
+    expect(await kernSessie(app.invoke(() => 'parkeerkaart')).haal('/api/uiterlijk')).toEqual(server.uiterlijk);
+    await app.activeren('parkeerkaart', '999990032');
+    const sessie = kernSessie(app.invoke(() => 'parkeerkaart'));
+    expect(await sessie.haal('/api/dossier/tijdlijn/a1')).toEqual({ grammen: [{ id: 'a1' }] });
+    expect(gevraagd).toEqual([{ id: 'a1' }]);
+    expect(await sessie.haal('/api/uiterlijk')).toEqual({ accentkleur: 'groen', titel: 'Parkeerkaart', organisatie: null });
+  });
+
   it('starts a new session once when the server ended the old one, and sends the request again', async () => {
     const { app, server } = await opzet();
     server.routes.dossier = () => ({ status: 200, body: { grammen: [] } });

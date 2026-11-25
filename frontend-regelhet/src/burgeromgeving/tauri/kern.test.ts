@@ -37,11 +37,15 @@ describe('the session of the app', () => {
     await s.haal('/api/formulier');
     await s.haal('/api/dossier');
     await s.haal('/api/dossier/waarom/b%231');
+    await s.haal('/api/dossier/tijdlijn/a%231');
+    await s.haal('/api/uiterlijk');
     expect(aanroepen).toEqual([
       ['casus', undefined],
       ['formulier', undefined],
       ['dossier', undefined],
       ['waarom', { besluit: 'b#1' }],
+      ['tijdlijn', { id: 'a#1' }],
+      ['uiterlijk', undefined],
     ]);
   });
 
