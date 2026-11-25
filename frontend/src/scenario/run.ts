@@ -5,6 +5,7 @@
  * The engine runs in-process and synchronously: a run has settled when
  * `runScenario` returns.
  */
+import { SCENARIO_WITHOUT_OUTPUT } from '../lib/userError';
 import type { EditorEngine } from '../composables/useEngine';
 import type { FormAssertion } from '../gherkin/formMapper';
 import { expectationsFromAssertions, matchStatus, type Expectation } from '../utils/outputFormat';
@@ -69,7 +70,7 @@ export function runScenario(
   const expectations = expectationsFromAssertions([...assertions]);
   const base = { outputName: inputs.outputName, expectations };
   if (!inputs.outputName) {
-    return { ...base, result: null, traceText: null, error: 'Dit scenario noemt geen uitkomst om te berekenen.' };
+    return { ...base, result: null, traceText: null, error: SCENARIO_WITHOUT_OUTPUT };
   }
   // A known reason the regelwerk is not as it should be in the engine is a
   // failure, also when another loader has put a saved version back since:

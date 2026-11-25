@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import { formatValue, formatOutputValueParts, formatMissing, normalizeForCompare, matchStatus as _matchStatus, humanize } from '../utils/outputFormat';
 import type { OutputMeta } from '../utils/articleMapping';
+import { describeExecutionError } from '../lib/userError';
+import { useErrorDetailsStore } from '../stores/errorDetails';
 
 /** The execution result; only the outputs are read here. */
 interface ExecutionResult {
@@ -55,6 +57,12 @@ function humanizeOutput(text: string): string {
   return /^[[{]/.test(text) ? text : humanize(text);
 }
 
+const errorDetails = useErrorDetailsStore();
+const userError = computed(() => (props.error ? describeExecutionError(props.error) : null));
+function showErrorDetails() {
+  if (userError.value) errorDetails.show(userError.value);
+}
+
 const hasContent = computed(() =>
   props.result || props.traceText || props.error,
 );
@@ -74,7 +82,9 @@ const overallStatus = computed(() => {
   <nldd-inline-dialog v-if="running" text="Bezig met uitvoeren…"></nldd-inline-dialog>
 
   <template v-else-if="error && !result && !traceText">
-    <nldd-inline-dialog variant="alert" text="Fout bij uitvoering" :supporting-text="error"></nldd-inline-dialog>
+    <nldd-inline-dialog variant="alert" text="Fout bij uitvoering" :supporting-text="userError?.summary">
+      <nldd-button slot="actions" appearance="secondary" text="Technische details" data-testid="execution-error-details" @click="showErrorDetails"></nldd-button>
+    </nldd-inline-dialog>
     <template v-if="canReload">
       <nldd-spacer size="12"></nldd-spacer>
       <nldd-button size="md" text="Opnieuw uitvoeren" @click="emit('reload')"></nldd-button>

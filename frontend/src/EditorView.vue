@@ -16,6 +16,8 @@ import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
 import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
+import { describeEngineLoadError, describeSaveError, type UserError } from './lib/userError';
+import { useErrorDetailsStore } from './stores/errorDetails';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
 import { quoteContext } from './lib/quoteContext';
@@ -1719,7 +1721,29 @@ let engineLoadDebounce: ReturnType<typeof setTimeout> | undefined;
 // rejects an unparseable one, and it has already dropped the previous copy
 // by then, so every scenario would otherwise fail with "Law not found"
 // without saying why. The WASM binding throws a plain string.
-const engineLoadError = ref<string | null>(null);
+const engineLoadError = ref<UserError | null>(null);
+// The engine has accepted this regelwerk since it was opened, so a refusal
+// that follows comes from something done in this session.
+let engineAcceptedOpenLaw = false;
+// The panes stay up beside the error: it arose in this session (an edit, a
+// proposal under review), or the user asked to see the regelwerk anyway.
+// Otherwise the error takes the place of the panes, so a regelwerk that
+// cannot run is not shown as if it could.
+const showPanesDespiteEngineError = ref(false);
+const engineErrorBlocksPanes = computed(
+  () => !!engineLoadError.value && !showPanesDespiteEngineError.value,
+);
+const errorDetails = useErrorDetailsStore();
+function showErrorDetails(error: UserError | null) {
+  if (error) errorDetails.show(error);
+}
+// Another regelwerk starts clean: the previous one's verdict says nothing
+// about it.
+watch([lawId, activeTrajectRef], () => {
+  engineLoadError.value = null;
+  showPanesDespiteEngineError.value = false;
+  engineAcceptedOpenLaw = false;
+});
 
 // The open regelwerk's other saved versions, so a scenario on a date another
 // version covers runs on that one. The saved copy of the version on screen is
@@ -1751,9 +1775,17 @@ async function reloadEngineLaw(lawYaml: string | null, isReady: boolean) {
     if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
     await loadLawYaml(lawYaml, id, trajectRef, others);
     engineLoadError.value = null;
+    showPanesDespiteEngineError.value = false;
+    engineAcceptedOpenLaw = true;
   } catch (e) {
-    // Reads `.message` off whatever was thrown, as before.
-    engineLoadError.value = typeof e === 'string' ? e : ((e as { message?: string } | null)?.message || String(e));
+    // A newer load, or another regelwerk, has the say by now.
+    if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
+    // Taking the panes away mid-work would hide the mistake and the work: an
+    // edit (also one saved a moment ago) or a proposal under review.
+    if (engineAcceptedOpenLaw || openLaw.hasUnsavedWork.value || review.active.value) {
+      showPanesDespiteEngineError.value = true;
+    }
+    engineLoadError.value = describeEngineLoadError(e);
     // Plain first argument: the law id is user text, not a format string.
     console.warn('Failed to load law into engine:', lawId.value, e);
   }
@@ -1870,9 +1902,7 @@ async function handleLawSave() {
 // niet in) en verdient dezelfde melding, inclusief de 412-uitleg bij een
 // conflict.
 const saveFailure = computed(() => review.processError.value ?? lawSaveError.value);
-const saveErrorText = computed(() =>
-  saveFailure.value ? saveFailure.value.message || String(saveFailure.value) : '',
-);
+const saveError = computed(() => (saveFailure.value ? describeSaveError(saveFailure.value) : null));
 // The failure the user dismissed. `lawSaveError` lives on until the next save,
 // so dismissing remembers which failure it was rather than clearing it.
 const dismissedSaveFailure = ref<unknown>(null);
@@ -2145,6 +2175,23 @@ async function handleActionSave() {
           </nldd-simple-section>
         </nldd-page>
 
+        <!-- The engine refused the regelwerk as it was opened (parse or
+             type-check error, RFC-037): the error takes the place of the
+             panes. Same error-state pattern as the failed load above. -->
+        <nldd-page v-else-if="engineLoadError && engineErrorBlocksPanes">
+          <nldd-simple-section width="full">
+            <nldd-inline-dialog
+              variant="alert"
+              text="Dit regelwerk kan niet worden uitgevoerd"
+              :supporting-text="engineLoadError.summary"
+              data-testid="engine-load-error"
+            >
+              <nldd-button slot="actions" appearance="primary" text="Toon het regelwerk toch" data-testid="engine-load-error-show-panes" @click="showPanesDespiteEngineError = true"></nldd-button>
+              <nldd-button slot="actions" appearance="secondary" text="Technische details" @click="showErrorDetails(engineLoadError)"></nldd-button>
+            </nldd-inline-dialog>
+          </nldd-simple-section>
+        </nldd-page>
+
         <!-- One pane per entry in `paneViews`, wrapped in a template so the
              review/enrich banners can sit above it as siblings within this
              same v-else branch. Each pane independently picks its view via
@@ -2179,9 +2226,12 @@ async function handleActionSave() {
           <nldd-container v-if="engineLoadError" padding="8">
             <nldd-banner
               variant="critical"
-              text="De engine kan dit regelwerk niet laden"
-              :supporting-text="engineLoadError"
-            ></nldd-banner>
+              text="Dit regelwerk kan niet worden uitgevoerd"
+              :supporting-text="engineLoadError.summary"
+              data-testid="engine-load-error-banner"
+            >
+              <nldd-button slot="actions" text="Technische details" @click="showErrorDetails(engineLoadError)"></nldd-button>
+            </nldd-banner>
           </nldd-container>
 
         <nldd-side-by-side-split-view :panes="String(paneViews.length)">
@@ -2934,9 +2984,11 @@ async function handleActionSave() {
     v-if="showSaveError"
     variant="critical"
     text="Opslaan mislukt"
-    :supporting-text="saveErrorText"
+    :supporting-text="saveError?.summary"
     data-testid="save-error-notification"
     @dismiss="dismissSaveError"
-  ></nldd-notification>
+  >
+    <nldd-button v-if="saveError?.details" slot="actions" text="Technische details" @click="showErrorDetails(saveError)"></nldd-button>
+  </nldd-notification>
 
 </template>

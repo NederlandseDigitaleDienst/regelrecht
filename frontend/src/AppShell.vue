@@ -8,6 +8,7 @@ import TrajectMenu from './components/TrajectMenu.vue';
 import MobileTrajectSheet from './components/MobileTrajectSheet.vue';
 import AboutSheet from './components/AboutSheet.vue';
 import SupportSheet from './components/SupportSheet.vue';
+import ErrorDetailsSheet from './components/ErrorDetailsSheet.vue';
 import SettingsSheet from './components/SettingsSheet.vue';
 import NewMenuItems from './components/NewMenuItems.vue';
 import AccountMenuItems from './components/AccountMenuItems.vue';
@@ -812,6 +813,7 @@ function restoreTabSelection() {
 
     <AboutSheet ref="aboutSheet"></AboutSheet>
     <SupportSheet ref="supportSheet"></SupportSheet>
+    <ErrorDetailsSheet></ErrorDetailsSheet>
     <SettingsSheet ref="settingsSheet"></SettingsSheet>
   </nldd-shell>
 
