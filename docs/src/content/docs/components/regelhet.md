@@ -209,6 +209,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `POST /api/backoffice/toezendingen` | decider | A copy of the executor's decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
+| `POST /api/backoffice/concepttoelichting` | decider | A draft explanation of the executor's decision `besluit` in plain language, by Vlam (see [A draft explanation by Vlam](#a-draft-explanation-by-vlam)): `{ "concept", "model" }`. Records nothing. Without Vlam configured the route does not exist |
 | `POST /api/backoffice/testomgeving/leegmaken` | admin | In test mode, empty the test setup (see [Modes](#modes)); in stable mode the route does not exist |
 | `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`, each as `stuk` with `na` as in `werkvoorraad`), its decisions not sent yet (`toe_te_zenden`) and the executor's requests it has not answered (`verzoeken`); under `antwoord_op_verzoek` the facts that answer a request; under `gekoppeld` the parties with a server of their own ([the link](/components/regelhet-koppeling#entering-for-a-linked-party-after-all)) |
 | `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen`; an answer to an open request names its receipt under `verzoek` |
@@ -399,6 +400,28 @@ Which steps of the parking card are a person's and which the system's:
 | Receipt of the printed card | a person of the post room | an observation |
 | Handing out the card | a decider | done by hand |
 | Copy of an own decision to another cell (`toezendingen`) | a decider | kept by hand: which decision goes where is not settled in the case |
+
+## A draft explanation by Vlam
+
+On the back office a decider can ask for a draft explanation of a decision that was taken. Vlam, the language model service of the Rijksoverheid, writes it in plain language. The button "Concepttoelichting laten opstellen" sits under the decision in the work queue. The server calls Vlam's OpenAI-compatible API itself (`POST {base}/chat/completions`), so the key never reaches the browser.
+
+What goes to Vlam is the decision as an employee of the executor sees it: the article, the date, the outcome and the reasons (`waarom`, with its chain of steps). Before it leaves, the server drops every value whose key names a person, such as the citizen service number, a name, an address or a date of birth, and every record id (`without_personal_data` in `src/vlam.rs`). The facts of the decision do go, health findings included, because they are what the explanation is about. The filter goes by key names: a free-text field, or a field a new case names in a way the list does not know (a licence plate, a KvK number), passes. Treat what reaches Vlam as personal data under the AVG, and settle a DPIA and a processing agreement before real data goes through it. The server follows no redirect from Vlam, asks for a draft of at most 800 tokens and reads at most 256 KiB of the answer. The draft is marked on screen as the text of a language model. The decider edits it, copies it or discards it. Nothing is recorded and the decision does not change.
+
+The feature is off unless a key is set. Without one, `GET /api/ik` says `concepttoelichting: false`, the screens hide the button and the route does not exist.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `REGELHET_VLAM_API_KEY` | none | The API key. Setting it turns the feature on |
+| `REGELHET_VLAM_BASE_URL` | none | The OpenAI-compatible base of Vlam, up to and including `/v1`. Required with the key |
+| `REGELHET_VLAM_MODEL` | `vlam-code-vast` | The model |
+
+In the chart, put the key in a Secret in the release's namespace and name it in `vlam.existingSecret` (key `api-key`, or `vlam.secretKey`), with `vlam.baseUrl` beside it. Only the back-office instance gets the variables:
+
+```bash
+kubectl create secret generic vlam-fieldlab --from-literal=api-key="$VLAM_KEY"
+helm upgrade <release> charts/regelhet --reuse-values \
+  --set vlam.existingSecret=vlam-fieldlab --set vlam.baseUrl=<base-url>
+```
 
 ## A lost card
 

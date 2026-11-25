@@ -56,6 +56,7 @@ async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::Jo
         fsc4b,
         fsc4b_origins: Default::default(),
         accent: None,
+        vlam: None,
         title: None,
         link: Default::default(),
         role: regelrecht_regelhet::config::Role::Process(None),

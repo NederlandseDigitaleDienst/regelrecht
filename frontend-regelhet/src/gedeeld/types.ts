@@ -561,6 +561,8 @@ export interface Ik {
   /** The external party this server works for, when it is not the executor's own: its staff enter there what it does. */
   partij?: { cel: string; cel_naam: string } | null;
   klok_zetten: boolean;
+  /** Whether the account may ask Vlam for a draft explanation of a decision: a decider, with Vlam configured. */
+  concepttoelichting?: boolean;
 }
 
 /** Who filled an open term of a decision (`OpenTermFilled` of the engine). */

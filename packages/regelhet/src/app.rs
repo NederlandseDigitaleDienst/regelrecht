@@ -213,6 +213,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         store = config.store.name(),
         login = ?login,
         fsc4b = ?config.fsc4b,
+        vlam = ?config.vlam,
         "starting"
     );
     let service = Service::start(corpus, stores.chronicles, clock)
@@ -241,6 +242,9 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     state = state
         .with_accent(config.accent)
         .with_title(config.title.clone());
+    if let Some(vlam) = &config.vlam {
+        state = state.with_vlam(vlam.clone());
+    }
     if let Some(fsc4b) = fsc4b {
         let fsc4b = fsc4b
             .with_bundle(files)
@@ -534,6 +538,7 @@ mod tests {
             fsc4b: Fsc4bChoice::Off,
             fsc4b_origins: Default::default(),
             accent: None,
+            vlam: None,
             title: None,
             link: Default::default(),
             role: Role::Process(None),

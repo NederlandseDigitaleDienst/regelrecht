@@ -107,6 +107,7 @@ pub use crate::organisatie::settings::{FrontSettings, Membership, OrganisationKe
 use crate::store::postgres::PoolSize;
 use crate::surface::Surface;
 use crate::theme::{AccentColor, Title};
+use crate::vlam::{self, VlamConfig};
 
 /// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
 /// them set without it is a configuration half done, not a choice for the
@@ -418,6 +419,8 @@ pub struct Config {
     pub fsc4b_origins: Fsc4bOrigins,
     /// The accent colour of the screens; none leaves them `donkerblauw`.
     pub accent: Option<AccentColor>,
+    /// Vlam, for a draft explanation of a decision; none turns that off.
+    pub vlam: Option<VlamConfig>,
     /// The title in the bar of the screens; none carries the case's own.
     pub title: Option<Title>,
     /// A process, on its own or in an organisation, or an organisation's
@@ -678,6 +681,17 @@ pub enum ConfigError {
          configuration, which §4.2.2.1 asks to be HTTPS"
     )]
     StableFsc4bNeedsHttps(String),
+    #[error(
+        "REGELHET_VLAM_API_KEY is set but REGELHET_VLAM_BASE_URL is not: set the \
+         OpenAI-compatible base of Vlam, up to and including /v1"
+    )]
+    VlamNeedsBaseUrl,
+    #[error("REGELHET_VLAM_BASE_URL is `{0}`: it starts with https:// or http://")]
+    BadVlamBaseUrl(String),
+    #[error(
+        "REGELHET_VLAM_BASE_URL is `{0}`: stable mode sends the key and the case to Vlam over https only"
+    )]
+    StableVlamNeedsHttps(String),
 }
 
 impl Config {
@@ -713,6 +727,7 @@ impl Config {
         let accent = set("REGELHET_ACCENT_COLOR")
             .map(|c| c.parse())
             .transpose()?;
+        let vlam = vlam_choice(mode, &set)?;
         let title = set("REGELHET_TITLE").map(|t| t.parse()).transpose()?;
         let login = login_choice(mode, claim, &set)?;
         let fsc4b = fsc4b_choice(mode, claim, port, &set)?;
@@ -761,6 +776,7 @@ impl Config {
             fsc4b,
             fsc4b_origins,
             accent,
+            vlam,
             title,
             link,
             role,
@@ -779,6 +795,33 @@ impl Config {
             .unwrap_or(DEFAULT_SUBJECT_CLAIM)
             .to_owned()
     }
+}
+
+/// Vlam as the environment `set` configures it: on with a key, which then
+/// needs the base URL; the model has a default. Stable mode sends the key and
+/// the case only over https.
+fn vlam_choice(
+    mode: Mode,
+    set: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<VlamConfig>, ConfigError> {
+    let Some(api_key) = set("REGELHET_VLAM_API_KEY") else {
+        return Ok(None);
+    };
+    let base_url = set("REGELHET_VLAM_BASE_URL").ok_or(ConfigError::VlamNeedsBaseUrl)?;
+    let base_url = base_url.trim().trim_end_matches('/').to_string();
+    if !(base_url.starts_with("https://") || base_url.starts_with("http://")) {
+        return Err(ConfigError::BadVlamBaseUrl(base_url));
+    }
+    if mode == Mode::Stable && !base_url.starts_with("https://") {
+        return Err(ConfigError::StableVlamNeedsHttps(base_url));
+    }
+    let model = set("REGELHET_VLAM_MODEL")
+        .map_or_else(|| vlam::DEFAULT_MODEL.to_string(), |m| m.trim().to_string());
+    Ok(Some(VlamConfig {
+        base_url,
+        api_key: api_key.trim().to_string(),
+        model,
+    }))
 }
 
 /// The surface `named` names for `mode`, or test mode's own when it names
@@ -1248,6 +1291,37 @@ mod tests {
         assert!(matches!(
             error(&[test, &[("REGELHET_TITLE", "een\ntwee")]]),
             ConfigError::BadTitle(crate::theme::BadTitle::Control)
+        ));
+    }
+
+    #[test]
+    fn vlam_is_on_with_a_key_and_then_needs_its_base_url() {
+        let test = &[("REGELHET_MODE", "test")];
+        assert_eq!(Config::from_env(env(&[test])).unwrap().vlam, None);
+        let key = &[("REGELHET_VLAM_API_KEY", "not-a-key")];
+        assert_eq!(error(&[test, key]), ConfigError::VlamNeedsBaseUrl);
+        assert!(matches!(
+            error(&[test, key, &[("REGELHET_VLAM_BASE_URL", "vlam.example/v1")]]),
+            ConfigError::BadVlamBaseUrl(_)
+        ));
+        let c = Config::from_env(env(&[
+            test,
+            key,
+            &[("REGELHET_VLAM_BASE_URL", "https://vlam.example/v1/")],
+        ]))
+        .unwrap();
+        let vlam = c.vlam.unwrap();
+        assert_eq!(vlam.base_url, "https://vlam.example/v1");
+        assert_eq!(vlam.model, vlam::DEFAULT_MODEL);
+        let plain = |k: &str| match k {
+            "REGELHET_VLAM_API_KEY" => Some("not-a-key".to_string()),
+            "REGELHET_VLAM_BASE_URL" => Some("http://vlam.example/v1".to_string()),
+            _ => None,
+        };
+        assert!(vlam_choice(Mode::Test, &plain).unwrap().is_some());
+        assert!(matches!(
+            vlam_choice(Mode::Stable, &plain),
+            Err(ConfigError::StableVlamNeedsHttps(_))
         ));
     }
 

@@ -301,6 +301,23 @@ spec:
               value: {{ . | quote }}
             {{- end }}
             {{- end }}
+            {{- /* Only where employees work: not for citizens, and not on the front of an organisation. */}}
+            {{- if and .Values.vlam.existingSecret (ne $inst.surface "burger") (not $front) }}
+            {{- if not .Values.vlam.baseUrl }}
+            {{- fail "vlam.existingSecret needs vlam.baseUrl, the OpenAI-compatible base of Vlam up to and including /v1" }}
+            {{- end }}
+            - name: REGELHET_VLAM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.vlam.existingSecret }}
+                  key: {{ .Values.vlam.secretKey }}
+            - name: REGELHET_VLAM_BASE_URL
+              value: {{ .Values.vlam.baseUrl | quote }}
+            {{- with .Values.vlam.model }}
+            - name: REGELHET_VLAM_MODEL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
             {{- /*
             One instance of a release holds the link: the one for employees,
             or the single one. It sends, it is the address peers send to, and

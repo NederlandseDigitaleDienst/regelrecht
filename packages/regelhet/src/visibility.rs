@@ -32,7 +32,7 @@ const PROVENANCE: [(&str, [&str; 2]); 2] = [
 const ID_LEN: usize = 36;
 
 /// Whether `s` has the form the chronicles give out record ids in: a UUID.
-fn is_record_id(s: &str) -> bool {
+pub(crate) fn is_record_id(s: &str) -> bool {
     s.len() == ID_LEN
         && s.char_indices().all(|(i, c)| {
             if matches!(i, 8 | 13 | 18 | 23) {

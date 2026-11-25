@@ -98,6 +98,7 @@ use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
 use crate::surface::Surface;
 use crate::theme::{AccentColor, Title};
 use crate::visibility;
+use crate::vlam::{self, VlamConfig};
 
 /// The header that carries a request's [`IdempotencyKey`].
 pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -119,6 +120,8 @@ pub struct AppState {
     fsc4b: Option<Arc<Fsc4b>>,
     /// The accent colour of the screens; none leaves them `donkerblauw`.
     accent: Option<AccentColor>,
+    /// Vlam, for a draft explanation of a decision; none turns that off.
+    vlam: Option<Arc<VlamConfig>>,
     /// The title in the bar of the screens; none carries the case's own.
     title: Option<Title>,
     /// The link with the servers of other cells, when one is configured.
@@ -157,6 +160,7 @@ impl AppState {
             http_client: regelrecht_auth::http_client(),
             fsc4b: None,
             accent: None,
+            vlam: None,
             title: None,
             link: None,
             organisation: None,
@@ -172,6 +176,12 @@ impl AppState {
     /// The state with the screens in the accent colour `accent`.
     pub fn with_accent(mut self, accent: Option<AccentColor>) -> Self {
         self.accent = accent;
+        self
+    }
+
+    /// The state with a draft explanation of a decision by Vlam.
+    pub fn with_vlam(mut self, vlam: VlamConfig) -> Self {
+        self.vlam = Some(Arc::new(vlam));
         self
     }
 
@@ -369,6 +379,13 @@ pub fn router(state: AppState) -> Router {
         backoffice = backoffice.route(
             "/api/backoffice/testomgeving/leegmaken",
             post(reset_test_environment),
+        );
+    }
+    // Without Vlam the route is not there, and the screens offer no draft.
+    if state.vlam.is_some() {
+        backoffice = backoffice.route(
+            "/api/backoffice/concepttoelichting",
+            post(draft_explanation),
         );
     }
     let backoffice =
@@ -848,6 +865,10 @@ async fn me(
             "cel_naam": service.cell_name(cel),
         })),
         "klok_zetten": principal.has(Level::Admin) && state.clock.is_some(),
+        // The route exists on the executor's server only.
+        "concepttoelichting": principal.has(Level::Decider)
+            && state.vlam.is_some()
+            && state.service.party().is_none(),
     })))
 }
 
@@ -991,6 +1012,47 @@ async fn backoffice_outcomes(State(state): State<AppState>, Path(id): Path<Strin
 async fn backoffice_tables(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult {
     executor_record(&state, &id, "submission").await?;
     Ok(Json(state.service.tables(&id).await?))
+}
+
+/// The decision a draft explanation is asked for.
+#[derive(Debug, Deserialize)]
+struct DraftFor {
+    besluit: String,
+}
+
+/// A draft explanation of a decision of the executor in plain language, by
+/// Vlam, for a decider ([`crate::vlam`]). Vlam reads what an employee of the
+/// executor sees of the decision, without personal data; nothing is recorded.
+async fn draft_explanation(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Json(d): Json<DraftFor>,
+) -> ApiResult {
+    principal.require(Level::Decider)?;
+    let Some(config) = state.vlam.clone() else {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "Vlam is not configured",
+        ));
+    };
+    executor_record(&state, &d.besluit, "decision").await?;
+    let waarom = state.service.explain(&d.besluit).await?;
+    let waarom = for_executor(&state, waarom).await?;
+    let executor = state.service.executor();
+    let chronicle = state.service.chronicle(executor).await?;
+    let gram = chronicle["grammen"]
+        .as_array()
+        .and_then(|g| g.iter().find(|g| g["id"] == d.besluit.as_str()))
+        .ok_or_else(|| ApiError::not_yours("decision"))?;
+    let input = vlam::draft_input(state.service.executor_name(), gram, waarom);
+    let concept = vlam::draft_explanation(&config, &input)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, "no draft explanation from Vlam");
+            ApiError::new(StatusCode::BAD_GATEWAY, e.to_string())
+        })?;
+    tracing::info!(sub = %principal.sub(), decision = %d.besluit, "Vlam drafted an explanation");
+    Ok(Json(json!({ "concept": concept, "model": config.model })))
 }
 
 /// What a decision would come to, for a decider of the executor, as

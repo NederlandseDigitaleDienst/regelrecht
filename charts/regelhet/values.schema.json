@@ -389,6 +389,25 @@
         }
       }
     },
+    "vlam": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "string"
+        },
+        "secretKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baseUrl": {
+          "type": "string",
+          "pattern": "^$|^https?://"
+        },
+        "model": {
+          "type": "string"
+        }
+      }
+    },
     "theme": {
       "type": "object",
       "properties": {

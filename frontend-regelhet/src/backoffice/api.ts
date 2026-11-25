@@ -82,6 +82,9 @@ export const backofficeApi = {
   klokZetten: (datum: string) => stuur<Klok>('PUT', '/api/backoffice/klok', { datum }),
   /** Empty the test setup, test mode only: every chronicle, the kept answers, the clock back on the start. */
   leegmaken: () => stuur<Klok>('POST', '/api/backoffice/testomgeving/leegmaken', {}),
+  /** A draft explanation of the decision `besluit` in plain language, by Vlam; nothing is recorded. */
+  concepttoelichting: (besluit: string) =>
+    stuur<{ concept: string; model: string }>('POST', '/api/backoffice/concepttoelichting', { besluit }),
 };
 
 /**

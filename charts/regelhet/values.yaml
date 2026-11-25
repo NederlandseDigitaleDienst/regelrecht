@@ -334,6 +334,20 @@ theme:
   # organisation carries the organisation's name and ignores it.
   title: ''
 
+# Vlam, the language model service of the Rijksoverheid, for a draft
+# explanation of a decision on the back office. Off while existingSecret is
+# empty; the citizens' instance never gets the key.
+vlam:
+  # The Secret, in the release's namespace, that holds the API key under
+  # secretKey. The chart only refers to it: the key never goes in these values.
+  existingSecret: ''
+  secretKey: api-key
+  # The OpenAI-compatible base of Vlam, up to and including /v1. Required
+  # with existingSecret.
+  baseUrl: ''
+  # Empty keeps the server's default model.
+  model: ''
+
 gateway:
   # How the hosts are reached.
   #

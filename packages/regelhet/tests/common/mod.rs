@@ -59,6 +59,7 @@ pub fn config_on(mode: Mode, surface: Surface) -> Config {
         fsc4b: Fsc4bChoice::Off,
         fsc4b_origins: Default::default(),
         accent: None,
+        vlam: None,
         title: None,
         link: Default::default(),
         role: regelrecht_regelhet::config::Role::Process(None),

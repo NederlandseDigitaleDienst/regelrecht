@@ -55,6 +55,7 @@ import StukSheet from './StukSheet.vue';
 import type { Casus, Gram, Ik, Rol, Tabellen, Tijdlijn, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import { backofficeApi, beheerApi } from './api';
 import BesluitWeergave from './BesluitWeergave.vue';
+import ConceptToelichting from './ConceptToelichting.vue';
 import type { EigenVerzoek, Kroniek, Wachtend } from './api';
 import { feitNaam } from './feit';
 import { verzoekenBij } from '../gedeeld/verzoek';
@@ -637,6 +638,10 @@ async function beslissen() {
             :grammen="kroniek?.grammen"
             @verzonden="emit('besloten')"
           />
+          <template v-if="!namens && wie?.concepttoelichting">
+            <nldd-spacer size="24"></nldd-spacer>
+            <ConceptToelichting :key="besluit.id" :besluit="besluit.id" />
+          </template>
         </template>
         <template v-else-if="wacht && !mag">
           <nldd-spacer size="24"></nldd-spacer>

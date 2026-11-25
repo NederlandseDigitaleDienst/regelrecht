@@ -58,6 +58,7 @@ fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
         fsc4b,
         fsc4b_origins: Default::default(),
         accent: None,
+        vlam: None,
         title: None,
         link: Default::default(),
         role: regelrecht_regelhet::config::Role::Process(None),

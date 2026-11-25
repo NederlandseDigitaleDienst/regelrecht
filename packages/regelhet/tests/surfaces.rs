@@ -16,6 +16,7 @@ use regelrecht_regelhet::app;
 use regelrecht_regelhet::config::{Config, Fsc4bChoice, Mode, StoreChoice};
 use regelrecht_regelhet::login::Login;
 use regelrecht_regelhet::surface::Surface;
+use regelrecht_regelhet::vlam::VlamConfig;
 use regelrecht_shared::postgres::test_utils::TestDatabase;
 use serde_json::{Value, json};
 
@@ -75,6 +76,11 @@ const ROUTES: &[(Group, &str, &str)] = &[
         "POST",
         "/api/backoffice/testomgeving/leegmaken",
     ),
+    (
+        Group::Backoffice,
+        "POST",
+        "/api/backoffice/concepttoelichting",
+    ),
     (Group::Backoffice, "GET", "/api/backoffice/beheer/partijen"),
     (
         Group::Backoffice,
@@ -108,10 +114,15 @@ fn registers(surface: Surface, group: Group) -> bool {
 }
 
 /// A server in test mode on `surface`, with FSC voor Burgers on the demo
-/// Stelsel where the surface serves citizens, so its routes are in the
-/// table too.
+/// Stelsel where the surface serves citizens and Vlam configured, so their
+/// routes are in the table too. Nothing here calls Vlam.
 async fn on(surface: Surface) -> Router {
     let mut c = config_on(Mode::Test, surface);
+    c.vlam = Some(VlamConfig {
+        base_url: "http://vlam.invalid/v1".into(),
+        api_key: "not-a-key".into(),
+        model: "test-model".into(),
+    });
     if surface.serves_citizens() {
         c.fsc4b = Fsc4bChoice::Demo {
             public_url: "http://localhost:7199".into(),
