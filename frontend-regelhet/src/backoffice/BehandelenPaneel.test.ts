@@ -11,6 +11,7 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import type { Casus, Gram, Ik, Stand, Tijdlijn, Voorvertoning } from '../gedeeld/types';
 import type { Beslissing, EigenVerzoek, Kroniek, Wachtend } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
+import Bericht from '../gedeeld/Bericht.vue';
 
 const beslissen = vi.fn(async (b: Beslissing) => ({
   besluit: { ...gram('e', 'BESCHIKKING', 'awb#7:11', b.op), after: b.na, outputs: { verleend: true } },
@@ -95,9 +96,8 @@ function router() {
 }
 /** The button under the title that opens the sheet to decide in. */
 const knop = (w: ReturnType<typeof toon>) => w.findAll('nldd-button').find((b) => b.attributes('text') === 'Besluiten');
-/** The button in the sheet that asks whether the decider is sure, and the one in that question that decides. */
+/** The button in the sheet that takes the decision. */
 const inSheet = (w: ReturnType<typeof toon>) => w.find('nldd-sheet nldd-button-group nldd-button');
-const inModal = (w: ReturnType<typeof toon>) => w.findAll('nldd-modal-dialog nldd-button').at(-1);
 describe('the decision button', () => {
   const besloten: Stand = { rollen, herroepen: {}, antwoorden: { c: { soort: 'besloten', besluit: 'd' } } };
 
@@ -154,7 +154,6 @@ describe('a submission whose decision was revoked', () => {
     await knop(w)?.trigger('click');
     await rond();
     await inSheet(w).trigger('click');
-    await inModal(w)?.trigger('click');
     await rond();
     expect(beslissen).toHaveBeenCalledWith(expect.objectContaining({ op: 'c', na: 'r' }));
     expect(w.findAll('nldd-banner').map((b) => b.attributes('text'))).toContain('Het besluit is genomen');
@@ -228,9 +227,12 @@ describe('the decision as it would be taken', () => {
     expect(voorvertoning).toHaveBeenCalledWith(expect.objectContaining({ op: 'c' }));
     const titels = w.findAll('nldd-title').map((t) => t.attributes('text'));
     expect(titels).toContain('Voorvertoning van het besluit');
-    // The outcome is the output in the list, with no tag beside the title.
+    // The outcome is the output in the list; an objection is no application, so no tag beside the title.
     const uitkomst = w.findAll('nldd-list[accessible-label="Uitkomst van de voorvertoning"] nldd-list-item');
-    expect(uitkomst.map((r) => r.findAll('nldd-text-cell').map((c) => c.attributes('text')))).toEqual([['Verleend', 'Ja']]);
+    expect(uitkomst.map((r) => r.findAll('nldd-text-cell').map((c) => c.attributes('text')))).toEqual([
+      ['Op grond van', artikelNaam('awb#7:11')],
+      ['Verleend', 'Ja'],
+    ]);
     expect(w.find('nldd-title nldd-tag').exists()).toBe(false);
     // Not inline: a link in a sentence opens a sheet of its own with the steps.
     const meer = w.find('nldd-link a[href="#volledige-keten"]');
@@ -243,13 +245,13 @@ describe('the decision as it would be taken', () => {
     await ketenSheet().trigger('close');
     expect(ketenSheet().attributes('open')).toBeUndefined();
     // An objection is no application: its button does not speak of granting one.
-    expect(w.findAll('nldd-button').map((b) => b.attributes('text'))).toEqual(['Besluiten', 'Neem besluit', 'Controleer opnieuw', 'Neem besluit']);
+    expect(w.findAll('nldd-button').map((b) => b.attributes('text'))).toEqual(['Besluiten', 'Neem besluit']);
   });
 
   const aanvraag = gram('c', 'AANVRAAG', 'wet#1');
   const afgewezen = { stil: [], voorlopig: { besluit: { ...gram('p', 'BESCHIKKING', 'wet#1', 'c'), outputs: { verleend: false } } } };
 
-  it('asks whether the decider is sure before it decides, by the outcome it would have', async () => {
+  it('decides in one click, by the outcome it would have, with no question after it', async () => {
     beslissen.mockClear();
     voorvertoning.mockClear().mockResolvedValue(afgewezen);
     const r = router();
@@ -272,24 +274,29 @@ describe('the decision as it would be taken', () => {
     expect([kop.attributes('text'), kop.attributes('supporting-text')]).toEqual(['Samenvatting', titel]);
     expect(balk.attributes('text')).toBe(`Samenvatting: ${titel.charAt(0).toLowerCase()}${titel.slice(1)}`);
     expect(balk.attributes('back-text')).toBeFalsy();
-    // Above the button, in words, what going on does.
+    // Above the button, in words, what it does.
     expect(w.findAll('nldd-sheet nldd-text').map((t) => t.text())).toContain(
-      'Als u verdergaat, wordt de aanvraag afgewezen zoals hierboven staat, met de bevindingen en de kroniek van dit moment.',
+      'Met de knop hieronder wordt de aanvraag afgewezen zoals hierboven staat, met de bevindingen en de kroniek van dit moment. Het besluit wordt direct vastgelegd en is niet terug te draaien.',
     );
-    expect(w.find('nldd-modal-dialog').attributes('open')).toBeUndefined();
+    // The summary names the outcome and the article the decision is taken under.
+    const voorvertoond = w.find('nldd-sheet nldd-title[text="Voorvertoning van het besluit"] nldd-tag');
+    expect([voorvertoond.attributes('text'), voorvertoond.attributes('color')]).toEqual(['Afgewezen', 'critical']);
+    const grondslag = w.findAll('nldd-sheet nldd-list[accessible-label="Uitkomst van de voorvertoning"] nldd-list-item')
+      .map((x) => x.findAll('nldd-text-cell').map((c) => c.attributes('text')))
+      .find((x) => x[0] === 'Op grond van');
+    expect(grondslag).toEqual(['Op grond van', artikelNaam('wet#1')]);
+    // No concept letter: the summary is the decision, not the message that makes it known.
+    expect(w.findComponent(Bericht).exists()).toBe(false);
+    // One click records it: no question opens first.
     await inSheet(w).trigger('click');
-    const modal = w.find('nldd-modal-dialog');
-    expect(modal.attributes('open')).toBeDefined();
-    expect(modal.attributes('text')).toBe('Aanvraag afwijzen?');
-    // The way out is the primary button and comes first.
-    expect(modal.findAll('nldd-button').map((b) => [b.attributes('text'), b.attributes('appearance')])).toEqual([
-      ['Controleer opnieuw', 'primary'],
-      ['Wijs aanvraag af', 'destructive'],
-    ]);
-    expect(beslissen).not.toHaveBeenCalled();
-    await inModal(w)?.trigger('click');
     await rond();
+    expect(w.find('nldd-modal-dialog').exists()).toBe(false);
     expect(beslissen).toHaveBeenCalledTimes(1);
+    expect(beslissen).toHaveBeenCalledWith(expect.objectContaining({ op: 'c' }));
+    // The pane then shows the decision as recorded, in the same short form.
+    expect(w.findAll('nldd-banner').map((b) => b.attributes('text'))).toContain('Het besluit is genomen');
+    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toContain('Het besluit');
+    expect(w.findComponent(Bericht).exists()).toBe(false);
     expect(w.find('nldd-sheet').attributes('open')).toBeUndefined();
     expect(r.currentRoute.value.hash).toBe('');
     voorvertoning.mockReset().mockResolvedValue({ stil: [] });
@@ -303,9 +310,7 @@ describe('the decision as it would be taken', () => {
     await knop(w)?.trigger('click');
     await rond();
     await inSheet(w).trigger('click');
-    await inModal(w)?.trigger('click');
     await rond();
-    expect(w.find('nldd-modal-dialog').attributes('open')).toBeUndefined();
     expect(w.find('nldd-sheet').attributes('open')).toBeDefined();
     const fout = w.findAll('nldd-sheet nldd-banner').find((d) => d.attributes('text') === 'Dat lukt niet');
     expect(fout?.attributes('variant')).toBe('critical');
@@ -321,8 +326,9 @@ describe('the decision as it would be taken', () => {
     // The chronicle changes: the preview runs again after a moment.
     const advies = { ...gram('a', 'EXECUTOGRAM', 'beleid#5'), fact: 'advies_ontvangen' };
     await w.setProps({ kronieken: [{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', kop: 2, grammen: [aanvraag, advies], stand: wacht }] });
+    beslissen.mockClear();
     await inSheet(w).trigger('click');
-    expect(w.find('nldd-modal-dialog').attributes('open')).toBeUndefined();
+    expect(beslissen).not.toHaveBeenCalled();
     const nogNiet = () => w.findAll('nldd-sheet nldd-banner').find((d) => d.attributes('text') === 'Nog niet');
     expect(nogNiet()?.attributes('supporting-text')).toContain('wordt nog bijgewerkt');
     await new Promise((r) => setTimeout(r, 350));

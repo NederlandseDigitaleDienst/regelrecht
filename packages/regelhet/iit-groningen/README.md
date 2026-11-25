@@ -89,7 +89,7 @@ packages/regelhet/iit-groningen/leg-testprofiel-vast.sh 999990044
 4. Beslisser, tabblad Werkvoorraad: open de aanvraag en klik "Besluiten". De voorvertoning zegt
    of de toeslag wordt verleend en hoe hoog die is. Bij Piet kies je eerst bij "Oordeel van het
    college over uitzicht en inspanningen" "Recht op de toeslag" of "Geen recht op de toeslag". Klik daarna de knop onder de voorvertoning ("Wijs
-   aanvraag toe" of "Wijs aanvraag af") en bevestig.
+   aanvraag toe" of "Wijs aanvraag af").
 5. Burger, Mijn dossier: het besluit, met het bedrag en de bezwaartermijn.
 6. De twaalf maanden van artikel 36, derde lid: zet als admin de testklok een week vooruit en
    laat hetzelfde profiel opnieuw aanvragen. De voorvertoning wijst nu af.

@@ -32,25 +32,34 @@ const doorgestuurd = computed(() => {
   const l = laatste.value;
   return !!v && !!l && props.grammen.some((g) => `${g.basis}#${g.fact}` === v && g.fields?.bericht === l.id);
 });
+/**
+ * The message as it would go now, built as the sending builds it. The decide
+ * screen shows no letter, so this is where a violation of its template shows
+ * before it is sent.
+ */
+const model = computed(() => {
+  const s = spec.value;
+  const soort = s ? berichtsoortVoor(props.gram, 'besluit', s) : undefined;
+  if (!s || !soort) return null;
+  return maakBericht(
+    soort,
+    { gram: props.gram, rol: 'besluit', vormen: props.vormen, grammen: props.grammen, waarom: props.waarom, afzender: props.celNaam(props.gram.recording_actor), celNaam: props.celNaam },
+    s,
+  );
+});
 const bezig = ref(false);
 const fout = ref<string | null>(null);
 let sleutel = nieuweSleutel();
 
 async function verzenden() {
   const s = spec.value;
-  if (!s?.verzending) return;
-  const soort = berichtsoortVoor(props.gram, 'besluit', s);
-  if (!soort) return;
+  const m = model.value;
+  if (!s?.verzending || !m) return;
   bezig.value = true;
   fout.value = null;
   try {
-    const model = maakBericht(
-      soort,
-      { gram: props.gram, rol: 'besluit', vormen: props.vormen, grammen: props.grammen, waarom: props.waarom, afzender: props.celNaam(props.gram.recording_actor), celNaam: props.celNaam },
-      s,
-    );
     const { datum } = await gedeeldApi.klok();
-    const velden = verzendvelden(model, props.gram, props.grammen, s, datum, laatste.value?.id ?? null);
+    const velden = verzendvelden(m, props.gram, props.grammen, s, datum, laatste.value?.id ?? null);
     await backofficeApi.vastleggen({ cel: props.gram.recording_actor, feit: s.verzending.feit, velden }, sleutel);
     sleutel = nieuweSleutel();
     emit('verzonden');
@@ -82,6 +91,14 @@ async function doorsturen() {
 </script>
 
 <template>
+  <template v-if="spec?.verzending && !laatste && model?.schendingen.length">
+    <nldd-banner
+      variant="critical"
+      :text="`Het bericht schendt ${model.schendingen.length === 1 ? 'een invariant' : `${model.schendingen.length} invarianten`} van zijn sjabloon`"
+      supporting-text="Toon brief laat zien welke."
+    ></nldd-banner>
+    <nldd-spacer size="8"></nldd-spacer>
+  </template>
   <nldd-container v-if="spec?.verzending" gap="8" layout="row">
     <nldd-button
       v-if="!laatste"

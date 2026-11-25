@@ -24,7 +24,7 @@ De bouwstenen:
 - **De materiële kant.** Na de toekenning volgen bestellen, ontvangen en uitreiken, en een kwijtgeraakte kaart krijgt een duplicaat.
 - **Een tijdlijn per aanvraag.** De burger ziet haar onder elke aanvraag in Mijn aanvragen, en onder elk stuk dat erop volgde, de medewerker onderaan het behandelscherm. Ze toont wat er bij de aanvraag gebeurde, op volgorde, en daaronder de volgende stap met wie aan zet is. Een detailsknop aan het eind van een regel opent het stuk zelf; bij de medewerker alleen voor stukken van de eigen cel, in een sheet boven het behandelscherm.
 
-- **Elk bericht op één template.** Een bericht aan de burger, zoals het besluit, de ontvangstbevestiging, het herstelverzoek of de beslissing op bezwaar, volgt uit een vastlegging in de kroniek. `berichten.yaml` zegt welk bericht uit welke vastlegging volgt, met de delen die de wet eist (Awb 1:3, 3:45 tot en met 3:47, 4:5, 7:11, 7:12, 10:10), waar elke sleutel van de tekst vandaan komt en welke invarianten gelden; de tekst zelf staat in de tekstlaag van de gemeente, `berichtteksten.yaml`. De burger ziet het bericht bij het stuk, de medewerker als concept boven de voorvertoning, met de invarianten. Zie [BERICHTEN.md](BERICHTEN.md).
+- **Elk bericht op één template.** Een bericht aan de burger, zoals het besluit, de ontvangstbevestiging, het herstelverzoek of de beslissing op bezwaar, volgt uit een vastlegging in de kroniek. `berichten.yaml` zegt welk bericht uit welke vastlegging volgt, met de delen die de wet eist (Awb 1:3, 3:45 tot en met 3:47, 4:5, 7:11, 7:12, 10:10), waar elke sleutel van de tekst vandaan komt en welke invarianten gelden; de tekst zelf staat in de tekstlaag van de gemeente, `berichtteksten.yaml`. De burger ziet het bericht bij het stuk, de medewerker onder het genomen besluit via "Toon brief", met de invarianten. Zie [BERICHTEN.md](BERICHTEN.md).
 
 Elke beslissing toont vooraf een voorvertoning, met de volledige keten om uit te klappen. Na een vernietiging beslist de medewerker opnieuw.
 
@@ -45,7 +45,7 @@ Advies en besluit:
 4. Medewerker, tabblad Werkvoorraad: open de aanvraag. In de tijdlijn staat het verzoek aan de GGD, met de GGD aan zet.
 5. Admin, tabblad Beheerpaneel: klik onder GGD Wilgendaal op "Verzoek om geneeskundig onderzoek ontvangen". Het BSN staat er al.
 6. Admin: vul "Datum onderzoek" in, zet "Langdurige loopbeperking" aan en klik "Vastleggen".
-7. Medewerker, Werkvoorraad: open de aanvraag, klik "Besluiten" en kies bij "Geneeskundig onderzoek achterwege gelaten" "Onderzoek nodig". De voorvertoning zegt bij "Gehandicaptenparkeerkaart verstrekt" Ja; klik "Wijs aanvraag toe" en bevestig.
+7. Medewerker, Werkvoorraad: open de aanvraag, klik "Besluiten" en kies bij "Geneeskundig onderzoek achterwege gelaten" "Onderzoek nodig". De voorvertoning zegt bij "Gehandicaptenparkeerkaart verstrekt" Ja; klik "Wijs aanvraag toe".
 
 De kaart:
 
@@ -60,17 +60,17 @@ Begin na stap 7 van route 1.
 Bezwaar:
 
 1. Burger, Mijn aanvragen: open de aanvraag en onder "Stand" het besluit, en klik "Bezwaar indienen". Vul het formulier in en klik "Bezwaar indienen".
-2. Medewerker, Werkvoorraad: open het bezwaar en klik "Besluiten". Kies "Belanghebbende" bij "Indiener bezwaarschrift is belanghebbende" en "Niet in verzuim" bij "Indiener bezwaarschrift niet in verzuim", klik "Neem besluit" en bevestig.
+2. Medewerker, Werkvoorraad: open het bezwaar en klik "Besluiten". Kies "Belanghebbende" bij "Indiener bezwaarschrift is belanghebbende" en "Niet in verzuim" bij "Indiener bezwaarschrift niet in verzuim", klik "Neem besluit".
 
 Beroep:
 
 3. Burger: open de beslissing op bezwaar en klik "Beroep indienen". Vul het formulier in en klik "Beroep indienen".
-4. Admin, Beheerpaneel: open onder Rechtbank Wilgendaal het beroep en klik "Besluiten". Kies "Rechtsgevolgen vervallen" bij "Rechtsgevolgen in stand", "Treedt niet in de plaats" bij "Uitspraak treedt in de plaats", en bij de rest het eerste antwoord ("Belanghebbende", "Niet in verzuim", "Rechtsregel geschonden"), klik "Neem besluit" en bevestig.
+4. Admin, Beheerpaneel: open onder Rechtbank Wilgendaal het beroep en klik "Besluiten". Kies "Rechtsgevolgen vervallen" bij "Rechtsgevolgen in stand", "Treedt niet in de plaats" bij "Uitspraak treedt in de plaats", en bij de rest het eerste antwoord ("Belanghebbende", "Niet in verzuim", "Rechtsregel geschonden"), klik "Neem besluit".
 5. Admin: klik "Afschrift toezenden".
 
 Opnieuw beslissen:
 
-6. Medewerker, Werkvoorraad: het bezwaar staat er weer met "Opnieuw beslissen". Open het, klik "Besluiten", kies "Belanghebbende" en "Niet in verzuim", klik "Neem besluit" en bevestig.
+6. Medewerker, Werkvoorraad: het bezwaar staat er weer met "Opnieuw beslissen". Open het, klik "Besluiten", kies "Belanghebbende" en "Niet in verzuim", klik "Neem besluit".
 7. Burger: open de aanvraag en in de tijdlijn het bezwaar. Onder "Stand" staat het nieuwe besluit met "Geldt"; het eerdere besluit heet "Vernietigd".
 
 ### Route 3: kwijtgeraakte kaart
@@ -79,7 +79,7 @@ Begin na route 1, met een uitgereikte kaart.
 
 1. Burger, Mijn aanvragen: open de aanvraag en klik "Kaart kwijt?".
 2. Burger: vul in "Kaart kwijt of gestolen" de datum en wat er gebeurde in, zet de verklaring aan en klik "Dien aanvraag in".
-3. Medewerker, Werkvoorraad: open de nieuwe aanvraag, klik "Besluiten", dan "Wijs aanvraag toe" en bevestig. Het systeem bestelt het duplicaat.
+3. Medewerker, Werkvoorraad: open de nieuwe aanvraag, klik "Besluiten", dan "Wijs aanvraag toe". Het systeem bestelt het duplicaat.
 4. Medewerker, onder "Na de toekenning": leg de ontvangst vast en daarna de uitreiking.
 5. Burger, Mijn aanvragen: "Kaart kwijt of gestolen" staat er als eigen aanvraag. Bij de eerste aanvraag staat "Deze kaart geldt niet meer"; "Kaart kwijt?" staat nu alleen op de pagina van het duplicaat.
 

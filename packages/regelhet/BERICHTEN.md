@@ -145,7 +145,7 @@ De bronnen: `uitkomst` (van de vastlegging), `veld` (van de vastlegging of het s
 
 ### 5. Invarianten
 
-Wat tussen de delen moet gelden. Een schending is **zichtbaar, nooit stil**: de medewerker ziet haar boven het concept, de burger een melding dat het bericht niet in orde is. Een gat in de spec zelf, zoals een alinea die geen deel opneemt, ziet alleen de medewerker: het is geen fout van dit bericht.
+Wat tussen de delen moet gelden. Een schending is **zichtbaar, nooit stil**: de medewerker ziet vóór het verzenden een melding naast "Bericht verzenden" en de schending zelf boven de brief onder "Toon brief", de burger een melding dat het bericht niet in orde is. Een gat in de spec zelf, zoals een alinea die geen deel opneemt, ziet alleen de medewerker: het is geen fout van dit bericht.
 
 Altijd, zonder dat de spec ze noemt:
 

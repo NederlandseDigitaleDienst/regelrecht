@@ -3,8 +3,9 @@
 // submitted, and under its title the button "Besluiten". That opens a sheet
 // with the findings the deciding article asks of the authority
 // (`GET /api/formulier`, `besluiten`), the decision as it would be taken, and
-// the button that takes it, after a question whether the decider is sure: a
-// decision is not undone. The preview is the server's (`voorvertoning`): it
+// the button that takes it in one click, with no question after it: the line
+// above the button says that it is recorded at once and not undone. The
+// preview is the server's (`voorvertoning`): it
 // runs when the pane opens and again when a finding changes, the chronicles
 // change (a fact recorded, an advice received) or the test clock moves. It
 // may ask more: a finding a policy leaves to the authority for this case
@@ -443,8 +444,6 @@ async function verder() {
   await nextTick();
   bevindingenEl.value?.querySelector('[invalid]')?.closest('nldd-form-field')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
 }
-/** Whether the question if the decider is sure is open. */
-const bevestigen = ref(false);
 /** Why the button did not ask yet; it goes once the preview changes or the sheet opens again. */
 const nogNiet = ref('');
 watch([voorvertoning, voorvertoningFout, besluiten, rekent], () => (nogNiet.value = ''));
@@ -455,15 +454,18 @@ watch([voorvertoning, voorvertoningFout, besluiten, rekent], () => (nogNiet.valu
  */
 const toewijzing = computed(() => {
   const v = voorvertoning.value?.voorlopig;
-  if (!v || voorvertoningFout.value || !indiening.value || !isAanvraag(indiening.value, props.casus)) return undefined;
-  return toegewezen(v.besluit, props.casus);
+  return v && !voorvertoningFout.value ? toewijzingVan(v.besluit) : undefined;
 });
+/** Whether decision `g` grants the submission, when that is an application; undefined otherwise. */
+function toewijzingVan(g: Pick<Gram, 'outputs'>): boolean | undefined {
+  return indiening.value && isAanvraag(indiening.value, props.casus) ? stand(g) : undefined;
+}
 /** The button that takes the decision names what it does, as an order: a direct action. A refusal is a destructive one. */
 const beslisKnop = computed(() => (toewijzing.value === true ? 'Wijs aanvraag toe' : toewijzing.value === false ? 'Wijs aanvraag af' : 'Neem besluit'));
-/** What going on does, above the button: the decision as previewed, with what is known now. */
+/** What the button does, above it: the decision as previewed, with what is known now, recorded at once. */
 const gevolg = computed(() => {
   const wat = toewijzing.value === true ? 'wordt de aanvraag toegewezen' : toewijzing.value === false ? 'wordt de aanvraag afgewezen' : 'wordt het besluit genomen';
-  return `Als u verdergaat, ${wat} zoals hierboven staat, met de bevindingen en de kroniek van dit moment.`;
+  return `Met de knop hieronder ${wat} zoals hierboven staat, met de bevindingen en de kroniek van dit moment. Het besluit wordt direct vastgelegd en is niet terug te draaien.`;
 });
 /** On the findings page, above the way on: how the application would be decided on these findings. */
 const uitkomst = computed(() =>
@@ -471,19 +473,16 @@ const uitkomst = computed(() =>
     ? undefined
     : `Op basis van deze bevindingen wordt de aanvraag ${toewijzing.value ? 'toegewezen' : 'afgewezen'}.`,
 );
-const bevestigVraag = computed(() =>
-  toewijzing.value === true ? 'Aanvraag toewijzen?' : toewijzing.value === false ? 'Aanvraag afwijzen?' : 'Besluit nemen?',
-);
 
 /**
- * Ask whether the decider is sure, since a decision is not undone. While the
- * preview is being updated, say so instead: the button names the outcome of
- * the preview, and a stale one may name the wrong one.
+ * Take the decision the summary shows. While the preview is being updated,
+ * say so instead: the button names the outcome of the preview, and a stale
+ * one may name the wrong one.
  */
-function bevestig() {
+function neem() {
   melding.value = '';
   if (rekent.value) nogNiet.value = 'De voorvertoning wordt nog bijgewerkt. Kijk of de uitkomst klopt en probeer het dan opnieuw.';
-  else bevestigen.value = true;
+  else void beslissen();
 }
 
 function openBesluiten() {
@@ -498,6 +497,7 @@ function sluitBesluiten() {
 }
 
 async function beslissen() {
+  if (bezig.value) return;
   bezig.value = true;
   melding.value = '';
   try {
@@ -510,7 +510,6 @@ async function beslissen() {
     melding.value = foutTekst(e);
   } finally {
     bezig.value = false;
-    bevestigen.value = false;
   }
 }
 </script>
@@ -651,6 +650,7 @@ async function beslissen() {
             :vormen="vormen"
             :cel-naam="naamVanCel"
             :grammen="kroniek?.grammen"
+            :toegewezen="toewijzingVan(besluit)"
             @verzonden="emit('besloten')"
           />
           <template v-if="!namens && wie?.concepttoelichting">
@@ -805,6 +805,7 @@ async function beslissen() {
               :vormen="vormen"
               :cel-naam="naamVanCel"
               :grammen="kroniek?.grammen"
+              :toegewezen="toewijzing"
               :niveau="3"
               voorlopig
             />
@@ -836,7 +837,12 @@ async function beslissen() {
               <nldd-text><p>{{ gevolg }}</p></nldd-text>
               <nldd-spacer size="16"></nldd-spacer>
               <nldd-button-group orientation="vertical">
-                <nldd-button :appearance="toewijzing === false ? 'destructive' : 'primary'" :text="beslisKnop" @click="bevestig"></nldd-button>
+                <nldd-button
+                  :appearance="toewijzing === false ? 'destructive' : 'primary'"
+                  :text="beslisKnop"
+                  :loading="bezig || undefined"
+                  @click="neem"
+                ></nldd-button>
               </nldd-button-group>
             </template>
           </nldd-container>
@@ -845,25 +851,6 @@ async function beslissen() {
     </nldd-sheet>
   </Teleport>
 
-  <Teleport to="body">
-    <nldd-modal-dialog
-      v-if="kanBeslissen"
-      variant="alert"
-      :open="bevestigen || undefined"
-      :text="bevestigVraag"
-      :supporting-text="`Het besluit wordt vastgelegd in de kroniek van ${naamVanCel(cel)}. Dat is niet terug te draaien: alleen een later besluit kan het herroepen.`"
-      @close="bevestigen = false"
-    >
-      <nldd-button slot="actions" appearance="primary" text="Controleer opnieuw" @click="bevestigen = false"></nldd-button>
-      <nldd-button
-        slot="actions"
-        :appearance="toewijzing === false ? 'destructive' : 'secondary'"
-        :text="beslisKnop"
-        :loading="bezig || undefined"
-        @click="beslissen"
-      ></nldd-button>
-    </nldd-modal-dialog>
-  </Teleport>
   <StukSheet
     :stuk="stuk"
     :kroniek="stukKroniek"
