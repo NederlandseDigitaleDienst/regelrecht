@@ -14,7 +14,7 @@ import { geenToegang, laadIk, startpagina } from '../gedeeld/ik';
 import { ALLE_KANTEN, terugNaar } from '../gedeeld/terug';
 import { inloggenApi } from './api';
 import type { Persona } from './api';
-import { personaNaam, personaUitleg } from './personen';
+import { personaIcoon, personaKleur, personaNaam, personaRol, personaUitleg } from './personen';
 import { stap as kiesStap } from './stap';
 import type { Stap } from './stap';
 import { wasUitgelogd } from './uitgelogd';
@@ -146,15 +146,19 @@ async function kies(p: Persona) {
           <nldd-button slot="actions" appearance="primary" text="Opnieuw proberen" @click="herlaad"></nldd-button>
         </nldd-inline-dialog>
         <template v-else-if="stap?.soort === 'testlogin'">
-          <nldd-banner
-            variant="accent"
-            text="Testomgeving: kies een account"
-            supporting-text="Hier logt u in zonder wachtwoord, als een van de accounts hieronder. Dat kan alleen in de testmodus zonder Keycloak. Elk account is verzonnen."
-          ></nldd-banner>
+          <nldd-text>
+            <p>Kies een account om mee in te loggen. In deze testomgeving logt u in zonder wachtwoord; dat kan alleen in de testmodus zonder Keycloak. Elk account is verzonnen.</p>
+          </nldd-text>
           <nldd-spacer size="16"></nldd-spacer>
-          <nldd-list appearance="box-base" accessible-label="Testaccounts">
+          <nldd-list appearance="simple" accessible-label="Testaccounts">
             <nldd-list-item v-for="p in personen" :key="p.sub" button @click="kies(p)">
-              <nldd-text-cell :text="personaNaam(p)" :supporting-text="personaUitleg(p)"></nldd-text-cell>
+              <nldd-cell>
+                <nldd-avatar size="40" :name="p.naam" :icon="personaIcoon(p)" decorative></nldd-avatar>
+              </nldd-cell>
+              <nldd-spacer-cell size="12"></nldd-spacer-cell>
+              <nldd-text-cell :supporting-text="personaUitleg(p)">
+                <p>{{ personaNaam(p) }} <nldd-tag :text="personaRol(p)" :color="personaKleur(p)" size="sm"></nldd-tag></p>
+              </nldd-text-cell>
               <nldd-icon-cell icon="chevron-right" color="secondary"></nldd-icon-cell>
             </nldd-list-item>
           </nldd-list>

@@ -59,6 +59,39 @@ export function useMenuactie(menu: () => Menuactie | null): void {
   });
 }
 
+/** The site's name, which ends every page title. */
+export const SITENAAM = 'RegelHet';
+
+/** What the screen on view adds in front of its view in the page title, such as the record it shows. */
+export const schermtitel = shallowRef<string | null>(null);
+
+/** Put `titel` in front of the view in the page title while the calling screen shows. */
+export function useSchermtitel(titel: () => string | null | undefined): void {
+  let eigen: string | null = null;
+  watchEffect(() => {
+    eigen = titel() || null;
+    schermtitel.value = eigen;
+  });
+  onUnmounted(() => {
+    if (schermtitel.value === eigen) schermtitel.value = null;
+  });
+}
+
+/**
+ * The page title: what is on view from specific to general, then the site,
+ * so a tab of the browser says which view it holds (`Kroniek · RegelHet`).
+ * A part the one before it already says is left out.
+ */
+export function paginatitel(delen: (string | null | undefined)[]): string {
+  const alle = [...delen.filter((d): d is string => !!d), SITENAAM];
+  return alle.filter((d, i) => d !== alle[i - 1]).join(' · ');
+}
+
+/** The name of the view of a route without tabs, from the deepest route that names one. */
+export function paginanaamVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>): string | null {
+  return [...route.matched].reverse().find((r) => r.meta.paginanaam)?.meta.paginanaam ?? null;
+}
+
 /** The tabs of the side `route` belongs to, from the deepest route that declares them. */
 export function tabsVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>): Tab[] {
   return [...route.matched].reverse().find((r) => r.meta.tabs)?.meta.tabs ?? [];
@@ -90,6 +123,8 @@ declare module 'vue-router' {
     tabs?: Tab[];
     /** The name of the side, for a side that has no tabs. */
     titel?: string;
+    /** The name of the view in the page title, on a side without tabs that name it. */
+    paginanaam?: string;
     /** The one action the side offers from its bar. */
     actie?: Actie;
     /** The tools of the test setup the side offers in the account menu, each for who has its right. */

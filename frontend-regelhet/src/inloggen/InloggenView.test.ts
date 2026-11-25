@@ -152,4 +152,44 @@ describe('the test login', () => {
     await melding.find('nldd-button').trigger('click');
     expect(w.find('nldd-modal-dialog').attributes('open')).toBeUndefined();
   });
+
+  it("puts an avatar before every account, falling back on an admin's icon for an admin or decider and a user's for the others", async () => {
+    status.mockResolvedValue({ authenticated: false, oidc_configured: false });
+    testpersonen.mockResolvedValue([
+      { soort: 'burger', sub: 'a', identiteit: '999990019', rollen: [] },
+      { soort: 'medewerker', sub: 'm', niveau: 'medewerker', rollen: [] },
+      { soort: 'medewerker', sub: 'd', niveau: 'beslisser', rollen: [] },
+      { soort: 'beheerder', sub: 'b', rollen: [] },
+    ]);
+    const { w } = await open({});
+    const avatars = w.findAll('nldd-list-item').map((r) => r.find('nldd-cell nldd-avatar'));
+    expect(avatars.map((a) => a.attributes('icon'))).toEqual(['user', 'user', 'user-admin', 'user-admin']);
+    // Without a made-up name there are no initials, so the icon shows; the name beside it says who it is.
+    expect(avatars.map((a) => a.attributes('name'))).toEqual([undefined, undefined, undefined, undefined]);
+    expect(avatars.every((a) => a.attributes('decorative') !== undefined)).toBe(true);
+  });
+
+  it('names every account by its made-up name, with its role in a tag after it', async () => {
+    status.mockResolvedValue({ authenticated: false, oidc_configured: false });
+    testpersonen.mockResolvedValue([
+      { soort: 'burger', sub: 'a', identiteit: '999990019', naam: 'Iemand Voorbeeld', rollen: [] },
+      { soort: 'medewerker', sub: 'd', niveau: 'beslisser', naam: 'Carla Fictief', cel_naam: 'gemeente Voorbeeld', rollen: [] },
+      { soort: 'beheerder', sub: 'b', naam: 'Daan Verzonnen', rollen: [] },
+    ]);
+    const { w } = await open({});
+    const rijen = w.findAll('nldd-list-item');
+    // The tag stands right after the name, in the cell's own paragraph, each role in a colour of its own.
+    expect(rijen.map((r) => r.find('nldd-text-cell p').element.firstChild?.textContent?.trim())).toEqual(['Iemand Voorbeeld, BSN 999990019', 'Carla Fictief', 'Daan Verzonnen']);
+    const tags = rijen.map((r) => r.find('nldd-text-cell p nldd-tag'));
+    expect(tags.map((t) => t.attributes('text'))).toEqual(['Burger', 'Beslisser', 'Beheerder']);
+    expect(new Set(tags.map((t) => t.attributes('color'))).size).toBe(3);
+    // A made-up name gives the avatar its initials.
+    expect(rijen.map((r) => r.find('nldd-avatar').attributes('name'))).toEqual(['Iemand Voorbeeld', 'Carla Fictief', 'Daan Verzonnen']);
+    // The employee's cell stands in the line under the name.
+    expect(rijen[1]!.find('nldd-text-cell').attributes('supporting-text')).toContain('voor gemeente Voorbeeld');
+    // A business that logs in on its KvK number is no citizen.
+    testpersonen.mockResolvedValue([{ soort: 'burger', sub: 'k', identiteit: '12345678', label: 'KvK-nummer', naam: 'Voorbeeld B.V.', rollen: [] }]);
+    const bedrijf = (await open({})).w;
+    expect(bedrijf.find('nldd-tag').attributes('text')).toBe('Bedrijf');
+  });
 });

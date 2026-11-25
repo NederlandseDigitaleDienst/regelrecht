@@ -13,17 +13,20 @@
 // decision opens in BesluitPaneel.vue. The letter about the record, such as
 // the acknowledgement of an application, opens from its row in the timeline
 // beside it (gedeeld/BriefSheet.vue); only a message sent, which is nothing but its
-// letter, shows it on the page. On top, without a heading, stand how
-// an application stands (`status`) and the few fields the UI spec puts in the
-// summary of a record (`record.summary`): what was asked. Those are not shown
-// again under what was submitted.
+// letter, shows it on the page. On top, without a heading, one list of
+// what the record is about: how an application stands (`status`), what was
+// asked (`record.summary` in the UI spec), the article it rests on and the
+// rest of its group, such as the day it is dated. Under the sections on what
+// it is directed against and how it stands come the other groups of the UI
+// spec, such as the applicant, each under its heading (Gegevens.vue `deel`).
 import { computed } from 'vue';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { useRoute, useRouter } from 'vue-router';
 import Bericht from '../gedeeld/Bericht.vue';
 import { isVerzending } from '../gedeeld/bericht';
+import { useSchermtitel } from '../gedeeld/schil';
 import { longDate } from '../gedeeld/datum';
-import { herkomstenOpStuk, kaalSchermveld, opVolgorde, stukWaarde } from '../gedeeld/formulier';
+import { herkomstenOpStuk } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import {
   antwoordOp,
@@ -74,26 +77,11 @@ const noemId = (id: string) => {
 };
 // What it is goes in the title; when and where stand under it.
 const titel = computed(() => props.naam ?? (stuk.value ? omschrijf(stuk.value) : 'Stuk'));
+useSchermtitel(() => titel.value);
 const indiening = computed(() => !!stuk.value && isIndiening(stuk.value, props.stand));
 /** Per field a rule derived in this submission, the article of that rule ([`herkomstenOpStuk`]). */
 const herkomst = computed(() => (stuk.value ? herkomstenOpStuk(props.vormen?.indieningen[stuk.value.basis]) : {}));
 const over = computed(() => (stuk.value ? waarover(stuk.value, props.dossier) : undefined));
-/** The fields of this record the UI spec puts in its summary, in the order of the UI spec. */
-const samenvatting = computed(() => {
-  const teksten = props.vormen?.teksten ?? {};
-  const velden = stuk.value?.fields ?? {};
-  const namen = Object.keys(teksten).filter((n) => teksten[n]?.record?.summary && velden[n] !== null && velden[n] !== undefined);
-  return opVolgorde(namen, props.vormen?.volgorde, (n) => n).map((n) => ({
-    naam: n,
-    label: kaalSchermveld(n, teksten).label,
-    waarde: stukWaarde(n, velden[n], teksten),
-  }));
-});
-/** What was submitted, without what the summary already shows. */
-const rest = computed(() => {
-  const weg = new Set(samenvatting.value.map((s) => s.naam));
-  return Object.fromEntries(Object.entries(stuk.value?.fields ?? {}).filter(([n]) => !weg.has(n)));
-});
 const vind = (id: string) => props.dossier.find((g) => g.id === id);
 /** Whether the section on how it stands has anything to say: what answered it, or what followed. Only that it waits says the status on top. */
 const metStand = computed(
@@ -157,9 +145,18 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
         supporting-text="Kies een stuk uit de lijst. U ziet alleen wat over u is vastgelegd."
       ></nldd-inline-dialog>
       <template v-else>
-        <template v-if="(status && indiening) || samenvatting.length">
-          <nldd-list appearance="box-base" accessible-label="Samenvatting">
-            <nldd-list-item v-if="status && indiening" size="md">
+        <Gegevens
+          deel="over"
+          :waarden="stuk.fields"
+          :teksten="vormen?.teksten"
+          :volgorde="vormen?.volgorde"
+          :noem="noemId"
+          :herkomst="herkomst"
+          :label="indiening ? 'Wat u indiende' : 'Wat er is vastgelegd'"
+          :bij="[{ naam: 'grondslag', label: 'Op grond van', waarde: artikelNaam(stuk.basis) }]"
+        >
+          <template v-if="status && indiening" #voor>
+            <nldd-list-item size="md">
               <nldd-text-cell text="Status"></nldd-text-cell>
               <nldd-spacer-cell size="16"></nldd-spacer-cell>
               <!-- The word says it, so the dot beside it is decorative. -->
@@ -167,14 +164,9 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-text-cell :text="status.tekst" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
             </nldd-list-item>
-            <nldd-list-item v-for="s in samenvatting" :key="s.naam" size="md">
-              <nldd-text-cell :text="s.label"></nldd-text-cell>
-              <nldd-spacer-cell size="16"></nldd-spacer-cell>
-              <nldd-text-cell :text="s.waarde" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
-            </nldd-list-item>
-          </nldd-list>
-          <nldd-spacer size="24"></nldd-spacer>
-        </template>
+          </template>
+        </Gegevens>
+        <nldd-spacer size="24"></nldd-spacer>
 
         <template v-if="over">
           <nldd-title size="display-5"><h4>{{ indiening ? 'Gericht tegen' : 'Over' }}</h4></nldd-title>
@@ -251,20 +243,16 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
           <nldd-spacer size="24"></nldd-spacer>
         </template>
 
-        <!-- Right under the summary the record needs no heading; after another section it does, or it reads as part of that one. -->
-        <template v-if="over || metStand">
-          <nldd-title size="display-5"><h4>{{ indiening ? 'Wat u indiende' : 'Wat er is vastgelegd' }}</h4></nldd-title>
-          <nldd-spacer size="8"></nldd-spacer>
-        </template>
-        <!-- When and where stand under the title of the page; the article it rests on closes what the record is about. -->
+        <!-- The other groups of the UI spec, such as the applicant, each under its heading. -->
         <Gegevens
-          :waarden="rest"
+          deel="rest"
+          :waarden="stuk.fields"
           :teksten="vormen?.teksten"
           :volgorde="vormen?.volgorde"
           :noem="noemId"
           :herkomst="herkomst"
+          :kopniveau="4"
           :label="indiening ? 'Wat u indiende' : 'Wat er is vastgelegd'"
-          :bij="[{ naam: 'grondslag', label: 'Op grond van', waarde: artikelNaam(stuk.basis) }]"
         />
         <!-- A message sent is its letter; the letter about any other record opens from the timeline. -->
         <template v-if="verzonden">

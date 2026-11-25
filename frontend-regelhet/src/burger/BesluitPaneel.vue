@@ -31,6 +31,7 @@ import {
   toegewezen,
 } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
+import { useSchermtitel } from '../gedeeld/schil';
 import type { Casus, CasusIndiening, Gram, Stand, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 import { burgerApi } from './api';
@@ -64,6 +65,7 @@ const tegenWoorden = computed(() => tegen.value.map((i) => soortNaam(i).toLowerC
 const titel = computed(() =>
   besluit.value ? `${besluitNaam(besluit.value, props.casus)} van ${longDate(besluit.value.recorded_on)}` : 'Besluit',
 );
+useSchermtitel(() => titel.value);
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
 const uitkomst = computed(() => (besluit.value ? toegewezen(besluit.value, props.casus) : undefined));
 /** What revoked this decision, if anything did, in a sentence. */

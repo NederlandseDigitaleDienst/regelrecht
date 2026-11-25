@@ -126,11 +126,14 @@ describe('the dossier', () => {
     expect(w.text()).not.toContain('Ingediend op');
   });
 
-  it('opens a waiting application with its status on top, and what was submitted right under it without a heading', async () => {
+  it('opens a waiting application with a list of what it is about on top, its status first, without a heading', async () => {
     dossier.mockReset().mockResolvedValue([aanvraag]);
     const { w } = await toon('/burger/dossier/a');
-    const status = w.find('nldd-list[accessible-label="Samenvatting"] nldd-list-item').findAll('nldd-text-cell');
-    expect(status.map((c) => c.attributes('text'))).toEqual(['Status', 'In behandeling']);
+    const lijsten = w.findAll('nldd-list[accessible-label="Wat u indiende"]');
+    const rijen = lijsten.map((l) => l.findAll('nldd-list-item').map((r) => r.findAll('nldd-text-cell').map((c) => c.attributes('text'))));
+    expect(rijen[0]![0]).toEqual(['Status', 'In behandeling']);
+    // How it stands and the article it rests on lead; a field the UI spec puts in no group follows.
+    expect(rijen.map((l) => l.map((r) => r[0]))).toEqual([['Status', 'Op grond van'], ['Naam aanvrager']]);
     expect(w.findAll('h4')).toHaveLength(0);
   });
 
@@ -147,10 +150,11 @@ describe('the dossier', () => {
     expect(t).toContain('Besluit (beschikking) van 13 oktober 2026');
     // What was filed, under the label of the UI spec.
     expect(t).toContain('Waarom u het er niet mee eens bent');
-    const status = w.find('nldd-list[accessible-label="Samenvatting"] nldd-list-item').findAll('nldd-text-cell');
-    expect(status.map((c) => c.attributes('text'))).toEqual(['Status', 'In behandeling']);
-    // After what it contests, what was filed has its heading again.
-    expect(w.findAll('h4').map((h) => h.text())).toContain('Wat u indiende');
+    // How it stands leads, on top; what it contests comes after, and what was filed after that.
+    const lijsten = w.findAll('nldd-list[accessible-label="Wat u indiende"]');
+    const rijen = lijsten.map((l) => l.findAll('nldd-list-item').map((r) => r.findAll('nldd-text-cell').map((c) => c.attributes('text'))[0]));
+    expect(rijen).toEqual([['Status', 'Op grond van'], ['Waarom u het er niet mee eens bent']]);
+    expect(w.findAll('h4').map((h) => h.text())).toEqual(['Gericht tegen']);
   });
 
   it('returns from a record to the list with the back button', async () => {
@@ -181,7 +185,7 @@ describe('the dossier', () => {
     const afschrift = { ...gram('d', 'EXECUTOGRAM', 'awb#8:79', 'b', { opdracht_nieuw_besluit: true }), fact: 'afschrift_van_de_uitspraak' };
     dossier.mockReset().mockResolvedValue([aanvraag, besluit, bezwaar, afschrift]);
     const { w } = await toon('/burger/dossier/d');
-    expect(w.text()).toContain('Wat er is vastgelegd');
+    expect(w.find('nldd-list[accessible-label="Wat er is vastgelegd"]').exists()).toBe(true);
     expect(teksten(w)).toContain('Besluit (beschikking) van 13 oktober 2026');
     expect(w.text()).not.toContain('In behandeling');
   });

@@ -10,8 +10,10 @@
 // request says for whom it is, and answered it leaves the list.
 // The facts it records and the decision forms come from the forms of the
 // process (`GET /api/formulier`), as everywhere in the back office. Laid out
-// as the work queue: the parties in the sidebar, a submission being decided
-// in the main pane beside it (BehandelenPaneel.vue).
+// as the chronicle: the parties in the sidebar with how much waits for each,
+// the chosen party's work in the main pane beside it. A request opens the
+// sheet that records its answer; a submission being decided takes the main
+// pane (BehandelenPaneel.vue).
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
@@ -100,6 +102,24 @@ const invoer = computed(() => partijen.value.filter((p) => !p.nooduitweg || hier
 function voorkantVan(cel: string): string | undefined {
   return gekoppeld.value.find((g) => g.cel === cel)?.voorkant ?? undefined;
 }
+/** Every party, in the sidebar, with how many things wait for it. */
+const lijst = computed(() =>
+  [...partijen.value, ...gekoppeld.value.filter((g) => !partijen.value.some((p) => p.cel === g.cel))].map((c) => {
+    const p = partijen.value.find((x) => x.cel === c.cel);
+    return { cel: c.cel, cel_naam: c.cel_naam, aantal: p ? p.verzoeken.length + p.open.length + p.toe_te_zenden.length : 0 };
+  }),
+);
+/** The party chosen in the sidebar, whose work the main pane shows. */
+const partij = computed(() => lijst.value.find((l) => l.cel === props.cel));
+/** The chosen party, if the panel only points to its system. */
+const elders = computed(() => verwezen.value.find((g) => g.cel === props.cel));
+/** The chosen party, if the admin enters for it here. */
+const hier = computed(() => invoer.value.find((p) => p.cel === props.cel));
+// The back button of a submission leads to its party, that of a party to the list of parties.
+function terug() {
+  if (props.id && props.cel) void router.push({ name: 'beheer', params: { cel: props.cel } });
+  else void router.push('/backoffice/beheer');
+}
 function zetHierInvoeren(cel: string, aan: boolean) {
   const cellen = new Set(hierInvoeren.value);
   if (aan) cellen.add(cel);
@@ -118,7 +138,8 @@ const { keuze, kies, sluit } = useVastlegKeuze<{ cel: string; handeling: Handeli
   const h = [...p.handelingen, ...p.zonderVerzoek].find((h) => isFeit(h, a));
   return h ? { cel: a.cel, handeling: h } : null;
 });
-const gedaan = ref('');
+/** What was done, shown with the party it was done for. */
+const gedaan = ref<{ cel: string; tekst: string } | null>(null);
 
 // What the admin records for a party on its own, in the bar's Vastleggen
 // menu under the party's name; an answer to an open request starts at the
@@ -150,29 +171,32 @@ function overPartij(p: { cel_naam: string; verzoeken: unknown[]; handelingen: un
     .join(' ');
 }
 
+// Recorded from the bar's menu for another party, the panel turns to that party.
 async function vastgelegd(naam: string) {
-  gedaan.value = `${naam} is vastgelegd`;
-  sluit();
+  const cel = keuze.value?.cel;
+  if (cel && cel !== props.cel) await router.push({ name: 'beheer', params: { cel } });
+  else sluit();
+  gedaan.value = cel ? { cel, tekst: `${naam} is vastgelegd` } : null;
   await laadAlles();
 }
 
-const melding = ref('');
+const melding = ref<{ cel: string; tekst: string } | null>(null);
 const bezig = ref('');
 // One key per decision until its copy is sent, so a retry after a lost answer
 // sends nothing twice.
 const sleutels = new Map<string, string>();
-async function toezenden(besluit: Gram) {
+async function toezenden(cel: string, besluit: Gram) {
   bezig.value = besluit.id;
-  melding.value = '';
+  melding.value = null;
   try {
     const sleutel = sleutels.get(besluit.id) ?? nieuweSleutel();
     sleutels.set(besluit.id, sleutel);
     await beheerApi.toezenden(besluit.id, sleutel);
     sleutels.delete(besluit.id);
-    gedaan.value = 'Het afschrift is toegezonden';
+    gedaan.value = { cel, tekst: 'Het afschrift is toegezonden' };
     await laadAlles();
   } catch (e) {
-    melding.value = foutTekst(e);
+    melding.value = { cel, tekst: foutTekst(e) };
   } finally {
     bezig.value = '';
   }
@@ -180,7 +204,7 @@ async function toezenden(besluit: Gram) {
 </script>
 
 <template>
-  <nldd-navigation-split-view @back="router.push('/backoffice/beheer')">
+  <nldd-navigation-split-view @back="terug">
     <nldd-page slot="primary-sidebar" sticky-header accessible-label="Beheerpaneel">
         <nldd-top-title-bar slot="header" text="Beheerpaneel" heading-level="3" collapse-anchor="beheer-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
@@ -199,138 +223,27 @@ async function toezenden(besluit: Gram) {
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden || (!panel && !fout)" text="Het beheerpaneel laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het beheerpaneel laadt niet" :supporting-text="fout"></nldd-inline-dialog>
-          <template v-else-if="casus && panel">
-            <template v-if="gedaan">
-              <nldd-banner variant="success" :text="gedaan"></nldd-banner>
-              <nldd-spacer size="16"></nldd-spacer>
-            </template>
-            <template v-if="melding">
-              <nldd-inline-dialog icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
-              <nldd-spacer size="16"></nldd-spacer>
-            </template>
-            <nldd-inline-dialog v-if="partijen.length === 0 && gekoppeld.length === 0" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
-            <template v-for="(g, i) in verwezen" :key="g.cel">
-              <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
-              <nldd-title size="display-5"><h4>{{ hoofdletter(g.cel_naam) }}</h4></nldd-title>
-              <nldd-text color="secondary">
-                <p>{{ hoofdletter(g.cel_naam) }} werkt in een eigen systeem. Verzoeken en antwoorden gaan over de koppeling; u voert hier niets voor haar in.</p>
-              </nldd-text>
-              <nldd-spacer size="8"></nldd-spacer>
-              <nldd-button-group>
-                <nldd-button
-                  v-if="g.voorkant"
-                  appearance="secondary"
-                  end-icon="external-link"
-                  :text="`Naar het systeem van ${g.cel_naam}`"
-                  :href="g.voorkant"
-                  target="_blank"
-                ></nldd-button>
-                <nldd-button
-                  v-if="g.nooduitweg"
-                  appearance="neutral-transparent"
-                  text="Toch hier invoeren"
-                  @click="zetHierInvoeren(g.cel, true)"
-                ></nldd-button>
-              </nldd-button-group>
-            </template>
-            <template v-for="(p, i) in invoer" :key="p.cel">
-              <nldd-spacer v-if="i > 0 || verwezen.length" size="24"></nldd-spacer>
-              <nldd-title size="display-5">
-                <h4>{{ hoofdletter(p.cel_naam) }}</h4>
-                <nldd-icon-button
-                  v-if="overPartij(p)"
-                  slot="end"
-                  appearance="neutral-base"
-                  size="sm"
-                  icon="info"
-                  tooltip-timing="never"
-                  :text="`Over ${p.cel_naam}`"
-                >
-                  <nldd-popover slot="popup" role="region" :accessible-label="`Over ${p.cel_naam}`">
-                    <nldd-container padding="16">
-                      <nldd-text><p>{{ overPartij(p) }}</p></nldd-text>
-                    </nldd-container>
-                  </nldd-popover>
-                </nldd-icon-button>
-              </nldd-title>
-              <template v-if="p.nooduitweg">
-                <nldd-banner
-                  variant="warning"
-                  :text="`${hoofdletter(p.cel_naam)} werkt in een eigen systeem`"
-                  supporting-text="Voer hier alleen in als dat systeem niet werkt. Wat u hier vastlegt, gaat over de koppeling naar haar toe zodra het weer bereikbaar is."
-                ></nldd-banner>
-                <nldd-spacer size="8"></nldd-spacer>
-                <nldd-button-group>
-                  <nldd-button
-                    v-if="voorkantVan(p.cel)"
-                    appearance="secondary"
-                    end-icon="external-link"
-                    :text="`Naar het systeem van ${p.cel_naam}`"
-                    :href="voorkantVan(p.cel)"
-                    target="_blank"
-                  ></nldd-button>
-                  <nldd-button appearance="neutral-transparent" text="Invoer hier verbergen" @click="zetHierInvoeren(p.cel, false)"></nldd-button>
-                </nldd-button-group>
-                <nldd-spacer size="8"></nldd-spacer>
-              </template>
-              <template v-if="p.verzoeken.length">
-                <nldd-list appearance="simple" :accessible-label="`Open verzoeken aan ${p.cel_naam}`">
-                  <nldd-list-item
-                    v-for="v in p.verzoeken"
-                    :key="v.verzoek.id"
-                    size="md"
-                    button
-                    @click="kies({ cel: p.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast })"
-                  >
-                    <nldd-text-cell
-                      :text="omschrijving(v.verzoek, casus, 'vastlegging')"
-                      :supporting-text="`Voor ${voorWie(v.vast)} · gevraagd op ${longDate(v.verzoek.recorded_on)}`"
-                    ></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </nldd-list-item>
-                </nldd-list>
-              </template>
-              <nldd-list v-if="p.open.length" appearance="simple" :accessible-label="`Wat wacht op ${p.cel_naam}`">
-                <nldd-list-item
-                  v-for="{ stuk: g } in p.open"
-                  :key="g.id"
-                  size="md"
-                  button
-                  :current="g.id === id || undefined"
-                  @click="router.push({ name: 'beheer-behandelen', params: { cel: p.cel, id: g.id } })"
-                >
-                  <nldd-text-cell :text="omschrijving(g, casus, 'indiening')" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                </nldd-list-item>
-              </nldd-list>
-              <nldd-list v-if="p.toe_te_zenden.length" appearance="simple" :accessible-label="`Besluiten van ${p.cel_naam} die nog niet zijn toegezonden`">
-                <nldd-list-item v-for="g in p.toe_te_zenden" :key="g.id" size="md">
-                  <nldd-text-cell :text="omschrijving(g, casus, 'besluit')" :supporting-text="`Genomen ${longDate(g.recorded_on)} · nog niet toegezonden`"></nldd-text-cell>
-                  <nldd-cell>
-                    <nldd-button
-                      appearance="secondary"
-                      size="sm"
-                      start-icon="send"
-                      text="Afschrift toezenden"
-                      :loading="bezig === g.id || undefined"
-                      @click="toezenden(g)"
-                    ></nldd-button>
-                  </nldd-cell>
-                </nldd-list-item>
-              </nldd-list>
-              <nldd-text v-if="!p.verzoeken.length && !p.open.length && !p.toe_te_zenden.length" color="secondary">
-                <p>
-                  Op dit moment vraagt het proces niets van {{ p.cel_naam }}.
-                </p>
-              </nldd-text>
-            </template>
-          </template>
+          <nldd-inline-dialog v-else-if="lijst.length === 0" text="Deze casus kent geen externe partijen"></nldd-inline-dialog>
+          <nldd-list v-else appearance="simple" accessible-label="Partijen">
+            <nldd-list-item
+              v-for="l in lijst"
+              :key="l.cel"
+              size="md"
+              button
+              :current="l.cel === cel || undefined"
+              @click="router.push({ name: 'beheer', params: { cel: l.cel } })"
+            >
+              <nldd-text-cell :text="hoofdletter(l.cel_naam)"></nldd-text-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-text-cell :text="String(l.aantal)" color="secondary" width="fit-content" horizontal-alignment="right"></nldd-text-cell>
+              <nldd-spacer-cell size="2"></nldd-spacer-cell>
+              <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+            </nldd-list-item>
+          </nldd-list>
         </nldd-simple-section>
       </nldd-page>
 
-    <div slot="main" :empty="id ? undefined : true">
+    <div slot="main" :empty="cel ? undefined : true">
       <BehandelenPaneel
         v-if="cel && id && casus"
         :key="id"
@@ -342,11 +255,138 @@ async function toezenden(besluit: Gram) {
         :kronieken="kronieken"
         namens
         :open="gekozen?.open ?? []"
+        :terug="partij ? hoofdletter(partij.cel_naam) : undefined"
         @besloten="laadAlles"
       />
-      <nldd-page v-else landmarks="page">
+      <nldd-page v-else-if="partij && casus" landmarks="page" sticky-header :accessible-label="hoofdletter(partij.cel_naam)">
+        <nldd-top-title-bar slot="header" :text="hoofdletter(partij.cel_naam)" back-text="Beheerpaneel" collapse-anchor="partij-titel"></nldd-top-title-bar>
         <nldd-simple-section>
-          <nldd-inline-dialog text="Kies wat op een partij wacht" supporting-text="Een aanvraag opent hier, naast het beheerpaneel."></nldd-inline-dialog>
+          <nldd-title id="partij-titel" size="display-3">
+            <h3>{{ hoofdletter(partij.cel_naam) }}</h3>
+            <nldd-icon-button
+              v-if="hier && overPartij(hier)"
+              slot="end"
+              appearance="neutral-base"
+              size="sm"
+              icon="info"
+              tooltip-timing="never"
+              :text="`Over ${partij.cel_naam}`"
+            >
+              <nldd-popover slot="popup" role="region" :accessible-label="`Over ${partij.cel_naam}`">
+                <nldd-container padding="16">
+                  <nldd-text><p>{{ overPartij(hier) }}</p></nldd-text>
+                </nldd-container>
+              </nldd-popover>
+            </nldd-icon-button>
+          </nldd-title>
+          <nldd-spacer size="16"></nldd-spacer>
+          <template v-if="gedaan && gedaan.cel === cel">
+            <nldd-banner variant="success" :text="gedaan.tekst"></nldd-banner>
+            <nldd-spacer size="16"></nldd-spacer>
+          </template>
+          <template v-if="melding && melding.cel === cel">
+            <nldd-inline-dialog icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding.tekst"></nldd-inline-dialog>
+            <nldd-spacer size="16"></nldd-spacer>
+          </template>
+          <template v-if="elders">
+            <nldd-text color="secondary">
+              <p>{{ hoofdletter(elders.cel_naam) }} werkt in een eigen systeem. Verzoeken en antwoorden gaan over de koppeling; u voert hier niets voor haar in.</p>
+            </nldd-text>
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-button-group>
+              <nldd-button
+                v-if="elders.voorkant"
+                appearance="secondary"
+                end-icon="external-link"
+                :text="`Naar het systeem van ${elders.cel_naam}`"
+                :href="elders.voorkant"
+                target="_blank"
+              ></nldd-button>
+              <nldd-button
+                v-if="elders.nooduitweg"
+                appearance="neutral-transparent"
+                text="Toch hier invoeren"
+                @click="zetHierInvoeren(elders.cel, true)"
+              ></nldd-button>
+            </nldd-button-group>
+          </template>
+          <template v-if="hier">
+            <nldd-spacer v-if="elders" size="24"></nldd-spacer>
+            <template v-if="hier.nooduitweg">
+              <nldd-banner
+                variant="warning"
+                :text="`${hoofdletter(hier.cel_naam)} werkt in een eigen systeem`"
+                supporting-text="Voer hier alleen in als dat systeem niet werkt. Wat u hier vastlegt, gaat over de koppeling naar haar toe zodra het weer bereikbaar is."
+              ></nldd-banner>
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-button-group>
+                <nldd-button
+                  v-if="voorkantVan(hier.cel)"
+                  appearance="secondary"
+                  end-icon="external-link"
+                  :text="`Naar het systeem van ${hier.cel_naam}`"
+                  :href="voorkantVan(hier.cel)"
+                  target="_blank"
+                ></nldd-button>
+                <nldd-button appearance="neutral-transparent" text="Invoer hier verbergen" @click="zetHierInvoeren(hier.cel, false)"></nldd-button>
+              </nldd-button-group>
+              <nldd-spacer size="16"></nldd-spacer>
+            </template>
+            <nldd-list v-if="hier.verzoeken.length" appearance="simple" :accessible-label="`Open verzoeken aan ${hier.cel_naam}`">
+              <nldd-list-item
+                v-for="v in hier.verzoeken"
+                :key="v.verzoek.id"
+                size="md"
+                button
+                @click="kies({ cel: hier.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast })"
+              >
+                <nldd-text-cell
+                  :text="omschrijving(v.verzoek, casus, 'vastlegging')"
+                  :supporting-text="`Voor ${voorWie(v.vast)} · gevraagd op ${longDate(v.verzoek.recorded_on)}`"
+                ></nldd-text-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+              </nldd-list-item>
+            </nldd-list>
+            <nldd-list v-if="hier.open.length" appearance="simple" :accessible-label="`Wat wacht op ${hier.cel_naam}`">
+              <nldd-list-item
+                v-for="{ stuk: g } in hier.open"
+                :key="g.id"
+                size="md"
+                button
+                @click="router.push({ name: 'beheer-behandelen', params: { cel: hier.cel, id: g.id } })"
+              >
+                <nldd-text-cell :text="omschrijving(g, casus, 'indiening')" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+              </nldd-list-item>
+            </nldd-list>
+            <nldd-list v-if="hier.toe_te_zenden.length" appearance="simple" :accessible-label="`Besluiten van ${hier.cel_naam} die nog niet zijn toegezonden`">
+              <nldd-list-item v-for="g in hier.toe_te_zenden" :key="g.id" size="md">
+                <nldd-text-cell :text="omschrijving(g, casus, 'besluit')" :supporting-text="`Genomen ${longDate(g.recorded_on)} · nog niet toegezonden`"></nldd-text-cell>
+                <nldd-cell>
+                  <nldd-button
+                    appearance="secondary"
+                    size="sm"
+                    start-icon="send"
+                    text="Afschrift toezenden"
+                    :loading="bezig === g.id || undefined"
+                    @click="toezenden(hier.cel, g)"
+                  ></nldd-button>
+                </nldd-cell>
+              </nldd-list-item>
+            </nldd-list>
+            <nldd-inline-dialog
+              v-if="!hier.verzoeken.length && !hier.open.length && !hier.toe_te_zenden.length"
+              heading-level="4"
+              :text="`Op dit moment vraagt het proces niets van ${hier.cel_naam}`"
+            ></nldd-inline-dialog>
+          </template>
+        </nldd-simple-section>
+      </nldd-page>
+      <nldd-page v-else landmarks="page">
+        <nldd-simple-section v-if="lijst.length">
+          <nldd-inline-dialog text="Kies een partij" supporting-text="Wat op haar wacht, opent hier."></nldd-inline-dialog>
         </nldd-simple-section>
       </nldd-page>
     </div>

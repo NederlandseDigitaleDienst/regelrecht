@@ -26,7 +26,7 @@ export function maakBurgerRouter(vervoer: Vervoer) {
     history: vervoer.history(),
     routes: [
       { path: '/', component: { render: () => null } },
-      { path: '/toegang', name: 'toegang', component: vervoer.toegangScherm },
+      { path: '/toegang', name: 'toegang', component: vervoer.toegangScherm, meta: { paginanaam: 'Inloggen' } },
       ...burgerRoutes,
       { path: '/:pad(.*)*', redirect: '/' },
     ],

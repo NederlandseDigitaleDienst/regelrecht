@@ -97,7 +97,7 @@ function sluit() {
         <nldd-simple-section>
           <nldd-title id="cel-kroniek-titel" size="display-3"><h3>{{ hoofdletter(gekozen.cel_naam) }}</h3></nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
-          <nldd-list v-if="gekozen.grammen.length" appearance="box-base" :accessible-label="`Kroniek van ${gekozen.cel_naam}`">
+          <nldd-list v-if="gekozen.grammen.length" appearance="simple" :accessible-label="`Kroniek van ${gekozen.cel_naam}`">
             <nldd-list-item v-for="{ g, nummer } in nieuwsteEerst" :key="g.id" button @click="open = g">
               <nldd-text-cell
                 :text="`${nummer}: ${omschrijf(g)}`"

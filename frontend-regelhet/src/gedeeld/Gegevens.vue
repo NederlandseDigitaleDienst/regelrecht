@@ -18,9 +18,14 @@
 // decision asked for; it comes first and without a heading, since the screen
 // is about that record. Without a summary the groups keep their
 // order and `bij` leads as a group of its own: the article belongs with what
-// the record is about, not with the personal details. It renders no wrapper of its own, so where it stands in a
+// the record is about, not with the personal details. In that leading group
+// the summary comes first, then the article, then the rest of what the
+// record is about, such as the day it is dated. A screen that puts other
+// sections between what the record is about and the rest shows the two
+// apart (`deel`); rows of its own, such as how a submission stands, go in
+// front of the leading group (slot `voor`). It renders no wrapper of its own, so where it stands in a
 // container with a gap the caller gives it a container without one.
-import { computed, useId } from 'vue';
+import { computed, useId, useSlots } from 'vue';
 import { kleineLetter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { geordend, kaalSchermveld, stukWaarde } from './formulier';
 import type { Vormen } from './types';
@@ -35,7 +40,10 @@ const props = defineProps<{
   bij?: { naam: string; label: string; waarde: string }[];
   /** Heading level for the group titles, where they head a part of the page; without it they are a line of text. */
   kopniveau?: number;
+  /** Only the leading group, what the record is about (`over`), or only the groups after it (`rest`). */
+  deel?: 'over' | 'rest';
 }>();
+const slots = useSlots();
 /** A label inside a sentence: a capital only where the word is an abbreviation. */
 /** Names the popovers of this component apart from those of another on the same page. */
 const id = useId();
@@ -54,15 +62,21 @@ const groepen = computed(() => {
       uitleg: [props.herkomst?.[s.veld.naam], s.help].filter((t): t is string => !!t),
       icoon: waarden[s.veld.naam] === true ? 'checked' : waarden[s.veld.naam] === false ? 'dismiss' : undefined,
       bij: false,
+      samenvatting: !!props.teksten?.[s.veld.naam]?.record?.summary,
     })),
   }));
   // The group that says what the record is about leads, without a heading: the screen is about that record.
   // Without such a group, what is no field of the record leads as a group of its own.
   const over = groepen.findIndex((g) => g.samenvatting);
-  const bij = (props.bij ?? []).map((b) => ({ ...b, uitleg: [] as string[], icoon: undefined, bij: true }));
-  if (over < 0) return bij.length ? [{ titel: '', rijen: bij }, ...groepen] : groepen;
-  const leidend = { ...groepen[over]!, titel: '', rijen: [...groepen[over]!.rijen, ...bij] };
-  return [leidend, ...groepen.filter((_, i) => i !== over)];
+  const bij = (props.bij ?? []).map((b) => ({ ...b, uitleg: [] as string[], icoon: undefined, bij: true, samenvatting: false }));
+  const rijen = over < 0 ? [] : groepen[over]!.rijen;
+  const leidend = { titel: '', rijen: [...rijen.filter((r) => r.samenvatting), ...bij, ...rijen.filter((r) => !r.samenvatting)] };
+  const overige = groepen.filter((_, i) => i !== over);
+  // Rows of the screen's own need the leading group to stand in, also when it has no rows of the record.
+  const metLeidend = leidend.rijen.length || slots.voor ? [leidend] : [];
+  if (props.deel === 'over') return metLeidend;
+  if (props.deel === 'rest') return overige;
+  return [...metLeidend, ...overige];
 });
 </script>
 
@@ -77,6 +91,7 @@ const groepen = computed(() => {
         <nldd-spacer size="8"></nldd-spacer>
       </template>
       <nldd-list appearance="box-base" :accessible-label="g.titel || label">
+        <slot v-if="i === 0 && !g.titel" name="voor"></slot>
         <nldd-list-item v-for="r in g.rijen" :key="r.naam" size="md">
           <nldd-text-cell v-if="r.uitleg.length">
             <p>
@@ -117,5 +132,5 @@ const groepen = computed(() => {
       </template>
     </template>
   </template>
-  <nldd-text v-else color="secondary"><p>Geen gegevens.</p></nldd-text>
+  <nldd-text v-else-if="deel !== 'rest'" color="secondary"><p>Geen gegevens.</p></nldd-text>
 </template>

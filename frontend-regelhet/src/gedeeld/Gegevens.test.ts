@@ -104,6 +104,30 @@ describe('Gegevens', () => {
     expect(koppen(teken({ bij }))).toEqual(['Uw gegevens', 'Over deze aanvraag']);
   });
 
+  it('shows what the record is about apart from the rest, the summary first and the article after it, with rows of the screen in front', () => {
+    const bij = [{ naam: 'grondslag', label: 'Op grond van', waarde: 'Wet artikel 1' }];
+    const metSamenvatting = { ...teksten, naam: { ...teksten.naam, group: 'Over deze aanvraag' }, datum: { ...teksten.datum, record: { summary: true } } };
+    const over = mount(Gegevens, {
+      props: {
+        waarden: { adres: 'Voorbeeldlaan 2', datum: '2026-10-13', naam: 'A. de Vries', overig: true },
+        teksten: metSamenvatting,
+        volgorde: ['naam', 'datum', 'adres'],
+        label: 'Gegevens',
+        bij,
+        deel: 'over' as const,
+      },
+      slots: { voor: '<nldd-list-item><nldd-text-cell text="Status"></nldd-text-cell></nldd-list-item>' },
+    });
+    expect(rijenVan(over)).toEqual([['Status', 'Dagtekening', 'Op grond van', 'Naam']]);
+    expect(koppen(over)).toEqual([]);
+    // The rest has no article to add, and still leaves out what the record is about.
+    const rest = teken({ teksten: metSamenvatting, deel: 'rest' });
+    expect(rijenVan(rest)).toEqual([['Adres'], ['Overig']]);
+    expect(koppen(rest)).toEqual(['Uw gegevens']);
+    // Nothing left over says nothing.
+    expect(mount(Gegevens, { props: { waarden: {}, label: 'Gegevens', deel: 'rest' as const } }).text()).toBe('');
+  });
+
   it('names a yes or no in the words the UI spec gives it on a record', () => {
     const w = teken({
       waarden: { kaart: true, ander: false, open: true },

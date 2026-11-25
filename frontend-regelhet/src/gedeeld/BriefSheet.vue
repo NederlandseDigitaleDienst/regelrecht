@@ -22,7 +22,7 @@ const props = defineProps<{
   stand: Pick<Stand, 'rollen'>;
   weergave: 'burger' | 'medewerker';
   /** What a submission gives under its own article, from the server. */
-  uitkomsten: (id: string) => Promise<Record<string, unknown>>;
+  uitkomsten?: (id: string) => Promise<Record<string, unknown>>;
 }>();
 const route = useRoute();
 const router = useRouter();
@@ -37,7 +37,7 @@ watch(
   () => (stuk.value && isIndiening(stuk.value, props.stand) ? stuk.value.id : undefined),
   async (id) => {
     uitkomsten.value = null;
-    if (!id) return;
+    if (!id || !props.uitkomsten) return;
     try {
       uitkomsten.value = await props.uitkomsten(id);
     } catch {

@@ -47,6 +47,7 @@ import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { antwoordOp, artikelNaam, celNaam, herroeping as herroepingVan, herroepingTekst, omschrijving, rolVan, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
+import { useSchermtitel } from '../gedeeld/schil';
 import { voorMedewerker } from '../gedeeld/rollen';
 import TabelUitKroniek from '../gedeeld/TabelUitKroniek.vue';
 import ElementenPerRol from './ElementenPerRol.vue';
@@ -124,6 +125,7 @@ const titel = computed(() =>
       )
     : 'Aanvraag',
 );
+useSchermtitel(() => titel.value);
 
 /** The decision form of the article the submission asks a decision of. */
 const besluitvorm = computed(() => {

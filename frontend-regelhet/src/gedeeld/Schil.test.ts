@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { RouteRecordNormalized } from 'vue-router';
 import Schil from './Schil.vue';
-import { isHuidig, tabsVan } from './schil';
+import { isHuidig, paginatitel, schermtitel, tabsVan } from './schil';
 import { organisatie } from './uiterlijk';
 import type { Tab } from './schil';
 import { zetUiterlijk } from './uiterlijk';
@@ -167,6 +167,21 @@ describe('the shell', () => {
     expect(titels(await toon({ tabs: [], titel: 'Eigen' }))).toEqual(['Eigen', 'Eigen', 'Eigen']);
   });
 
+  it('names the view in the page title: what the screen shows, its tab, and the site', async () => {
+    await toon({}, '/lijst/7');
+    expect(document.title).toBe('Lijst · RegelHet');
+    schermtitel.value = 'Aanvraag 7';
+    try {
+      await flushPromises();
+      expect(document.title).toBe('Aanvraag 7 · Lijst · RegelHet');
+    } finally {
+      schermtitel.value = null;
+    }
+    // A view without a tab, and no view at all.
+    await toon({ tabs: [] }, '/klok');
+    expect(document.title).toBe('RegelHet');
+  });
+
   it('marks the tab of the screen as current, also on a screen under it', async () => {
     const w = await toon({}, '/lijst/7');
     expect(w.find('nldd-tab-bar-item').attributes('current')).toBeDefined();
@@ -189,6 +204,14 @@ describe('the shell', () => {
 
 const tab: Tab = { naam: 'dossier', tekst: 'Mijn dossier', pad: '/burger', icoon: 'document', ook: ['besluit'] };
 const record = (meta: RouteRecordNormalized['meta']) => ({ meta }) as RouteRecordNormalized;
+
+describe('the page title', () => {
+  it('runs from specific to general and ends with the site, saying nothing twice in a row', () => {
+    expect(paginatitel([])).toBe('RegelHet');
+    expect(paginatitel([null, 'Kroniek'])).toBe('Kroniek · RegelHet');
+    expect(paginatitel(['Mijn aanvragen', 'Mijn aanvragen'])).toBe('Mijn aanvragen · RegelHet');
+  });
+});
 
 describe('the tabs of a route', () => {
   it('come from the deepest route that declares them', () => {

@@ -51,7 +51,7 @@ export const backofficeRoutes: RouteRecordRaw[] = [
       { path: 'simulatie', redirect: { path: '/backoffice', hash: KLOK } },
       { path: 'klok', redirect: { path: '/backoffice', hash: KLOK } },
       { path: 'verzoeken', name: 'partij', component: () => import('./PartijView.vue') },
-      { path: 'beheer', name: 'beheer', component: () => import('./BeheerView.vue'), meta: { beheer: true } },
+      { path: 'beheer/:cel?', name: 'beheer', component: () => import('./BeheerView.vue'), props: true, meta: { beheer: true } },
       {
         path: 'beheer/behandelen/:cel/:id',
         name: 'beheer-behandelen',

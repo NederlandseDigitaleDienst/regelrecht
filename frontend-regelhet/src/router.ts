@@ -74,7 +74,7 @@ export function maakRouter(kanten: RouteRecordRaw[]) {
     history: createWebHistory(),
     routes: [
       { path: '/', component: { render: () => null } },
-      { path: '/inloggen', name: 'inloggen', component: () => import('./inloggen/InloggenView.vue') },
+      { path: '/inloggen', name: 'inloggen', component: () => import('./inloggen/InloggenView.vue'), meta: { paginanaam: 'Inloggen' } },
       ...kanten,
       { path: '/:pad(.*)*', redirect: '/' },
     ],

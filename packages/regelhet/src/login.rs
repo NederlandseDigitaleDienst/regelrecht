@@ -361,6 +361,9 @@ const MAX_NAME_CHARS: usize = 100;
 const TEST_CITIZEN_NAMES: [&str; 2] = ["Anna Voorbeeld", "Bram Proef"];
 // A citizen without a name would drop out of the list in silence.
 const _: () = assert!(TEST_CITIZEN_NAMES.len() == TEST_CITIZENS.len());
+/// The made-up names of the employees of the test login: the decider and the admin.
+const TEST_DECIDER_NAME: &str = "Carla Fictief";
+const TEST_ADMIN_NAME: &str = "Daan Verzonnen";
 
 /// A test login: the account, its realm roles and its claims.
 #[derive(Debug, Deserialize)]
@@ -816,7 +819,8 @@ async fn test_logout(session: Session) -> Result<Redirect, ApiError> {
 /// `POST /auth/testlogin` takes it, with what it is (`soort`: `burger`,
 /// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
 /// a made-up name and a made-up number of the test range; a decider of the
-/// executor; an admin, who also enters what the external parties do.
+/// executor and an admin, who also enters what the external parties do,
+/// each with a made-up name too.
 /// Derived from the case, so another case gets its own, and only those of
 /// the sides the
 /// surface serves: the citizens on the instance for citizens, the employees
@@ -893,8 +897,8 @@ fn applicant_personas(state: &AppState) -> Vec<Value> {
     }
 }
 
-/// The employees of the test login: a decider of the executor, with that
-/// step of the ladder and nothing else, and an admin.
+/// The employees of the test login, each with a made-up name: a decider of
+/// the executor, with that step of the ladder and nothing else, and an admin.
 ///
 /// On the server of an external party they are that party's own: its staff
 /// log in there, not the executor's, and `partij` says so, so the login
@@ -911,6 +915,7 @@ fn employee_personas(state: &AppState) -> Vec<Value> {
             "sub": format!("{}-{cell}", decider.name()),
             "rollen": [decider.role()],
             "niveau": decider.name(),
+            "naam": TEST_DECIDER_NAME,
             "cel": cell,
             "cel_naam": cell_name,
             "partij": party.is_some(),
@@ -920,6 +925,7 @@ fn employee_personas(state: &AppState) -> Vec<Value> {
             "sub": "beheerder",
             "rollen": [Level::Admin.role()],
             "niveau": Level::Admin.name(),
+            "naam": TEST_ADMIN_NAME,
             "cel": party,
             "cel_naam": party.map(|p| service.cell_name(p)),
             "partij": party.is_some(),

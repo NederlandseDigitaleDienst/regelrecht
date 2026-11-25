@@ -12,15 +12,17 @@
 // (uiterlijk.ts), the bar starts with the organisation's name as a link back
 // to its front; on the front itself the name is the bar's title. On a side
 // without tabs the bar's title is the one the server names (uiterlijk.ts),
-// unless the route names its own.
-import { computed } from 'vue';
+// unless the route names its own. The page title says which view is on
+// screen: what the screen shows (`useSchermtitel`), the tab it belongs to or
+// the view the route names, and the site (schil.ts `paginatitel`).
+import { computed, watchEffect } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 // The page height the shell needs; see the comment in that file.
 import './schil.css';
 import AccountMenuItems from './AccountMenuItems.vue';
 import MenuOpties from './MenuOpties.vue';
 import ProefStrook from './ProefStrook.vue';
-import { isHuidig } from './schil';
+import { isHuidig, paginanaamVan, paginatitel, schermtitel } from './schil';
 import type { Actie, Menuactie, Tab } from './schil';
 import type { Klok } from './types';
 import { organisatie, titel as serverTitel } from './uiterlijk';
@@ -74,6 +76,11 @@ const kopOnder = computed(() =>
 /** The bar's title sits at its left edge, with no button before it: then the bar takes extra room on the left. */
 const titelLinks = computed(() => !!kopTitel.value && !terugNaarOrganisatie.value);
 const huidig = (t: Tab) => isHuidig(t, route.name);
+/** The view on screen by name: its tab, or what the route calls it. */
+const view = computed(() => zichtbaar.value.find(huidig)?.tekst ?? paginanaamVan(route));
+watchEffect(() => {
+  document.title = paginatitel([schermtitel.value, view.value]);
+});
 const open = (t: Tab) => {
   if (!huidig(t) || route.path !== t.pad) void router.push(t.pad);
 };

@@ -1,6 +1,7 @@
-// The admin panel offers per external party what the process asks of it now:
-// the facts it records, a decision on what waits for it, and a copy of a
-// decision not sent yet. A party of which nothing is asked says so.
+// The admin panel lists the external parties with how much waits for each,
+// and offers for the chosen one what the process asks of it now: the facts
+// it records, a decision on what waits for it, and a copy of a decision not
+// sent yet. A party of which nothing is asked says so.
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
@@ -55,34 +56,56 @@ vi.mock('./api', () => ({
   beheerApi: { partijen: async () => panel.value },
 }));
 
-async function toon(partijen: Partijen['partijen'], antwoord_op_verzoek: string[] = [], gekoppeld: Partijen['gekoppeld'] = []) {
+async function toon(cel: string | undefined, partijen: Partijen['partijen'], antwoord_op_verzoek: string[] = [], gekoppeld: Partijen['gekoppeld'] = []) {
   panel.value = { ...panel.value, partijen, antwoord_op_verzoek, gekoppeld };
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
-  const w = mount(BeheerView, { global: { plugins: [router], stubs: { teleport: true } } });
+  const leeg = { render: () => null };
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/backoffice/beheer/:cel?', name: 'beheer', component: leeg },
+      { path: '/backoffice/beheer/behandelen/:cel/:id', name: 'beheer-behandelen', component: leeg },
+      { path: '/:p(.*)*', component: leeg },
+    ],
+  });
+  await router.push(cel ? `/backoffice/beheer/${cel}` : '/backoffice/beheer');
+  const w = mount(BeheerView, { props: { cel }, global: { plugins: [router], stubs: { teleport: true } } });
   await flushPromises();
   return w;
 }
 
+/** The parties in the sidebar, each with how much waits for it. */
+const lijst = (w: Awaited<ReturnType<typeof toon>>) =>
+  w.findAll('nldd-list[accessible-label="Partijen"] nldd-list-item').map((r) => r.findAll('nldd-text-cell').map((c) => c.attributes('text')).join(' '));
 const knoppen = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-button').map((b) => b.attributes('text'));
 /** What the Vastleggen menu in the shell's bar offers, per party. */
 const menu = () => menuactie.value?.opties.map((o) => `${o.groep}: ${o.tekst}`) ?? [];
 
 describe('the admin panel', () => {
   it('offers the facts a party records, a decision on what waits, and a copy to send', async () => {
-    const w = await toon([
+    const partijen = [
       { cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] },
       { cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [{ stuk: gram('b1', 'BEROEP') }], toe_te_zenden: [gram('u1', 'UITSPRAAK')], verzoeken: [] },
-    ]);
+    ];
+    // Before a party is chosen, the sidebar lists them all, with how much waits for each.
+    const geen = await toon(undefined, partijen);
+    expect(lijst(geen)).toEqual(['Adviseur Voorbeeld 0', 'Rechtbank Voorbeeld 2']);
+    expect(geen.find('nldd-inline-dialog').attributes('text')).toBe('Kies een partij');
+    expect(knoppen(geen)).toEqual([]);
+
+    const w = await toon('rechter', partijen);
+    expect(w.findAll('nldd-list-item[current]')).toHaveLength(1);
     // What a party records on its own sits in the Vastleggen menu, under the party's name.
     expect(knoppen(w)).toEqual(['Afschrift toezenden']);
     expect(menu()).toEqual(['Adviseur Voorbeeld: Uitgebracht advies']);
     menuactie.value?.opties[0]?.kies();
     await flushPromises();
     expect(w.findComponent({ name: 'FeitVastleggen' }).props('keuze')?.cel).toBe('adviseur');
-    // The panel explains itself and each party behind an info button.
-    expect(w.findAll('nldd-icon-button[icon="info"]').map((b) => b.attributes('text'))).toEqual(['Over het beheerpaneel', 'Over Adviseur Voorbeeld']);
     // The appeal opens beside the panel, to decide on the court's behalf.
-    expect(w.findAll('nldd-list-item').filter((r) => r.attributes('button') !== undefined)).toHaveLength(1);
+    const werk = w.findAll('nldd-list:not([accessible-label="Partijen"]) nldd-list-item');
+    expect(werk.filter((r) => r.attributes('button') !== undefined)).toHaveLength(1);
+    // The panel explains itself and each party behind an info button.
+    const adviseur = await toon('adviseur', partijen);
+    expect(adviseur.findAll('nldd-icon-button[icon="info"]').map((b) => b.attributes('text'))).toEqual(['Over het beheerpaneel', 'Over Adviseur Voorbeeld']);
   });
 
   it('records an answer from an open request only, which says for whom it is', async () => {
@@ -96,6 +119,7 @@ describe('the admin panel', () => {
       fields: { advies: true, aanvraag: 'a1' },
     };
     const w = await toon(
+      'adviseur',
       [
         {
           cel: 'adviseur',
@@ -110,16 +134,18 @@ describe('the admin panel', () => {
     // The answer starts at the request; on its own it is only kept in
     // reserve, for an applicant without an open request.
     expect(menu()).toEqual(['Adviseur Voorbeeld: Uitgebracht advies zonder verzoek']);
-    const cel = w.find('nldd-text-cell');
+    const rij = w.find('nldd-list[accessible-label="Open verzoeken aan Adviseur Voorbeeld"] nldd-list-item');
+    const cel = rij.find('nldd-text-cell');
     expect(cel.attributes('text')).toBe('Verzoek om onderzoek ontvangen');
     expect(cel.attributes('supporting-text')).toContain('13 oktober 2026');
-    await w.find('nldd-list-item[button]').trigger('click');
+    await rij.trigger('click');
     await flushPromises();
     // The sheet opens on the answer, with what the request already holds, at an address of its own.
     const sheet = w.findComponent({ name: 'FeitVastleggen' });
     expect(sheet.props('keuze')).toMatchObject({ cel: 'adviseur', verzoek: 'v1', vast: { advies: true } });
     const router = w.vm.$router;
     expect(router.currentRoute.value.hash).toBe('#vastleggen/adviseur/advies_uitgebracht/v1');
+    expect(router.currentRoute.value.path).toBe('/backoffice/beheer/adviseur');
     // Closing the sheet takes the address away again.
     sheet.vm.$emit('sluit');
     await flushPromises();
@@ -128,13 +154,14 @@ describe('the admin panel', () => {
   });
 
   it('says so when the process asks nothing of a party', async () => {
-    const w = await toon([{ cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] }]);
+    const w = await toon('rechter', [{ cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] }]);
     expect(knoppen(w)).toEqual([]);
-    expect(w.text()).toContain('Op dit moment vraagt het proces niets van Rechtbank Voorbeeld');
+    expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).toEqual(['Op dit moment vraagt het proces niets van Rechtbank Voorbeeld']);
   });
 
   it('points to the system of a linked party, and enters for it only after the admin asks to', async () => {
     const w = await toon(
+      'adviseur',
       [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', nooduitweg: true, open: [], toe_te_zenden: [], verzoeken: [] }],
       [],
       [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', voorkant: 'https://adviseur.example.org' }],
@@ -158,9 +185,11 @@ describe('the admin panel', () => {
   });
 
   it('offers no way to enter for a linked party when the server does not', async () => {
-    const w = await toon([], [], [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', voorkant: null }]);
+    const w = await toon('adviseur', [], [], [{ cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', voorkant: null }]);
     expect(knoppen(w)).toEqual([]);
     expect(w.text()).toContain('Adviseur Voorbeeld werkt in een eigen systeem');
     expect(w.text()).not.toContain('Deze casus kent geen externe partijen');
+    // A linked party stands in the list too.
+    expect(lijst(w)).toEqual(['Adviseur Voorbeeld 0']);
   });
 });

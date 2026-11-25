@@ -28,8 +28,8 @@ watch(() => route.fullPath, laadKlok);
 const naam = computed(() => (ik.value ? ik.value.naam || ik.value.sub : null));
 // Where the account works, under its name in the menu: in this app one
 // account acts for one cell, which the name does not say. The role does not
-// go there too: the test accounts are named after it ("Beheerder"), so it
-// would say the same thing twice. A citizen gets none: their identifier is a
+// go there too: the menu says who is logged in and for whom, and the login
+// screen already named the role. A citizen gets none: their identifier is a
 // BSN, and a menu is not the place for it. A name that already names the
 // cell ("Beslisser bij gemeente Wilgendaal") needs no line under it.
 const onder = computed(() => {

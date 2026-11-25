@@ -24,6 +24,7 @@ export const burgerRoutes: RouteRecordRaw[] = [
     component: RouterView,
     meta: {
       kant: 'burger',
+      paginanaam: 'Mijn aanvragen',
       actie: {
         tekst: 'Nieuwe aanvraag',
         hash: AANVRAAG,
