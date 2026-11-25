@@ -10,7 +10,10 @@
 // opens from there: its decision, and every record in the timeline of the
 // application (gedeeld/TijdlijnLijst.vue, `GET /api/dossier/tijdlijn/{id}`), a
 // decision in BesluitPaneel.vue, a request of the policy in a sheet over the
-// page (gedeeld/VerzoekSheet.vue), anything else in StukPaneel.vue. An
+// page (gedeeld/VerzoekSheet.vue), anything else in StukPaneel.vue. The
+// letter about a record, such as the acknowledgement of an application,
+// opens from its row in a bottom sheet over the page (gedeeld/BriefSheet.vue), and so
+// does a message from the list of messages. An
 // application about a grant, such as a duplicate, is a row of its own; the way
 // in to one stands on the page of the application whose grant it is about.
 import { computed, onMounted, ref, watch } from 'vue';
@@ -19,9 +22,10 @@ import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { aanvraagStand, aanvragen as aanvragenVan } from '../gedeeld/dossier';
 import type { Dossier } from '../gedeeld/dossier';
-import { isVerzending, verzondenBericht } from '../gedeeld/bericht';
+import { berichtHash, heeftBrief, isVerzending, verzondenBericht } from '../gedeeld/bericht';
 import { celNaam, isBesluit } from '../gedeeld/keten';
 import { foutTekst } from '../gedeeld/http';
+import BriefSheet from '../gedeeld/BriefSheet.vue';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
 import type { Casus, Gram, Tijdlijn } from '../gedeeld/types';
 import { wijsDeWeg } from '../gedeeld/wegwijs';
@@ -74,7 +78,10 @@ const tijdlijnVan = (c: Casus) => ({
   huidig: props.id,
   opent: (g: Gram) => () => void router.push({ name: 'stuk', params: { id: g.id } }),
   verzoeken: verzoeken.value,
+  bericht: (g: Gram) => (heeftBrief(g, standVanDossier.value, vormen.value?.berichten) ? () => openBrief(g) : undefined),
 });
+/** The letter about `g`, in a sheet over the page that is open. */
+const openBrief = (g: Gram) => void router.push({ path: route.path, query: route.query, hash: berichtHash(g.id) });
 
 /** What the citizen just submitted, as its kind in words, from the address. */
 const ingediend = computed(() => {
@@ -110,7 +117,7 @@ const aanvragen = computed(() => {
 });
 /**
  * The messages the citizen received: every fact of sending in her dossier (`verzending` in the message spec), newest
- * first, each with what it is about. The message opens from its own fact, frozen as it went (StukPaneel.vue).
+ * first, each with what it is about. The message opens from its own fact, frozen as it went, in a sheet (gedeeld/BriefSheet.vue).
  */
 const berichten = computed(() =>
   dossier.value
@@ -216,7 +223,7 @@ const gekozenIsBesluit = computed(() => {
                 :key="b.gram.id"
                 size="md"
                 button
-                @click="router.push({ name: 'stuk', params: { id: b.gram.id } })"
+                @click="openBrief(b.gram)"
               >
                 <nldd-icon-cell size="20"><nldd-icon icon="envelope"></nldd-icon></nldd-icon-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
@@ -232,6 +239,15 @@ const gekozenIsBesluit = computed(() => {
     </nldd-page>
   </template>
 
+  <BriefSheet
+    v-if="casus"
+    :casus="casus"
+    :vormen="vormen"
+    :grammen="dossier"
+    :stand="standVanDossier"
+    weergave="burger"
+    :uitkomsten="burgerApi.uitkomsten"
+  />
   <AanvraagView
     :open="route.hash === AANVRAAG || route.hash === AANVRAAG_WETTEN"
     @sluit="router.push({ path: route.path })"

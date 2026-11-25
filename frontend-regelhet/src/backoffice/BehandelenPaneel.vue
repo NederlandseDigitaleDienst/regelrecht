@@ -50,6 +50,8 @@ import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import { voorMedewerker } from '../gedeeld/rollen';
 import TabelUitKroniek from '../gedeeld/TabelUitKroniek.vue';
 import ElementenPerRol from './ElementenPerRol.vue';
+import BriefSheet from '../gedeeld/BriefSheet.vue';
+import { berichtHash, heeftBrief } from '../gedeeld/bericht';
 import TijdlijnLijst from '../gedeeld/TijdlijnLijst.vue';
 import StukSheet from './StukSheet.vue';
 import type { Casus, Gram, Ik, Rol, Tabellen, Tijdlijn, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
@@ -382,6 +384,17 @@ function opent(g: Gram) {
   return () => (stukId.value = g.id);
 }
 
+/**
+ * The letter about a record of the timeline, such as the acknowledgement of
+ * the application, opens in a bottom sheet over this panel, as on the
+ * citizen's side (gedeeld/BriefSheet.vue).
+ */
+function bericht(g: Gram) {
+  const t = tijdlijn.value;
+  if (!t || !heeftBrief(g, t.stand, props.vormen?.berichten)) return undefined;
+  return () => void router.push({ path: route.path, query: route.query, hash: berichtHash(g.id) });
+}
+
 /** The submission decided on, with the day it came in to tell it from another of the same person. */
 const besluitOver = computed(() => (indiening.value ? `${titel.value} · ${longDate(indiening.value.recorded_on)}` : titel.value));
 
@@ -517,10 +530,6 @@ async function beslissen() {
           ></nldd-banner>
           <nldd-spacer size="24"></nldd-spacer>
         </template>
-        <template v-if="wachtOp">
-          <nldd-banner variant="neutral" icon="time" :text="wachtOp.tekst" :supporting-text="wachtOp.waarom"></nldd-banner>
-          <nldd-spacer size="24"></nldd-spacer>
-        </template>
         <nldd-title
           id="indiening-titel"
           size="display-3"
@@ -533,6 +542,10 @@ async function beslissen() {
           <nldd-button-group orientation="horizontal">
             <nldd-button appearance="primary" text="Besluiten" @click="openBesluiten"></nldd-button>
           </nldd-button-group>
+        </template>
+        <template v-if="wachtOp">
+          <nldd-spacer size="16"></nldd-spacer>
+          <nldd-banner variant="neutral" icon="time" :text="wachtOp.tekst" :supporting-text="wachtOp.waarom"></nldd-banner>
         </template>
         <nldd-spacer size="24"></nldd-spacer>
         <Gegevens
@@ -658,6 +671,7 @@ async function beslissen() {
             :teksten="vormen?.teksten"
             :huidig="id"
             :opent="opent"
+            :bericht="bericht"
           />
         </template>
       </nldd-container>
@@ -855,5 +869,14 @@ async function beslissen() {
     :vormen="vormen"
     :huidig="id"
     @sluit="stukId = null"
+  />
+  <BriefSheet
+    v-if="tijdlijn"
+    :casus="casus"
+    :vormen="vormen"
+    :grammen="tijdlijn.grammen"
+    :stand="tijdlijn.stand"
+    weergave="medewerker"
+    :uitkomsten="backofficeApi.uitkomsten"
   />
 </template>

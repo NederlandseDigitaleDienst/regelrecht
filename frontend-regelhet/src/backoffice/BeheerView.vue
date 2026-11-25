@@ -19,12 +19,14 @@ import { longDate } from '../gedeeld/datum';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { artikelNaam, omschrijving, waardeTekst } from '../gedeeld/keten';
 import { kaalSchermveld } from '../gedeeld/formulier';
+import { useMenuactie } from '../gedeeld/schil';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { beheerApi } from './api';
 import type { OpenVerzoek, Partijen } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
-import { feitNaam } from './feit';
+import { vastlegNaam } from './feit';
 import FeitVastleggen from './FeitVastleggen.vue';
+import { isFeit, useVastlegKeuze } from './vastlegadres';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string; id?: string }>();
@@ -105,12 +107,52 @@ function zetHierInvoeren(cel: string, aan: boolean) {
   hierInvoeren.value = cellen;
 }
 
-const keuze = ref<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown> } | null>(null);
+// The fact the sheet records, by the address: for a party, in answer to one of its open requests or without one.
+const { keuze, kies, sluit } = useVastlegKeuze<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown> }>((a) => {
+  const p = partijen.value.find((p) => p.cel === a.cel);
+  if (!p) return null;
+  if (a.bij) {
+    const v = p.verzoeken.find((v) => v.verzoek.id === a.bij && isFeit(v.handeling, a));
+    return v ? { cel: a.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast } : null;
+  }
+  const h = [...p.handelingen, ...p.zonderVerzoek].find((h) => isFeit(h, a));
+  return h ? { cel: a.cel, handeling: h } : null;
+});
 const gedaan = ref('');
+
+// What the admin records for a party on its own, in the bar's Vastleggen
+// menu under the party's name; an answer to an open request starts at the
+// request, in the panel. A party that works in a system of its own has no
+// options there, unless the admin enters for it here after all.
+useMenuactie(() => ({
+  tekst: 'Vastleggen',
+  icoon: 'add',
+  opties: invoer.value.flatMap((p) => [
+    ...p.handelingen.map((h) => ({ tekst: vastlegNaam(h.feit), groep: hoofdletter(p.cel_naam), kies: () => kies({ cel: p.cel, handeling: h }) })),
+    ...p.zonderVerzoek.map((h) => ({
+      tekst: `${vastlegNaam(h.feit)} zonder verzoek`,
+      groep: hoofdletter(p.cel_naam),
+      kies: () => kies({ cel: p.cel, handeling: h }),
+    })),
+  ]),
+}));
+
+/** What the info button beside a party says: how its work is entered here. */
+function overPartij(p: { cel_naam: string; verzoeken: unknown[]; handelingen: unknown[]; zonderVerzoek: unknown[] }): string {
+  return [
+    p.verzoeken.length ? 'Kies een open verzoek om het antwoord vast te leggen.' : '',
+    p.handelingen.length ? `Wat ${p.cel_naam} verder doet, legt u vast via Vastleggen in de balk.` : '',
+    p.zonderVerzoek.length
+      ? 'Via Vastleggen legt u een antwoord ook zonder verzoek vast, alleen voor een aanvrager voor wie geen verzoek openstaat, zoals iemand die eerder een kaart kreeg.'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 async function vastgelegd(naam: string) {
   gedaan.value = `${naam} is vastgelegd`;
-  keuze.value = null;
+  sluit();
   await laadAlles();
 }
 
@@ -142,10 +184,18 @@ async function toezenden(besluit: Gram) {
     <nldd-page slot="primary-sidebar" sticky-header accessible-label="Beheerpaneel">
         <nldd-top-title-bar slot="header" text="Beheerpaneel" heading-level="3" collapse-anchor="beheer-titel"></nldd-top-title-bar>
         <nldd-simple-section width="full">
-          <nldd-title id="beheer-titel" size="display-3"><h3>Beheerpaneel</h3></nldd-title>
-          <nldd-text color="secondary">
-            <p>Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.</p>
-          </nldd-text>
+          <nldd-title id="beheer-titel" size="display-3">
+            <h3>Beheerpaneel</h3>
+            <nldd-icon-button slot="end" appearance="neutral-base" size="sm" icon="info" tooltip-timing="never" text="Over het beheerpaneel">
+              <nldd-popover slot="popup" role="region" accessible-label="Over het beheerpaneel">
+                <nldd-container padding="16">
+                  <nldd-text>
+                    <p>Wat een externe partij in het proces doet, voert u hier namens haar in. De kroniek legt vast dat het via het beheerpaneel binnenkwam, en door welk account.</p>
+                  </nldd-text>
+                </nldd-container>
+              </nldd-popover>
+            </nldd-icon-button>
+          </nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-activity-indicator v-if="laden || (!panel && !fout)" text="Het beheerpaneel laden" show-text></nldd-activity-indicator>
           <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het beheerpaneel laadt niet" :supporting-text="fout"></nldd-inline-dialog>
@@ -185,7 +235,24 @@ async function toezenden(besluit: Gram) {
             </template>
             <template v-for="(p, i) in invoer" :key="p.cel">
               <nldd-spacer v-if="i > 0 || verwezen.length" size="24"></nldd-spacer>
-              <nldd-title size="display-5"><h4>{{ hoofdletter(p.cel_naam) }}</h4></nldd-title>
+              <nldd-title size="display-5">
+                <h4>{{ hoofdletter(p.cel_naam) }}</h4>
+                <nldd-icon-button
+                  v-if="overPartij(p)"
+                  slot="end"
+                  appearance="neutral-base"
+                  size="sm"
+                  icon="info"
+                  tooltip-timing="never"
+                  :text="`Over ${p.cel_naam}`"
+                >
+                  <nldd-popover slot="popup" role="region" :accessible-label="`Over ${p.cel_naam}`">
+                    <nldd-container padding="16">
+                      <nldd-text><p>{{ overPartij(p) }}</p></nldd-text>
+                    </nldd-container>
+                  </nldd-popover>
+                </nldd-icon-button>
+              </nldd-title>
               <template v-if="p.nooduitweg">
                 <nldd-banner
                   variant="warning"
@@ -207,14 +274,13 @@ async function toezenden(besluit: Gram) {
                 <nldd-spacer size="8"></nldd-spacer>
               </template>
               <template v-if="p.verzoeken.length">
-                <nldd-text color="secondary"><p>Open verzoeken. Kies er een om het antwoord vast te leggen.</p></nldd-text>
                 <nldd-list appearance="simple" :accessible-label="`Open verzoeken aan ${p.cel_naam}`">
                   <nldd-list-item
                     v-for="v in p.verzoeken"
                     :key="v.verzoek.id"
                     size="md"
                     button
-                    @click="keuze = { cel: p.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast }"
+                    @click="kies({ cel: p.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast })"
                   >
                     <nldd-text-cell
                       :text="omschrijving(v.verzoek, casus, 'vastlegging')"
@@ -254,36 +320,7 @@ async function toezenden(besluit: Gram) {
                   </nldd-cell>
                 </nldd-list-item>
               </nldd-list>
-              <template v-if="p.handelingen.length">
-                <nldd-spacer size="8"></nldd-spacer>
-                <nldd-button-group>
-                  <nldd-button
-                    v-for="h in p.handelingen"
-                    :key="h.feit"
-                    appearance="secondary"
-                    start-icon="add"
-                    :text="`${feitNaam(h.feit)} vastleggen`"
-                    @click="keuze = { cel: p.cel, handeling: h }"
-                  ></nldd-button>
-                </nldd-button-group>
-              </template>
-              <template v-if="p.zonderVerzoek.length">
-                <nldd-spacer size="8"></nldd-spacer>
-                <nldd-text color="secondary">
-                  <p>Zonder verzoek, alleen voor een aanvrager voor wie geen verzoek openstaat, zoals iemand die eerder een kaart kreeg:</p>
-                </nldd-text>
-                <nldd-button-group>
-                  <nldd-button
-                    v-for="h in p.zonderVerzoek"
-                    :key="h.feit"
-                    appearance="neutral-transparent"
-                    start-icon="add"
-                    :text="`${feitNaam(h.feit)} vastleggen zonder verzoek`"
-                    @click="keuze = { cel: p.cel, handeling: h }"
-                  ></nldd-button>
-                </nldd-button-group>
-              </template>
-              <nldd-text v-if="!p.verzoeken.length && !p.open.length && !p.toe_te_zenden.length && !p.handelingen.length && !p.zonderVerzoek.length" color="secondary">
+              <nldd-text v-if="!p.verzoeken.length && !p.open.length && !p.toe_te_zenden.length" color="secondary">
                 <p>
                   Op dit moment vraagt het proces niets van {{ p.cel_naam }}.
                 </p>
@@ -321,7 +358,7 @@ async function toezenden(besluit: Gram) {
     :volgorde="vormen?.volgorde"
     :open="openVoorKeuze"
     :vastleggen="beheerApi.vastleggen"
-    @sluit="keuze = null"
+    @sluit="sluit"
     @vastgelegd="vastgelegd"
   >
     <nldd-banner

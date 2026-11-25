@@ -10,7 +10,7 @@ import { gedeeldApi } from './gedeeld/api';
 import { geenToegang, ik } from './gedeeld/ik';
 import Schil from './gedeeld/Schil.vue';
 import { huidigeKlok as klok } from './gedeeld/klok';
-import { actieVan, tabsVan, titelVan } from './gedeeld/schil';
+import { actieVan, gereedschapVan, menuactie, tabsVan, titelVan } from './gedeeld/schil';
 import type { Tab } from './gedeeld/schil';
 import { inloggenApi } from './inloggen/api';
 
@@ -26,23 +26,22 @@ watch(ik, laadKlok);
 watch(() => route.fullPath, laadKlok);
 
 const naam = computed(() => (ik.value ? ik.value.naam || ik.value.sub : null));
-// What the account is here, under its name in the menu: in this app one
-// account acts for one cell, and which cell decides what it may do, so the
-// role plus that cell is the context the menu is missing. A citizen gets
-// none: their identifier is a BSN, and a menu is not the place for it. The
-// test accounts are named after their own role ("Beslisser bij gemeente
-// Wilgendaal"), and a line that repeats the name above it says nothing, so
-// it drops out.
+// Where the account works, under its name in the menu: in this app one
+// account acts for one cell, which the name does not say. The role does not
+// go there too: the test accounts are named after it ("Beheerder"), so it
+// would say the same thing twice. A citizen gets none: their identifier is a
+// BSN, and a menu is not the place for it. A name that already names the
+// cell ("Beslisser bij gemeente Wilgendaal") needs no line under it.
 const onder = computed(() => {
   const i = ik.value;
   if (!i || i.burger || !i.niveau) return null;
   const cel = i.partij?.cel_naam ?? i.cellen[0]?.cel_naam;
-  const rol = cel ? `${hoofdletter(i.niveau)} bij ${cel}` : hoofdletter(i.niveau);
-  return rol.toLowerCase() === naam.value?.trim().toLowerCase() ? null : rol;
+  if (!cel || naam.value?.toLowerCase().includes(cel.toLowerCase())) return null;
+  return hoofdletter(cel);
 });
 // The executor this server runs the process for,
 // the same on every screen and for every employee, so it sits in the bar and
-// not on a screen. A citizen's side names its service there instead.
+// not on a screen; a side without tabs, as a citizen's, names it under its title.
 const uitvoerder = ref<string | null>(null);
 watch(
   ik,
@@ -51,7 +50,7 @@ watch(
     // it, not for the executor of the case.
     uitvoerder.value = i?.partij
       ? hoofdletter(i.partij.cel_naam)
-      : i && !i.burger
+      : i
         ? await gedeeldApi
             .casus()
             .then((c) => hoofdletter(c.cel_naam))
@@ -74,6 +73,8 @@ const rechten = computed<Tab['recht'][]>(() => [
     :titel="titelVan(route)"
     :uitvoerder="uitvoerder"
     :actie="actieVan(route)"
+    :menu="menuactie"
+    :gereedschap="gereedschapVan(route, rechten)"
     :naam="naam"
     :onder="onder"
     :klok="klok"

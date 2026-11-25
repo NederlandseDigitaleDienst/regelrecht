@@ -71,6 +71,7 @@ export const backofficeApi = {
   tabellen: (id: string) => haal<Tabellen>(`/api/backoffice/tabellen/${encodeURIComponent(id)}`),
   /** The timeline of the application the record `id` belongs to: the executor's records. */
   tijdlijn: (id: string) => haal<Tijdlijn>(`/api/backoffice/tijdlijn/${encodeURIComponent(id)}`),
+  uitkomsten: (id: string) => haal<Record<string, unknown>>(`/api/backoffice/uitkomsten/${encodeURIComponent(id)}`),
   voorvertoning: (b: Beslissing) => stuur<Voorvertoning>('POST', '/api/backoffice/voorvertoning', b),
   beslissen: (b: Beslissing, sleutel: string) =>
     stuur<{ besluit: Gram; waarom: Waarom }>('POST', '/api/backoffice/besluiten', b, sleutel),

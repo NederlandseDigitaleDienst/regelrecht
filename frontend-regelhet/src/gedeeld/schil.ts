@@ -1,6 +1,7 @@
 // The tabs of the shell (Schil.vue), declared by each side on its own route
 // (`meta.tabs`), so the shell shows the sections of the side a screen belongs
 // to without importing that side.
+import { onUnmounted, shallowRef, watchEffect } from 'vue';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
 
 /** A section of one side of the app, as a tab of the shell. */
@@ -24,8 +25,38 @@ export interface Actie {
    *  rather than to one of its own. */
   hash: string;
   icoon?: string;
+  /** Whether the action cannot be undone, which its menu item shows in red. */
+  destructief?: boolean;
   /** What the coach mark says to someone who has not used the action yet. */
   uitleg?: { tekst: string; toelichting: string };
+}
+
+/**
+ * A menu of actions a screen offers in the shell's bar beside the account,
+ * such as the facts its account may record. Unlike [`Actie`] it depends on
+ * what the screen has loaded, so the screen sets it ([`useMenuactie`]).
+ */
+export interface Menuactie {
+  tekst: string;
+  icoon?: string;
+  /** The options; those with a `groep` stand under that title, after the rest. */
+  opties: { tekst: string; groep?: string; kies: () => void }[];
+}
+
+/** The menu of the screen on view, if it offers one. */
+export const menuactie = shallowRef<Menuactie | null>(null);
+
+/** Offer `menu` in the shell's bar while the calling screen shows; none when it gives null or no options. */
+export function useMenuactie(menu: () => Menuactie | null): void {
+  let eigen: Menuactie | null = null;
+  watchEffect(() => {
+    const m = menu();
+    eigen = m?.opties.length ? m : null;
+    menuactie.value = eigen;
+  });
+  onUnmounted(() => {
+    if (menuactie.value === eigen) menuactie.value = null;
+  });
 }
 
 /** The tabs of the side `route` belongs to, from the deepest route that declares them. */
@@ -43,6 +74,12 @@ export function actieVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>):
   return [...route.matched].reverse().find((r) => r.meta.actie)?.meta.actie ?? null;
 }
 
+/** The tools of the test setup the side of `route` offers to an account with `rechten`. */
+export function gereedschapVan(route: Pick<RouteLocationNormalizedLoaded, 'matched'>, rechten: Tab['recht'][]): Actie[] {
+  const alle = [...route.matched].reverse().find((r) => r.meta.gereedschap)?.meta.gereedschap ?? [];
+  return alle.filter((g) => rechten.includes(g.recht)).map(({ recht: _, ...g }) => g);
+}
+
 /** Whether `tab` is the one the route `naam` belongs to. */
 export const isHuidig = (tab: Tab, naam: unknown): boolean =>
   tab.naam === naam || (typeof naam === 'string' && !!tab.ook?.includes(naam));
@@ -55,5 +92,7 @@ declare module 'vue-router' {
     titel?: string;
     /** The one action the side offers from its bar. */
     actie?: Actie;
+    /** The tools of the test setup the side offers in the account menu, each for who has its right. */
+    gereedschap?: (Actie & { recht: NonNullable<Tab['recht']> })[];
   }
 }

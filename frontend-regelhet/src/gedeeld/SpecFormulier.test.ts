@@ -173,6 +173,17 @@ describe('SpecFormulier', () => {
     expect(los.find('nldd-validation-list').exists()).toBe(false);
   });
 
+  it('makes a text field a box of the lines the UI spec gives it, and sends what is typed', async () => {
+    const metToelichting = { ...vorm, velden: [...vorm.velden, { naam: 'toelichting', type: 'string', mag_leeg: true, basis: 'voorbeeldwet#3' }] };
+    const { invullen } = aanvraagformulier(metToelichting, { toelichting: { lines: 4 } }, '999990019');
+    const w = mount(SpecFormulier, { props: { velden: invullen, waarden: {} } });
+    const vak = w.find('nldd-multi-line-text-field');
+    expect(vak.attributes('rows')).toBe('4');
+    expect(w.findAll('nldd-multi-line-text-field')).toHaveLength(1);
+    await vak.trigger('input', { detail: { value: 'Twee zinnen. Of meer.' } });
+    expect(w.emitted('zet')).toEqual([['toelichting', 'Twee zinnen. Of meer.']]);
+  });
+
   it('sends a change of a field up by its name', async () => {
     const w = teken();
     await w.find('nldd-radio-button-field[value="ja"]').trigger('change', { detail: { checked: true, value: 'ja' } });

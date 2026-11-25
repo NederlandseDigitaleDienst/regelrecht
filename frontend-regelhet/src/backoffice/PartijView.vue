@@ -19,6 +19,7 @@ import { beheerApi } from './api';
 import type { Partijen } from './api';
 import { feitNaam } from './feit';
 import FeitVastleggen from './FeitVastleggen.vue';
+import { isFeit, useVastlegKeuze } from './vastlegadres';
 import { useBackoffice } from './useBackoffice';
 
 const { casus, vormen, wie, fout, laden, laad } = useBackoffice();
@@ -77,13 +78,22 @@ const beantwoord = computed(() =>
 /** The facts that answer a request, for an answer nobody asked for. */
 const zonderVerzoek = computed(() => handelingen.value.filter((h) => (panel.value?.antwoord_op_verzoek ?? []).includes(h.feit)));
 
-const keuze = ref<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown>; titel?: string } | null>(null);
+// The fact the sheet records, by the address: in answer to an open request, or without one.
+const { keuze, kies, sluit } = useVastlegKeuze<{ cel: string; handeling: Handeling; verzoek?: string; vast?: Record<string, unknown>; titel?: string }>((a) => {
+  if (a.cel !== partij.value?.cel) return null;
+  if (a.bij) {
+    const v = open.value.find((v) => v.verzoek.id === a.bij && isFeit(v.handeling, a));
+    return v ? { cel: a.cel, handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast } : null;
+  }
+  const h = handelingen.value.find((h) => isFeit(h, a));
+  return h ? { cel: a.cel, handeling: h } : null;
+});
 const openVoorKeuze = computed(() => open.value.filter((v) => v.handeling.feit === keuze.value?.handeling.feit));
 const gedaan = ref('');
 
 async function vastgelegd(feit: string) {
   gedaan.value = `${feit} is vastgelegd en gaat naar ${vrager.value}`;
-  keuze.value = null;
+  sluit();
   await laadAlles();
 }
 </script>
@@ -109,7 +119,7 @@ async function vastgelegd(feit: string) {
             :key="v.verzoek.id"
             size="md"
             button
-            @click="keuze = { cel: partij?.cel ?? '', handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast }"
+            @click="kies({ cel: partij?.cel ?? '', handeling: v.handeling, verzoek: v.verzoek.id, vast: v.vast })"
           >
             <nldd-text-cell
               :text="verzoekNaam(v.verzoek)"
@@ -147,7 +157,7 @@ async function vastgelegd(feit: string) {
               appearance="secondary"
               start-icon="add"
               :text="`${feitNaam(h.feit)} vastleggen`"
-              @click="keuze = { cel: partij?.cel ?? '', handeling: h }"
+              @click="kies({ cel: partij?.cel ?? '', handeling: h })"
             ></nldd-button>
           </nldd-button-group>
         </template>
@@ -161,7 +171,7 @@ async function vastgelegd(feit: string) {
     :volgorde="vormen?.volgorde"
     :open="openVoorKeuze"
     :vastleggen="beheerApi.vastleggen"
-    @sluit="keuze = null"
+    @sluit="sluit"
     @vastgelegd="vastgelegd"
   />
 </template>

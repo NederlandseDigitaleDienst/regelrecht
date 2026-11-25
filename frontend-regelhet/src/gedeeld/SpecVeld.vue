@@ -43,6 +43,7 @@ const alsKeuze = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? 
     :keyboard="veld.deel?.keyboard"
     :width="veld.deel?.width"
     :verplicht="veld.verplicht"
+    :regels="veld.regels"
     :veld="veld.veld"
     :label="veld.label"
     :help="veld.help"

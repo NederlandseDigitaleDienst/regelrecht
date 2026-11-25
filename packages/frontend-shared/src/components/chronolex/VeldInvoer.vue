@@ -15,6 +15,8 @@
 // A field the screen requires (`verplicht`) loses its "Optioneel" badge where
 // the law lets it be empty, and the form refuses to submit it empty; the
 // validation list under it then says so, as the browser judges it.
+// `regels` makes a text field a multi-line one with that many lines, for an
+// answer of a few sentences (`lines` in the UI spec).
 // Shared by the chronolexografie poc and RegelHet.
 import { computed } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
@@ -50,6 +52,8 @@ const props = withDefaults(
     artikel?: boolean;
     /** The form does not submit it empty, whatever the law lets be empty. */
     verplicht?: boolean;
+    /** The lines a text field shows; from two up it takes more than one line. */
+    regels?: number;
   }>(),
   {
     modelValue: undefined,
@@ -63,6 +67,7 @@ const props = withDefaults(
     width: '',
     artikel: true,
     verplicht: false,
+    regels: 0,
   },
 );
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
@@ -129,6 +134,15 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
       :readonly="alleenLezen || undefined"
       @input="zet(getal(uit($event)))"
     ></nldd-text-field>
+    <nldd-multi-line-text-field
+      v-else-if="regels > 1"
+      :rows="regels"
+      :value="tekst"
+      :width="width || undefined"
+      :required="verplicht || undefined"
+      :readonly="alleenLezen || undefined"
+      @input="zet(uit($event))"
+    ></nldd-multi-line-text-field>
     <nldd-text-field
       v-else
       :value="tekst"

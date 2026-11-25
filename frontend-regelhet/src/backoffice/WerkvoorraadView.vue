@@ -23,17 +23,19 @@ import { useRoute, useRouter } from 'vue-router';
 import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { foutTekst } from '../gedeeld/http';
 import { isIndiening } from '../gedeeld/keten';
+import { useMenuactie } from '../gedeeld/schil';
 import { indieningInWoorden, wachtOpBij } from '../gedeeld/werkvoorraad';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import type { EigenVerzoek, Kroniek, Werkvoorraad } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
-import { feitNaam } from './feit';
+import { feitNaam, vastlegNaam } from './feit';
 import { LIJSTEN, lijstVan, lijstenVanIndiening, lijstenVanToekenning, nieuwsteEerst, oudsteEerst } from './lijsten';
 import type { Lijst } from './lijsten';
 import { medewerkerStand, vervolgFeiten } from '../gedeeld/vervolg';
 import type { Vervolgstand } from '../gedeeld/types';
 import FeitVastleggen from './FeitVastleggen.vue';
+import { isFeit, useVastlegKeuze } from './vastlegadres';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string; id?: string }>();
@@ -110,6 +112,17 @@ const handelingen = computed(() => {
   return recht.value?.beslissen && eigen?.cel === recht.value.cel
     ? eigen.handelingen.filter((h) => !vervolgFeiten(casus.value).has(h.feit))
     : [];
+});
+
+// The facts the executor records on their own, in the shell's bar beside the account.
+useMenuactie(() => {
+  const cel = recht.value?.cel;
+  if (!cel) return null;
+  return {
+    tekst: 'Vastleggen',
+    icoon: 'add',
+    opties: handelingen.value.map((h) => ({ tekst: vastlegNaam(h.feit), kies: () => kiesFeit({ cel, handeling: h }) })),
+  };
 });
 
 /**
@@ -242,6 +255,18 @@ const leeg = computed(() => {
   };
 });
 
+/** Nothing in the list and nothing open: the main pane says so, and the list column steps aside. */
+const alleenHoofd = computed(() => !zichtbaar.value.length && !gekozen.value);
+
+/** What happened beside the list: a recorded fact, or what did not load. */
+const meldingen = computed(() =>
+  [
+    vastgelegd.value && { banner: true, tekst: `${vastgelegd.value} is vastgelegd`, uitleg: undefined },
+    vervolgFout.value && { banner: false, tekst: 'De toekenningen laden niet', uitleg: vervolgFout.value },
+    verzoekenFout.value && { banner: false, tekst: 'Niet bekend wat op een antwoord wacht', uitleg: verzoekenFout.value },
+  ].filter((m) => !!m),
+);
+
 /** Open the list `naam`; the open submission stays only when it is in that list, so the main pane shows a row of it. */
 function kies(naam: Lijst) {
   const blijft = rijen.value.some((r) => r.soort === 'indiening' && r.sleutel === props.id && r.lijsten.includes(naam));
@@ -253,20 +278,36 @@ function openIndiening(id: string) {
   router.push({ name: 'behandelen', params: { cel: casus.value.cel, id }, query: route.query.lijst ? { lijst: lijst.value } : {} });
 }
 
-// The back button of the list leads to the lists, that of the submission to its list.
+// The back button of the list (or of the empty state in its place) leads to the lists, that of the submission to its list.
 const lijstPagina = ref<HTMLElement | null>(null);
+const leegPagina = ref<HTMLElement | null>(null);
 function terug(e: Event) {
-  if (lijstPagina.value && e.composedPath().includes(lijstPagina.value)) router.push({ path: '/backoffice' });
+  const pad = e.composedPath();
+  if ([lijstPagina.value, leegPagina.value].some((p) => p && pad.includes(p))) router.push({ path: '/backoffice' });
   else router.push({ path: '/backoffice', query: { lijst: lijst.value } });
 }
 
 // The fact the sheet records, in the cell `cel`.
-const keuze = ref<{ cel: string; handeling: Handeling; verwijst_naar?: string; titel?: string } | null>(null);
+// The fact the sheet records, in the cell `cel`, by the address: beside a row
+// of a grant, or one of the facts of the menu.
+const { keuze, kies: kiesFeit, sluit } = useVastlegKeuze<{ cel: string; handeling: Handeling; verwijst_naar?: string; titel?: string }>((a) => {
+  if (a.cel !== recht.value?.cel) return null;
+  if (a.bij) {
+    for (const r of rijen.value) {
+      if (r.soort !== 'indiening' && r.sleutel === a.bij && r.handeling && isFeit(r.handeling, a)) {
+        return { cel: a.cel, handeling: r.handeling, verwijst_naar: a.bij, titel: r.knop };
+      }
+    }
+    return null;
+  }
+  const h = handelingen.value.find((h) => isFeit(h, a));
+  return h ? { cel: a.cel, handeling: h } : null;
+});
 const vastgelegd = ref('');
 
 async function klaar(naam: string) {
   vastgelegd.value = naam;
-  keuze.value = null;
+  sluit();
   await laad(true);
 }
 </script>
@@ -301,40 +342,20 @@ async function klaar(naam: string) {
                 <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
               </nldd-list-item>
             </nldd-list>
-            <template v-if="handelingen.length">
-              <nldd-spacer size="24"></nldd-spacer>
-              <nldd-button-group>
-                <nldd-button
-                  v-for="h in handelingen"
-                  :key="h.feit"
-                  appearance="secondary"
-                  start-icon="add"
-                  :text="`${feitNaam(h.feit)} vastleggen`"
-                  @click="keuze = { cel: recht.cel, handeling: h }"
-                ></nldd-button>
-              </nldd-button-group>
-            </template>
           </template>
         </template>
       </nldd-simple-section>
     </nldd-page>
 
     <nldd-page
-      v-if="!laden && !fout && casus && recht"
+      v-if="!laden && !fout && casus && recht && !alleenHoofd"
       ref="lijstPagina"
       slot="secondary-sidebar"
       sticky-header
       :accessible-label="huidigeLijst.tekst"
       :empty="route.query.lijst ? undefined : true"
     >
-      <!-- An empty list has no title: the dialog says what matters, and is the heading. -->
-      <nldd-top-title-bar
-        slot="header"
-        :text="zichtbaar.length ? huidigeLijst.tekst : ''"
-        heading-level="3"
-        back-text="Aanvragen"
-        :collapse-anchor="zichtbaar.length ? 'lijst-titel' : undefined"
-      ></nldd-top-title-bar>
+      <nldd-top-title-bar slot="header" :text="huidigeLijst.tekst" heading-level="3" back-text="Aanvragen" :collapse-anchor="zichtbaar.length ? 'lijst-titel' : undefined"></nldd-top-title-bar>
       <nldd-simple-section width="full">
         <template v-if="zichtbaar.length">
           <nldd-title id="lijst-titel" size="display-3">
@@ -349,19 +370,12 @@ async function klaar(naam: string) {
           </nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
         </template>
-        <template v-if="vastgelegd">
-          <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
+        <template v-for="m in meldingen" :key="m.tekst">
+          <nldd-banner v-if="m.banner" variant="success" :text="m.tekst"></nldd-banner>
+          <nldd-inline-dialog v-else icon="warning" icon-color="critical" :text="m.tekst" :supporting-text="m.uitleg"></nldd-inline-dialog>
           <nldd-spacer size="16"></nldd-spacer>
         </template>
-        <template v-if="vervolgFout">
-          <nldd-inline-dialog icon="warning" icon-color="critical" text="De toekenningen laden niet" :supporting-text="vervolgFout"></nldd-inline-dialog>
-          <nldd-spacer size="16"></nldd-spacer>
-        </template>
-        <template v-if="verzoekenFout">
-          <nldd-inline-dialog icon="warning" icon-color="critical" text="Niet bekend wat op een antwoord wacht" :supporting-text="verzoekenFout"></nldd-inline-dialog>
-          <nldd-spacer size="16"></nldd-spacer>
-        </template>
-        <nldd-list v-if="zichtbaar.length" appearance="simple" :accessible-label="huidigeLijst.tekst">
+        <nldd-list appearance="simple" :accessible-label="huidigeLijst.tekst">
           <template v-for="r in zichtbaar" :key="r.sleutel">
             <nldd-list-item v-if="r.soort === 'indiening'" size="md" button :current="r.sleutel === id || undefined" @click="openIndiening(r.sleutel)">
               <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
@@ -376,7 +390,7 @@ async function klaar(naam: string) {
               v-else
               size="md"
               :button="(recht.beslissen && r.handeling) || undefined"
-              @click="recht.beslissen && r.handeling && (keuze = { cel: recht.cel, handeling: r.handeling, verwijst_naar: r.sleutel, titel: r.knop })"
+              @click="recht.beslissen && r.handeling && kiesFeit({ cel: recht.cel, handeling: r.handeling, verwijst_naar: r.sleutel, titel: r.knop })"
             >
               <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
               <template v-if="recht.beslissen && r.handeling">
@@ -386,12 +400,6 @@ async function klaar(naam: string) {
             </nldd-list-item>
           </template>
         </nldd-list>
-        <nldd-inline-dialog
-          v-else
-          heading-level="3"
-          :text="leeg.tekst"
-          :supporting-text="leeg.uitleg"
-        ></nldd-inline-dialog>
         <template v-if="!recht.beslissen && zichtbaar.some((r) => r.soort === 'indiening')">
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-text size="sm" color="secondary">
@@ -401,7 +409,8 @@ async function klaar(naam: string) {
       </nldd-simple-section>
     </nldd-page>
 
-    <div slot="main" :empty="gekozen ? undefined : true">
+    <!-- Stacked, the main pane stands in for the list only once a list is open; before that the lists show. -->
+    <div slot="main" :empty="gekozen || (alleenHoofd && route.query.lijst) ? undefined : true">
       <BehandelenPaneel
         v-if="cel && gekozen && casus"
         :key="gekozen"
@@ -415,7 +424,18 @@ async function klaar(naam: string) {
         :terug="huidigeLijst.tekst"
         @besloten="laad(true)"
       />
-      <!-- Nothing open: invite a choice only when the list beside it has something to choose. -->
+      <!-- An empty list has no title: the dialog says what matters, and is the heading. -->
+      <nldd-page v-else-if="!laden && !fout && casus && recht && alleenHoofd" ref="leegPagina" landmarks="page" sticky-header>
+        <nldd-top-title-bar slot="header" back-text="Aanvragen"></nldd-top-title-bar>
+        <nldd-simple-section>
+          <template v-for="m in meldingen" :key="m.tekst">
+            <nldd-banner v-if="m.banner" variant="success" :text="m.tekst"></nldd-banner>
+            <nldd-inline-dialog v-else icon="warning" icon-color="critical" :text="m.tekst" :supporting-text="m.uitleg"></nldd-inline-dialog>
+            <nldd-spacer size="16"></nldd-spacer>
+          </template>
+          <nldd-inline-dialog heading-level="3" :text="leeg.tekst" :supporting-text="leeg.uitleg"></nldd-inline-dialog>
+        </nldd-simple-section>
+      </nldd-page>
       <nldd-page v-else landmarks="page">
         <nldd-simple-section v-if="zichtbaar.length">
           <nldd-inline-dialog text="Kies een aanvraag"></nldd-inline-dialog>
@@ -424,5 +444,5 @@ async function klaar(naam: string) {
     </div>
   </nldd-navigation-split-view>
 
-  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :vastleggen="backofficeApi.vastleggen" @sluit="keuze = null" @vastgelegd="klaar" />
+  <FeitVastleggen :keuze="keuze" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" :vastleggen="backofficeApi.vastleggen" @sluit="sluit" @vastgelegd="klaar" />
 </template>

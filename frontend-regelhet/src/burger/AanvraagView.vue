@@ -18,7 +18,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { longDate } from '../gedeeld/datum';
 import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomsten, schermveld, voorgevuldeWaarden } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Gram } from '../gedeeld/types';
 import { burgerApi } from './api';
@@ -77,7 +76,7 @@ const herkomstPerArtikel = computed(() => {
   for (const veld of v.velden) {
     const scherm = schermveld(veld, vormen.value?.teksten, true);
     const basis = scherm.veld.basis;
-    const artikel = basis ? artikelNaam(basis) : 'Zonder artikel';
+    const artikel = basis || 'Zonder artikel';
     const bij = per.get(artikel) ?? [];
     per.set(artikel, bij);
     const wie = uitSysteem[veld.naam];

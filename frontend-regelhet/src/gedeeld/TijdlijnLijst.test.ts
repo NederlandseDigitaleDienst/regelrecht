@@ -112,6 +112,24 @@ describe('the timeline of an application', () => {
     w.unmount();
   });
 
+  it('opens the letter about a record with an info button on its row, also on the record on screen', async () => {
+    const gelezen: string[] = [];
+    const geopend: string[] = [];
+    const bericht = (g: Gram) => (g.kind === 'AANVRAAG' ? () => gelezen.push(g.id) : undefined);
+    const opent = (g: Gram) => () => geopend.push(g.id);
+    const { w } = await toon({ bericht, opent, huidig: 'a' });
+    const rijen = w.findAll('nldd-list-item');
+    const knoppen = rijen.map((r) => r.find('nldd-icon-button')).map((k) => (k.exists() ? k.attributes('text') : ''));
+    // The application on screen has its letter; the other records still open.
+    expect(knoppen).toEqual(['Bericht', 'Details', 'Details', '', '']);
+    const knop = rijen[0]!.find('nldd-icon-button');
+    expect([knop.attributes('icon'), knop.attributes('accessible-label')]).toEqual(['info', 'Bericht bij aanvraag']);
+    await knop.trigger('click');
+    expect(gelezen).toEqual(['a']);
+    expect(geopend).toEqual([]);
+    w.unmount();
+  });
+
   it('puts the stages of a request of the policy under it, the receipts as minor steps, and opens what it adds in a sheet', async () => {
     const ontvangen = gram('o', 'EXECUTOGRAM', { basis: 'beleid#9', fact: 'verzoek_ontvangen', recording_actor: 'ggd', fields: { aanvraag: 'a' } });
     const antwoord = gram('n', 'EXECUTOGRAM', {

@@ -186,6 +186,21 @@ describe('the dossier', () => {
     expect(w.text()).not.toContain('In behandeling');
   });
 
+  it('opens the letter about a record in a bottom sheet at its own address, over the page, and closes it there', async () => {
+    const { w, router } = await toon('/burger/dossier/a#bericht/a');
+    const sheet = () => w.find('nldd-sheet[accessible-label="Bericht"]');
+    expect(sheet().attributes('placement')).toBe('bottom');
+    // Its bar stays on top while the letter scrolls.
+    expect(sheet().find('nldd-page').attributes('sticky-header')).toBeDefined();
+    expect(sheet().attributes('open')).toBeDefined();
+    // The page of the application stays under it.
+    expect(w.find('#stuk-titel').exists()).toBe(true);
+    await sheet().trigger('close');
+    await flushPromises();
+    expect(router.currentRoute.value.fullPath).toBe('/burger/dossier/a');
+    expect(sheet().attributes('open')).toBeUndefined();
+  });
+
   it('says so when a record is not in the dossier', async () => {
     const { w } = await toon('/burger/dossier/van-een-ander');
     expect(w.find('nldd-inline-dialog').attributes('text')).toBe('Dit stuk staat niet in uw dossier');

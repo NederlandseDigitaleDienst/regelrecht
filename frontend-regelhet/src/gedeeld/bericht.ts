@@ -14,7 +14,7 @@
  */
 import { longDate } from './datum';
 import { kaalSchermveld, stukWaarde } from './formulier';
-import { artikelNaam } from './keten';
+import { artikelNaam, isBesluit, rolVan } from './keten';
 import type {
   Alinea,
   Berichtdeel,
@@ -25,6 +25,7 @@ import type {
   Kanaalcode,
   Rol,
   Sjabloon,
+  Stand,
   Sleutelbron,
   Tekstlaag,
   Uitvoeruitleg,
@@ -845,6 +846,21 @@ export function isVerzending(gram: Gram, spec?: Berichtenspec | null): boolean {
   if (feit === v.feit || feit === v.doorsturen) return true;
   // The receipt of a forwarded message: a fact of the same article that holds the frozen content.
   return !!v.doorsturen && gram.basis === v.doorsturen.split('#').slice(0, 2).join('#') && typeof gram.fields?.inhoud === 'string';
+}
+
+/** The bottom sheet of the letter about a record, over whatever is open: `#bericht/<id>` (BriefSheet.vue). */
+export const BERICHT = '#bericht/';
+export const berichtHash = (id: string) => `${BERICHT}${id}`;
+
+/**
+ * Whether a letter about `gram` is read apart from its page: a fact
+ * of sending, or a record other than a decision that the message spec writes
+ * about, such as the acknowledgement of an application. A decision is not one:
+ * its page is the letter that makes it known.
+ */
+export function heeftBrief(gram: Gram, stand: Pick<Stand, 'rollen'>, spec?: Berichtenspec | null): boolean {
+  if (isVerzending(gram, spec)) return true;
+  return !isBesluit(gram, stand) && !!berichtsoortVoor(gram, rolVan(gram, stand), spec);
 }
 
 /** The facts of sending of the record `id` among `grammen`, oldest first; the last one stands. */

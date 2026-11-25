@@ -10,17 +10,21 @@
 // fields the request already holds, such as for whom it is, show read-only
 // too, and the server takes them from the request. A fact recorded without a
 // request while one is open for it (`open`) is stopped here, with a word on
-// where to record it instead: the server refuses it anyway.
-import { computed, ref, watch } from 'vue';
-import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
-import { artikelVan, beginwaarden, schermveld } from '../gedeeld/formulier';
+// where to record it instead: the server refuses it anyway. The articles the
+// fields rest on stand on a page of their own in the sheet (`herkomst`), per
+// article, with who fills each field; its address is the sheet's with
+// `herkomst` (vastlegadres.ts), so the back button leads back to the form.
+import { computed, ref, useId, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { kleineLetter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { beginwaarden, geordend, schermveld } from '../gedeeld/formulier';
 import type { Formulierveld, Schermveld } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Gram, Handeling, Vormen } from '../gedeeld/types';
 import type { Vastlegging } from './api';
 import { feitNaam } from './feit';
+import { leesVastlegHash, vastlegHash } from './vastlegadres';
 
 const props = defineProps<{
   /**
@@ -61,8 +65,12 @@ const velden = computed(() => alle.value.filter((v) => !(v.veld.naam in systeem.
  * holds carries its value and where it comes from (`systeem`), and shows
  * read-only in its place in its group.
  */
+// One flat list without group headings: the groups of the UI spec are those
+// of the applicant's form ("Uw persoonsgegevens"), which an employee reads as
+// about themselves.
 const formvelden = computed<Formulierveld[]>(() =>
-  alle.value.map((v: Schermveld) => {
+  alle.value.map((s: Schermveld) => {
+    const v = { ...s, groep: '' };
     const naam = v.veld.naam;
     if (naam in uitVerzoek.value) return { ...v, systeem: { waarde: uitVerzoek.value[naam], herkomst: 'Uit het verzoek.' } };
     const hoe = systeem.value[naam];
@@ -76,11 +84,37 @@ const formvelden = computed<Formulierveld[]>(() =>
     };
   }),
 );
+/** The fields per article they rest on, in the order of the form and of the first field of each, with who fills each. */
+const herkomstPerArtikel = computed(() => {
+  const per = new Map<string, { naam: string; tekst: string }[]>();
+  for (const v of geordend(formvelden.value, props.volgorde).flatMap((g) => g.velden)) {
+    const artikel = v.veld.basis || 'Zonder artikel';
+    const bij = per.get(artikel) ?? [];
+    per.set(artikel, bij);
+    const wie = v.systeem ? kleineLetter(v.systeem.herkomst) : 'u vult dit in.';
+    bij.push({ naam: v.veld.naam, tekst: `${v.label}: ${wie}` });
+  }
+  return [...per].map(([artikel, gegevens]) => ({ artikel, gegevens }));
+});
+const route = useRoute();
+const router = useRouter();
+const adres = computed(() =>
+  props.keuze ? { cel: props.keuze.cel, feit: props.keuze.handeling.feit, bij: props.keuze.verwijst_naar ?? props.keuze.verzoek } : null,
+);
+const HERKOMST = computed(() => (adres.value ? vastlegHash(adres.value, true) : ''));
+const HERKOMST_TITEL = 'Waar deze gegevens vandaan komen';
+const knop = 'Leg vast';
+const pagina = computed<'formulier' | 'herkomst'>(() => (leesVastlegHash(route.hash)?.herkomst ? 'herkomst' : 'formulier'));
+const naar = (herkomst: boolean) => {
+  if (adres.value) void router.push({ path: route.path, query: route.query, hash: vastlegHash(adres.value, herkomst) });
+};
+const titelId = `${useId()}-titel`;
 const titel = computed(() => (props.keuze ? (props.keuze.titel ?? `${feitNaam(props.keuze.handeling.feit)} vastleggen`) : ''));
 
-// Each fact the sheet opens on starts from an empty form and a new key.
+// Each fact the sheet opens on starts from an empty form and a new key; the
+// same fact, found again after the screen reloads, keeps what was typed.
 watch(
-  () => props.keuze,
+  () => (adres.value ? vastlegHash(adres.value) : ''),
   () => {
     waarden.value = beginwaarden(velden.value);
     melding.value = '';
@@ -123,24 +157,58 @@ async function opslaan() {
 <template>
   <Teleport to="body">
     <nldd-sheet width="720px" :open="keuze ? true : undefined" @close="emit('sluit')">
-      <nldd-page>
-        <nldd-top-title-bar slot="header" heading-level="2" :text="titel" dismiss-text="Annuleer"></nldd-top-title-bar>
-        <nldd-simple-section v-if="keuze">
+      <nldd-page :key="`${titel}-${pagina}`" sticky-header>
+        <nldd-top-title-bar
+          slot="header"
+          heading-level="2"
+          :text="pagina === 'herkomst' ? HERKOMST_TITEL : titel"
+          :back-text="pagina === 'herkomst' ? titel : ''"
+          dismiss-text="Annuleer"
+          :collapse-anchor="keuze ? titelId : undefined"
+          @back="naar(false)"
+        ></nldd-top-title-bar>
+        <nldd-simple-section v-if="keuze && pagina === 'herkomst'">
           <nldd-container>
+            <nldd-title :id="titelId" size="display-2" heading-level="2" :text="HERKOMST_TITEL"></nldd-title>
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-text>
+              <p>Elk gegeven komt uit de wet. Hieronder staat per artikel welke gegevens het vraagt, en wie elk gegeven invult.</p>
+            </nldd-text>
+            <template v-for="a in herkomstPerArtikel" :key="a.artikel">
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-title heading-level="3" size="display-6" :text="a.artikel"></nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
+              <nldd-rich-text>
+                <ul>
+                  <li v-for="g in a.gegevens" :key="g.naam">{{ g.tekst }}</li>
+                </ul>
+              </nldd-rich-text>
+            </template>
+          </nldd-container>
+        </nldd-simple-section>
+        <nldd-simple-section v-else-if="keuze">
+          <nldd-container>
+            <nldd-title :id="titelId" size="display-2" heading-level="2" :text="titel"></nldd-title>
+            <nldd-spacer size="24"></nldd-spacer>
             <template v-if="$slots.default">
               <slot></slot>
               <nldd-spacer size="16"></nldd-spacer>
             </template>
-            <nldd-text color="secondary"><p>De gegevens komen uit {{ artikelNaam(artikelVan(keuze.handeling.feit)) }}.</p></nldd-text>
+            <nldd-text>
+              <p>
+                Hieronder staan de
+                <nldd-link><a :href="HERKOMST" @click.prevent="naar(true)">gegevens die de wet hiervoor vraagt</a></nldd-link>.
+              </p>
+            </nldd-text>
             <nldd-spacer size="16"></nldd-spacer>
-            <SpecFormulier :velden="formvelden" :waarden="waarden" :volgorde="volgorde" @zet="(n, v) => (waarden[n] = v)" />
+            <SpecFormulier :velden="formvelden" :waarden="waarden" :volgorde="volgorde" :artikelen="false" @zet="(n, v) => (waarden[n] = v)" />
             <template v-if="melding">
               <nldd-spacer size="16"></nldd-spacer>
               <nldd-inline-dialog icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
             </template>
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-button-group>
-              <nldd-button appearance="primary" text="Vastleggen" :loading="bezig || undefined" @click="opslaan"></nldd-button>
+            <nldd-button-group orientation="vertical">
+              <nldd-button appearance="primary" :text="knop" :loading="bezig || undefined" @click="opslaan"></nldd-button>
             </nldd-button-group>
           </nldd-container>
         </nldd-simple-section>

@@ -43,11 +43,6 @@ describe('omleiding', () => {
     expect(omleiding(naar('/burger/aanvraag', 'burger'), burger)).toBeUndefined();
   });
 
-  it('opens the simulation only for whoever may set the clock', () => {
-    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), medewerker)).toBe('/backoffice');
-    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), { ...medewerker, klok_zetten: true })).toBeUndefined();
-  });
-
   it('opens the server of an external party on its own screen, and nowhere else', () => {
     const arts: Ik = { ...geen, niveau: 'beslisser', partijen_invoeren: true, partij: { cel: 'g', cel_naam: 'G' } };
     expect(omleiding(naar('/'), arts)).toBe('/backoffice');
@@ -55,9 +50,8 @@ describe('omleiding', () => {
       expect(omleiding(naar(pad, 'backoffice', naam), arts)).toBe('/backoffice/verzoeken');
     }
     expect(omleiding(naar('/backoffice/verzoeken', 'backoffice', 'partij'), arts)).toBeUndefined();
-    // The clock is for its admin only; without it the party's screen again.
-    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), arts)).toBe('/backoffice');
-    expect(omleiding(naar('/backoffice/simulatie', 'backoffice', 'simulatie'), { ...arts, klok_zetten: true })).toBeUndefined();
+    // A sheet over the screen, such as the clock, comes along to the party's screen.
+    expect(omleiding({ ...naar('/backoffice', 'backoffice', 'werkvoorraad'), hash: '#klok' }, arts)).toEqual({ path: '/backoffice/verzoeken', hash: '#klok' });
     // A reader of the party enters nothing, so has no screen there.
     expect(omleiding(naar('/backoffice', 'backoffice', 'werkvoorraad'), { ...arts, niveau: 'lezer', partijen_invoeren: false })).toBe('/inloggen');
     // The executor's employees never get the party's screen.

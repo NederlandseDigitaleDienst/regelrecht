@@ -218,6 +218,8 @@ struct Field {
     when_false: Option<String>,
     record: Option<Record>,
     parts: Option<Vec<Part>>,
+    /// How many lines a text field shows ([`Veldtekst::lines`]).
+    lines: Option<u8>,
     #[serde(default)]
     required: bool,
     editable: Option<bool>,
@@ -393,6 +395,11 @@ pub struct Veldtekst {
     /// The texts on a screen that shows a recorded submission, where they differ.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub record: Option<Stuktekst>,
+    /// How many lines a text field shows when empty: a field for a few
+    /// sentences, such as the content of a letter, says so before anyone
+    /// types. Without it the field is one line.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lines: Option<u8>,
 }
 
 /// How a screen that shows a recorded submission names a field, where that
@@ -1096,6 +1103,8 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
     // `record`): the text, and the element that gave it.
     let mut gegeven: BTreeMap<(String, &'static str), (String, String)> = BTreeMap::new();
     let mut samenvatting: BTreeSet<String> = BTreeSet::new();
+    // Per field the number of lines, and the element that gave it.
+    let mut regels: BTreeMap<String, (u8, String)> = BTreeMap::new();
     for (i, element) in elements.iter().enumerate() {
         let naam = element_name(element.id.as_ref(), i);
         for field in &element.fields {
@@ -1119,16 +1128,35 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
                 ),
             ];
             let in_samenvatting = record.is_some_and(|r| r.summary);
-            if teksten.iter().all(|(_, t)| t.is_none()) && !in_samenvatting {
+            if teksten.iter().all(|(_, t)| t.is_none()) && !in_samenvatting && field.lines.is_none()
+            {
                 continue;
             }
             let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
                 return Err(format!(
-                    "the UI spec: {naam} gives a `label`, `help`, `group`, `when_true`, `when_false` or `record` to a field without a `name`"
+                    "the UI spec: {naam} gives a `label`, `help`, `group`, `when_true`, `when_false`, `record` or `lines` to a field without a `name`"
                 ));
             };
             if in_samenvatting {
                 samenvatting.insert(veld.to_string());
+            }
+            if let Some(n) = field.lines {
+                if n < 2 {
+                    return Err(format!(
+                        "the UI spec: {naam} gives '{veld}' `lines: {n}`; a field without `lines` is one line already"
+                    ));
+                }
+                match regels.get(veld) {
+                    Some((eerder, door)) if *eerder != n => {
+                        return Err(format!(
+                            "the UI spec: {door} and {naam} give '{veld}' a different `lines`"
+                        ));
+                    }
+                    Some(_) => {}
+                    None => {
+                        regels.insert(veld.to_string(), (n, naam.clone()));
+                    }
+                }
             }
             for (wat, tekst) in teksten {
                 let Some(tekst) = tekst else { continue };
@@ -1168,6 +1196,9 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
             .record
             .get_or_insert_default()
             .summary = true;
+    }
+    for (veld, (n, _)) in regels {
+        uit.entry(veld).or_default().lines = Some(n);
     }
     Ok(uit)
 }
@@ -2014,6 +2045,32 @@ elements:
     }
 
     #[test]
+    fn a_field_may_say_how_many_lines_it_shows() {
+        let spec = lees(
+            "elements:
+              - id: UI1
+                fields: [{name: inhoud, lines: 6}]
+              - id: UI2
+                fields: [{name: inhoud, label: Inhoud, lines: 6}]",
+        )
+        .unwrap();
+        let t = &spec.teksten["inhoud"];
+        assert_eq!(t.lines, Some(6));
+        assert_eq!(t.label.as_deref(), Some("Inhoud"));
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, lines: 3}]},
+                        {id: UI2, fields: [{name: x, lines: 4}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            e.contains("UI1 and UI2 give 'x' a different `lines`"),
+            "{e}"
+        );
+        let e = lees("elements: [{id: UI1, fields: [{name: x, lines: 1}]}]").unwrap_err();
+        assert!(e.contains("UI1 gives 'x' `lines: 1`"), "{e}");
+    }
+
+    #[test]
     fn two_elements_that_name_a_field_differently_are_refused() {
         let e = lees(
             "elements: [{id: UI1, fields: [{name: x, label: Een}]},
@@ -2038,7 +2095,7 @@ elements:
         let e = lees("elements: [{id: UI1, fields: [{label: Een}]}]").unwrap_err();
         assert!(
             e.contains(
-                "UI1 gives a `label`, `help`, `group`, `when_true`, `when_false` or `record` to a field without a `name`"
+                "UI1 gives a `label`, `help`, `group`, `when_true`, `when_false`, `record` or `lines` to a field without a `name`"
             ),
             "{e}"
         );
@@ -2117,7 +2174,10 @@ elements:
             lees("elements: [{id: UI1, fields: [{name: x, record: {titel: Een}}]}]").unwrap_err();
         assert!(e.contains("titel"), "{e}");
         let e = lees("elements: [{id: UI1, fields: [{record: {label: Een}}]}]").unwrap_err();
-        assert!(e.contains("`record` to a field without a `name`"), "{e}");
+        assert!(
+            e.contains("`record` or `lines` to a field without a `name`"),
+            "{e}"
+        );
     }
 
     #[test]

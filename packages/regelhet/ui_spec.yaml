@@ -30,7 +30,8 @@
 # Volgorde en groepering: het scherm toont de velden in de volgorde van deze
 # beschrijving, onder de kop van hun `group`. `label` en `help` zeggen hoe een
 # veld heet en wat eronder staat; zonder die twee heet een veld naar zijn naam
-# in het regelwerk.
+# in het regelwerk. `lines` maakt van een tekstveld een vak van zoveel regels,
+# voor een antwoord van een paar zinnen; zonder is het één regel.
 #
 # Die drie zijn de teksten van het formulier, en dat spreekt wie het invult
 # aan. Een scherm dat een vastgelegd stuk toont, praat óver de indiening: het
@@ -246,11 +247,21 @@ elements:
         group: Wat er gebeurde
         label: Wat is er gebeurd?
         help: Bijvoorbeeld waar u de kaart voor het laatst had, of dat zij gestolen is.
+        lines: 3
         record: {label: Wat er gebeurde, help: ''}
       - name: verklaring_naar_waarheid
         group: Wat er gebeurde
         label: Ik verklaar dat de kaart kwijt is en dat ik dit naar waarheid heb ingevuld
         record: {label: Verklaard naar waarheid}
+  # Wat een medewerker vastlegt over een bericht of een verzoek aan de
+  # burger: de tekst ervan beslaat een paar zinnen, dus het veld ook.
+  - id: UI7
+    element: berichten en verzoeken
+    fields:
+      - name: ontbrekende_gegevens
+        lines: 3
+      - name: inhoud
+        lines: 6
   # De oordelen die het recht aan een cel laat: wat de beslisser van de
   # gemeente invult, en wat de GGD en de rechtbank via het beheerpaneel
   # invullen. Het label blijft het begrip uit het regelwerk; `when_true` en

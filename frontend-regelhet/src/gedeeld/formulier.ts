@@ -21,6 +21,8 @@ export interface Schermveld {
   /** A yes and a no in words (`when_true`, `when_false`), where the UI spec gives them. */
   ja?: string;
   nee?: string;
+  /** The lines its input shows (`lines`), where the UI spec gives them. */
+  regels?: number;
 }
 
 /**
@@ -41,6 +43,7 @@ export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}, stuk = f
     groep: tekst.group ?? '',
     ja: tekst.when_true,
     nee: tekst.when_false,
+    regels: eigen.lines,
   };
 }
 
@@ -186,6 +189,7 @@ function metDelen(veld: Formulierveld, delen: Vormen['delen'] = {}): Formulierve
     veld: { ...veld.veld, naam: deelsleutel(veld.veld.naam, d.naam) },
     label: d.label ?? d.naam,
     help: d.help ?? '',
+    regels: undefined,
     deel: { veld: veld.veld.naam, naam: d.naam, autocomplete: d.autocomplete, keyboard: d.keyboard, width: d.width },
   }));
 }

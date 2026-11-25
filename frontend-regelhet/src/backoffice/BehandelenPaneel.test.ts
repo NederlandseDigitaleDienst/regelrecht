@@ -441,7 +441,7 @@ describe('the decision as it would be taken', () => {
     // The findings page has no heading of its own for them: the page is about nothing else.
     await r.push({ path: r.currentRoute.value.path, hash: '#besluiten' });
     await rond();
-    expect(w.findAll('nldd-sheet nldd-title').map((t) => t.attributes('text'))).toEqual(['Besluiten']);
+    expect(w.findAll('nldd-sheet[accessible-label="Besluiten"] nldd-title').map((t) => t.attributes('text'))).toEqual(['Besluiten']);
     // While no decision can be computed, the findings page says what is missing and leads nowhere.
     voorvertoning.mockResolvedValue({ stil: [vraag], geweigerd: 'missing' });
     await r.push({ path: r.currentRoute.value.path, hash: '#besluiten' });
@@ -575,12 +575,14 @@ describe('what was asked of another party', () => {
     expect(lijst(w).find('nldd-text-cell').attributes('supporting-text')).toBe('Aan GGD Voorbeeld, op 15 november 2026. Het antwoord is nog niet binnen.');
   });
 
-  it('says at the top whom the submission waits on and why', async () => {
+  it('says under the title and its buttons whom the submission waits on and why', async () => {
     verzoeken.mockResolvedValueOnce({ verzoeken: [verzoek('v', { aanvraag: 'c' }), { ...verzoek('w', { aanvraag: 'c' }), open: false }] });
     const w = toon(stand, [aanvraag]);
     await rond();
     const banner = w.find('nldd-banner[icon="time"]');
     expect(banner.attributes('text')).toBe('Wacht op GGD Voorbeeld');
+    expect(w.html().indexOf('icon="time"')).toBeGreaterThan(w.html().indexOf('id="indiening-titel"'));
+    expect(w.html().indexOf('icon="time"')).toBeGreaterThan(w.html().indexOf('text="Besluiten"'));
     expect(banner.attributes('supporting-text')).toBe(`Onderzoek gevraagd op 15 november 2026, volgens ${artikelNaam('beleid#9')}.`);
   });
 
@@ -631,6 +633,21 @@ describe('the timeline under the pane', () => {
     sheet().trigger('close');
     await flushPromises();
     expect(sheet().attributes('open')).toBeUndefined();
+  });
+
+  it('opens the letter about the submission from its row in a bottom sheet, at an address of its own', async () => {
+    tijdlijn.mockResolvedValueOnce({ stuk: 'c', grammen: [bezwaar, opBezwaar], stand, door_het_systeem: {}, volgende: [] });
+    const r = router();
+    const w = toon(stand, [bezwaar, opBezwaar], [], r);
+    const ontvangst = { id: 'ontvangst', patroon: 'ontvangstbevestiging', vastlegging: { rol: 'indiening' as const, artikel: 'awb#7:11' }, delen: [] };
+    await w.setProps({ vormen: { teksten: {}, indieningen: {}, besluiten: {}, berichten: { berichtsoorten: [ontvangst] } } as never });
+    await rond();
+    const rij = w.findAll('nldd-list[accessible-label="Tijdlijn van de aanvraag"] nldd-list-item')[0]!;
+    await rij.find('nldd-icon-button[text="Bericht"]').trigger('click');
+    await flushPromises();
+    expect(r.currentRoute.value.hash).toBe('#bericht/c');
+    const sheet = w.find('nldd-sheet[accessible-label="Bericht"]');
+    expect([sheet.attributes('placement'), sheet.attributes('open')]).toEqual(['bottom', 'true']);
   });
 
   it('leads from a decision on another submission to that pane, and gives a record of another cell no button', async () => {

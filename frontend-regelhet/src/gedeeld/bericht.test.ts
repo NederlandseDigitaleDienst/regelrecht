@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   STANDAARDSOORT,
   berichtsoortVoor,
+  heeftBrief,
   isVerzending,
   maakBericht,
   rechtsmiddelenVan,
@@ -12,7 +13,7 @@ import {
   verzondenBericht,
 } from './bericht';
 import Bericht from './Bericht.vue';
-import type { Berichtenspec, Berichtsoort, Gram, Vormen, Waarom } from './types';
+import type { Berichtenspec, Berichtsoort, Gram, Stand, Vormen, Waarom } from './types';
 
 // A fictitious allowance of a fictitious municipality: two parts that add up
 // to the amount granted. Neutral on purpose; the template is generic.
@@ -364,6 +365,17 @@ describe('a message sent', () => {
     fields: velden,
     recorded_on: '2026-10-21',
     recording_actor: 'gemeente',
+  });
+
+  it('tells which records have a letter apart from their page: a message sent and a submission the spec writes about, never a decision', () => {
+    const ontvangst: Berichtsoort = { ...soort, id: 'ontvangstbevestiging', vastlegging: { rol: 'indiening', artikel: 'voorbeeldwet#3' } };
+    const metOntvangst: Berichtenspec = { ...verzendspec, berichtsoorten: [soort, ontvangst] };
+    const stand: Pick<Stand, 'rollen'> = { rollen: { [aanvraag.id]: 'indiening', [g.id]: 'besluit', v1: 'vastlegging' } };
+    expect(heeftBrief(aanvraag, stand, metOntvangst)).toBe(true);
+    expect(heeftBrief(aanvraag, stand, verzendspec)).toBe(false);
+    // A decision has a message too, but its page is that message.
+    expect(heeftBrief(g, stand, metOntvangst)).toBe(false);
+    expect(heeftBrief(feit({ inhoud: '{}', hash: 'x' }), stand, verzendspec)).toBe(true);
   });
 
   it('hashes with SHA-256', () => {

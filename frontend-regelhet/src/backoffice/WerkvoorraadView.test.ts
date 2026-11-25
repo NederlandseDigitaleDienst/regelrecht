@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { EigenVerzoek, Kroniek } from './api';
+import { menuactie } from '../gedeeld/schil';
 import type { Casus, Gram, Ik, Vervolgstand, Vormen } from '../gedeeld/types';
 import WerkvoorraadView from './WerkvoorraadView.vue';
 
@@ -35,7 +36,7 @@ const vormen: Vormen = {
     cel: 'gemeente',
     cel_naam: 'gemeente Voorbeeld',
     handelingen: [
-      { feit: 'wet#9#betaling_gedaan', velden: [{ naam: 'bedrag', type: 'amount' }] },
+      { feit: 'wet#9#betaling_ontvangen', velden: [{ naam: 'bedrag', type: 'amount' }] },
       { feit: 'beleid#5#vergunning_gedrukt', velden: [{ naam: 'datum_druk', type: 'date' }], systeem: { datum_druk: { soort: 'datum', waarde: '2026-10-13' } } },
       { feit: 'beleid#5#vergunning_verzonden', velden: [{ naam: 'datum_verzending', type: 'date' }] },
     ],
@@ -120,6 +121,8 @@ async function toon(cellen: Ik['cellen'], lijst?: string, open?: string) {
 
 type Scherm = Awaited<ReturnType<typeof toon>>;
 const knoppen = (w: Scherm) => w.findAll('nldd-button').map((b) => b.attributes('text'));
+/** What the Vastleggen menu offers in the shell's bar, as the screen last mounted set it. */
+const vastleggen = (_w: Scherm) => menuactie.value?.opties.map((o) => o.tekst) ?? [];
 /** The rows of the open list. */
 const rijenVan = (w: Scherm, lijst = 'Te doen') => w.findAll(`nldd-list[accessible-label="${lijst}"] nldd-list-item`);
 /** The rows of Te doen that open a submission beside it. */
@@ -202,7 +205,7 @@ describe('the work queue', () => {
   it('lets a decider of the cell open a submission to decide on it', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }]);
     expect(teOpenen(w)).toBe(1);
-    expect(knoppen(w)).not.toContain('Advies uitgebracht vastleggen');
+    expect(vastleggen(w)).not.toContain('Uitgebracht advies');
   });
 
   it('opens nothing for an address that names no submission of the cell, and asks for a choice', async () => {
@@ -224,11 +227,31 @@ describe('the work queue', () => {
 
   it('offers a decider the facts the executor records, a reader nothing, and nobody an external party\'s', async () => {
     const recht = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true };
-    const decider = knoppen(await toon([{ ...recht, beslissen: true }]));
-    expect(decider).toContain('Betaling gedaan vastleggen');
+    const w = await toon([{ ...recht, beslissen: true }]);
+    expect(menuactie.value?.tekst).toBe('Vastleggen');
+    expect(vastleggen(w)).toEqual(['Ontvangen betaling']);
     // The advisor's advice goes through the admin panel, not the work queue.
-    expect(decider).not.toContain('Advies uitgebracht vastleggen');
-    expect(knoppen(await toon([{ ...recht, beslissen: false }]))).toEqual([]);
+    expect(vastleggen(w)).not.toContain('Uitgebracht advies');
+    // Choosing it opens the sheet of that fact.
+    menuactie.value?.opties[0]?.kies();
+    await flushPromises();
+    expect(w.findComponent({ name: 'FeitVastleggen' }).props('keuze')?.handeling.feit).toBe('wet#9#betaling_ontvangen');
+    // The sheet has an address on the screen it opened over, so a link to it opens it there.
+    expect(w.router.currentRoute.value.hash).toBe('#vastleggen/gemeente/betaling_ontvangen');
+    const opAanvraag = await toon([{ ...recht, beslissen: true }], 'te-doen', 'a');
+    await opAanvraag.router.push({ path: '/backoffice/behandelen/gemeente/a', hash: '#vastleggen/gemeente/betaling_ontvangen' });
+    await flushPromises();
+    expect(opAanvraag.findComponent({ name: 'FeitVastleggen' }).props('keuze')?.handeling.feit).toBe('wet#9#betaling_ontvangen');
+    // An address for a fact this screen does not offer opens nothing.
+    await opAanvraag.router.push({ path: '/backoffice', hash: '#vastleggen/gemeente/advies_uitgebracht' });
+    await flushPromises();
+    expect(opAanvraag.findComponent({ name: 'FeitVastleggen' }).props('keuze')).toBeNull();
+    opAanvraag.unmount();
+    const lezer = await toon([{ ...recht, beslissen: false }]);
+    expect(menuactie.value).toBeNull();
+    expect(knoppen(lezer)).toEqual([]);
+    lezer.unmount();
+    expect(menuactie.value).toBeNull();
   });
 
   it('shows each grant that still waits and how far it is, and lets a decider open its next act', async () => {
@@ -245,10 +268,9 @@ describe('the work queue', () => {
     // By name, as the application recorded it; the number only where there is no name.
     expect(cel?.attributes('text')).toBe('Vergunning voor A. de Vries');
     expect(cel?.attributes('supporting-text')).toBe('Vergunning gedrukt op 14 oktober 2026 · Volgende stap: Vergunning verzenden');
-    const knoppenVanDecider = knoppen(decider);
     // An act after a grant is never offered on its own.
-    expect(knoppenVanDecider).not.toContain('Vergunning gedrukt vastleggen');
-    expect(knoppenVanDecider).not.toContain('Vergunning verzonden vastleggen');
+    expect(vastleggen(decider)).not.toContain('Gedrukt vergunning');
+    expect(vastleggen(decider)).not.toContain('Verzonden vergunning');
     // A reader sees how far it is, without the button.
     const lezer = await toon([{ ...recht, beslissen: false }], 'na-toekenning');
     const rij = lezer.find('nldd-list[accessible-label="Na toekenning"] nldd-list-item');
@@ -332,8 +354,14 @@ describe('the work queue', () => {
       expect(dialoog.attributes('heading-level')).toBe('3');
       // No title and no description above an empty list: the dialog says what matters.
       expect(w.find('#lijst-titel').exists()).toBe(false);
-      // Nothing to choose, so the main pane does not ask for a choice.
+      // Nothing to choose: no list column, and the main pane says it instead of asking for a choice.
+      expect(w.find('[slot="secondary-sidebar"]').exists()).toBe(false);
+      expect(dialoog.element.closest('[slot="main"]')).not.toBeNull();
       expect(w.findAll('nldd-inline-dialog').map((d) => d.attributes('text'))).not.toContain('Kies een aanvraag');
+      // Stacked, the lists show until one is opened.
+      expect(w.find('[slot="main"]').attributes('empty')).toBe('true');
+      const open = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: true }], 'te-doen');
+      expect(open.find('[slot="main"]').attributes('empty')).toBeUndefined();
       expect(w.findAll('nldd-text').map((t) => t.text())).not.toContain('Alles waarvan de volgende stap hier ligt, wat het langst wacht bovenaan.');
     } finally {
       vervolg.push(...bewaard);

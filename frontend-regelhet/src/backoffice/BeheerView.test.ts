@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { Casus, Gram, Ik, Vormen } from '../gedeeld/types';
 import type { Partijen } from './api';
+import { menuactie } from '../gedeeld/schil';
 import BeheerView from './BeheerView.vue';
 
 const casus: Casus = {
@@ -63,6 +64,8 @@ async function toon(partijen: Partijen['partijen'], antwoord_op_verzoek: string[
 }
 
 const knoppen = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-button').map((b) => b.attributes('text'));
+/** What the Vastleggen menu in the shell's bar offers, per party. */
+const menu = () => menuactie.value?.opties.map((o) => `${o.groep}: ${o.tekst}`) ?? [];
 
 describe('the admin panel', () => {
   it('offers the facts a party records, a decision on what waits, and a copy to send', async () => {
@@ -70,7 +73,14 @@ describe('the admin panel', () => {
       { cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] },
       { cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [{ stuk: gram('b1', 'BEROEP') }], toe_te_zenden: [gram('u1', 'UITSPRAAK')], verzoeken: [] },
     ]);
-    expect(knoppen(w)).toEqual(['Advies uitgebracht vastleggen', 'Afschrift toezenden']);
+    // What a party records on its own sits in the Vastleggen menu, under the party's name.
+    expect(knoppen(w)).toEqual(['Afschrift toezenden']);
+    expect(menu()).toEqual(['Adviseur Voorbeeld: Uitgebracht advies']);
+    menuactie.value?.opties[0]?.kies();
+    await flushPromises();
+    expect(w.findComponent({ name: 'FeitVastleggen' }).props('keuze')?.cel).toBe('adviseur');
+    // The panel explains itself and each party behind an info button.
+    expect(w.findAll('nldd-icon-button[icon="info"]').map((b) => b.attributes('text'))).toEqual(['Over het beheerpaneel', 'Over Adviseur Voorbeeld']);
     // The appeal opens beside the panel, to decide on the court's behalf.
     expect(w.findAll('nldd-list-item').filter((r) => r.attributes('button') !== undefined)).toHaveLength(1);
   });
@@ -99,14 +109,22 @@ describe('the admin panel', () => {
     );
     // The answer starts at the request; on its own it is only kept in
     // reserve, for an applicant without an open request.
-    expect(knoppen(w)).toEqual(['Advies uitgebracht vastleggen zonder verzoek']);
+    expect(menu()).toEqual(['Adviseur Voorbeeld: Uitgebracht advies zonder verzoek']);
     const cel = w.find('nldd-text-cell');
     expect(cel.attributes('text')).toBe('Verzoek om onderzoek ontvangen');
     expect(cel.attributes('supporting-text')).toContain('13 oktober 2026');
     await w.find('nldd-list-item[button]').trigger('click');
-    // The sheet opens on the answer, with what the request already holds.
+    await flushPromises();
+    // The sheet opens on the answer, with what the request already holds, at an address of its own.
     const sheet = w.findComponent({ name: 'FeitVastleggen' });
     expect(sheet.props('keuze')).toMatchObject({ cel: 'adviseur', verzoek: 'v1', vast: { advies: true } });
+    const router = w.vm.$router;
+    expect(router.currentRoute.value.hash).toBe('#vastleggen/adviseur/advies_uitgebracht/v1');
+    // Closing the sheet takes the address away again.
+    sheet.vm.$emit('sluit');
+    await flushPromises();
+    expect(router.currentRoute.value.hash).toBe('');
+    expect(w.findComponent({ name: 'FeitVastleggen' }).props('keuze')).toBeNull();
   });
 
   it('says so when the process asks nothing of a party', async () => {
@@ -126,13 +144,17 @@ describe('the admin panel', () => {
     expect(link.attributes('href')).toBe('https://adviseur.example.org');
     expect(link.attributes('target')).toBe('_blank');
     expect(w.find('nldd-banner[variant="warning"]').exists()).toBe(false);
+    // A party the panel only points to has nothing in the Vastleggen menu.
+    expect(menu()).toEqual([]);
 
     await w.find('nldd-button[text="Toch hier invoeren"]').trigger('click');
-    expect(knoppen(w)).toEqual(['Naar het systeem van Adviseur Voorbeeld', 'Invoer hier verbergen', 'Advies uitgebracht vastleggen']);
+    expect(knoppen(w)).toEqual(['Naar het systeem van Adviseur Voorbeeld', 'Invoer hier verbergen']);
+    expect(menu()).toEqual(['Adviseur Voorbeeld: Uitgebracht advies']);
     expect(w.find('nldd-banner[variant="warning"]').attributes('text')).toBe('Adviseur Voorbeeld werkt in een eigen systeem');
 
     await w.find('nldd-button[text="Invoer hier verbergen"]').trigger('click');
     expect(knoppen(w)).toEqual(['Naar het systeem van Adviseur Voorbeeld', 'Toch hier invoeren']);
+    expect(menu()).toEqual([]);
   });
 
   it('offers no way to enter for a linked party when the server does not', async () => {

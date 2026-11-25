@@ -10,16 +10,18 @@
 // decision on it was annulled. Under that, for an application, how far the
 // acts after its grant are and what the citizen can apply for about it, such
 // as a duplicate, as the dossier gives them (`vervolg`, `aanvragen`). A
-// decision opens in BesluitPaneel.vue. On top, without a heading, stand how
+// decision opens in BesluitPaneel.vue. The letter about the record, such as
+// the acknowledgement of an application, opens from its row in the timeline
+// beside it (gedeeld/BriefSheet.vue); only a message sent, which is nothing but its
+// letter, shows it on the page. On top, without a heading, stand how
 // an application stands (`status`) and the few fields the UI spec puts in the
 // summary of a record (`record.summary`): what was asked. Those are not shown
 // again under what was submitted.
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { useRoute, useRouter } from 'vue-router';
 import Bericht from '../gedeeld/Bericht.vue';
-import { berichtsoortVoor, isVerzending } from '../gedeeld/bericht';
-import { burgerApi } from './api';
+import { isVerzending } from '../gedeeld/bericht';
 import { longDate } from '../gedeeld/datum';
 import { herkomstenOpStuk, kaalSchermveld, opVolgorde, stukWaarde } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
@@ -60,31 +62,8 @@ const vraagAan = (a: Vervolgaanvraag & { op: string }) =>
   router.push({ path: route.path, query: { artikel: a.artikel, op: a.op }, hash: AANVRAAG });
 
 const stuk = computed(() => props.dossier.find((g) => g.id === props.id) ?? null);
-/**
- * The kind of message of the message spec for this record, if it has one:
- * a submission or a fact the authority writes about (gedeeld/bericht.ts). A
- * submission's message reads what it gives under its own article, such as
- * the last day of the period to decide (`GET /api/dossier/uitkomsten`).
- */
-const brief = computed(() =>
-  stuk.value
-    ? isVerzending(stuk.value, props.vormen?.berichten) || berichtsoortVoor(stuk.value, rolVan(stuk.value, props.stand), props.vormen?.berichten)
-    : undefined,
-);
-const uitkomsten = ref<Record<string, unknown> | null>(null);
-watch(
-  () => (brief.value && stuk.value && isIndiening(stuk.value, props.stand) ? stuk.value.id : undefined),
-  async (id) => {
-    uitkomsten.value = null;
-    if (!id) return;
-    try {
-      uitkomsten.value = await burgerApi.uitkomsten(id);
-    } catch {
-      // Without them the letter shows what the submission holds.
-    }
-  },
-  { immediate: true },
-);
+/** A message sent is nothing but its letter, frozen as it went: the page shows it. */
+const verzonden = computed(() => !!stuk.value && isVerzending(stuk.value, props.vormen?.berichten));
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
 /** A record in words with its date: `besluit (beschikking) van 13 oktober 2026`. */
 const omschrijf = (g: Gram) => omschrijving(g, props.casus, rolVan(g, props.stand));
@@ -287,8 +266,8 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
           :label="indiening ? 'Wat u indiende' : 'Wat er is vastgelegd'"
           :bij="[{ naam: 'grondslag', label: 'Op grond van', waarde: artikelNaam(stuk.basis) }]"
         />
-        <!-- The message about the record, where the message spec has one: the acknowledgement of an application, an invitation to complete it. -->
-        <template v-if="brief">
+        <!-- A message sent is its letter; the letter about any other record opens from the timeline. -->
+        <template v-if="verzonden">
           <nldd-spacer size="24"></nldd-spacer>
           <nldd-title size="display-5"><h4>Bericht</h4></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
@@ -297,7 +276,6 @@ const open = (g: Gram) => router.push({ name: 'stuk', params: { id: g.id } });
             :rol="rolVan(stuk, stand)"
             :vormen="vormen"
             :grammen="dossier"
-            :uitkomsten="uitkomsten"
             :afzender="naamVanCel(stuk.recording_actor)"
             :cel-naam="naamVanCel"
             weergave="burger"

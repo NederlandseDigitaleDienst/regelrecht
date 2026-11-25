@@ -18,9 +18,10 @@ import { useRoute, useRouter } from 'vue-router';
 // The page height the shell needs; see the comment in that file.
 import './schil.css';
 import AccountMenuItems from './AccountMenuItems.vue';
+import MenuOpties from './MenuOpties.vue';
 import ProefStrook from './ProefStrook.vue';
 import { isHuidig } from './schil';
-import type { Actie, Tab } from './schil';
+import type { Actie, Menuactie, Tab } from './schil';
 import type { Klok } from './types';
 import { organisatie, titel as serverTitel } from './uiterlijk';
 import { wijsDeWeg } from './wegwijs';
@@ -43,8 +44,12 @@ const props = withDefaults(
     uitvoerder?: string | null;
     /** The one action the side offers, as the primary button beside the account. */
     actie?: Actie | null;
+    /** A menu of actions the screen on view offers, as an expandable button beside the account. */
+    menu?: Menuactie | null;
+    /** The tools of the test setup, such as setting the clock: items of the account menu that open their hash. */
+    gereedschap?: Actie[];
   }>(),
-  { afmeldTekst: 'Uitloggen', klok: null, rechten: () => [], titel: null, uitvoerder: null, actie: null, onder: null },
+  { afmeldTekst: 'Uitloggen', klok: null, rechten: () => [], titel: null, uitvoerder: null, actie: null, menu: null, gereedschap: () => [], onder: null },
 );
 const emit = defineEmits<{ afmelden: [] }>();
 
@@ -61,12 +66,23 @@ const kopTitel = computed(
     props.titel ??
     (organisatie.value?.voorkant ? organisatie.value.naam : zichtbaar.value.length ? null : serverTitel.value),
 );
+/** Under the title of a side without tabs, the executor it belongs to; a side with
+ *  tabs has it in the middle, and a way back to the organisation already names it. */
+const kopOnder = computed(() =>
+  props.uitvoerder && !zichtbaar.value.length && !terugNaarOrganisatie.value && props.uitvoerder !== kopTitel.value ? props.uitvoerder : undefined,
+);
 /** The bar's title sits at its left edge, with no button before it: then the bar takes extra room on the left. */
 const titelLinks = computed(() => !!kopTitel.value && !terugNaarOrganisatie.value);
 const huidig = (t: Tab) => isHuidig(t, route.name);
 const open = (t: Tab) => {
   if (!huidig(t) || route.path !== t.pad) void router.push(t.pad);
 };
+/** The bar from md up, twice: on md a screen's menu is an icon button, from lg a button with its text. */
+const BALKEN = [
+  { slot: 'primary-bar-md', only: 'md', above: undefined, compact: true },
+  { slot: 'primary-bar', only: undefined, above: 'lg', compact: false },
+] as const;
+const gereedschapItems = computed(() => props.gereedschap.map((g) => ({ tekst: g.tekst, icoon: g.icoon, destructief: g.destructief, kies: () => ga(g.hash) })));
 const ga = (hash: string) => {
   if (route.hash !== hash) void router.push({ path: route.path, query: route.query, hash });
 };
@@ -84,13 +100,21 @@ const wijzen = computed(
     <nldd-bar-split-view>
       <div slot="proefstrook"><ProefStrook :klok="klok" /></div>
 
-      <nldd-container slot="primary-bar" above="md" padding="8" :padding-left="titelLinks ? '16' : undefined">
+      <nldd-container
+        v-for="b in BALKEN"
+        :key="b.slot"
+        :slot="b.slot"
+        :only="b.only"
+        :above="b.above"
+        padding="8"
+        :padding-left="titelLinks ? '16' : undefined"
+      >
         <nldd-toolbar size="md">
           <nldd-toolbar-item v-if="terugNaarOrganisatie" slot="start" :priority="0">
             <nldd-button appearance="neutral-transparent" start-icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-button>
             <nldd-menu-item slot="overflow" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-menu-item>
           </nldd-toolbar-item>
-          <nldd-toolbar-title v-if="kopTitel" slot="start" :text="kopTitel"></nldd-toolbar-title>
+          <nldd-toolbar-title v-if="kopTitel" slot="start" :text="kopTitel" :supporting-text="kopOnder"></nldd-toolbar-title>
           <nldd-toolbar-title v-if="uitvoerder && zichtbaar.length" slot="center" align="center" :text="uitvoerder"></nldd-toolbar-title>
           <nldd-toolbar-item v-if="zichtbaar.length" slot="start" :priority="1">
             <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
@@ -126,16 +150,33 @@ const wijzen = computed(
             </nldd-just-in-time-education>
             <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>
           </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="menu" slot="end" :priority="2">
+            <nldd-icon-button v-if="b.compact" size="md" :icon="menu.icoon" :text="menu.tekst" tooltip-timing="never" expandable>
+              <nldd-menu slot="popup" placement="bottom-end">
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-icon-button>
+            <nldd-button v-else appearance="secondary" :start-icon="menu.icoon" :text="menu.tekst" expandable>
+              <nldd-menu slot="popup" placement="bottom-end">
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-button>
+            <nldd-menu-item slot="overflow" :icon="menu.icoon" :text="menu.tekst">
+              <nldd-menu>
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button size="md" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
               <nldd-avatar v-if="naam" slot="icon" :name="naam" color="content" icon-aligned decorative></nldd-avatar>
               <nldd-menu slot="popup">
-                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
+                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" :gereedschap="gereedschapItems" kop @afmelden="emit('afmelden')" />
               </nldd-menu>
             </nldd-icon-button>
             <nldd-menu-item slot="overflow" icon="account" text="Account">
               <nldd-menu>
-                <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" @afmelden="emit('afmelden')" />
+                <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" :gereedschap="gereedschapItems" @afmelden="emit('afmelden')" />
               </nldd-menu>
             </nldd-menu-item>
           </nldd-toolbar-item>
@@ -148,21 +189,33 @@ const wijzen = computed(
             <nldd-icon-button size="md" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-icon-button>
             <nldd-menu-item slot="overflow" icon="back" :text="terugNaarOrganisatie.naam" :href="terugNaarOrganisatie.url"></nldd-menu-item>
           </nldd-toolbar-item>
-          <nldd-toolbar-title v-if="kopTitel" slot="start" :text="kopTitel"></nldd-toolbar-title>
+          <nldd-toolbar-title v-if="kopTitel" slot="start" :text="kopTitel" :supporting-text="kopOnder"></nldd-toolbar-title>
           <nldd-toolbar-item v-if="actie" slot="end" :priority="2">
             <nldd-icon-button size="md" appearance="primary" :icon="actie.icoon" :text="actie.tekst" @click="ga(actie.hash)"></nldd-icon-button>
             <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="menu" slot="end" :priority="2">
+            <nldd-icon-button size="md" :icon="menu.icoon" :text="menu.tekst" tooltip-timing="never" expandable>
+              <nldd-menu slot="popup" placement="bottom-end">
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" :icon="menu.icoon" :text="menu.tekst">
+              <nldd-menu>
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button size="md" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
               <nldd-avatar v-if="naam" slot="icon" :name="naam" color="content" icon-aligned decorative></nldd-avatar>
               <nldd-menu slot="popup">
-                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
+                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" :gereedschap="gereedschapItems" kop @afmelden="emit('afmelden')" />
               </nldd-menu>
             </nldd-icon-button>
             <nldd-menu-item slot="overflow" icon="account" text="Account">
               <nldd-menu>
-                <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" @afmelden="emit('afmelden')" />
+                <AccountMenuItems :naam="naam" :afmeld-tekst="afmeldTekst" :gereedschap="gereedschapItems" @afmelden="emit('afmelden')" />
               </nldd-menu>
             </nldd-menu-item>
           </nldd-toolbar-item>
@@ -194,11 +247,23 @@ const wijzen = computed(
             <nldd-button appearance="primary" :text="actie.tekst" :start-icon="actie.icoon" @click="ga(actie.hash)"></nldd-button>
             <nldd-menu-item slot="overflow" :icon="actie.icoon" :text="actie.tekst" @select="ga(actie.hash)"></nldd-menu-item>
           </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="menu" slot="end" :priority="2">
+            <nldd-icon-button size="lg" :icon="menu.icoon" :text="menu.tekst" tooltip-timing="never" expandable>
+              <nldd-menu slot="popup" placement="top-end">
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" :icon="menu.icoon" :text="menu.tekst">
+              <nldd-menu>
+                <MenuOpties :opties="menu.opties" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button size="lg" :icon="naam ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
               <nldd-avatar v-if="naam" slot="icon" :name="naam" color="content" icon-aligned decorative></nldd-avatar>
               <nldd-menu slot="popup">
-                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" kop @afmelden="emit('afmelden')" />
+                <AccountMenuItems :naam="naam" :onder="onder" :afmeld-tekst="afmeldTekst" :gereedschap="gereedschapItems" kop @afmelden="emit('afmelden')" />
               </nldd-menu>
             </nldd-icon-button>
           </nldd-toolbar-item>

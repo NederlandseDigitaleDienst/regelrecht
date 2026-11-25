@@ -14,7 +14,9 @@
 // (`verzoeken`), the records of each exchange and the step that waits on its
 // answer stand under the request: the answer as a step, the receipts as minor
 // steps. An info button on the request opens a sheet with what it adds
-// (VerzoekSheet.vue).
+// (VerzoekSheet.vue). Given what opens the letter about a record
+// (`bericht`), a row with one has an info button that opens the letter
+// instead of the record.
 import { computed, ref } from 'vue';
 import { metVerzoeken, regels, stap } from './tijdlijn';
 import type { Kant, Regel, Verzoekregel } from './tijdlijn';
@@ -34,6 +36,8 @@ const props = defineProps<{
   fout?: string;
   /** The requests of the policy in it, each shown as one row. */
   verzoeken?: VerzoekInDossier[];
+  /** What opens the letter about a record, if it has one. */
+  bericht?: (g: Gram) => (() => void) | undefined;
 }>();
 
 const isVerzoek = (r: Regel): r is Verzoekregel => 'verzoek' in r;
@@ -47,6 +51,7 @@ interface Lijnrij {
   regel: string;
   stand?: Regel['stand'];
   opent?: () => void;
+  brief?: () => void;
   verzoek?: Verzoekregel;
 }
 
@@ -66,6 +71,7 @@ const lijn = computed((): Lijnrij[] => {
         regel: r.regel,
         stand: r.stand,
         opent: isVerzoek(r) || r.gram.id === props.huidig ? undefined : props.opent?.(r.gram),
+        brief: isVerzoek(r) ? undefined : props.bericht?.(r.gram),
         verzoek: isVerzoek(r) ? r : undefined,
       },
       ...(isVerzoek(r) ? r.verzoek.stappen : []).map((s, j): Lijnrij => ({ sleutel: `${r.gram.id}-${j}`, ...s })),
@@ -120,6 +126,19 @@ const verzoek = ref<Verzoekregel | null>(null);
                 icon="info"
                 text="Over dit verzoek"
                 @click="verzoek = r.verzoek"
+              ></nldd-icon-button>
+            </nldd-cell>
+          </template>
+          <template v-else-if="r.brief">
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+            <nldd-cell>
+              <nldd-icon-button
+                size="sm"
+                appearance="neutral-base"
+                icon="info"
+                text="Bericht"
+                :accessible-label="`Bericht bij ${r.tekst.toLowerCase()}`"
+                @click="r.brief()"
               ></nldd-icon-button>
             </nldd-cell>
           </template>

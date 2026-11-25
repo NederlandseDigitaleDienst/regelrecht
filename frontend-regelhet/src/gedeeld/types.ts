@@ -29,6 +29,8 @@ export interface Veldtekst {
   when_false?: string;
   /** The texts on a screen that shows a recorded submission, where they differ from the form's. */
   record?: { label?: string; help?: string; group?: string; summary?: boolean; when_true?: string; when_false?: string };
+  /** The lines a text field shows, for an answer of a few sentences; without it, one. */
+  lines?: number;
 }
 
 /** How the system fills a field of the application (`fill: {by: system}`): shared with the poc. */
