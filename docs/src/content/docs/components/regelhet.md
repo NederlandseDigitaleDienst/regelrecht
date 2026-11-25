@@ -454,6 +454,37 @@ REGELHET_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432
   REGELHET_SURFACE=backoffice REGELHET_PORT=7183 just regelhet
 ```
 
+## Checking a case before it runs
+
+A case that does not load stops the server at start, and on the cluster that shows only after the pod has restarted a few times. `regelrecht-regelhet check <manifest>` gives the same verdict in a second, without a server, a database or a login:
+
+```bash
+just regelhet-check packages/regelhet/iit-groningen/bron.yaml
+```
+
+```
+case:       individuele_inkomenstoeslag (Individuele inkomenstoeslag)
+executor:   gemeente_groningen (gemeente Groningen)
+article:    participatiewet#36
+outcome:    individuele_inkomenstoeslag_verleend
+cells:      gemeente_groningen, rechtbank_noord_nederland
+start date: 2026-10-13
+ok: packages/regelhet/iit-groningen/bron.yaml starts
+```
+
+The check builds the server as it starts in test mode, with the store in memory and the test login, and drops it again (`src/check.rs`). It therefore fails on what the start fails on: a manifest that does not read, a case file the source does not accept, a UI spec the server refuses. It reads no environment, so a `REGELHET_STORE` or `OIDC_*` on the machine does not change the verdict. What it cannot see is what depends on the deployment: the database, the Keycloak of stable mode, a linked party.
+
+A manifest that makes several cases needs the name of the one to check as a second argument, `regelrecht-regelhet check <manifest> <case>`: what `REGELHET_CASUS` is to the server. The check sees what a start in test mode refuses, and not what only stable mode refuses, such as a login the case needs.
+
+Exit code 0 means the case starts, 1 that it does not, with the reason on stderr, and 2 a call without a manifest. A manifest repository can run the check in its own CI with the image, on a runner with Docker:
+
+```bash
+docker run --rm -v "$PWD:/case:ro" code.digitaledienst.overheid.nl/regelrecht/regelhet:<commit> \
+  regelrecht-regelhet check /case/bron.yaml
+```
+
+Take for `<commit>` the version the case runs on, so the check uses the server that will run it. An image from before the check existed ignores the argument and stops with `REGELHET_MODE is not set`.
+
 ## Deployment
 
 CI builds the image `regelrecht-regelhet` (`packages/regelhet/Dockerfile`) when the crate or what it depends on changes. The image holds the builds of the screens under `/app/frontend`, so one image runs as either surface, and as the front of an [organisation](/components/regelhet-organisatie). Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no RegelHet component. See [Deployment](/operations/deployment).

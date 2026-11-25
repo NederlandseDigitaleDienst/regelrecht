@@ -1,15 +1,35 @@
 //! The RegelHet server. See the crate documentation in `lib.rs`.
+//!
+//! `regelrecht-regelhet check <manifest> [case]` starts no server: it says
+//! whether the case of that manifest starts, and what it is about
+//! (`regelrecht_regelhet::check`).
 
+use std::path::Path;
 use std::process::ExitCode;
 
 use regelrecht_regelhet::app;
+use regelrecht_regelhet::check;
 use regelrecht_regelhet::config::Config;
 use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    regelrecht_shared::telemetry::init_subscriber("info");
     regelrecht_auth::install_crypto_provider();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.as_slice() {
+        [] => {}
+        [command, manifest] if command == "check" => {
+            return run_check(Path::new(manifest), None).await;
+        }
+        [command, manifest, case] if command == "check" => {
+            return run_check(Path::new(manifest), Some(case)).await;
+        }
+        _ => {
+            eprintln!("usage: regelrecht-regelhet [check <manifest> [case]]");
+            return ExitCode::from(2);
+        }
+    }
+    regelrecht_shared::telemetry::init_subscriber("info");
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -38,4 +58,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
     axum::serve(listener, router).await?;
     Ok(())
+}
+
+/// The check, without the log of the start it runs: its verdict goes to
+/// stdout, or to stderr with exit code 1.
+async fn run_check(manifest: &Path, case: Option<&str>) -> ExitCode {
+    match check::check(manifest, case).await {
+        Ok(summary) => {
+            print!("{summary}");
+            println!("ok: {} starts", manifest.display());
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{}: {e}", manifest.display());
+            ExitCode::FAILURE
+        }
+    }
 }

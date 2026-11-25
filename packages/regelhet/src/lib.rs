@@ -36,6 +36,7 @@
 //!   processes (`REGELHET_ROL=organisatie`), and the statements it signs
 //!   for them;
 //! - [`case`]: the one case, from the manifest;
+//! - [`check`]: whether a case starts, for `regelrecht-regelhet check`;
 //! - [`service`]: the steps, against a store and a clock;
 //! - [`api`]: the HTTP API over the service;
 //! - [`app`]: what the binary builds from a [`config::Config`].
@@ -44,6 +45,7 @@ pub mod access;
 pub mod api;
 pub mod app;
 pub mod case;
+pub mod check;
 pub mod clock;
 pub mod config;
 pub mod dossier;

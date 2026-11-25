@@ -1103,6 +1103,14 @@ regelhet-iit:
     REGELHET_MODE=test REGELHET_PORT="${REGELHET_PORT:-7181}" \
     REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+
+# Whether the case of a manifest starts, without starting a server: the
+# check loads it as the server does at start, in test mode with the store in
+# memory, and prints what the case is about or why it does not start (exit
+# code 1). `just regelhet-check packages/regelhet/iit-groningen/bron.yaml`.
+regelhet-check manifest="packages/regelhet/bron.yaml" case="":
+    cargo run --quiet --manifest-path packages/Cargo.toml --package regelrecht-regelhet -- check "{{manifest}}" {{case}}
+
 # The kern of the citizen's app in the browser as WebAssembly
 # (frontend-regelhet, `--mode burgerapp`): the cell, the engine and the game
 # of packages/poc-chronolexografie, into frontend-regelhet/burgerapp/wasm/pkg.
