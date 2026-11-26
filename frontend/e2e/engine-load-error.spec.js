@@ -79,6 +79,30 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
   });
 
+  test('type-check findings are listed per article, and a finding opens its article', async ({ page }) => {
+    // Two type errors: an ordering against a boolean in article 2, and a
+    // comparison of a boolean with a number in article 3.
+    const illTyped = loadFixture('zorgtoeslag-full.yaml')
+      .replace(/(operation: GREATER_THAN\n\s+subject: [^\n]+\n\s+value: )0\n/, '$1true\n')
+      .replace(/(- output: vermogen_onder_grens[\s\S]*?operation: EQUALS\n\s+subject: [^\n]+\n\s+value: )true\n/, '$15\n');
+    await mockLaw(page, illTyped);
+    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
+
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    await expect(notification(page)).toHaveAttribute('supporting-text', /De engine vond 2 fouten in het regelwerk\. Kijk bij de artikelen 2 en 3\./);
+
+    await notification(page).locator('nldd-button').click();
+    const findings = detailsSheet(page).locator('[data-testid="error-details-finding"]');
+    await expect(findings).toHaveCount(2);
+    await expect(findings.nth(0).locator('nldd-text-cell')).toHaveAttribute('text', 'Uitkomst heeft_recht_op_zorgtoeslag');
+    await expect(findings.nth(1).locator('nldd-text-cell')).toHaveAttribute('text', 'Uitkomst vermogen_onder_grens');
+
+    // The finding in article 3 opens article 3.
+    await findings.nth(1).click();
+    await expect(page).toHaveURL(/\/editor\/wet_op_de_zorgtoeslag\/3$/);
+    await expect(detailsSheet(page)).not.toHaveAttribute('open', '');
+  });
+
   test('a dismissed notification stays away until the error changes', async ({ page }) => {
     const saved = loadFixture('zorgtoeslag-full.yaml');
     await mockLaw(page, saved);

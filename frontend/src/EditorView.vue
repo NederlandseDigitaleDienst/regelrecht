@@ -17,6 +17,7 @@ import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
 import { describeEngineLoadError, describeSaveError, type UserError } from './lib/userError';
+import type { EngineDiagnostic } from './lib/engineDiagnostics';
 import { useErrorsStore } from './stores/errors';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
@@ -1727,13 +1728,26 @@ const errors = useErrorsStore();
 // regelwerk. The article, when the engine names one, is in the sentence.
 const engineErrorTitle = computed(() => `${failedLawName.value || 'Dit regelwerk'} kan niet worden uitgevoerd`);
 const saveErrorTitle = computed(() => `${failedLawName.value || 'Het regelwerk'} is niet opgeslagen`);
+// Open what a finding of the engine is about: its article, and the action
+// behind an output when that article is already on screen. Another article
+// goes through the router, which asks first when there are unsaved edits.
+function goToDiagnostic(diagnostic: EngineDiagnostic) {
+  const targetLaw = diagnostic.law_id ?? lawId.value;
+  if (!targetLaw || !diagnostic.article) return;
+  const onScreen = targetLaw === lawId.value && String(selectedArticle.value?.number) === diagnostic.article;
+  if (!onScreen) {
+    handleRegelRijmNavigate({ lawId: targetLaw, articleNumber: diagnostic.article });
+    return;
+  }
+  if (diagnostic.place?.kind === 'output') handleSheetOpenOutput(diagnostic.place.name);
+}
 // The engine's refusal is a notification, shared with the other errors the
 // editor reports. The panes stay: the frontend reads the regelwerk with its
 // own parser, and they are where the author repairs it.
 watch(
   [engineLoadError, engineErrorTitle],
   ([error, title]) => {
-    if (error) errors.report('engine-load', title, error);
+    if (error) errors.report('engine-load', title, error, { goTo: goToDiagnostic });
     else errors.clear('engine-load');
   },
   { immediate: true },
@@ -1906,7 +1920,7 @@ const saveError = computed(() => (saveFailure.value ? describeSaveError(saveFail
 watch(
   [saveError, saveErrorTitle],
   ([error, title]) => {
-    if (error) errors.report('save', title, error, () => { review.processError.value = null; });
+    if (error) errors.report('save', title, error, { onDismiss: () => { review.processError.value = null; } });
     else errors.clear('save');
   },
   { immediate: true },

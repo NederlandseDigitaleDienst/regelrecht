@@ -13,17 +13,26 @@
  * recognised still ends up in `details`.
  */
 import { ApiError } from './apiFetch';
+import { articlesOf, diagnosticsOf, type EngineDiagnostic } from './engineDiagnostics';
 
 export interface UserError {
   /** One or two Dutch sentences for the message itself. */
   summary: string;
   /** The technical text, or null when the summary already says everything. */
   details: string | null;
+  /** The engine's problems one by one, when it gave them apart. */
+  diagnostics?: EngineDiagnostic[];
 }
 
-/** The text of whatever was thrown: an Error, or the bare string a WASM throw produces. */
+/**
+ * The text of whatever was thrown: an Error, the bare string a WASM throw
+ * produces, or the `{ error, ... }` object the engine throws when it has more
+ * to say than a sentence.
+ */
 export function rawErrorText(e: unknown): string {
   if (typeof e === 'string') return e;
+  const error = (e as { error?: unknown } | null)?.error;
+  if (typeof error === 'string' && error) return error;
   const message = (e as { message?: unknown } | null)?.message;
   return typeof message === 'string' && message ? message : String(e);
 }
@@ -57,9 +66,28 @@ function engineSummary(raw: string, fallback: string): string {
       break;
     }
   }
-  const articles = articlesNamed(raw);
+  return withArticles(summary, articlesNamed(raw));
+}
+
+function withArticles(summary: string, articles: string[]): string {
   if (articles.length === 0) return summary;
   return `${summary} Kijk bij ${articles.length === 1 ? 'artikel' : 'de artikelen'} ${listInDutch(articles)}.`;
+}
+
+/** The sentence for a refusal the engine gave as records. */
+function summaryOfDiagnostics(diagnostics: EngineDiagnostic[]): string | null {
+  const placed = diagnostics.filter((d) => d.article);
+  if (placed.length > 0) {
+    const found = placed.length === 1
+      ? 'De engine vond een fout in het regelwerk.'
+      : `De engine vond ${placed.length} fouten in het regelwerk.`;
+    return withArticles(found, articlesOf(placed));
+  }
+  const unreadable = diagnostics.find((d) => d.kind === 'structure' && d.position);
+  if (unreadable?.position) {
+    return `Het regelwerk is niet geldig en kan niet worden gelezen. Kijk bij regel ${unreadable.position.line} van de YAML.`;
+  }
+  return null;
 }
 
 /**
@@ -87,9 +115,14 @@ function listInDutch(items: string[]): string {
 /** The engine refused the regelwerk (parse or type-check error). */
 export function describeEngineLoadError(e: unknown): UserError {
   const raw = rawErrorText(e);
+  const diagnostics = diagnosticsOf(e);
   return {
-    summary: engineSummary(raw, 'Het regelwerk bevat een fout die eerst moet worden opgelost.'),
+    // The records when the engine gave them; else what its sentence shows.
+    summary:
+      summaryOfDiagnostics(diagnostics)
+      ?? engineSummary(raw, 'Het regelwerk bevat een fout die eerst moet worden opgelost.'),
     details: raw,
+    ...(diagnostics.length > 0 ? { diagnostics } : {}),
   };
 }
 

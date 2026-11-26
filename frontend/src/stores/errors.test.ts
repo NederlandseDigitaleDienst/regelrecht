@@ -37,7 +37,7 @@ describe('errors store', () => {
   it('keeps a dismissed error away until the source has a new one', () => {
     const store = useErrorsStore();
     const onDismiss = vi.fn();
-    store.report('save', 'Opslaan mislukt', SAVE, onDismiss);
+    store.report('save', 'Opslaan mislukt', SAVE, { onDismiss });
     store.dismissVisible();
     expect(store.visible).toEqual([]);
     expect(onDismiss).toHaveBeenCalledOnce();

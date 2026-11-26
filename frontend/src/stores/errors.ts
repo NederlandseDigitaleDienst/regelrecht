@@ -1,10 +1,20 @@
 import { computed, ref, toRaw } from 'vue';
 import { defineStore } from 'pinia';
 import type { UserError } from '../lib/userError';
+import type { EngineDiagnostic } from '../lib/engineDiagnostics';
 
 /** An error with the heading it is shown under. */
 export interface ReportedError extends UserError {
   title: string;
+  /** Opens the place a diagnostic is about, when the source can. */
+  goTo?: (diagnostic: EngineDiagnostic) => void;
+}
+
+/** What a source can add to its report. */
+export interface ReportOptions {
+  /** Runs when the user dismisses the error. */
+  onDismiss?: () => void;
+  goTo?: (diagnostic: EngineDiagnostic) => void;
 }
 
 interface Report {
@@ -46,14 +56,19 @@ export const useErrorsStore = defineStore('errors', () => {
    * the same error object again only brings the title up to date, so a
    * dismissed error stays away until the source has a new one.
    */
-  function report(key: string, title: string, error: UserError, onDismiss?: () => void): void {
+  function report(key: string, title: string, error: UserError, options: ReportOptions = {}): void {
     // Raw on both sides: the map hands back a reactive proxy, and so may the caller.
     const previous = reports.value.get(key);
     if (previous && toRaw(previous.source) === toRaw(error)) {
       previous.shown.title = title;
       return;
     }
-    reports.value.set(key, { source: error, shown: { title, ...error }, dismissed: false, onDismiss });
+    reports.value.set(key, {
+      source: error,
+      shown: { title, ...error, goTo: options.goTo },
+      dismissed: false,
+      onDismiss: options.onDismiss,
+    });
   }
 
   /** The source's failure is over. */
