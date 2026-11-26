@@ -12,6 +12,12 @@ import { mockCorpusApi } from './helpers-corpus.js';
 // The frontend's own parser reads this; the engine knows no such operation.
 const breakLaw = (yamlText, operation = 'NO_SUCH_OPERATION') => yamlText.replace('operation: MAX', `operation: ${operation}`);
 
+// Two type errors the engine reports as findings: a comparison of a number
+// with a boolean in article 2, and of a boolean with a number in article 3.
+const illTyped = (yamlText) => yamlText
+  .replace(/(operation: GREATER_THAN\n\s+subject: [^\n]+\n\s+value: )0\n/, '$1true\n')
+  .replace(/(- output: vermogen_onder_grens[\s\S]*?operation: EQUALS\n\s+subject: [^\n]+\n\s+value: )true\n/, '$15\n');
+
 const splitView = (page) => page.locator('nldd-side-by-side-split-view');
 const notification = (page) => page.locator('[data-testid="error-notification"]');
 const detailsSheet = (page) => page.locator('[data-testid="error-details-sheet"]');
@@ -33,9 +39,14 @@ test.describe('A regelwerk the engine refuses', () => {
     // The message is the readable sentence, not the engine's text.
     await expect(notification(page)).not.toHaveAttribute('supporting-text', /NO_SUCH_OPERATION/);
     await expect(notification(page)).toHaveAttribute('supporting-text', /Kijk bij artikel 2\./);
+    // A refusal before the type check has a place too: the action is marked.
+    const marked = page.locator('[data-testid="pane-machine"] nldd-list-item[data-finding]');
+    await expect(marked).toHaveCount(1);
+    await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute('text', 'hoogte_zorgtoeslag');
 
     await notification(page).locator('nldd-button').click();
     await expect(detailsSheet(page)).toHaveAttribute('open', '');
+    await expect(detailsSheet(page).locator('[data-testid="error-details-finding"] nldd-text-cell')).toHaveAttribute('text', 'Uitkomst hoogte_zorgtoeslag');
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
   });
 
@@ -77,6 +88,49 @@ test.describe('A regelwerk the engine refuses', () => {
 
     await notification(page).locator('nldd-button').click();
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
+  });
+
+  test('type-check findings are listed per article, and a finding opens its article', async ({ page }) => {
+    await mockLaw(page, illTyped(loadFixture('zorgtoeslag-full.yaml')));
+    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
+
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    await expect(notification(page)).toHaveAttribute('supporting-text', /De engine vond 2 fouten in het regelwerk\. Kijk bij de artikelen 2 en 3\./);
+
+    // The place is marked where the author works: on the action's row in
+    // the Machine pane, and on the article's tab.
+    const marked = page.locator('[data-testid="pane-machine"] nldd-list-item[data-finding]');
+    await expect(marked).toHaveCount(1);
+    await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute('text', 'heeft_recht_op_zorgtoeslag');
+    await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute(
+      'supporting-text',
+      'Fout: Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is.',
+    );
+    await expect(page.locator('nldd-document-tab-bar-item[selected]')).toHaveAttribute('supporting-text', /bevat een fout/);
+
+    await notification(page).locator('nldd-button').click();
+    const findings = detailsSheet(page).locator('[data-testid="error-details-finding"]');
+    await expect(findings).toHaveCount(2);
+    await expect(findings.nth(0).locator('nldd-text-cell')).toHaveAttribute('text', 'Uitkomst heeft_recht_op_zorgtoeslag');
+    await expect(findings.nth(1).locator('nldd-text-cell')).toHaveAttribute('text', 'Uitkomst vermogen_onder_grens');
+
+    // The finding in article 3 opens article 3.
+    await findings.nth(1).click();
+    await expect(page).toHaveURL(/\/editor\/wet_op_de_zorgtoeslag\/3$/);
+    await expect(detailsSheet(page)).not.toHaveAttribute('open', '');
+  });
+
+  test('with RegelRijm on, the finding stands above the rule it is about', async ({ page }) => {
+    await page.route('**/api/feature-flags', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ 'panel.regelrijm': true }) }));
+    await mockLaw(page, illTyped(loadFixture('zorgtoeslag-full.yaml')));
+    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
+
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    const finding = page.locator('[data-testid="regelrijm-pane-finding-heeft_recht_op_zorgtoeslag"]');
+    await expect(finding).toBeVisible();
+    await expect(finding).toHaveAttribute('text', 'Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is.');
+    await expect(page.locator('[data-testid^="regelrijm-pane-finding-"]')).toHaveCount(1);
   });
 
   test('a dismissed notification stays away until the error changes', async ({ page }) => {

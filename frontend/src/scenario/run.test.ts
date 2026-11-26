@@ -52,6 +52,14 @@ describe('runScenario', () => {
     expect(runStatus(run)).toBe('failed');
   });
 
+  it('keeps the parts the engine gave of an error', () => {
+    const diagnostics = [{ severity: 'error', kind: 'marking', law_id: 'wet_voorbeeld', article: '5', place: null, position: null, rule: null, message: 'm' }];
+    const e = engine(() => {
+      throw { error: 'Untranslatable construct', diagnostics, trace_text: 'partial' };
+    });
+    expect(runScenario(e, INPUTS, []).diagnostics).toEqual(diagnostics);
+  });
+
   it('reads any thrown value as an error message', () => {
     expect(runScenario(engine(() => { throw 'kapot'; }), INPUTS, []).error).toBe('kapot');
     expect(runScenario(engine(() => { throw new Error('stuk'); }), INPUTS, []).error).toBe('stuk');

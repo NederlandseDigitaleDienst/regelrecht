@@ -42,6 +42,7 @@ flowchart TD
 | `typecheck.rs` | Static type and nullability check of a law against its own declarations (RFC-036, RFC-037), run on every law load, so also by `just validate` and the editor |
 | `units.rs` | Unit-of-measurement model and algebra (RFC-023), shared by the static check and the runtime |
 | `load_check.rs` | Load-time checks the schema cannot express, such as refusing a law that writes the Unknown sentinel into its own literals |
+| `diagnostic.rs` | A problem found while loading a law as a record (severity, kind, law, article, place, rule, message), next to the error sentence |
 | `receipt.rs` | The Execution Receipt envelope (RFC-013) |
 | `annotation/` | Stand-off note resolution: anchors a note to law text by quote, with fuzzy matching (RFC-005, RFC-018) |
 | `config.rs` | Security limits and the list of supported schema versions (see [Security Limits](#security-limits)) |
@@ -250,6 +251,8 @@ const engine = new WasmEngine();
 ### WASM API
 
 The exported methods are the `#[wasm_bindgen(js_name = ...)]` functions on `WasmEngine` in `packages/engine/src/wasm.rs`. That file is the reference, and the `.d.ts` that `wasm-pack` generates next to the build carries the same list with types. Besides loading laws and the `execute` family shown above, it covers staged execution for Awb procedures (`executeStage`), data sources (`registerDataSource`, `registerDataSourceForLaw` for a source scoped to one law, `removeDataSource`, `clearDataSources`), bookkeeping (`listLaws`, `getLawInfo`, `hasLaw`, `unloadLaw`, `lawCount`, `version`) and note resolution (`resolveNote`, `resolveNotes`).
+
+`loadLawWithDiagnostics` loads a law like `loadLaw`, and on a refusal throws `{ error, diagnostics }` in place of a string: `error` is the sentence `loadLaw` throws, and `diagnostics` holds the problems as records. A finding of the type check carries its article, place and rule, and the type check reports all of them. A load check stops at the first problem and gives one record with the article and place, without a rule. YAML that cannot be read gives its line and column. A refusal about the law as a whole, such as an unsupported schema version, is one record with only the sentence. The editor uses it to list findings and mark their place ([Errors](/components/frontend#errors)). A traced run (`executeWithTrace`) that stops at an article with a marking nobody accepted throws the same kind of record beside `error` and the trace, with the marking's own fields (`about`, `reason`, `resolution`, `resolved_by`) under `flagged`. The shape is a prototype without an RFC and can still change.
 
 > **Loading laws in WASM.** The WASM build wraps the same `LawExecutionService` as the native build, so cross-law references and open term resolution (the `open_terms` / `implements` IoC pattern) both work. There is no filesystem in the browser, so every law the execution reaches has to be pre-loaded with `loadLaw()` first. The [demo](/components/demo) runs the whole zorgtoeslag chain, open terms included, entirely in the browser.
 

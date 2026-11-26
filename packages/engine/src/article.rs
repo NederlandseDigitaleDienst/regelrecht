@@ -14,6 +14,7 @@
 //! - **Array size limits**: prevents DoS via huge arrays (see [`config::MAX_ARRAY_SIZE`])
 
 use crate::config;
+use crate::diagnostic::Place;
 use crate::error::{EngineError, Result};
 use std::fs;
 use std::path::Path;
@@ -327,14 +328,25 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
 
     /// Walk a machine_readable section: its execution actions and the default
     /// actions of its open terms. `scope` names where it sits in the document.
-    fn walk_machine_readable(mr: &MachineReadable, scope: &str) -> Result<()> {
+    fn walk_machine_readable(
+        mr: &MachineReadable,
+        scope: &str,
+        article: Option<&str>,
+    ) -> Result<()> {
+        // A problem in an article's section is given with its place there.
+        let placed = |err: EngineError, place: Place| match article {
+            Some(number) => err.placed(number, place),
+            None => err,
+        };
         if let Some(actions) = mr.execution.as_ref().and_then(|e| e.actions.as_ref()) {
-            for action in actions {
+            for (index, action) in actions.iter().enumerate() {
                 let where_ = format!(
                     "{scope}, output {}",
                     action.output.as_deref().unwrap_or("(unnamed)")
                 );
-                walk_action(action, &where_)?;
+                walk_action(action, &where_).map_err(|err| {
+                    placed(err, Place::of_action(index, action.output.as_deref()))
+                })?;
             }
         }
         for term in mr.open_terms.iter().flatten() {
@@ -345,7 +357,7 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
                     term.id,
                     action.output.as_deref().unwrap_or("(unnamed)")
                 );
-                walk_action(action, &where_)?;
+                walk_action(action, &where_).map_err(|err| placed(err, Place::Article))?;
             }
         }
         Ok(())
@@ -356,11 +368,15 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
         .as_ref()
         .and_then(|p| p.machine_readable.as_ref())
     {
-        walk_machine_readable(mr, "preamble")?;
+        walk_machine_readable(mr, "preamble", None)?;
     }
     for article in &law.articles {
         if let Some(mr) = &article.machine_readable {
-            walk_machine_readable(mr, &format!("article {}", article.number))?;
+            walk_machine_readable(
+                mr,
+                &format!("article {}", article.number),
+                Some(&article.number),
+            )?;
         }
     }
     Ok(())

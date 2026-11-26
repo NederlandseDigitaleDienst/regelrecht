@@ -13,17 +13,29 @@
  * recognised still ends up in `details`.
  */
 import { ApiError } from './apiFetch';
+import { articlesOf, diagnosticsOf, type EngineDiagnostic } from './engineDiagnostics';
+import { humanizeLawId } from './lawName';
 
 export interface UserError {
+  /** A heading that says more than the caller's general one, when the error has one. */
+  title?: string;
   /** One or two Dutch sentences for the message itself. */
   summary: string;
   /** The technical text, or null when the summary already says everything. */
   details: string | null;
+  /** The engine's problems one by one, when it gave them apart. */
+  diagnostics?: EngineDiagnostic[];
 }
 
-/** The text of whatever was thrown: an Error, or the bare string a WASM throw produces. */
+/**
+ * The text of whatever was thrown: an Error, the bare string a WASM throw
+ * produces, or the `{ error, ... }` object the engine throws when it has more
+ * to say than a sentence.
+ */
 export function rawErrorText(e: unknown): string {
   if (typeof e === 'string') return e;
+  const error = (e as { error?: unknown } | null)?.error;
+  if (typeof error === 'string' && error) return error;
   const message = (e as { message?: unknown } | null)?.message;
   return typeof message === 'string' && message ? message : String(e);
 }
@@ -57,9 +69,38 @@ function engineSummary(raw: string, fallback: string): string {
       break;
     }
   }
-  const articles = articlesNamed(raw);
+  return withArticles(summary, articlesNamed(raw));
+}
+
+function withArticles(summary: string, articles: string[]): string {
   if (articles.length === 0) return summary;
   return `${summary} Kijk bij ${articles.length === 1 ? 'artikel' : 'de artikelen'} ${listInDutch(articles)}.`;
+}
+
+/** The sentence for a refusal the engine gave as records. */
+function summaryOfDiagnostics(diagnostics: EngineDiagnostic[]): string | null {
+  const placed = diagnostics.filter((d) => d.article);
+  // Findings in a regelwerk that depends on this one: the articles are the
+  // other regelwerk's, so the sentence says whose they are.
+  const elsewhere = placed.filter((d) => d.kind === 'cross_law' && d.law_id);
+  if (elsewhere.length > 0) {
+    const laws = [...new Set(elsewhere.map((d) => humanizeLawId(d.law_id)))];
+    const broken = `Door dit regelwerk klopt ${listInDutch(laws)} niet meer.`;
+    if (laws.length > 1) return broken;
+    const articles = articlesOf(elsewhere);
+    return `${broken} Kijk daar bij ${articles.length === 1 ? 'artikel' : 'de artikelen'} ${listInDutch(articles)}.`;
+  }
+  if (placed.length > 0) {
+    const found = placed.length === 1
+      ? 'De engine vond een fout in het regelwerk.'
+      : `De engine vond ${placed.length} fouten in het regelwerk.`;
+    return withArticles(found, articlesOf(placed));
+  }
+  const unreadable = diagnostics.find((d) => d.kind === 'structure' && d.position);
+  if (unreadable?.position) {
+    return `Het regelwerk is niet geldig en kan niet worden gelezen. Kijk bij regel ${unreadable.position.line} van de YAML.`;
+  }
+  return null;
 }
 
 /**
@@ -87,9 +128,14 @@ function listInDutch(items: string[]): string {
 /** The engine refused the regelwerk (parse or type-check error). */
 export function describeEngineLoadError(e: unknown): UserError {
   const raw = rawErrorText(e);
+  const diagnostics = diagnosticsOf(e);
   return {
-    summary: engineSummary(raw, 'Het regelwerk bevat een fout die eerst moet worden opgelost.'),
+    // The records when the engine gave them; else what its sentence shows.
+    summary:
+      summaryOfDiagnostics(diagnostics)
+      ?? engineSummary(raw, 'Het regelwerk bevat een fout die eerst moet worden opgelost.'),
     details: raw,
+    ...(diagnostics.length > 0 ? { diagnostics } : {}),
   };
 }
 
@@ -103,6 +149,21 @@ const NOT_LOADED = /^Regelwerk '([^']+)' is niet geladen: /;
 export function describeExecutionError(e: unknown): UserError {
   const raw = rawErrorText(e);
   if (raw === SCENARIO_WITHOUT_OUTPUT) return { summary: raw, details: null };
+  // An article the engine does not run because it flags a construct nobody
+  // accepted yet. Nothing is broken: the marking waits for a decision.
+  const marking = diagnosticsOf(e).find((d) => d.kind === 'marking');
+  if (marking) {
+    const where = [marking.article ? `Artikel ${marking.article}` : null, marking.law_id ? humanizeLawId(marking.law_id) : null]
+      .filter(Boolean)
+      .join(' van ');
+    return {
+      title: `${where || 'Een artikel'} heeft een markering die nog niet is geaccepteerd`,
+      summary:
+        'De engine voert een artikel met een niet-geaccepteerde markering niet uit. Beoordeel de markering en accepteer haar, of pas het artikel aan.',
+      details: raw,
+      diagnostics: [marking],
+    };
+  }
   const notLoaded = raw.match(NOT_LOADED);
   if (notLoaded) {
     return {

@@ -80,6 +80,7 @@ use crate::article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp, Source,
     foreach_binding,
 };
+use crate::diagnostic::Place;
 use crate::types::{ParameterType, Value};
 use regelrecht_law_model::Column;
 use std::collections::{BTreeMap, BTreeSet};
@@ -131,8 +132,8 @@ impl fmt::Display for Rule {
 pub struct Finding {
     pub law_id: String,
     pub article: String,
-    /// `output 'x'`, `action 3`, `input 'x'` or `definition 'X'`.
-    pub location: String,
+    /// Prints as `output 'x'`, `action 3`, `input 'x'` or `definition 'X'`.
+    pub location: Place,
     pub rule: Rule,
     pub message: String,
 }
@@ -431,7 +432,7 @@ struct ArticleChecker<'l, 'f> {
     assigned: BTreeSet<String>,
     /// The output the current action assigns, if it declares one.
     output: Option<String>,
-    location: String,
+    location: Place,
     findings: &'f mut Vec<Finding>,
 }
 
@@ -451,7 +452,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             derived: BTreeMap::new(),
             assigned: BTreeSet::new(),
             output: None,
-            location: String::new(),
+            location: Place::Article,
             findings,
         }
     }
@@ -500,10 +501,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             .unwrap_or_else(|_| (0..actions.len()).collect());
         for index in order {
             let action = &actions[index];
-            self.location = match &action.output {
-                Some(output) => format!("output '{output}'"),
-                None => format!("action {}", index + 1),
-            };
+            self.location = Place::of_action(index, action.output.as_deref());
             self.output = action.output.clone();
             self.check_action(action);
         }
@@ -539,7 +537,9 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 continue;
             };
             if term.required && !term.has_default() {
-                self.location = format!("output '{}'", output.name);
+                self.location = Place::Output {
+                    name: output.name.clone(),
+                };
                 self.report(
                     Rule::N5,
                     format!(
@@ -563,7 +563,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         names.sort();
         for name in names {
             if matches!(definitions[name].value(), Value::Null) {
-                self.location = format!("definition '{name}'");
+                self.location = Place::Definition { name: name.clone() };
                 self.report(
                     Rule::N2,
                     format!(
@@ -583,7 +583,9 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 continue;
             };
             if let Some(target) = &source.article {
-                self.location = format!("input '{}'", input.name);
+                self.location = Place::Input {
+                    name: input.name.clone(),
+                };
                 self.check_article_call(input, source, target);
                 continue;
             }
@@ -600,7 +602,9 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 (None, Some(output)) => (self.law, output.as_str()),
                 (None, None) => continue,
             };
-            self.location = format!("input '{}'", input.name);
+            self.location = Place::Input {
+                name: input.name.clone(),
+            };
             let Some(target_article) = target_law.find_article_by_output(output_name) else {
                 continue;
             };
@@ -1941,7 +1945,7 @@ actions:
     #[test]
     fn n1_absence_test_on_a_non_nullable_field_is_an_error() {
         let finding = assert_only(N1_FAIL, Rule::N1, "'huur' is not nullable");
-        assert_eq!(finding.location, "output 'geen_huur'");
+        assert_eq!(finding.location.to_string(), "output 'geen_huur'");
         assert_eq!(finding.article, "1");
         assert_eq!(finding.law_id, "t");
         // The nested EQUALS behind NOT, and NOT_EQUALS, IS_NULL and NOT_NULL, are
@@ -2121,7 +2125,7 @@ articles:
         let findings = check_law_alone(&ArticleBasedLaw::from_yaml_str(definition).unwrap());
         assert_eq!(rules(&findings), vec![Rule::N2], "{findings:#?}");
         assert!(findings[0].message.contains("definition 'GRENS' is null"));
-        assert_eq!(findings[0].location, "definition 'GRENS'");
+        assert_eq!(findings[0].location.to_string(), "definition 'GRENS'");
     }
 
     #[test]
@@ -2251,7 +2255,7 @@ actions:
             Rule::N4,
             "'huur' may be absent and is used in ADD",
         );
-        assert_eq!(finding.location, "output 'uitkomst'");
+        assert_eq!(finding.location.to_string(), "output 'uitkomst'");
         // A property of a nullable record may be absent too (a field of no
         // record is no record).
         let property = n4_law(
@@ -2307,7 +2311,7 @@ actions:
             Rule::N4,
             "'huur' may be absent and is assigned to 'uitkomst', which is never absent",
         );
-        assert_eq!(finding.location, "output 'uitkomst'");
+        assert_eq!(finding.location.to_string(), "output 'uitkomst'");
         // The same through a branch of the output's IF, guarded or not.
         let branch = |when: &str| {
             n4_law(&format!(
@@ -2895,7 +2899,7 @@ actions:
             "{}",
             findings[0].message
         );
-        assert_eq!(findings[0].location, "input 'vermogen'");
+        assert_eq!(findings[0].location.to_string(), "input 'vermogen'");
         // Declared nullable: fine. Target not available: silent.
         let nullable = law(
             "afnemer",
@@ -3155,7 +3159,7 @@ articles:
         let lookup = |id: &str| (id == "wet").then_some(&required);
         let findings = check_law(&implementing, &lookup);
         assert_eq!(rules(&findings), vec![Rule::N5], "{findings:#?}");
-        assert_eq!(findings[0].location, "output 'premie'");
+        assert_eq!(findings[0].location.to_string(), "output 'premie'");
         assert!(
             findings[0]
                 .message
@@ -3826,7 +3830,7 @@ actions:
             Rule::T4,
             "output is declared number but is assigned a string literal",
         );
-        assert_eq!(finding.location, "output 'x'");
+        assert_eq!(finding.location.to_string(), "output 'x'");
         assert_clean(&format!("{base}    value: 12\n"));
         assert_clean(&format!("{base}    value: 12\n").replace("type: number", "type: amount"));
         // Through the branches of the IF that is the output's value.

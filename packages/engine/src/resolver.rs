@@ -27,7 +27,7 @@ use crate::error::{EngineError, Result};
 use crate::priority::{self, Candidate};
 use crate::types::{RegulatoryLayer, Value};
 use chrono::NaiveDate;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 /// Why a law version could not be selected for a reference date.
 ///
@@ -543,20 +543,6 @@ impl Default for RuleResolver {
     }
 }
 
-/// `1 finding` or `n findings`, for a load error.
-fn count_findings(count: usize) -> String {
-    format!("{count} finding{}", if count == 1 { "" } else { "s" })
-}
-
-/// The findings of a load error, one per line, indented.
-fn list_findings(findings: &[crate::typecheck::Finding]) -> String {
-    findings
-        .iter()
-        .map(|finding| format!("  {finding}"))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 /// Whether `law` reads `law_id`: an input that takes one of its outputs or
 /// calls one of its articles by a fixed reference (RFC-045 §6), or an article
 /// that implements one of its open terms. These are the places where the
@@ -635,12 +621,10 @@ impl RuleResolver {
         };
         let findings = crate::typecheck::check_law(&law, &lookup);
         if !findings.is_empty() {
-            return Err(EngineError::LoadError(format!(
-                "law '{}' fails the type check ({}):\n{}",
-                law.id,
-                count_findings(findings.len()),
-                list_findings(&findings)
-            )));
+            return Err(EngineError::TypeCheck {
+                law_id: law.id.clone(),
+                findings,
+            });
         }
 
         // Schema v0.8.16: the steps of a reduction on v0.8.16 or later fit
@@ -666,21 +650,10 @@ impl RuleResolver {
             consumer_findings.extend(crate::typecheck::check_law(consumer, &lookup));
         }
         if !consumer_findings.is_empty() {
-            let consumers: BTreeSet<&str> = consumer_findings
-                .iter()
-                .map(|finding| finding.law_id.as_str())
-                .collect();
-            return Err(EngineError::LoadError(format!(
-                "loading law '{}' makes {} ill-typed ({}):\n{}",
-                law.id,
-                consumers
-                    .iter()
-                    .map(|id| format!("'{id}'"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                count_findings(consumer_findings.len()),
-                list_findings(&consumer_findings)
-            )));
+            return Err(EngineError::TypeCheck {
+                law_id: law.id.clone(),
+                findings: consumer_findings,
+            });
         }
 
         // RFC-007, RFC-058: a coupling between a hook and its host that
@@ -2236,6 +2209,7 @@ fn parse_date(s: &str) -> Result<NaiveDate> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     fn make_test_law() -> &'static str {
         r#"
@@ -2686,7 +2660,24 @@ articles:
 "#;
         let err = resolver.load_from_yaml(law).unwrap_err();
         let message = err.to_string();
-        assert!(matches!(err, EngineError::LoadError(_)), "{err:?}");
+        assert!(matches!(err, EngineError::TypeCheck { .. }), "{err:?}");
+        // The same findings apart, each with its article, place and rule.
+        let diagnostics = err.diagnostics();
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
+        for diagnostic in &diagnostics {
+            assert_eq!(
+                diagnostic.kind,
+                crate::diagnostic::DiagnosticKind::TypeCheck
+            );
+            assert!(diagnostic.article.is_some(), "{diagnostic:?}");
+            assert!(diagnostic.place.is_some(), "{diagnostic:?}");
+        }
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.rule.as_deref() == Some("N1")),
+            "{diagnostics:?}"
+        );
         assert!(
             message.contains("fails the type check (2 findings)"),
             "{message}"
@@ -2968,8 +2959,17 @@ articles:
         let mut resolver = RuleResolver::new();
         resolver.load_from_yaml(&v1).unwrap();
         resolver.load_from_yaml(&consumer).unwrap();
-        let err = resolver.load_from_yaml(&v2).unwrap_err().to_string();
+        let refusal = resolver.load_from_yaml(&v2).unwrap_err();
+        let err = refusal.to_string();
         assert!(err.contains("makes 'afnemer' ill-typed"), "{err}");
+        // The records say the findings are in the consumer, not in the law
+        // that was loaded.
+        let diagnostics = refusal.diagnostics();
+        assert!(!diagnostics.is_empty());
+        for diagnostic in &diagnostics {
+            assert_eq!(diagnostic.kind, crate::diagnostic::DiagnosticKind::CrossLaw);
+            assert_eq!(diagnostic.law_id.as_deref(), Some("afnemer"));
+        }
         assert_eq!(resolver.version_count(), 2);
     }
 

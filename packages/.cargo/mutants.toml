@@ -155,6 +155,12 @@ exclude_re = [
     'engine/src/wasm\.rs.*js_serializer',
     'engine/src/wasm\.rs.*wasm_error',
     'engine/src/wasm\.rs.*engine_error_to_wasm',
+    # load_failure_to_wasm bouwt het object dat loadLawWithDiagnostics gooit en
+    # doet verder niets: de zin komt uit engine_error_text en de records uit
+    # EngineError::diagnostics, en die twee worden wel gemuteerd en gedood. De
+    # goede kant van loadLawWithDiagnostics staat hier bewust niet in; die
+    # geeft een String terug en ligt vast in een native test.
+    'engine/src/wasm\.rs.*load_failure_to_wasm',
     'engine/src/wasm\.rs.*WasmEngine::execute\b',
     'engine/src/wasm\.rs.*WasmEngine::execute_with_trace',
     'engine/src/wasm\.rs.*WasmEngine::execute_multiple',

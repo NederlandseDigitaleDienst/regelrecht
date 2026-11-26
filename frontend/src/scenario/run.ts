@@ -5,6 +5,7 @@
  * The engine runs in-process and synchronously: a run has settled when
  * `runScenario` returns.
  */
+import { diagnosticsOf, type EngineDiagnostic } from '../lib/engineDiagnostics';
 import { SCENARIO_WITHOUT_OUTPUT } from '../lib/userError';
 import type { EditorEngine } from '../composables/useEngine';
 import type { FormAssertion } from '../gherkin/formMapper';
@@ -24,6 +25,8 @@ export interface ScenarioRun {
   traceText: string | null;
   /** The engine's error message; null when the run succeeded. */
   error: string | null;
+  /** The error in parts, when the engine gave them (lib/engineDiagnostics). */
+  diagnostics?: EngineDiagnostic[];
   /** The output the run asked for, so the graph can mark where it starts. */
   outputName: string | null;
   expectations: Record<string, Expectation>;
@@ -46,14 +49,15 @@ export type RunEngine = Pick<
 
 // The WASM boundary throws either `{ error, trace_text }`, an Error, a string,
 // or any other value (null and undefined included).
-function readFailure(e: unknown): { error: string; traceText: string | null } {
+function readFailure(e: unknown): { error: string; traceText: string | null; diagnostics: EngineDiagnostic[] } {
+  const diagnostics = diagnosticsOf(e);
   if (e && typeof e === 'object' && 'error' in e && e.error) {
     const trace = 'trace_text' in e && typeof e.trace_text === 'string' ? e.trace_text : null;
-    return { error: String(e.error), traceText: trace };
+    return { error: String(e.error), traceText: trace, diagnostics };
   }
-  if (typeof e === 'string') return { error: e, traceText: null };
+  if (typeof e === 'string') return { error: e, traceText: null, diagnostics };
   const message = e && typeof e === 'object' && 'message' in e ? e.message : undefined;
-  return { error: message ? String(message) : String(e), traceText: null };
+  return { error: message ? String(message) : String(e), traceText: null, diagnostics };
 }
 
 /**
@@ -99,8 +103,8 @@ export function runScenario(
     ) as TraceResult;
     return { ...base, result, traceText: result?.trace_text ?? null, error: null };
   } catch (e) {
-    const { error, traceText } = readFailure(e);
-    return { ...base, result: null, traceText, error };
+    const { error, traceText, diagnostics } = readFailure(e);
+    return { ...base, result: null, traceText, error, ...(diagnostics.length > 0 ? { diagnostics } : {}) };
   }
 }
 

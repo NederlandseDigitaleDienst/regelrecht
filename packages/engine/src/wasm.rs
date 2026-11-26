@@ -60,6 +60,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::annotation::{self, TextQuoteSelector, law_id_from_source};
 use crate::config;
+use crate::diagnostic::{Diagnostic, DiagnosticKind};
 use crate::engine::OutputProvenance;
 use crate::error::EngineError;
 use crate::service::{ExecutionOutcome, LawExecutionService, StageState};
@@ -177,12 +178,43 @@ fn strip_undefined_deep(value: JsValue) -> Result<JsValue, JsValue> {
 
 /// Convert internal EngineError to user-friendly WASM error.
 fn engine_error_to_wasm(err: EngineError) -> JsValue {
+    wasm_error(&engine_error_text(&err))
+}
+
+/// The sentence a WASM method throws for an engine error.
+fn engine_error_text(err: &EngineError) -> String {
     match err {
-        EngineError::LawNotFound(ref law_id) => wasm_error(&format!(
-            "Law '{}' not found. Load it first with loadLaw().",
-            law_id
-        )),
-        other => wasm_error(&other.to_string()),
+        EngineError::LawNotFound(law_id) => {
+            format!("Law '{law_id}' not found. Load it first with loadLaw().")
+        }
+        other => other.to_string(),
+    }
+}
+
+/// The sentence for a law text over the size limit, or `None` when it fits.
+fn oversize_text(yaml: &str) -> Option<String> {
+    (yaml.len() > config::MAX_YAML_SIZE).then(|| {
+        format!(
+            "YAML exceeds maximum size ({} bytes)",
+            config::MAX_YAML_SIZE
+        )
+    })
+}
+
+/// What `loadLawWithDiagnostics` throws: the error as `loadLaw` words it, and
+/// the problems behind it one by one. Falls back to the bare string when the
+/// object cannot be built.
+fn load_failure_to_wasm(error: String, diagnostics: Vec<Diagnostic>) -> JsValue {
+    #[derive(Serialize)]
+    struct LoadFailure {
+        error: String,
+        diagnostics: Vec<Diagnostic>,
+    }
+
+    let failure = LoadFailure { error, diagnostics };
+    match failure.serialize(&js_serializer()) {
+        Ok(thrown) => thrown,
+        Err(_) => wasm_error(&failure.error),
     }
 }
 
@@ -301,14 +333,38 @@ impl WasmEngine {
     /// * `Err(JsValue)` - Error message if parsing fails
     #[wasm_bindgen(js_name = loadLaw)]
     pub fn load_law(&mut self, yaml: &str) -> Result<String, JsValue> {
-        if yaml.len() > config::MAX_YAML_SIZE {
-            return Err(wasm_error(&format!(
-                "YAML exceeds maximum size ({} bytes)",
-                config::MAX_YAML_SIZE
-            )));
+        if let Some(error) = oversize_text(yaml) {
+            return Err(wasm_error(&error));
         }
 
         self.service.load_law(yaml).map_err(engine_error_to_wasm)
+    }
+
+    /// Load a law like `loadLaw`, and on failure say what is wrong in parts.
+    ///
+    /// # Arguments
+    /// * `yaml` - YAML string containing the law definition (max 1 MB)
+    ///
+    /// # Returns
+    /// * `Ok(String)` - The law ID
+    /// * `Err(JsValue)` - An object `{ error, diagnostics }`. `error` is the
+    ///   string `loadLaw` throws. `diagnostics` lists the problems one by one:
+    ///   `severity`, `kind`, and where the check knows them `law_id`,
+    ///   `article`, `place`, `position` and `rule`, each with its `message`.
+    ///   The records are factual; wording for an end user is the caller's.
+    #[wasm_bindgen(js_name = loadLawWithDiagnostics)]
+    pub fn load_law_with_diagnostics(&mut self, yaml: &str) -> Result<String, JsValue> {
+        if let Some(error) = oversize_text(yaml) {
+            let diagnostics = vec![Diagnostic::unplaced(
+                DiagnosticKind::Structure,
+                error.clone(),
+            )];
+            return Err(load_failure_to_wasm(error, diagnostics));
+        }
+
+        self.service
+            .load_law(yaml)
+            .map_err(|err| load_failure_to_wasm(engine_error_text(&err), err.diagnostics()))
     }
 
     /// Execute a law output with automatic cross-law resolution.
@@ -497,14 +553,23 @@ impl WasmEngine {
                 #[derive(Serialize)]
                 struct TracedErrorResult {
                     error: String,
+                    /// The error in parts, for the kinds the engine can
+                    /// take apart: an article it does not run for a marking.
+                    #[serde(skip_serializing_if = "Vec::is_empty")]
+                    diagnostics: Vec<Diagnostic>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace: Option<TraceDocument>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace_text: Option<String>,
                 }
 
+                let diagnostics = match source.as_ref() {
+                    EngineError::Untranslatable { .. } => source.diagnostics(),
+                    _ => Vec::new(),
+                };
                 let err_result = TracedErrorResult {
                     error: source.to_string(),
+                    diagnostics,
                     trace: trace_node.map(TraceDocument::new),
                     trace_text,
                 };
@@ -619,14 +684,23 @@ impl WasmEngine {
                 #[derive(Serialize)]
                 struct TracedErrorResult {
                     error: String,
+                    /// The error in parts, for the kinds the engine can
+                    /// take apart: an article it does not run for a marking.
+                    #[serde(skip_serializing_if = "Vec::is_empty")]
+                    diagnostics: Vec<Diagnostic>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace: Option<TraceDocument>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace_text: Option<String>,
                 }
 
+                let diagnostics = match source.as_ref() {
+                    EngineError::Untranslatable { .. } => source.diagnostics(),
+                    _ => Vec::new(),
+                };
                 let err_result = TracedErrorResult {
                     error: source.to_string(),
+                    diagnostics,
                     trace: trace_node.map(TraceDocument::new),
                     trace_text,
                 };
@@ -1021,6 +1095,48 @@ articles:
             Some("test_law"),
             "a law of exactly MAX_YAML_SIZE bytes should still load"
         );
+    }
+
+    /// The refusing side of the size limit, which is the text both load
+    /// methods throw: nothing at the limit, the sentence one byte over it.
+    #[test]
+    fn oversize_text_refuses_only_a_text_over_the_limit() {
+        let at_limit = "x".repeat(config::MAX_YAML_SIZE);
+        assert_eq!(oversize_text(&at_limit), None);
+
+        let over = "x".repeat(config::MAX_YAML_SIZE + 1);
+        assert_eq!(
+            oversize_text(&over),
+            Some(format!(
+                "YAML exceeds maximum size ({} bytes)",
+                config::MAX_YAML_SIZE
+            ))
+        );
+    }
+
+    /// A law that is not loaded gets the hint to load it; any other error
+    /// keeps the engine's own sentence.
+    #[test]
+    fn engine_error_text_adds_the_hint_only_for_a_law_that_is_not_loaded() {
+        assert_eq!(
+            engine_error_text(&EngineError::LawNotFound("wet_a".to_string())),
+            "Law 'wet_a' not found. Load it first with loadLaw()."
+        );
+        let other = EngineError::LoadError("article 2 does something".to_string());
+        assert_eq!(engine_error_text(&other), other.to_string());
+    }
+
+    /// The accepting side of `loadLawWithDiagnostics` is the one `loadLaw`
+    /// has: the law's id comes back and the law is there. The refusing side
+    /// builds a `JsValue` and cannot run outside wasm32.
+    #[test]
+    fn load_law_with_diagnostics_loads_a_law_and_returns_its_id() {
+        let mut engine = WasmEngine::new();
+
+        let law_id = engine.load_law_with_diagnostics(MINIMAL_LAW_YAML).ok();
+
+        assert_eq!(law_id.as_deref(), Some("test_law"));
+        assert!(engine.has_law("test_law"));
     }
 
     /// De engine-versie reist mee in elk uitvoeringsresultaat en is daarmee

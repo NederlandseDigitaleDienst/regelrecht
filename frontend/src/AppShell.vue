@@ -322,8 +322,13 @@ async function onTabDismiss(e: Event) {
 function tabSupportingText(tab: OpenTab): string | undefined {
   const label = tabActions.value?.label(tab);
   if (!label) return undefined;
-  if (!label.unsaved) return label.supportingText;
-  return label.supportingText ? `${label.supportingText} · niet opgeslagen` : 'Niet opgeslagen';
+  const notes = [
+    ...(label.hasFindings ? ['bevat een fout'] : []),
+    ...(label.unsaved ? ['niet opgeslagen'] : []),
+  ];
+  if (notes.length === 0) return label.supportingText;
+  const said = notes.join(' · ');
+  return label.supportingText ? `${label.supportingText} · ${said}` : said.charAt(0).toUpperCase() + said.slice(1);
 }
 
 async function onTabClick(tab: OpenTab) {

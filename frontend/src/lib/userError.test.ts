@@ -151,3 +151,59 @@ describe('describeSaveError', () => {
     });
   });
 });
+
+describe('describeEngineLoadError, with the engine\'s records', () => {
+  const finding = (article: string, name: string, rule: string) => ({
+    severity: 'error' as const,
+    kind: 'type_check' as const,
+    law_id: 'kieswet',
+    article,
+    place: { kind: 'output' as const, name },
+    position: null,
+    rule,
+    message: `something about ${name}`,
+  });
+
+  it('counts the findings and names their articles, from the records', () => {
+    const thrown = {
+      // A sentence the patterns would read differently: the records win.
+      error: 'Failed to load law: something the patterns do not know',
+      diagnostics: [finding('B 1', 'a', 'N1'), finding('B 1', 'b', 'T2'), finding('B 5', 'c', 'N5')],
+    };
+    const described = describeEngineLoadError(thrown);
+    expect(described.summary).toBe('De engine vond 3 fouten in het regelwerk. Kijk bij de artikelen B 1 en B 5.');
+    expect(described.details).toBe(thrown.error);
+    expect(described.diagnostics).toHaveLength(3);
+  });
+
+  it('says whose articles they are when the findings are in a regelwerk that depends on this one', () => {
+    const elsewhere = (lawId: string, article: string) => ({ ...finding(article, 'a', 'T5'), kind: 'cross_law' as const, law_id: lawId });
+    expect(describeEngineLoadError({ error: 'x', diagnostics: [elsewhere('wet_a', '2'), elsewhere('wet_a', '4')] }).summary)
+      .toBe('Door dit regelwerk klopt Wet A niet meer. Kijk daar bij de artikelen 2 en 4.');
+    // Two regelwerken can each have an article 2, so no article is named.
+    expect(describeEngineLoadError({ error: 'x', diagnostics: [elsewhere('wet_a', '2'), elsewhere('wet_b', '2')] }).summary)
+      .toBe('Door dit regelwerk klopt Wet A en Wet B niet meer.');
+  });
+
+  it('points at the line of a text that cannot be read', () => {
+    const described = describeEngineLoadError({
+      error: 'YAML parse error: did not find expected node at line 12 column 3',
+      diagnostics: [{
+        severity: 'error', kind: 'structure', law_id: null, article: null, place: null,
+        position: { line: 12, column: 3 }, rule: null, message: 'did not find expected node',
+      }],
+    });
+    expect(described.summary).toBe('Het regelwerk is niet geldig en kan niet worden gelezen. Kijk bij regel 12 van de YAML.');
+  });
+
+  it('falls back on the sentence for a record without a place', () => {
+    const described = describeEngineLoadError({
+      error: 'Failed to load law: article 2, output x: operation Y could not be read',
+      diagnostics: [{
+        severity: 'error', kind: 'load_check', law_id: null, article: null, place: null,
+        position: null, rule: null, message: 'article 2, output x: operation Y could not be read',
+      }],
+    });
+    expect(described.summary).toContain('Kijk bij artikel 2.');
+  });
+});

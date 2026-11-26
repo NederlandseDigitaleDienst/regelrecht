@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount, provide } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate, type RouteLocationNormalized } from 'vue-router';
 import { useOpenLaw } from './composables/useOpenLaw';
@@ -17,6 +17,7 @@ import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
 import { describeEngineLoadError, describeSaveError, type UserError } from './lib/userError';
+import { GO_TO_FINDING, type EngineDiagnostic } from './lib/engineDiagnostics';
 import { useErrorsStore } from './stores/errors';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
@@ -1516,6 +1517,11 @@ function tabLabel(tab: OpenTab): TabLabel {
     shortText: `Art. ${tab.articleNumber}`,
     supportingText,
     unsaved: isOpenArticle(tab.lawId, tab.articleNumber) && openLaw.hasUnsavedWork.value,
+    // The engine's verdict is on the open regelwerk, so only its tabs can say.
+    hasFindings: tab.lawId === lawId.value
+      && (engineLoadError.value?.diagnostics ?? []).some(
+        (finding) => (finding.law_id ?? lawId.value) === lawId.value && finding.article === tab.articleNumber,
+      ),
   };
 }
 
@@ -1727,13 +1733,39 @@ const errors = useErrorsStore();
 // regelwerk. The article, when the engine names one, is in the sentence.
 const engineErrorTitle = computed(() => `${failedLawName.value || 'Dit regelwerk'} kan niet worden uitgevoerd`);
 const saveErrorTitle = computed(() => `${failedLawName.value || 'Het regelwerk'} is niet opgeslagen`);
+// The engine's findings on the article on screen, for the Machine pane to mark.
+const articleFindings = computed(() => {
+  const article = selectedArticle.value ? String(selectedArticle.value.number) : null;
+  return (engineLoadError.value?.diagnostics ?? []).filter(
+    (finding) => (finding.law_id ?? lawId.value) === lawId.value && finding.article === article,
+  );
+});
+// Open what a finding of the engine is about: its article, and the action
+// behind an output when that article is already on screen. Another article
+// goes through the router, which asks first when there are unsaved edits.
+function goToDiagnostic(diagnostic: EngineDiagnostic) {
+  const targetLaw = diagnostic.law_id ?? lawId.value;
+  if (!targetLaw || !diagnostic.article) return;
+  const onScreen = targetLaw === lawId.value && String(selectedArticle.value?.number) === diagnostic.article;
+  if (!onScreen) {
+    handleRegelRijmNavigate({ lawId: targetLaw, articleNumber: diagnostic.article });
+    return;
+  }
+  if (diagnostic.place?.kind === 'output') handleSheetOpenOutput(diagnostic.place.name);
+}
+// A failed scenario run points at an article too, from wherever its result is
+// shown; that is always a jump, since the result is not the article.
+provide(GO_TO_FINDING, (finding: EngineDiagnostic) => {
+  const targetLaw = finding.law_id ?? lawId.value;
+  if (targetLaw && finding.article) handleRegelRijmNavigate({ lawId: targetLaw, articleNumber: finding.article });
+});
 // The engine's refusal is a notification, shared with the other errors the
 // editor reports. The panes stay: the frontend reads the regelwerk with its
 // own parser, and they are where the author repairs it.
 watch(
   [engineLoadError, engineErrorTitle],
   ([error, title]) => {
-    if (error) errors.report('engine-load', title, error);
+    if (error) errors.report('engine-load', title, error, { goTo: goToDiagnostic });
     else errors.clear('engine-load');
   },
   { immediate: true },
@@ -1906,7 +1938,7 @@ const saveError = computed(() => (saveFailure.value ? describeSaveError(saveFail
 watch(
   [saveError, saveErrorTitle],
   ([error, title]) => {
-    if (error) errors.report('save', title, error, () => { review.processError.value = null; });
+    if (error) errors.report('save', title, error, { onDismiss: () => { review.processError.value = null; } });
     else errors.clear('save');
   },
   { immediate: true },
@@ -2724,6 +2756,7 @@ async function handleActionSave() {
                   :law="law"
                   :law-id="lawId"
                   :links="regelrijmLinks"
+                  :findings="articleFindings"
                   @open-action="handleOpenAction"
                   @navigate="handleRegelRijmNavigate"
                   @open-edit="activeEditItem = $event"

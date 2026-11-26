@@ -3,6 +3,7 @@
  *
  * Provides the engine and helpers for loading laws and dependencies.
  */
+import { rawErrorText } from '../lib/userError';
 import { ref, shallowReactive } from 'vue';
 import { apiFetchText } from '../lib/apiFetch';
 import { useCorpus } from '../corpus';
@@ -17,6 +18,8 @@ import type { GherkinEngine } from '@regelrecht/frontend-shared/gherkin';
  */
 export interface EditorEngine extends GherkinEngine {
   loadLaw(yaml: string): string;
+  /** Like `loadLaw`, but throws `{ error, diagnostics }` (lib/engineDiagnostics). */
+  loadLawWithDiagnostics?(yaml: string): string;
   unloadLaw(lawId: string): boolean;
   clearDataSources(): void;
   executeWithTrace(
@@ -206,7 +209,11 @@ async function loadLawYaml(
   if (lawId && engine.hasLaw(lawId)) engine.unloadLaw(lawId);
   if (lawId) loadLawVersions(engine, [...otherVersions], lawId);
   try {
-    const result = engine.loadLaw(yaml);
+    // The regelwerk on screen: ask for the problems apart, so the editor can
+    // point at them. An engine without the call (a test stub) loads as before.
+    const result = engine.loadLawWithDiagnostics
+      ? engine.loadLawWithDiagnostics(yaml)
+      : engine.loadLaw(yaml);
     if (lawId) {
       loadedScopes.set(lawId, trajectRef || '');
       lawLoadErrors.delete(lawId);
@@ -217,7 +224,7 @@ async function loadLawYaml(
       // Without the edited version, a scenario on its dates would run on an
       // older one and look right. Take the regelwerk out, and say why.
       if (engine.hasLaw(lawId)) engine.unloadLaw(lawId);
-      lawLoadErrors.set(lawId, e instanceof Error ? e.message : String(e));
+      lawLoadErrors.set(lawId, rawErrorText(e));
     }
     throw e;
   } finally {

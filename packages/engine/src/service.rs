@@ -36,6 +36,7 @@ use crate::article::{
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
 use crate::data_source::{DataSource, DataSourceRegistry, DictDataSource};
+use crate::diagnostic::FlaggedFacts;
 use crate::engine::{
     ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance, RegulationRead,
     Unanswered,
@@ -1718,6 +1719,8 @@ struct FlaggedConstruct<'a> {
     construct: &'a str,
     /// What has to change before the article can be translated in full.
     reason: String,
+    /// The construct in the fields the article wrote it in.
+    facts: FlaggedFacts,
     /// Whether a human has reviewed and acknowledged this gap.
     accepted: bool,
 }
@@ -1729,6 +1732,7 @@ impl FlaggedConstruct<'_> {
             article: article_number.to_string(),
             construct: self.construct.to_string(),
             reason: self.reason.clone(),
+            facts: Box::new(self.facts.clone()),
         }
     }
 }
@@ -1743,6 +1747,12 @@ fn flagged_constructs(machine_readable: &MachineReadable) -> Vec<FlaggedConstruc
             label: "Untranslatable",
             construct: &entry.construct,
             reason: entry.reason.clone(),
+            facts: FlaggedFacts {
+                about: entry.construct.clone(),
+                reason: entry.reason.clone(),
+                resolution: None,
+                resolved_by: None,
+            },
             accepted: entry.accepted,
         });
     let markings = machine_readable
@@ -1753,6 +1763,12 @@ fn flagged_constructs(machine_readable: &MachineReadable) -> Vec<FlaggedConstruc
             label: "Marking",
             construct: &marking.about,
             reason: marking_reason(marking),
+            facts: FlaggedFacts {
+                about: marking.about.clone(),
+                reason: marking.reason.trim().to_string(),
+                resolution: Some(marking.resolution),
+                resolved_by: marking.resolved_by.clone(),
+            },
             accepted: marking.accepted,
         });
     untranslatables.chain(markings).collect()
@@ -15464,6 +15480,27 @@ articles:
                 if construct == "afronden op hele euro's"),
             "an unaccepted marking must stop execution: {unaccepted:?}"
         );
+        // The record gives the marking in its own fields, next to the sentence.
+        if let Err(refusal) = &unaccepted {
+            let diagnostics = refusal.diagnostics();
+            assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+            let diagnostic = &diagnostics[0];
+            assert_eq!(diagnostic.kind, crate::diagnostic::DiagnosticKind::Marking);
+            assert_eq!(diagnostic.law_id.as_deref(), Some("wet_met_markeringen"));
+            assert_eq!(diagnostic.article.as_deref(), Some("2"));
+            assert_eq!(diagnostic.message, refusal.to_string());
+            let flagged = diagnostic.flagged.as_ref().unwrap();
+            assert_eq!(flagged.about, "afronden op hele euro's");
+            assert_eq!(
+                flagged.reason,
+                "de motor kent geen wettelijke afronding op eurocenten"
+            );
+            assert_eq!(
+                flagged.resolution,
+                Some(crate::article::MarkingResolution::Operation)
+            );
+            assert!(flagged.resolved_by.is_some());
+        }
 
         // Propagate mode taints the outputs of a marked article, exactly as it
         // does for an untranslatable.
