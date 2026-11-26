@@ -161,11 +161,11 @@ const uitkomstOpBezwaar = (uit) =>
 <template>
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Open aanvragen">
-      <nldd-text slot="supporting-text">
+      <p slot="supporting-text">
         Het bestuursorgaan is hier {{ state.casus.rol }} (<ArtikelLink :basis="besluitBasis()" />). Het beslist met de
         aanvraag, het beleid en de bevindingen hieronder. Wat de cel zelf uit haar
         kroniek beantwoordt, vraagt deze pagina niet.
-      </nldd-text>
+      </p>
     </nldd-title>
     <nldd-inline-dialog
       v-if="open.length === 0"
@@ -212,7 +212,7 @@ const uitkomstOpBezwaar = (uit) =>
 
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Open bezwaren">
-      <nldd-text slot="supporting-text">
+      <p slot="supporting-text">
         Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat zonder
         verschoning te laat kwam, tegen een besluit dat in bezwaar is genomen, of van iemand die
         geen belanghebbende is, wordt niet heroverwogen. Anders heroverweegt
@@ -220,7 +220,7 @@ const uitkomstOpBezwaar = (uit) =>
         een bevinding opnieuw geven, bijvoorbeeld na nieuwe stukken bij het bezwaar. Verschilt
         de uitkomst, dan herroept de beslissing het besluit en komt er een nieuw besluit. Een
         besluit wordt maar één keer vervangen.
-      </nldd-text>
+      </p>
     </nldd-title>
     <nldd-inline-dialog
       v-if="openBezwaren.length === 0"
@@ -236,7 +236,7 @@ const uitkomstOpBezwaar = (uit) =>
           :supporting-text="`ontvangen ${bz.recorded_on} · ${bz.fields.gronden_bezwaar_of_beroep ?? ''}`"
         ></nldd-title>
         <template v-if="!toetsen[bz.id]">
-          <nldd-text size="sm" color="secondary">Stap 1: is het bezwaar ontvankelijk? Het bestuursorgaan oordeelt of de indiener belanghebbende is, en of hij bij een te laat bezwaarschrift in verzuim was. Daarmee beslist Awb 7:11 op de speeldatum.</nldd-text>
+          <nldd-text size="sm" color="secondary"><p>Stap 1: is het bezwaar ontvankelijk? Het bestuursorgaan oordeelt of de indiener belanghebbende is, en of hij bij een te laat bezwaarschrift in verzuim was. Daarmee beslist Awb 7:11 op de speeldatum.</p></nldd-text>
           <EigenOordelen
             :velden="ontvankelijkheidsOordelen()"
             :waarden="opnieuwVorm.waarden(bz.id)"
@@ -300,10 +300,12 @@ const uitkomstOpBezwaar = (uit) =>
 
   <nldd-simple-section v-if="state.vormen.eigen?.handelingen?.length">
     <nldd-title heading-level="2" slot="header" size="display-3" text="Vastleggen">
-      <nldd-text slot="supporting-text">
-        Wat het bestuursorgaan zelf vastlegt terwijl het de zaak behandelt, in de eigen kroniek: de feiten
-        die de wet het opdraagt, zoals een betaling op een besluit.
-      </nldd-text>
+      <p slot="supporting-text">
+
+          Wat het bestuursorgaan zelf vastlegt terwijl het de zaak behandelt, in de eigen kroniek: de feiten
+          die de wet het opdraagt, zoals een betaling op een besluit.
+
+      </p>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
       <FeitVastleggen :cel="state.vormen.eigen.cel" :handelingen="state.vormen.eigen.handelingen" />
@@ -312,9 +314,9 @@ const uitkomstOpBezwaar = (uit) =>
 
   <nldd-simple-section v-if="weergaven.length && genomen.length">
     <nldd-title heading-level="2" slot="header" size="display-3" text="Genomen besluiten">
-      <nldd-text slot="supporting-text">
+      <p slot="supporting-text">
         Wat de cel op de speeldatum over elk besluit weet, uit haar kroniek en het beleid. Er wordt niets vastgelegd.
-      </nldd-text>
+      </p>
     </nldd-title>
     <nldd-container gap="16">
       <nldd-card v-for="g in genomen" :key="g.id">
@@ -333,10 +335,12 @@ const uitkomstOpBezwaar = (uit) =>
 
   <nldd-simple-section v-if="eigenAmbtshalve">
     <nldd-title heading-level="2" slot="header" size="display-3" text="Ambtshalve besluiten">
-      <nldd-text slot="supporting-text">
-        Een besluit dat het bestuursorgaan zonder aanvraag neemt, zoals de vaststelling van de wettelijke rente
-        over een betaling. Welke dat zijn, volgt uit de wet.
-      </nldd-text>
+      <p slot="supporting-text">
+
+          Een besluit dat het bestuursorgaan zonder aanvraag neemt, zoals de vaststelling van de wettelijke rente
+          over een betaling. Welke dat zijn, volgt uit de wet.
+
+      </p>
     </nldd-title>
     <nldd-container max-width="560px">
       <AmbtshalveBesluiten />

@@ -25,5 +25,5 @@ const px = computed(() => (props.size === 'sm' ? '24' : '40'));
       <img :src="info.logo" :alt="info.name" />
     </span>
   </nldd-tooltip>
-  <nldd-avatar v-else type="organization" :size="px" :name="info.name" :initials="initials"></nldd-avatar>
+  <nldd-avatar v-else variant="organization" :size="px" :name="info.name" :initials="initials"></nldd-avatar>
 </template>

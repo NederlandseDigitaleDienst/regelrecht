@@ -362,260 +362,255 @@ function restoreTabSelection() {
            on the library it sits under this bar; on the editor the document-tab-
            bar sits between, so toolbar + tabs read as one group above the single
            main divider. -->
-      <nldd-split-view-pane slot="primary-bar-md" only="md">
-        <nldd-container padding="8">
-          <nldd-toolbar size="md">
-            <nldd-toolbar-item slot="start" :priority="1">
-              <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
-                <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
-                <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
-              </nldd-tab-bar>
-              <nldd-menu-group slot="overflow" text="Onderdelen">
-                <nldd-menu-item type="radio" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
-                <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
-              </nldd-menu-group>
-            </nldd-toolbar-item>
-            <!-- What the editor reported and still holds; opens the details sheet. -->
-            <nldd-toolbar-item v-if="standingErrors.length > 0" slot="end">
-              <ErrorIndicator />
-              <ErrorIndicator slot="overflow" menu-item />
-            </nldd-toolbar-item>
-            <nldd-toolbar-item v-if="lastSavedPr" slot="end">
-              <!-- Federated write-back indicator (editor only). New tab so the
-                   editor state isn't lost. -->
-              <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
-              <nldd-menu-item slot="overflow" icon="external-link" :text="`PR #${lastSavedPr.number}`" @select="openLastSavedPr"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-just-in-time-education
-                placement="bottom"
-                arrow-length="160px"
-                text="Zoek een regelwerk om te openen"
-                supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
-                :active="showSearchHintMd || undefined"
-                :dismissable="trajectActive || undefined"
-                @close="onSearchHintClose"
-              >
-                <nldd-button data-search-trigger size="md" start-icon="search" text="Zoeken" @click="openSearch"></nldd-button>
-              </nldd-just-in-time-education>
-              <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
-              <nldd-icon-button size="md" icon="plus-small" text="Nieuw" tooltip-timing="never" expandable>
-                <nldd-menu v-if="trajectActive" slot="popup">
-                  <NewMenuItems />
-                </nldd-menu>
-                <!-- Niet ingelogd: dezelfde "+" blijft staan als ontdekpunt, maar
-                     opent een popover die uitnodigt in te loggen. Zelfde id als het
-                     menu, zodat de knop-popovertarget statisch blijft (patroon van
-                     de trajecten-knop). -->
-                <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
-                  <nldd-container padding="16">
-                    <nldd-inline-dialog
-                      icon="login"
-                      text="Log in om iets toe te voegen"
-                      supporting-text="Zodra je bent ingelogd kun je regelwerken, werkdocumenten en leden aan een traject toevoegen."
-                    >
-                      <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
-                      <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
-                    </nldd-inline-dialog>
-                  </nldd-container>
-                </nldd-popover>
+      <nldd-container slot="primary-bar-md" only="md" padding="8">
+        <nldd-toolbar size="md">
+          <nldd-toolbar-item slot="start" :priority="1">
+            <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
+              <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
+              <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
+            </nldd-tab-bar>
+            <nldd-menu-group slot="overflow" text="Onderdelen">
+              <nldd-menu-item type="radio" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
+              <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
+            </nldd-menu-group>
+          </nldd-toolbar-item>
+          <!-- What the editor reported and still holds; opens the details sheet. -->
+          <nldd-toolbar-item v-if="standingErrors.length > 0" slot="end">
+            <ErrorIndicator />
+            <ErrorIndicator slot="overflow" menu-item />
+          </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="lastSavedPr" slot="end">
+            <!-- Federated write-back indicator (editor only). New tab so the
+                 editor state isn't lost. -->
+            <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="external-link" :text="`PR #${lastSavedPr.number}`" @select="openLastSavedPr"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-just-in-time-education
+              placement="bottom"
+              arrow-length="160px"
+              text="Zoek een regelwerk om te openen"
+              supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
+              :active="showSearchHintMd || undefined"
+              :dismissable="trajectActive || undefined"
+              @close="onSearchHintClose"
+            >
+              <nldd-button data-search-trigger size="md" start-icon="search" text="Zoeken" @click="openSearch"></nldd-button>
+            </nldd-just-in-time-education>
+            <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
+            <nldd-icon-button size="md" icon="plus-small" text="Nieuw" tooltip-timing="never" expandable>
+              <nldd-menu v-if="trajectActive" slot="popup">
+                <NewMenuItems />
+              </nldd-menu>
+              <!-- Niet ingelogd: dezelfde "+" blijft staan als ontdekpunt, maar
+                   opent een popover die uitnodigt in te loggen. Zelfde id als het
+                   menu, zodat de knop-popovertarget statisch blijft (patroon van
+                   de trajecten-knop). -->
+              <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
+                <nldd-container padding="16">
+                  <nldd-inline-dialog
+                    icon="login"
+                    text="Log in om iets toe te voegen"
+                    supporting-text="Zodra je bent ingelogd kun je regelwerken, werkdocumenten en leden aan een traject toevoegen."
+                  >
+                    <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
+                    <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
+                  </nldd-inline-dialog>
+                </nldd-container>
+              </nldd-popover>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
+              <nldd-menu v-if="trajectActive">
+                <NewMenuItems />
+              </nldd-menu>
+              <!-- Logged out: what the button's popover offers, as a menu. -->
+              <nldd-menu v-else>
+                <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
+                <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-button-bar size="md">
+              <TrajectMenu />
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
+                <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="content" icon-aligned decorative></nldd-avatar>
+              <nldd-menu slot="popup">
+                <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+              </nldd-menu>
               </nldd-icon-button>
-              <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
-                <nldd-menu v-if="trajectActive">
-                  <NewMenuItems />
-                </nldd-menu>
-                <!-- Logged out: what the button's popover offers, as a menu. -->
-                <nldd-menu v-else>
-                  <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
-                  <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-button-bar size="md">
-                <TrajectMenu />
-                <nldd-button-bar-divider></nldd-button-bar-divider>
-                <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
-                  <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
-                <nldd-menu slot="popup">
-                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
-                </nldd-menu>
-                </nldd-icon-button>
-              </nldd-button-bar>
-              <TrajectMenu slot="overflow" menu-item />
-              <nldd-menu-item slot="overflow" icon="account" text="Account">
-                <nldd-menu>
-                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
+            </nldd-button-bar>
+            <TrajectMenu slot="overflow" menu-item />
+            <nldd-menu-item slot="overflow" icon="account" text="Account">
+              <nldd-menu>
+                <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
 
       <!-- Primary Bar: lg+ - search as input field in center slot -->
-      <nldd-split-view-pane slot="primary-bar-lg" above="lg">
-        <nldd-container padding="8">
-          <nldd-toolbar size="md">
-            <nldd-toolbar-item slot="start" :priority="1">
-              <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
-                <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
-                <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
-              </nldd-tab-bar>
-              <nldd-menu-group slot="overflow" text="Onderdelen">
-                <nldd-menu-item type="radio" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
-                <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
-              </nldd-menu-group>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="center" min-width="240px" width="33%" max-width="480px">
-              <nldd-just-in-time-education
-                placement="bottom"
-                arrow-length="160px"
-                text="Zoek een regelwerk om te openen"
-                supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
-                :active="showSearchHintLg || undefined"
-                :dismissable="trajectActive || undefined"
-                @close="onSearchHintClose"
-              >
-                <nldd-search-field
-                  data-search-trigger
-                  size="md"
-                  :placeholder="SEARCH_PLACEHOLDER"
-                  :accessible-label="SEARCH_ACCESSIBLE_LABEL"
-                  @click="openSearch"
-                  @keydown="onBarSearchKeydown"
-                ></nldd-search-field>
-              </nldd-just-in-time-education>
-              <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <!-- What the editor reported and still holds; opens the details sheet. -->
-            <nldd-toolbar-item v-if="standingErrors.length > 0" slot="end">
-              <ErrorIndicator />
-              <ErrorIndicator slot="overflow" menu-item />
-            </nldd-toolbar-item>
-            <nldd-toolbar-item v-if="lastSavedPr" slot="end">
-              <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
-              <nldd-menu-item slot="overflow" icon="external-link" :text="`PR #${lastSavedPr.number}`" @select="openLastSavedPr"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
-              <nldd-icon-button size="md" icon="plus-small" text="Nieuw" tooltip-timing="never" expandable>
-                <nldd-menu v-if="trajectActive" slot="popup">
-                  <NewMenuItems />
-                </nldd-menu>
-                <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
-                  <nldd-container padding="16">
-                    <nldd-inline-dialog
-                      icon="login"
-                      text="Log in om iets toe te voegen"
-                      supporting-text="Zodra je bent ingelogd kun je regelwerken, werkdocumenten en leden aan een traject toevoegen."
-                    >
-                      <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
-                      <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
-                    </nldd-inline-dialog>
-                  </nldd-container>
-                </nldd-popover>
+      <nldd-container slot="primary-bar-lg" above="lg" padding="8">
+        <nldd-toolbar size="md">
+          <nldd-toolbar-item slot="start" :priority="1">
+            <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
+              <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
+              <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
+            </nldd-tab-bar>
+            <nldd-menu-group slot="overflow" text="Onderdelen">
+              <nldd-menu-item type="radio" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
+              <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
+            </nldd-menu-group>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="center" min-width="240px" width="33%" max-width="480px">
+            <nldd-just-in-time-education
+              placement="bottom"
+              arrow-length="160px"
+              text="Zoek een regelwerk om te openen"
+              supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
+              :active="showSearchHintLg || undefined"
+              :dismissable="trajectActive || undefined"
+              @close="onSearchHintClose"
+            >
+              <nldd-search-field
+                data-search-trigger
+                size="md"
+                :placeholder="SEARCH_PLACEHOLDER"
+                :accessible-label="SEARCH_ACCESSIBLE_LABEL"
+                @click="openSearch"
+                @keydown="onBarSearchKeydown"
+              ></nldd-search-field>
+            </nldd-just-in-time-education>
+            <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <!-- What the editor reported and still holds; opens the details sheet. -->
+          <nldd-toolbar-item v-if="standingErrors.length > 0" slot="end">
+            <ErrorIndicator />
+            <ErrorIndicator slot="overflow" menu-item />
+          </nldd-toolbar-item>
+          <nldd-toolbar-item v-if="lastSavedPr" slot="end">
+            <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="external-link" :text="`PR #${lastSavedPr.number}`" @select="openLastSavedPr"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
+            <nldd-icon-button size="md" icon="plus-small" text="Nieuw" tooltip-timing="never" expandable>
+              <nldd-menu v-if="trajectActive" slot="popup">
+                <NewMenuItems />
+              </nldd-menu>
+              <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
+                <nldd-container padding="16">
+                  <nldd-inline-dialog
+                    icon="login"
+                    text="Log in om iets toe te voegen"
+                    supporting-text="Zodra je bent ingelogd kun je regelwerken, werkdocumenten en leden aan een traject toevoegen."
+                  >
+                    <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
+                    <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
+                  </nldd-inline-dialog>
+                </nldd-container>
+              </nldd-popover>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
+              <nldd-menu v-if="trajectActive">
+                <NewMenuItems />
+              </nldd-menu>
+              <!-- Logged out: what the button's popover offers, as a menu. -->
+              <nldd-menu v-else>
+                <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
+                <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-button-bar size="md">
+              <TrajectMenu />
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
+                <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="content" icon-aligned decorative></nldd-avatar>
+              <nldd-menu slot="popup">
+                <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+              </nldd-menu>
               </nldd-icon-button>
-              <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
-                <nldd-menu v-if="trajectActive">
-                  <NewMenuItems />
-                </nldd-menu>
-                <!-- Logged out: what the button's popover offers, as a menu. -->
-                <nldd-menu v-else>
-                  <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
-                  <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-button-bar size="md">
-                <TrajectMenu />
-                <nldd-button-bar-divider></nldd-button-bar-divider>
-                <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
-                  <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
-                <nldd-menu slot="popup">
-                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
-                </nldd-menu>
-                </nldd-icon-button>
-              </nldd-button-bar>
-              <TrajectMenu slot="overflow" menu-item />
-              <nldd-menu-item slot="overflow" icon="account" text="Account">
-                <nldd-menu>
-                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
+            </nldd-button-bar>
+            <TrajectMenu slot="overflow" menu-item />
+            <nldd-menu-item slot="overflow" icon="account" text="Account">
+              <nldd-menu>
+                <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
 
       <!-- Document Tab Bar (editor only, md+). Hidden on sm - there the tabs
            live in the MobileTrajectSheet opened from the traject row. Rendered
            only while the active view publishes open tabs, so the library never
            shows an empty bar. -->
-      <nldd-split-view-pane v-if="hasDocumentTabs" slot="document-tabs" above="md">
-        <nldd-container padding-inline="8" padding-top="0" padding-bottom="8">
-          <!-- Drag-reorder: the bar reorders its items visually and fires
-               `reorder`; without this listener that move never reaches
-               `openTabs`, so it was lost (reverted from localStorage) the next
-               time the editor mounted. EditorView's `reorderTabs` mirrors the
-               move into the array and persists it. -->
-          <!-- `tab-dismiss` (the bar), not `dismiss` (the item): the bar picks
-               the replacement for a dismissed tab itself and hands it over as
-               `nextItem`. See onTabDismiss. -->
-          <!-- `:key` on the bar (the traject the tabs belong to, published WITH
-               the tabs by the editor - see documentTabsTrajectRef): a traject
-               switch rebuilds the whole bar, tearing down its overflow menu,
-               ResizeObserver and every element reference it holds, so no
-               orphaned <nldd-document-tab-bar-item> ("spooktab") can survive
-               into the next traject. Keying on this shell's own activeTrajectRef
-               would flip a tick before documentTabs and rebuild against the old
-               set. The item :key is traject-prefixed for the same reason.
-               No has-dismiss-button (the item renders its own dismiss button in
-               0.8.44); accessible-label names the navigation landmark. -->
-          <nldd-document-tab-bar
-            ref="tabBarEl"
-            :key="documentTabsTrajectRef ?? ''"
-            accessible-label="Open artikelen"
-            @reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
-            @tab-dismiss="onTabDismiss"
+      <nldd-container v-if="hasDocumentTabs" slot="document-tabs" above="md" padding-inline="8" padding-top="0" padding-bottom="8">
+        <!-- Drag-reorder: the bar reorders its items visually and fires
+             `reorder`; without this listener that move never reaches
+             `openTabs`, so it was lost (reverted from localStorage) the next
+             time the editor mounted. EditorView's `reorderTabs` mirrors the
+             move into the array and persists it. -->
+        <!-- `tab-dismiss` (the bar), not `dismiss` (the item): the bar picks
+             the replacement for a dismissed tab itself and hands it over as
+             `nextItem`. See onTabDismiss. -->
+        <!-- `:key` on the bar (the traject the tabs belong to, published WITH
+             the tabs by the editor - see documentTabsTrajectRef): a traject
+             switch rebuilds the whole bar, tearing down its overflow menu,
+             ResizeObserver and every element reference it holds, so no
+             orphaned <nldd-document-tab-bar-item> ("spooktab") can survive
+             into the next traject. Keying on this shell's own activeTrajectRef
+             would flip a tick before documentTabs and rebuild against the old
+             set. The item :key is traject-prefixed for the same reason.
+             No has-dismiss-button (the item renders its own dismiss button in
+             0.8.44); accessible-label names the navigation landmark. -->
+        <nldd-document-tab-bar
+          ref="tabBarEl"
+          :key="documentTabsTrajectRef ?? ''"
+          accessible-label="Open artikelen"
+          @reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
+          @tab-dismiss="onTabDismiss"
+        >
+          <nldd-document-tab-bar-item
+            v-for="tab in documentTabs"
+            :key="`${documentTabsTrajectRef ?? ''}:${tabActions?.key(tab)}`"
+            :data-tab-key="tabActions?.key(tab)"
+            :data-unsaved="tabActions?.label(tab).unsaved || undefined"
+            :text="tabActions?.label(tab).text"
+            :supporting-text="tabSupportingText(tab)"
+            :short-text="tabActions?.label(tab).shortText"
+            :short-supporting-text="tabSupportingText(tab)"
+            :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
+            @click="onTabClick(tab)"
           >
-            <nldd-document-tab-bar-item
-              v-for="tab in documentTabs"
-              :key="`${documentTabsTrajectRef ?? ''}:${tabActions?.key(tab)}`"
-              :data-tab-key="tabActions?.key(tab)"
-              :data-unsaved="tabActions?.label(tab).unsaved || undefined"
-              :text="tabActions?.label(tab).text"
-              :supporting-text="tabSupportingText(tab)"
-              :short-text="tabActions?.label(tab).shortText"
-              :short-supporting-text="tabSupportingText(tab)"
-              :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
-              @click="onTabClick(tab)"
-            >
-            </nldd-document-tab-bar-item>
-          </nldd-document-tab-bar>
-        </nldd-container>
-      </nldd-split-view-pane>
+          </nldd-document-tab-bar-item>
+        </nldd-document-tab-bar>
+      </nldd-container>
 
       <!-- Review-melding (editor only): direct onder de document-tab-bar, dus
            vóór `main` in de DOM. Eigen pane in de bar-split-view zodat hij niet
            met de panes meescrollt. Op sm bestaat de tab-bar niet (above="md"),
            daar landt hij dus vanzelf bovenaan. -->
-      <nldd-split-view-pane v-if="reviewNotice" slot="review-notice">
-        <nldd-container padding="8" padding-top="0">
-          <nldd-banner
-            size="sm"
-            :variant="editorChanges?.reviewVariant || 'accent'"
-            :text="reviewNotice"
-          ></nldd-banner>
-        </nldd-container>
-      </nldd-split-view-pane>
+      <nldd-container v-if="reviewNotice" slot="review-notice" padding="8" padding-top="0">
+        <nldd-banner
+          size="sm"
+          :variant="editorChanges?.reviewVariant || 'accent'"
+          :text="reviewNotice"
+        ></nldd-banner>
+      </nldd-container>
 
       <!-- Main content area - the active section's body. -->
-      <nldd-split-view-pane slot="main">
+      <!-- The routed views have more than one root (their overlays are
+           siblings of the split view), so they cannot carry the slot
+           themselves: a fragment does not inherit attributes. -->
+      <div slot="main">
         <router-view />
-      </nldd-split-view-pane>
+      </div>
 
 
       <!-- Wijzigingenbalk (editor only): one article-level bar with Opslaan +
@@ -623,211 +618,206 @@ function restoreTabSelection() {
            footers. Published by EditorView via the chrome store; shown only while
            the article has unsaved changes. Sits after `main` in the DOM, so on
            sm it lands above the two mobile bars and on md+ it's the bottom bar. -->
-      <nldd-split-view-pane v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar">
-        <nldd-container padding="8" sm-padding-bottom="0">
-          <nldd-toolbar size="md" accessible-label="Wijzigingen">
-            <!-- Undo en redo zijn losse knoppen: die gebruik je herhaald, en
-                 dan is elke klik door een menu er één te veel. De discard is
-                 destructief en houdt daarom z'n eigen chevron-knop, zodat hij
-                 niet per ongeluk geraakt wordt naast de twee ernaast. -->
-            <nldd-toolbar-item slot="start" label="Wijzigingen" :priority="1">
-              <nldd-button-bar>
-                <nldd-icon-button
-                  icon="undo"
-                  text="Ongedaan maken"
-                  :disabled="!editorChanges.canUndo || undefined"
-                  @click="editorActions?.undo?.()"
-                ></nldd-icon-button>
-                <nldd-button-bar-divider></nldd-button-bar-divider>
-                <nldd-icon-button
-                  icon="redo"
-                  text="Opnieuw"
-                  :disabled="!editorChanges.canRedo || undefined"
-                  @click="editorActions?.redo?.()"
-                ></nldd-icon-button>
-                <nldd-button-bar-divider></nldd-button-bar-divider>
-                <nldd-icon-button icon="chevron-down" text="Meer acties" tooltip-timing="never">
-                  <nldd-menu slot="popup">
-                    <nldd-menu-item
-                      text="Maak alle wijzigingen ongedaan"
-                      destructive
-                      @select="editorActions?.discard?.()"
-                    ></nldd-menu-item>
-                    <nldd-menu-item
-                      v-if="canRejectRest"
-                      text="Rond af, neem de rest niet over"
-                      destructive
-                      @select="rejectRestConfirm?.show()"
-                    ></nldd-menu-item>
-                  </nldd-menu>
-                </nldd-icon-button>
-              </nldd-button-bar>
-              <nldd-menu-item
-                slot="overflow"
+      <nldd-container v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar" padding="8" sm-padding-bottom="0">
+        <nldd-toolbar size="md" accessible-label="Wijzigingen">
+          <!-- Undo en redo zijn losse knoppen: die gebruik je herhaald, en
+               dan is elke klik door een menu er één te veel. De discard is
+               destructief en houdt daarom z'n eigen chevron-knop, zodat hij
+               niet per ongeluk geraakt wordt naast de twee ernaast. -->
+          <nldd-toolbar-item slot="start" label="Wijzigingen" :priority="1">
+            <nldd-button-bar>
+              <nldd-icon-button
                 icon="undo"
                 text="Ongedaan maken"
                 :disabled="!editorChanges.canUndo || undefined"
-                @select="editorActions?.undo?.()"
-              ></nldd-menu-item>
-              <nldd-menu-item
-                slot="overflow"
+                @click="editorActions?.undo?.()"
+              ></nldd-icon-button>
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <nldd-icon-button
                 icon="redo"
                 text="Opnieuw"
                 :disabled="!editorChanges.canRedo || undefined"
-                @select="editorActions?.redo?.()"
-              ></nldd-menu-item>
-              <nldd-menu-item
-                slot="overflow"
-                text="Maak alle wijzigingen ongedaan"
-                destructive
-                @select="editorActions?.discard?.()"
-              ></nldd-menu-item>
-              <nldd-menu-item
-                v-if="canRejectRest"
-                slot="overflow"
-                text="Rond af, neem de rest niet over"
-                destructive
-                @select="rejectRestConfirm?.show()"
-              ></nldd-menu-item>
-            </nldd-toolbar-item>
-            <!-- Review-modus zet de beslissing hier. Twee losse toolbar-items,
-                 geen button-bar: die plakt een destructieve knop tegen een
-                 bevestigende aan, precies wat de ontwerprichtlijn ("geef ze
-                 visuele en fysieke afstand") wil voorkomen. Verwerp heeft de
-                 lagere prioriteit, dus die wijkt als eerste naar het
-                 overloopmenu. -->
-            <nldd-toolbar-item v-if="inReview" slot="end" label="Verwerp voorstel" :priority="2">
-              <nldd-button
-                appearance="destructive"
-                size="md"
-                start-icon="dismiss-circle"
-                text="Verwerp voorstel"
-                :disabled="editorChanges.saving || undefined"
-                @click="rejectConfirm?.show()"
-              ></nldd-button>
-              <nldd-menu-item
-                slot="overflow"
-                icon="dismiss"
-                text="Verwerp voorstel"
-                destructive
-                :disabled="editorChanges.saving || undefined"
-                @select="rejectConfirm?.show()"
-              ></nldd-menu-item>
-            </nldd-toolbar-item>
-            <!-- Buiten review staat Opslaan er alleen, en dan houdt hij zijn
-                 eigen brede vlak: geen icoon nodig om zich van een buurknop te
-                 onderscheiden. In review staat Verwerp ernaast, en daar doen de
-                 iconen het onderscheidende werk op eigen breedte. -->
-            <nldd-toolbar-item
-              slot="end"
-              :label="saveLabel"
-              :width="inReview ? undefined : '320px'"
-              :priority="3"
-            >
-              <nldd-button
-                appearance="primary"
-                size="md"
-                :start-icon="inReview ? 'check-mark-circle' : undefined"
-                :width="inReview ? undefined : 'full'"
-                :text="saveLabel"
-                :loading="editorChanges.saving || undefined"
-                @click="editorActions?.save?.()"
-              ></nldd-button>
-              <nldd-menu-item
-                slot="overflow"
-                icon="save"
-                :text="saveLabel"
-                :disabled="editorChanges.saving || undefined"
-                @select="editorActions?.save?.()"
-              ></nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
+                @click="editorActions?.redo?.()"
+              ></nldd-icon-button>
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <nldd-icon-button icon="chevron-down" text="Meer acties" tooltip-timing="never">
+                <nldd-menu slot="popup">
+                  <nldd-menu-item
+                    text="Maak alle wijzigingen ongedaan"
+                    destructive
+                    @select="editorActions?.discard?.()"
+                  ></nldd-menu-item>
+                  <nldd-menu-item
+                    v-if="canRejectRest"
+                    text="Rond af, neem de rest niet over"
+                    destructive
+                    @select="rejectRestConfirm?.show()"
+                  ></nldd-menu-item>
+                </nldd-menu>
+              </nldd-icon-button>
+            </nldd-button-bar>
+            <nldd-menu-item
+              slot="overflow"
+              icon="undo"
+              text="Ongedaan maken"
+              :disabled="!editorChanges.canUndo || undefined"
+              @select="editorActions?.undo?.()"
+            ></nldd-menu-item>
+            <nldd-menu-item
+              slot="overflow"
+              icon="redo"
+              text="Opnieuw"
+              :disabled="!editorChanges.canRedo || undefined"
+              @select="editorActions?.redo?.()"
+            ></nldd-menu-item>
+            <nldd-menu-item
+              slot="overflow"
+              text="Maak alle wijzigingen ongedaan"
+              destructive
+              @select="editorActions?.discard?.()"
+            ></nldd-menu-item>
+            <nldd-menu-item
+              v-if="canRejectRest"
+              slot="overflow"
+              text="Rond af, neem de rest niet over"
+              destructive
+              @select="rejectRestConfirm?.show()"
+            ></nldd-menu-item>
+          </nldd-toolbar-item>
+          <!-- Review-modus zet de beslissing hier. Twee losse toolbar-items,
+               geen button-bar: die plakt een destructieve knop tegen een
+               bevestigende aan, precies wat de ontwerprichtlijn ("geef ze
+               visuele en fysieke afstand") wil voorkomen. Verwerp heeft de
+               lagere prioriteit, dus die wijkt als eerste naar het
+               overloopmenu. -->
+          <nldd-toolbar-item v-if="inReview" slot="end" label="Verwerp voorstel" :priority="2">
+            <nldd-button
+              appearance="destructive"
+              size="md"
+              start-icon="dismiss-circle"
+              text="Verwerp voorstel"
+              :disabled="editorChanges.saving || undefined"
+              @click="rejectConfirm?.show()"
+            ></nldd-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="dismiss"
+              text="Verwerp voorstel"
+              destructive
+              :disabled="editorChanges.saving || undefined"
+              @select="rejectConfirm?.show()"
+            ></nldd-menu-item>
+          </nldd-toolbar-item>
+          <!-- Buiten review staat Opslaan er alleen, en dan houdt hij zijn
+               eigen brede vlak: geen icoon nodig om zich van een buurknop te
+               onderscheiden. In review staat Verwerp ernaast, en daar doen de
+               iconen het onderscheidende werk op eigen breedte. -->
+          <nldd-toolbar-item
+            slot="end"
+            :label="saveLabel"
+            :width="inReview ? undefined : '320px'"
+            :priority="3"
+          >
+            <nldd-button
+              appearance="primary"
+              size="md"
+              :start-icon="inReview ? 'check-mark-circle' : undefined"
+              :width="inReview ? undefined : 'full'"
+              :text="saveLabel"
+              :loading="editorChanges.saving || undefined"
+              @click="editorActions?.save?.()"
+            ></nldd-button>
+            <nldd-menu-item
+              slot="overflow"
+              icon="save"
+              :text="saveLabel"
+              :disabled="editorChanges.saving || undefined"
+              @select="editorActions?.save?.()"
+            ></nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
 
       <!-- Mobile Bar (sm only): the combined MobileTrajectSheet button on top
            (traject + open articles in one sheet), then the tab bar + search +
-           account row below. -->
-      <nldd-split-view-pane slot="mobile-bar" only="sm">
-        <nldd-container padding="8" padding-bottom="0">
-          <!-- nldd-lint-disable-next-line toolbar-bottom-needs-large -- this row holds one full-width button; the bar with the sections is the large one below -->
-          <nldd-toolbar size="md">
-            <nldd-toolbar-item slot="start" width="100%">
-              <MobileTrajectSheet />
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-        <nldd-container padding="8">
-          <nldd-toolbar size="lg">
-            <nldd-toolbar-item slot="start">
-              <nldd-tab-bar navigation accessible-label="Onderdelen">
-                <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" icon="home" text="Home"></nldd-tab-bar-item>
-                <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" icon="edit" text="Editor"></nldd-tab-bar-item>
-              </nldd-tab-bar>
-              <nldd-menu-group slot="overflow" text="Onderdelen">
-                <nldd-menu-item type="radio" icon="home" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
-                <nldd-menu-item type="radio" icon="edit" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
-              </nldd-menu-group>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-just-in-time-education
-                placement="top"
-                arrow-length="160px"
-                text="Zoek een regelwerk om te openen"
-                supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
-                :active="showSearchHintSm || undefined"
-                :dismissable="trajectActive || undefined"
-                @close="onSearchHintClose"
-              >
-                <nldd-icon-button data-search-trigger size="lg" icon="search" text="Zoeken" @click="openSearch"></nldd-icon-button>
-              </nldd-just-in-time-education>
-              <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
-              <nldd-icon-button size="lg" icon="plus-small" text="Nieuw" tooltip-timing="never">
-                <nldd-menu v-if="trajectActive" slot="popup">
-                  <NewMenuItems />
-                </nldd-menu>
-                <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
-                  <nldd-container padding="16">
-                    <nldd-inline-dialog
-                      icon="login"
-                      text="Log in om iets toe te voegen"
-                      supporting-text="Zodra je bent ingelogd kun je regelwerken, werkdocumenten en leden aan een traject toevoegen."
-                    >
-                      <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
-                      <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
-                    </nldd-inline-dialog>
-                  </nldd-container>
-                </nldd-popover>
-              </nldd-icon-button>
-              <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
-                <nldd-menu v-if="trajectActive">
-                  <NewMenuItems />
-                </nldd-menu>
-                <!-- Logged out: what the button's popover offers, as a menu. -->
-                <nldd-menu v-else>
-                  <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
-                  <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end">
-              <nldd-icon-button size="lg" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never">
-                <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
-                <nldd-menu slot="popup">
-                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
-                </nldd-menu>
-              </nldd-icon-button>
-              <nldd-menu-item slot="overflow" icon="account" text="Account">
-                <nldd-menu>
-                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
-                </nldd-menu>
-              </nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
+           account row below. One container holds both rows; its gap is the
+           space between them. -->
+      <nldd-container slot="mobile-bar" only="sm" padding="8" gap="8">
+        <!-- nldd-lint-disable-next-line toolbar-bottom-needs-large -- this row holds one full-width button; the bar with the sections is the large one below -->
+        <nldd-toolbar size="md">
+          <nldd-toolbar-item slot="start" width="100%">
+            <MobileTrajectSheet />
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+        <nldd-toolbar size="lg">
+          <nldd-toolbar-item slot="start">
+            <nldd-tab-bar navigation accessible-label="Onderdelen">
+              <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" icon="home" text="Home"></nldd-tab-bar-item>
+              <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" icon="edit" text="Editor"></nldd-tab-bar-item>
+            </nldd-tab-bar>
+            <nldd-menu-group slot="overflow" text="Onderdelen">
+              <nldd-menu-item type="radio" icon="home" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
+              <nldd-menu-item type="radio" icon="edit" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
+            </nldd-menu-group>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-just-in-time-education
+              placement="top"
+              arrow-length="160px"
+              text="Zoek een regelwerk om te openen"
+              supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
+              :active="showSearchHintSm || undefined"
+              :dismissable="trajectActive || undefined"
+              @close="onSearchHintClose"
+            >
+              <nldd-icon-button data-search-trigger size="lg" icon="search" text="Zoeken" @click="openSearch"></nldd-icon-button>
+            </nldd-just-in-time-education>
+            <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
+            <nldd-icon-button size="lg" icon="plus-small" text="Nieuw" tooltip-timing="never">
+              <nldd-menu v-if="trajectActive" slot="popup">
+                <NewMenuItems />
+              </nldd-menu>
+              <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
+                <nldd-container padding="16">
+                  <nldd-inline-dialog
+                    icon="login"
+                    text="Log in om iets toe te voegen"
+                    supporting-text="Zodra je bent ingelogd kun je regelwerken, werkdocumenten en leden aan een traject toevoegen."
+                  >
+                    <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
+                    <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
+                  </nldd-inline-dialog>
+                </nldd-container>
+              </nldd-popover>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
+              <nldd-menu v-if="trajectActive">
+                <NewMenuItems />
+              </nldd-menu>
+              <!-- Logged out: what the button's popover offers, as a menu. -->
+              <nldd-menu v-else>
+                <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
+                <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end">
+            <nldd-icon-button size="lg" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never">
+              <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="content" icon-aligned decorative></nldd-avatar>
+              <nldd-menu slot="popup">
+                <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+              </nldd-menu>
+            </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="account" text="Account">
+              <nldd-menu>
+                <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+              </nldd-menu>
+            </nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
     </nldd-bar-split-view>
 
     <AboutSheet ref="aboutSheet"></AboutSheet>

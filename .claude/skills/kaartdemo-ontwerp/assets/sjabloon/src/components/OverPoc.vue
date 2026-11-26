@@ -22,23 +22,25 @@ const STAPPEN = [
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat is dit?"></nldd-title>
         <nldd-text size="sm">
-          Een proof of concept (PoC) van RegelRecht voor de fysieke leefomgeving. De vraag: %%VRAAG%%
-          Elke uitkomst is terug te volgen naar het artikel waar hij uit komt.
+          <p>
+            Een proof of concept (PoC) van RegelRecht voor de fysieke leefomgeving. De vraag: %%VRAAG%%
+            Elke uitkomst is terug te volgen naar het artikel waar hij uit komt.
+          </p>
         </nldd-text>
       </section>
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat we willen leren"></nldd-title>
-        <nldd-text size="sm">%%WAT_WE_WILLEN_LEREN%%</nldd-text>
+        <nldd-text size="sm"><p>%%WAT_WE_WILLEN_LEREN%%</p></nldd-text>
       </section>
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Zo gebruik je het"></nldd-title>
         <ol class="stappen">
-          <li v-for="s in STAPPEN" :key="s.kop"><nldd-text size="sm"><strong>{{ s.kop }}.</strong> {{ s.tekst }}</nldd-text></li>
+          <li v-for="s in STAPPEN" :key="s.kop"><nldd-text size="sm"><span><strong>{{ s.kop }}.</strong> {{ s.tekst }}</span></nldd-text></li>
         </ol>
       </section>
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat het niet is"></nldd-title>
-        <nldd-text size="sm">Een verkenning, geen besluit. %%VOORBEHOUD%%</nldd-text>
+        <nldd-text size="sm"><p>Een verkenning, geen besluit. %%VOORBEHOUD%%</p></nldd-text>
       </section>
     </div>
   </nldd-sheet>

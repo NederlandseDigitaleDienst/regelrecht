@@ -353,14 +353,16 @@ function errorMessage(e: unknown): string | undefined {
           supporting-text="Opent de traject-branch op GitHub in een nieuw tabblad."
           vertical-alignment="top"
         >
-          <nldd-link
-            size="md"
-            :href="repoUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            end-icon="external-link"
-            :text="repoLabel"
-          ></nldd-link>
+          <p>
+            <nldd-link
+              size="md"
+              :href="repoUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              end-icon="external-link"
+              :text="repoLabel"
+            ></nldd-link>
+          </p>
         </nldd-text-cell>
         <nldd-text-cell v-else :text="repoLabel || 'onbekend'"></nldd-text-cell>
       </nldd-list-item>

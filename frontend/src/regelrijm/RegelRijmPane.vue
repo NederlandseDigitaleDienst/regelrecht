@@ -261,7 +261,7 @@ function ruleId(key: string): string {
         <template v-if="rule.output && links.get(rule.output)?.length">
           <nldd-spacer size="8"></nldd-spacer>
           <div :data-testid="`regelrijm-pane-text-${rule.output}`">
-            <nldd-text size="sm" weight="medium" color="secondary">Uit de wettekst</nldd-text>
+            <nldd-text size="sm" weight="medium" color="secondary"><p>Uit de wettekst</p></nldd-text>
             <QuotedFragment v-for="frag in links.get(rule.output)" :key="frag.start" :fragment="frag" />
           </div>
         </template>

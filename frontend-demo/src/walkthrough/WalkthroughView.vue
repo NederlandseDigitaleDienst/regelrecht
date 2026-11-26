@@ -67,7 +67,7 @@ onUnmounted(() => (here = false));
     <nldd-simple-section width="720px">
       <nldd-title slot="header" size="display-2">
         <h1>{{ t('walkthrough.missing.title') }}</h1>
-        <span slot="supporting-text">{{ t('walkthrough.missing.body') }}</span>
+        <p slot="supporting-text">{{ t('walkthrough.missing.body') }}</p>
       </nldd-title>
       <nldd-button appearance="primary" start-icon="home" :text="t('walkthrough.leave')" @click="router.push(homePath)"></nldd-button>
     </nldd-simple-section>
@@ -77,7 +77,7 @@ onUnmounted(() => (here = false));
     <nldd-simple-section>
       <nldd-title slot="header" size="display-2">
         <h1>{{ t('walkthrough.label') }}</h1>
-        <span slot="supporting-text">{{ t('walkthrough.phone') }}</span>
+        <p slot="supporting-text">{{ t('walkthrough.phone') }}</p>
       </nldd-title>
       <nldd-button appearance="primary" start-icon="home" :text="t('walkthrough.leave')" @click="router.push(homePath)"></nldd-button>
     </nldd-simple-section>

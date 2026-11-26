@@ -169,181 +169,173 @@ const dirty = computed(() => file.value.dirty.value);
 <template>
   <nldd-navigation-split-view primary-sidebar-accessible-label="Scenario's" data-testid="scenario-screen">
     <!-- The file's scenarios, each with the status of its latest run. -->
-    <nldd-split-view-pane slot="primary-sidebar" has-content>
-      <nldd-page sticky-header accessible-label="Scenario's">
-        <nldd-container slot="header" padding="8" padding-bottom="0">
-          <nldd-top-title-bar :text="filename" :supporting-text="lawName || undefined"></nldd-top-title-bar>
-        </nldd-container>
-        <nldd-simple-section width="full">
-          <nldd-activity-indicator v-if="loading" text="Scenario's laden" show-text></nldd-activity-indicator>
-          <nldd-inline-dialog
-            v-else-if="loadError"
-            variant="alert"
-            text="Scenario's konden niet worden geladen"
-            :supporting-text="loadError.message"
-          >
-            <nldd-button slot="actions" appearance="secondary" text="Probeer opnieuw" @click="file.load({ fresh: true })"></nldd-button>
-          </nldd-inline-dialog>
-          <nldd-inline-dialog
-            v-else-if="file.loaded.value && !scenarios.length"
-            text="Dit bestand bevat geen scenario's die de editor kan lezen."
-          ></nldd-inline-dialog>
-          <template v-else>
-            <nldd-banner
-              v-if="file.duplicateNames.value.length"
-              size="sm"
-              variant="warning"
-              :text="file.duplicateNames.value.length === 1
-                ? `Meer dan één scenario heet '${file.duplicateNames.value[0]}'`
-                : `Meer dan één scenario heet ${file.duplicateNames.value.map((n) => `'${n}'`).join(', ')}`"
-              supporting-text="Een link naar zo'n scenario opent het eerste met die naam. Geef elk scenario een eigen naam."
-              data-testid="scenario-duplicate-names"
-            ></nldd-banner>
-            <nldd-spacer v-if="file.duplicateNames.value.length" size="8"></nldd-spacer>
-            <nldd-list accessible-label="Scenario's in dit bestand">
-              <nldd-list-item
-                v-for="(scenario, i) in scenarios"
-                :key="i"
-                size="md"
-                button
-                :current="i === selected || undefined"
-                :data-testid="`scenario-item-${i}`"
-                @click="select(i)"
-              >
-                <nldd-text-cell
-                  :text="scenario.name"
-                  :supporting-text="dirtySet.has(i) ? 'Niet opgeslagen' : undefined"
-                ></nldd-text-cell>
-                <nldd-spacer-cell v-if="statusBadgeFor(i)" size="8"></nldd-spacer-cell>
-                <nldd-cell v-if="statusBadgeFor(i)" width="fit-content">
-                  <nldd-badge
-                    size="sm"
-                    :color="statusBadgeFor(i)!.color"
-                    :icon="statusBadgeFor(i)!.icon"
-                    :accessible-label="statusBadgeFor(i)!.label"
-                  ></nldd-badge>
-                </nldd-cell>
-              </nldd-list-item>
-            </nldd-list>
-          </template>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Scenario's">
+      <nldd-container slot="header" padding="8" padding-bottom="0">
+        <nldd-top-title-bar :text="filename" :supporting-text="lawName || undefined"></nldd-top-title-bar>
+      </nldd-container>
+      <nldd-simple-section width="full">
+        <nldd-activity-indicator v-if="loading" text="Scenario's laden" show-text></nldd-activity-indicator>
+        <nldd-inline-dialog
+          v-else-if="loadError"
+          variant="alert"
+          text="Scenario's konden niet worden geladen"
+          :supporting-text="loadError.message"
+        >
+          <nldd-button slot="actions" appearance="secondary" text="Probeer opnieuw" @click="file.load({ fresh: true })"></nldd-button>
+        </nldd-inline-dialog>
+        <nldd-inline-dialog
+          v-else-if="file.loaded.value && !scenarios.length"
+          text="Dit bestand bevat geen scenario's die de editor kan lezen."
+        ></nldd-inline-dialog>
+        <template v-else>
+          <nldd-banner
+            v-if="file.duplicateNames.value.length"
+            size="sm"
+            variant="warning"
+            :text="file.duplicateNames.value.length === 1
+              ? `Meer dan één scenario heet '${file.duplicateNames.value[0]}'`
+              : `Meer dan één scenario heet ${file.duplicateNames.value.map((n) => `'${n}'`).join(', ')}`"
+            supporting-text="Een link naar zo'n scenario opent het eerste met die naam. Geef elk scenario een eigen naam."
+            data-testid="scenario-duplicate-names"
+          ></nldd-banner>
+          <nldd-spacer v-if="file.duplicateNames.value.length" size="8"></nldd-spacer>
+          <nldd-list accessible-label="Scenario's in dit bestand">
+            <nldd-list-item
+              v-for="(scenario, i) in scenarios"
+              :key="i"
+              size="md"
+              button
+              :current="i === selected || undefined"
+              :data-testid="`scenario-item-${i}`"
+              @click="select(i)"
+            >
+              <nldd-text-cell
+                :text="scenario.name"
+                :supporting-text="dirtySet.has(i) ? 'Niet opgeslagen' : undefined"
+              ></nldd-text-cell>
+              <nldd-spacer-cell v-if="statusBadgeFor(i)" size="8"></nldd-spacer-cell>
+              <nldd-cell v-if="statusBadgeFor(i)" width="fit-content">
+                <nldd-badge
+                  size="sm"
+                  :color="statusBadgeFor(i)!.color"
+                  :icon="statusBadgeFor(i)!.icon"
+                  :accessible-label="statusBadgeFor(i)!.label"
+                ></nldd-badge>
+              </nldd-cell>
+            </nldd-list-item>
+          </nldd-list>
+        </template>
+      </nldd-simple-section>
+    </nldd-page>
 
     <!-- The selected scenario: its form, and its result next to it. -->
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-side-by-side-split-view panes="2" @nldd-single-column-change="onSingleColumnChange">
-        <nldd-split-view-pane slot="pane-1" data-testid="scenario-form-pane">
-          <nldd-page sticky-header :sticky-footer="dirty || undefined" landmarks="page">
-            <nldd-container slot="header" padding="8" padding-bottom="0">
-              <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- the stacked view has no way to show the scenario list yet, so a back button would lead nowhere -->
-              <nldd-top-title-bar
-                v-if="!drilledName"
-                :text="selectedScenario?.name ?? ''"
-                :supporting-text="executesOther ? `Rekent met ${executedLawName}` : undefined"
-              ></nldd-top-title-bar>
-              <nldd-top-title-bar
-                v-else
-                :text="drilledName"
-                :back-text="selectedScenario?.name ?? ''"
-                @back="drill = null"
-              ></nldd-top-title-bar>
-            </nldd-container>
-            <nldd-simple-section>
-              <nldd-banner
-                v-if="lawUnsaved"
-                size="sm"
-                variant="warning"
-                :text="`Rekent met niet-opgeslagen wijzigingen in ${lawName || lawId}`"
-              ></nldd-banner>
-              <nldd-inline-dialog v-if="saved" text="Opgeslagen"></nldd-inline-dialog>
-              <nldd-inline-dialog
-                v-if="saveError"
-                variant="alert"
-                text="Opslaan mislukt"
-                :supporting-text="saveError.message"
-              >
-                <nldd-button
-                  v-if="saveConflict"
-                  slot="actions"
-                  appearance="secondary"
-                  text="Laad nieuwste versie"
-                  data-testid="scenario-reload-btn"
-                  @click="file.reload()"
-                ></nldd-button>
-              </nldd-inline-dialog>
-              <nldd-inline-dialog
-                v-if="environment.error.value"
-                variant="alert"
-                text="Afhankelijkheden konden niet worden geladen"
-                :supporting-text="String(environment.error.value)"
-              ></nldd-inline-dialog>
-              <ScenarioForm
-                v-if="selectedScenario && selectedValues"
-                :key="selected"
-                :scenario="selectedScenario"
-                :values="selectedValues"
-                :run="selectedRun"
-                :show-result-button="singleColumn"
-                :drill="drill"
-                :article-map="articleMap"
-                :type-map="typeMap"
-                :external-field-type-map="environment.externalFieldTypeMap.value"
-                @update:values="onValues"
-                @update:drill="drill = $event"
-                @show-result="showResult"
-              />
-            </nldd-simple-section>
-            <nldd-simple-section v-if="environment.loading.value" padding-top="0">
-              <nldd-activity-indicator
-                show-text
-                :text="environment.progress.value || 'Regelwerken laden'"
-              ></nldd-activity-indicator>
-            </nldd-simple-section>
-            <nldd-container v-if="dirty" slot="footer" padding="16">
-              <nldd-button-group orientation="horizontal">
-                <nldd-button
-                  appearance="primary"
-                  size="md"
-                  data-testid="save-scenarios-btn"
-                  :disabled="saving || undefined"
-                  :text="saving ? 'Opslaan…' : 'Opslaan'"
-                  @click="save"
-                ></nldd-button>
-                <nldd-button
-                  size="md"
-                  :disabled="saving || undefined"
-                  text="Wijzigingen weggooien"
-                  @click="discard"
-                ></nldd-button>
-              </nldd-button-group>
-            </nldd-container>
-          </nldd-page>
-        </nldd-split-view-pane>
-        <nldd-split-view-pane slot="pane-2" data-testid="scenario-result-pane">
-          <nldd-page sticky-header accessible-label="Resultaat">
-            <nldd-container slot="header" padding="8" padding-bottom="0">
-              <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- this pane sits beside the form, and in a single column the result opens as a sheet instead -->
-              <nldd-top-title-bar text="Resultaat">
-                <nldd-button
-                  slot="toolbar"
-                  appearance="secondary"
-                  text="Graaf"
-                  data-testid="scenario-graph-btn"
-                  @click="showGraph"
-                ></nldd-button>
-              </nldd-top-title-bar>
-            </nldd-container>
-            <ScenarioResult
-              v-if="!singleColumn"
-              :run="selectedRun"
-              :output-types="outputTypes"
-              @rerun="runNow"
-            />
-          </nldd-page>
-        </nldd-split-view-pane>
-      </nldd-side-by-side-split-view>
-    </nldd-split-view-pane>
+    <nldd-side-by-side-split-view slot="main" panes="2" @nldd-single-column-change="onSingleColumnChange">
+      <nldd-page slot="pane-1" data-testid="scenario-form-pane" sticky-header :sticky-footer="dirty || undefined" landmarks="page">
+        <nldd-container slot="header" padding="8" padding-bottom="0">
+          <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- the stacked view has no way to show the scenario list yet, so a back button would lead nowhere -->
+          <nldd-top-title-bar
+            v-if="!drilledName"
+            :text="selectedScenario?.name ?? ''"
+            :supporting-text="executesOther ? `Rekent met ${executedLawName}` : undefined"
+          ></nldd-top-title-bar>
+          <nldd-top-title-bar
+            v-else
+            :text="drilledName"
+            :back-text="selectedScenario?.name ?? ''"
+            @back="drill = null"
+          ></nldd-top-title-bar>
+        </nldd-container>
+        <nldd-simple-section>
+          <nldd-banner
+            v-if="lawUnsaved"
+            size="sm"
+            variant="warning"
+            :text="`Rekent met niet-opgeslagen wijzigingen in ${lawName || lawId}`"
+          ></nldd-banner>
+          <nldd-inline-dialog v-if="saved" text="Opgeslagen"></nldd-inline-dialog>
+          <nldd-inline-dialog
+            v-if="saveError"
+            variant="alert"
+            text="Opslaan mislukt"
+            :supporting-text="saveError.message"
+          >
+            <nldd-button
+              v-if="saveConflict"
+              slot="actions"
+              appearance="secondary"
+              text="Laad nieuwste versie"
+              data-testid="scenario-reload-btn"
+              @click="file.reload()"
+            ></nldd-button>
+          </nldd-inline-dialog>
+          <nldd-inline-dialog
+            v-if="environment.error.value"
+            variant="alert"
+            text="Afhankelijkheden konden niet worden geladen"
+            :supporting-text="String(environment.error.value)"
+          ></nldd-inline-dialog>
+          <ScenarioForm
+            v-if="selectedScenario && selectedValues"
+            :key="selected"
+            :scenario="selectedScenario"
+            :values="selectedValues"
+            :run="selectedRun"
+            :show-result-button="singleColumn"
+            :drill="drill"
+            :article-map="articleMap"
+            :type-map="typeMap"
+            :external-field-type-map="environment.externalFieldTypeMap.value"
+            @update:values="onValues"
+            @update:drill="drill = $event"
+            @show-result="showResult"
+          />
+        </nldd-simple-section>
+        <nldd-simple-section v-if="environment.loading.value" padding-top="0">
+          <nldd-activity-indicator
+            show-text
+            :text="environment.progress.value || 'Regelwerken laden'"
+          ></nldd-activity-indicator>
+        </nldd-simple-section>
+        <nldd-container v-if="dirty" slot="footer" padding="16">
+          <nldd-button-group orientation="horizontal">
+            <nldd-button
+              appearance="primary"
+              size="md"
+              data-testid="save-scenarios-btn"
+              :disabled="saving || undefined"
+              :text="saving ? 'Opslaan…' : 'Opslaan'"
+              @click="save"
+            ></nldd-button>
+            <nldd-button
+              size="md"
+              :disabled="saving || undefined"
+              text="Wijzigingen weggooien"
+              @click="discard"
+            ></nldd-button>
+          </nldd-button-group>
+        </nldd-container>
+      </nldd-page>
+      <nldd-page slot="pane-2" data-testid="scenario-result-pane" sticky-header accessible-label="Resultaat">
+        <nldd-container slot="header" padding="8" padding-bottom="0">
+          <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- this pane sits beside the form, and in a single column the result opens as a sheet instead -->
+          <nldd-top-title-bar text="Resultaat">
+            <nldd-button
+              slot="toolbar"
+              appearance="secondary"
+              text="Graaf"
+              data-testid="scenario-graph-btn"
+              @click="showGraph"
+            ></nldd-button>
+          </nldd-top-title-bar>
+        </nldd-container>
+        <ScenarioResult
+          v-if="!singleColumn"
+          :run="selectedRun"
+          :output-types="outputTypes"
+          @rerun="runNow"
+        />
+      </nldd-page>
+    </nldd-side-by-side-split-view>
   </nldd-navigation-split-view>
 
   <!-- The result when only the form fits. -->

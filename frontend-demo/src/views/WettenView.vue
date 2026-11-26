@@ -176,139 +176,133 @@ const referencedBy = computed(() => {
 
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('wet.sidebar.label')" :inspector-accessible-label="t('wet.inspector.label')">
-    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
-      <nldd-page sticky-header background="inherit" :accessible-label="t('wet.sidebar.label')">
-        <nldd-container slot="header" padding="12" gap="8">
-          <nldd-top-title-bar :text="t('wet.sidebar.label')" :supporting-text="t.plural(sidebarLaws.length, 'wet.sidebar.count')"></nldd-top-title-bar>
-          <nldd-search-field :placeholder="t('wet.sidebar.search')" size="sm" :value="query" @input="query = $event.detail?.value ?? $event.target.value"></nldd-search-field>
-        </nldd-container>
-        <nldd-simple-section padding-top="0">
-          <LawGroupTree :groups="groups" mode="pick" :active-id="activeId" @pick="openLaw" />
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+    <nldd-page slot="primary-sidebar" sticky-header background="tinted" :accessible-label="t('wet.sidebar.label')">
+      <nldd-container slot="header" padding="12" gap="8">
+        <nldd-top-title-bar :text="t('wet.sidebar.label')" :supporting-text="t.plural(sidebarLaws.length, 'wet.sidebar.count')"></nldd-top-title-bar>
+        <nldd-search-field :placeholder="t('wet.sidebar.search')" size="sm" :value="query" @input="query = $event.detail?.value ?? $event.target.value"></nldd-search-field>
+      </nldd-container>
+      <nldd-simple-section padding-top="0">
+        <LawGroupTree :groups="groups" mode="pick" :active-id="activeId" @pick="openLaw" />
+      </nldd-simple-section>
+    </nldd-page>
 
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
-        <nldd-container slot="header" padding="8">
-          <nldd-toolbar size="sm">
-            <nldd-toolbar-item slot="start">
-              <nldd-button size="sm" appearance="neutral-tinted" start-icon="books" :text="t('wet.sidebar.label')" :supporting-text="`${sidebarLaws.length}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
-              <nldd-menu-item slot="overflow" icon="books" :text="t('wet.sidebar.label')" :details="`${sidebarLaws.length}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
+    <nldd-page slot="main" landmarks="page" sticky-header>
+      <nldd-container slot="header" padding="8">
+        <nldd-toolbar size="sm">
+          <nldd-toolbar-item slot="start">
+            <nldd-button size="sm" appearance="neutral-tinted" start-icon="books" :text="t('wet.sidebar.label')" :supporting-text="`${sidebarLaws.length}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="books" :text="t('wet.sidebar.label')" :details="`${sidebarLaws.length}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <template v-if="activeLaw">
+            <nldd-toolbar-item slot="start" v-if="trail.length > 1">
+              <!-- `trail.length > 1` guarantees `trail.at(-2)`; an active law guarantees the corpus. -->
+              <nldd-icon-button size="sm" appearance="neutral-transparent" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @click="goBack"></nldd-icon-button>
+              <nldd-menu-item slot="overflow" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @select="goBack"></nldd-menu-item>
             </nldd-toolbar-item>
-            <template v-if="activeLaw">
-              <nldd-toolbar-item slot="start" v-if="trail.length > 1">
-                <!-- `trail.length > 1` guarantees `trail.at(-2)`; an active law guarantees the corpus. -->
-                <nldd-icon-button size="sm" appearance="neutral-transparent" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @click="goBack"></nldd-icon-button>
-                <nldd-menu-item slot="overflow" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @select="goBack"></nldd-menu-item>
-              </nldd-toolbar-item>
-              <nldd-toolbar-title slot="start" :text="activeLaw.name" :supporting-text="t('wet.valid_from', { service: serviceInfo(corpus!, activeLaw.service).name, date: activeLaw.valid_from })" max-width="480px"></nldd-toolbar-title>
-              <nldd-toolbar-item slot="end">
-                <nldd-segmented-control size="sm" width="fit-content" :value="showRaw ? 'raw' : 'tree'" @change="showRaw = $event.detail?.value === 'raw'">
-                  <nldd-segmented-control-item value="tree" :text="t('wet.view.tree')"></nldd-segmented-control-item>
-                  <nldd-segmented-control-item value="raw" :text="t('wet.view.raw')"></nldd-segmented-control-item>
-                </nldd-segmented-control>
-                <nldd-menu-item slot="overflow" type="radio" :text="t('wet.view.tree')" :selected="!showRaw || undefined" @select="showRaw = false"></nldd-menu-item>
-                <nldd-menu-item slot="overflow" type="radio" :text="t('wet.view.raw')" :selected="showRaw || undefined" @select="showRaw = true"></nldd-menu-item>
-              </nldd-toolbar-item>
-              <nldd-toolbar-item slot="end" v-if="!showRaw">
-                <nldd-button-bar size="sm">
-                  <nldd-icon-button icon="chevron-up-chevron-down" :text="t('wet.expand.default')" @click="resetExpansion"></nldd-icon-button>
-                  <nldd-icon-button icon="chevron-down" :text="t('wet.expand.all')" @click="expandAll"></nldd-icon-button>
-                  <nldd-icon-button icon="chevron-up" :text="t('wet.collapse.all')" @click="collapseAll"></nldd-icon-button>
-                </nldd-button-bar>
-                <nldd-menu-item slot="overflow" icon="chevron-up-chevron-down" :text="t('wet.expand.default')" @select="resetExpansion"></nldd-menu-item>
-                <nldd-menu-item slot="overflow" icon="chevron-down" :text="t('wet.expand.all')" @select="expandAll"></nldd-menu-item>
-                <nldd-menu-item slot="overflow" icon="chevron-up" :text="t('wet.collapse.all')" @select="collapseAll"></nldd-menu-item>
-              </nldd-toolbar-item>
-              <nldd-toolbar-item slot="end">
-                <nldd-button size="sm" appearance="neutral-tinted" end-icon="external-link" text="wetten.overheid.nl" :href="activeLaw.doc.url" target="_blank"></nldd-button>
-                <nldd-menu-item slot="overflow" icon="external-link" text="wetten.overheid.nl" @select="openPublishedText"></nldd-menu-item>
-              </nldd-toolbar-item>
-            </template>
-          </nldd-toolbar>
-        </nldd-container>
-
-        <nldd-simple-section v-if="!activeLaw" height="60vh">
-          <nldd-inline-dialog icon="books" :text="t('wet.empty.title')" :supporting-text="t('wet.empty.body')">
-            <nldd-button slot="actions" appearance="primary" size="sm" :text="t('wet.sidebar.label')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
-          </nldd-inline-dialog>
-        </nldd-simple-section>
-        <nldd-simple-section v-else width="full">
-          <!-- De wettekst blijft Nederlands, en dat hoort uitgelegd te worden
-               waar hij staat. Alleen in het Engels: voor een Nederlandse lezer
-               valt er niets te verklaren. -->
-          <template v-if="locale !== 'nl'">
-            <nldd-banner variant="neutral" :text="t('wet.dutch_only.title')" :supporting-text="t('wet.dutch_only.body')">
-              <nldd-button
-                slot="actions"
-                size="sm"
-                appearance="neutral-tinted"
-                end-icon="external-link"
-                :text="t('wet.dutch_only.published')"
-                :href="activeLaw.doc.url"
-                target="_blank"
-              ></nldd-button>
-            </nldd-banner>
-            <nldd-spacer size="16"></nldd-spacer>
+            <nldd-toolbar-title slot="start" :text="activeLaw.name" :supporting-text="t('wet.valid_from', { service: serviceInfo(corpus!, activeLaw.service).name, date: activeLaw.valid_from })" max-width="480px"></nldd-toolbar-title>
+            <nldd-toolbar-item slot="end">
+              <nldd-segmented-control size="sm" width="fit-content" :value="showRaw ? 'raw' : 'tree'" @change="showRaw = $event.detail?.value === 'raw'">
+                <nldd-segmented-control-item value="tree" :text="t('wet.view.tree')"></nldd-segmented-control-item>
+                <nldd-segmented-control-item value="raw" :text="t('wet.view.raw')"></nldd-segmented-control-item>
+              </nldd-segmented-control>
+              <nldd-menu-item slot="overflow" type="radio" :text="t('wet.view.tree')" :selected="!showRaw || undefined" @select="showRaw = false"></nldd-menu-item>
+              <nldd-menu-item slot="overflow" type="radio" :text="t('wet.view.raw')" :selected="showRaw || undefined" @select="showRaw = true"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-item slot="end" v-if="!showRaw">
+              <nldd-button-bar size="sm">
+                <nldd-icon-button icon="chevron-up-chevron-down" :text="t('wet.expand.default')" @click="resetExpansion"></nldd-icon-button>
+                <nldd-icon-button icon="chevron-down" :text="t('wet.expand.all')" @click="expandAll"></nldd-icon-button>
+                <nldd-icon-button icon="chevron-up" :text="t('wet.collapse.all')" @click="collapseAll"></nldd-icon-button>
+              </nldd-button-bar>
+              <nldd-menu-item slot="overflow" icon="chevron-up-chevron-down" :text="t('wet.expand.default')" @select="resetExpansion"></nldd-menu-item>
+              <nldd-menu-item slot="overflow" icon="chevron-down" :text="t('wet.expand.all')" @select="expandAll"></nldd-menu-item>
+              <nldd-menu-item slot="overflow" icon="chevron-up" :text="t('wet.collapse.all')" @select="collapseAll"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-item slot="end">
+              <nldd-button size="sm" appearance="neutral-tinted" end-icon="external-link" text="wetten.overheid.nl" :href="activeLaw.doc.url" target="_blank"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="external-link" text="wetten.overheid.nl" @select="openPublishedText"></nldd-menu-item>
+            </nldd-toolbar-item>
           </template>
-          <!-- `lang="nl"` op het paneel zelf, ook als de pagina op Engels staat.
-               Geen decoratie: een schermlezer kiest hierop zijn stem, en de
-               tekst eronder is Nederlands. Het is de eerlijke opmaak. -->
-          <nldd-code-viewer v-if="showRaw" lang="nl" language="yaml" wrap>{{ activeLaw.text }}</nldd-code-viewer>
-          <nldd-box v-else>
-            <nldd-container padding="12">
-              <div class="yaml-tree" lang="nl">
-                <YamlNode :key="activeLaw.id" :value="activeLaw.doc" :expanded="expandState" :law-ids="lawIds" @open-law="openLaw" />
-              </div>
-            </nldd-container>
-          </nldd-box>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+        </nldd-toolbar>
+      </nldd-container>
 
-    <nldd-split-view-pane v-if="activeLaw" slot="inspector" has-content background="tinted">
-      <nldd-page background="inherit" :accessible-label="t('wet.inspector.label')">
-        <nldd-container slot="header" padding="12">
-          <nldd-top-title-bar :text="t('wet.inspector.label')"></nldd-top-title-bar>
-        </nldd-container>
-        <nldd-simple-section padding-top="0">
-          <nldd-container gap="16">
-            <nldd-list appearance="box-base" :accessible-label="t('wet.executed_by')">
-              <nldd-list-item size="md">
-                <!-- An active law means the corpus is loaded. -->
-                <nldd-cell><OrgLogo :service="activeLaw.service" /></nldd-cell>
-                <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                <nldd-text-cell :overline="t('wet.executed_by')" :text="serviceInfo(corpus!, activeLaw.service).name"></nldd-text-cell>
+      <nldd-simple-section v-if="!activeLaw" height="60vh">
+        <nldd-inline-dialog icon="books" :text="t('wet.empty.title')" :supporting-text="t('wet.empty.body')">
+          <nldd-button slot="actions" appearance="primary" size="sm" :text="t('wet.sidebar.label')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+        </nldd-inline-dialog>
+      </nldd-simple-section>
+      <nldd-simple-section v-else width="full">
+        <!-- De wettekst blijft Nederlands, en dat hoort uitgelegd te worden
+             waar hij staat. Alleen in het Engels: voor een Nederlandse lezer
+             valt er niets te verklaren. -->
+        <template v-if="locale !== 'nl'">
+          <nldd-banner variant="neutral" :text="t('wet.dutch_only.title')" :supporting-text="t('wet.dutch_only.body')">
+            <nldd-button
+              slot="actions"
+              size="sm"
+              appearance="neutral-tinted"
+              end-icon="external-link"
+              :text="t('wet.dutch_only.published')"
+              :href="activeLaw.doc.url"
+              target="_blank"
+            ></nldd-button>
+          </nldd-banner>
+          <nldd-spacer size="16"></nldd-spacer>
+        </template>
+        <!-- `lang="nl"` op het paneel zelf, ook als de pagina op Engels staat.
+             Geen decoratie: een schermlezer kiest hierop zijn stem, en de
+             tekst eronder is Nederlands. Het is de eerlijke opmaak. -->
+        <nldd-code-viewer v-if="showRaw" lang="nl" language="yaml" wrap>{{ activeLaw.text }}</nldd-code-viewer>
+        <nldd-box v-else>
+          <nldd-container padding="12">
+            <div class="yaml-tree" lang="nl">
+              <YamlNode :key="activeLaw.id" :value="activeLaw.doc" :expanded="expandState" :law-ids="lawIds" @open-law="openLaw" />
+            </div>
+          </nldd-container>
+        </nldd-box>
+      </nldd-simple-section>
+    </nldd-page>
+
+    <nldd-page v-if="activeLaw" slot="inspector" background="tinted" :accessible-label="t('wet.inspector.label')">
+      <nldd-container slot="header" padding="12">
+        <nldd-top-title-bar :text="t('wet.inspector.label')"></nldd-top-title-bar>
+      </nldd-container>
+      <nldd-simple-section padding-top="0">
+        <nldd-container gap="16">
+          <nldd-list appearance="box-base" :accessible-label="t('wet.executed_by')">
+            <nldd-list-item size="md">
+              <!-- An active law means the corpus is loaded. -->
+              <nldd-cell><OrgLogo :service="activeLaw.service" /></nldd-cell>
+              <nldd-spacer-cell size="12"></nldd-spacer-cell>
+              <nldd-text-cell :overline="t('wet.executed_by')" :text="serviceInfo(corpus!, activeLaw.service).name"></nldd-text-cell>
+            </nldd-list-item>
+          </nldd-list>
+          <nldd-container gap="4">
+            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('wet.uses_data_from') }}</p></nldd-text></nldd-container>
+            <nldd-list appearance="box-base" :accessible-label="t('wet.uses_data_from')">
+              <nldd-list-item v-if="references.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
+              <nldd-list-item v-for="ref in references" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
+                <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
+                <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
               </nldd-list-item>
             </nldd-list>
-            <nldd-container gap="4">
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.uses_data_from') }}</nldd-text></nldd-container>
-              <nldd-list appearance="box-base" :accessible-label="t('wet.uses_data_from')">
-                <nldd-list-item v-if="references.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
-                <nldd-list-item v-for="ref in references" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
-                  <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
-                  <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
-                </nldd-list-item>
-              </nldd-list>
-            </nldd-container>
-            <nldd-container gap="4">
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.used_by') }}</nldd-text></nldd-container>
-              <nldd-list appearance="box-base" :accessible-label="t('wet.used_by')">
-                <nldd-list-item v-if="referencedBy.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
-                <nldd-list-item v-for="ref in referencedBy" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
-                  <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
-                  <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
-                </nldd-list-item>
-              </nldd-list>
-            </nldd-container>
           </nldd-container>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+          <nldd-container gap="4">
+            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('wet.used_by') }}</p></nldd-text></nldd-container>
+            <nldd-list appearance="box-base" :accessible-label="t('wet.used_by')">
+              <nldd-list-item v-if="referencedBy.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
+              <nldd-list-item v-for="ref in referencedBy" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
+                <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
+                <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </nldd-container>
+        </nldd-container>
+      </nldd-simple-section>
+    </nldd-page>
   </nldd-navigation-split-view>
 </template>

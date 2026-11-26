@@ -347,11 +347,16 @@ body {
   background: var(--semantics-surfaces-base-background-color, Canvas);
 }
 
-/* `inherit-tinted` takes its tint from currentColor: so the button carries
- * the colour of its law, the same one as the label in the lines below. */
+/* `content-tinted` takes its tint from --context-content-color: so the
+ * button carries the colour of its law, the same one as the label in the
+ * lines below. */
 .trace-view__law,
 .trace-view__badge {
   color: var(--law-ink);
+}
+
+.trace-view__law {
+  --context-content-color: var(--law-ink);
 }
 
 .trace-view__lines {
@@ -382,7 +387,7 @@ body {
   margin-left: 12px;
   padding: 0 8px;
   border-radius: 999px;
-  /* Dezelfde zachte tint als de knop bovenin (nldd-button inherit-tinted). */
+  /* Dezelfde zachte tint als de knop bovenin (nldd-button content-tinted). */
   background: color-mix(in srgb, var(--law-color) 22%, transparent);
   font-family: var(--primitives-font-family-sans, sans-serif);
   font-weight: 600;

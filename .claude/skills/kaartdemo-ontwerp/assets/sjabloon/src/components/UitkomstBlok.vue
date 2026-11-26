@@ -29,21 +29,21 @@ const traceOpen = ref(false);
       :supporting-text="props.bouwplan"
     ></nldd-title>
 
-    <nldd-text v-if="!props.uitkomst" size="sm" color="secondary">Rekenen…</nldd-text>
+    <nldd-text v-if="!props.uitkomst" size="sm" color="secondary"><p>Rekenen…</p></nldd-text>
     <template v-else>
       <nldd-banner
         :variant="banner(props.uitkomst.klasse).variant" :text="banner(props.uitkomst.klasse).tekst"
         size="sm" :heading-level="3" :supporting-text="props.uitkomst.reden ?? ''"
       ></nldd-banner>
 
-      <nldd-text size="sm"><strong>Gerekende artikelen ({{ props.uitkomst.stappen.length }})</strong></nldd-text>
+      <nldd-text size="sm"><p><strong>Gerekende artikelen ({{ props.uitkomst.stappen.length }})</strong></p></nldd-text>
       <nldd-list v-if="props.uitkomst.stappen.length" appearance="simple" accessible-label="Gerekende artikelen">
         <nldd-list-item v-for="s in props.uitkomst.stappen" :key="s.sleutel" size="sm" button @click="emit('artikel', s.sleutel)">
           <nldd-text-cell :text="`${s.regeling}, artikel ${s.artikel}`"></nldd-text-cell>
           <nldd-cell width="fit-content"><nldd-tag :color="TAG[s.uitkomst] ?? 'neutral'" :text="TEKST[s.uitkomst] ?? s.uitkomst"></nldd-tag></nldd-cell>
         </nldd-list-item>
       </nldd-list>
-      <nldd-text v-else size="sm" color="secondary">Niets gerekend.</nldd-text>
+      <nldd-text v-else size="sm" color="secondary"><p>Niets gerekend.</p></nldd-text>
 
       <Uitklap v-if="props.uitkomst.trace" v-model:open="traceOpen" titel="Trace" sub="Wat de engine per artikel deed: invoer, stappen en uitkomst.">
         <nldd-code-viewer wrap max-height="420px" language="text">{{ props.uitkomst.trace }}</nldd-code-viewer>

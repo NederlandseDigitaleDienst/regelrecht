@@ -220,7 +220,7 @@ onMounted(laad);
         <nldd-spacer size="16"></nldd-spacer>
 
         <nldd-title size="display-2">
-          <span slot="overline">Jaaraanvraag {{ item.aanvraag.subsidiejaar }} · KVK {{ item.aanvraag.kvk_nummer }}</span>
+          <p slot="overline">Jaaraanvraag {{ item.aanvraag.subsidiejaar }} · KVK {{ item.aanvraag.kvk_nummer }}</p>
           <h2>{{ item.aanvraag.partij_naam }}</h2>
         </nldd-title>
         <nldd-spacer size="24"></nldd-spacer>

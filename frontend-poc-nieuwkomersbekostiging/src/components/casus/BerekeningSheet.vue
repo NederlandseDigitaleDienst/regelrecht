@@ -8,9 +8,9 @@
   >
     <nldd-page>
       <nldd-container padding="24" gap="24">
-        <nldd-title heading-level="2" size="display-3">
-          <span slot="overline">Dit komt letterlijk uit de regeling</span>
-          <span>{{ titel }}</span>
+        <nldd-title size="display-3">
+          <p slot="overline">Dit komt letterlijk uit de regeling</p>
+          <h2>{{ titel }}</h2>
         </nldd-title>
 
         <p class="bs-hint">

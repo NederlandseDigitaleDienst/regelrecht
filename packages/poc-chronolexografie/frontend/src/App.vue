@@ -249,144 +249,136 @@ function toTab(id) {
   <InlogScherm v-if="inloggenOpen" />
   <nldd-shell v-else>
     <nldd-bar-split-view>
-      <nldd-split-view-pane slot="title-bar">
-        <nldd-container padding="8">
-          <nldd-toolbar accessible-label="Casus">
-            <nldd-toolbar-title
-              slot="start"
-              max-width="640px"
-              :text="state.casus ? title : 'Een uitvoeringsproces naspelen'"
-              :supporting-text="state.casus ? subtitle : 'Kies een casus om te beginnen'"
-            ></nldd-toolbar-title>
-            <template v-if="state.casus">
-              <nldd-toolbar-item v-if="guide && (!showGuide || asSheet)" slot="end" :priority="2">
-                <nldd-button appearance="neutral-tinted" text="Uitleg" @click="openGuide"></nldd-button>
-                <nldd-menu-item slot="overflow" text="Uitleg" @select="openGuide"></nldd-menu-item>
-              </nldd-toolbar-item>
-              <nldd-toolbar-item slot="end" :priority="2">
-                <nldd-button appearance="neutral-tinted" text="Presentatie" @click="presentation.resume()"></nldd-button>
-                <nldd-menu-item slot="overflow" text="Presentatie" @select="presentation.resume()"></nldd-menu-item>
-              </nldd-toolbar-item>
-              <nldd-toolbar-item slot="end" :priority="1">
-                <nldd-button appearance="neutral-tinted" text="Andere casus" @click="toChoice"></nldd-button>
-                <nldd-menu-item slot="overflow" text="Andere casus" @select="toChoice"></nldd-menu-item>
-              </nldd-toolbar-item>
-              <nldd-toolbar-item slot="end" :priority="1">
-                <nldd-button appearance="neutral-tinted" text="Opnieuw beginnen" @click="opnieuw"></nldd-button>
-                <nldd-menu-item slot="overflow" text="Opnieuw beginnen" @select="opnieuw"></nldd-menu-item>
-              </nldd-toolbar-item>
+      <nldd-container slot="title-bar" padding="8">
+        <nldd-toolbar accessible-label="Casus">
+          <nldd-toolbar-title
+            slot="start"
+            max-width="640px"
+            :text="state.casus ? title : 'Een uitvoeringsproces naspelen'"
+            :supporting-text="state.casus ? subtitle : 'Kies een casus om te beginnen'"
+          ></nldd-toolbar-title>
+          <template v-if="state.casus">
+            <nldd-toolbar-item v-if="guide && (!showGuide || asSheet)" slot="end" :priority="2">
+              <nldd-button appearance="neutral-tinted" text="Uitleg" @click="openGuide"></nldd-button>
+              <nldd-menu-item slot="overflow" text="Uitleg" @select="openGuide"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-item slot="end" :priority="2">
+              <nldd-button appearance="neutral-tinted" text="Presentatie" @click="presentation.resume()"></nldd-button>
+              <nldd-menu-item slot="overflow" text="Presentatie" @select="presentation.resume()"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-item slot="end" :priority="1">
+              <nldd-button appearance="neutral-tinted" text="Andere casus" @click="toChoice"></nldd-button>
+              <nldd-menu-item slot="overflow" text="Andere casus" @select="toChoice"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-item slot="end" :priority="1">
+              <nldd-button appearance="neutral-tinted" text="Opnieuw beginnen" @click="opnieuw"></nldd-button>
+              <nldd-menu-item slot="overflow" text="Opnieuw beginnen" @select="opnieuw"></nldd-menu-item>
+            </nldd-toolbar-item>
+          </template>
+        </nldd-toolbar>
+      </nldd-container>
+      <nldd-container v-if="state.casus" slot="play-bar" padding="16" padding-top="0" gap="12">
+        <nldd-tab-bar accessible-label="Rol">
+          <nldd-tab-bar-item
+            v-for="t in tabs"
+            :key="t.id"
+            :text="t.tekst"
+            :current="tab === t.id"
+            @select="tab = t.id"
+          ></nldd-tab-bar-item>
+        </nldd-tab-bar>
+        <nldd-form-field
+          label="Speeldatum"
+          label-alignment="left"
+          supporting-label="De dag van elke stap; de kroniek loopt alleen vooruit."
+        >
+          <nldd-date-field :value="state.datum" @change="$event.detail.value && (state.datum = $event.detail.value)"></nldd-date-field>
+        </nldd-form-field>
+      </nldd-container>
+
+      <nldd-navigation-split-view slot="main" ref="split" inspector-accessible-label="Uitleg bij het scenario">
+        <!-- One page per tab, as the editor gets one per route: a new tab
+             starts at its top instead of where the last one was scrolled. -->
+        <nldd-page slot="main" :key="keuzePagina ?? tab" landmarks="page">
+          <nldd-simple-section v-if="state.fout" padding-block="16">
+            <nldd-banner
+              variant="critical"
+              text="Deze stap lukt niet"
+              :supporting-text="melding(state.fout)"
+              dismissible
+              @dismiss="state.fout = ''"
+            >
+              <nldd-text v-if="details" size="sm" color="secondary" lang="en"><p>{{ state.fout }}</p></nldd-text>
+              <nldd-button
+                slot="actions"
+                appearance="neutral-tinted"
+                size="sm"
+                expandable
+                :expanded="details"
+                text="Details"
+                @click="details = !details"
+              ></nldd-button>
+            </nldd-banner>
+          </nldd-simple-section>
+
+          <nldd-simple-section v-if="unknown" padding-block="16">
+            <nldd-banner
+              variant="warning"
+              :text="unknownTitle"
+              :supporting-text="unknownText"
+            >
+              <nldd-button
+                slot="actions"
+                appearance="neutral-tinted"
+                size="sm"
+                :href="base"
+                text="Naar de casuskeuze"
+                @click.prevent="toChoice"
+              ></nldd-button>
+            </nldd-banner>
+          </nldd-simple-section>
+          <UitlegPagina
+            v-else-if="keuzePagina === 'uitleg'"
+            @terug="uitleg.close()"
+            @casus="(id) => uitleg.naarCasus(() => navigate(() => kiezen(id)))"
+          />
+          <KortPagina
+            v-else-if="keuzePagina === 'kort'"
+            @terug="kort.close()"
+            @casus="(id) => kort.naarCasus(() => navigate(() => kiezen(id)))"
+            @uitleg="kortNaarUitleg"
+          />
+          <CasusKeuze
+            v-else-if="!state.casus"
+            @presentatie="presentation.start()"
+            @kort="kort.open()"
+            @demo="startDemo"
+          />
+          <template v-else-if="state.vormen">
+            <ScenarioTab v-if="tab === 'scenarios'" @start="started" />
+            <AanvragerTab v-else-if="tab === 'aanvrager'" />
+            <template v-else-if="tab === 'bestuursorgaan'">
+              <NaUitspraak v-if="state.casus.beroep" />
+              <BestuursorgaanTab />
             </template>
-          </nldd-toolbar>
-        </nldd-container>
-      </nldd-split-view-pane>
-      <nldd-split-view-pane v-if="state.casus" slot="play-bar">
-        <nldd-container padding="16" padding-top="0" gap="12">
-          <nldd-tab-bar accessible-label="Rol">
-            <nldd-tab-bar-item
-              v-for="t in tabs"
-              :key="t.id"
-              :text="t.tekst"
-              :current="tab === t.id"
-              @select="tab = t.id"
-            ></nldd-tab-bar-item>
-          </nldd-tab-bar>
-          <nldd-form-field
-            label="Speeldatum"
-            label-alignment="left"
-            supporting-label="De dag van elke stap; de kroniek loopt alleen vooruit."
-          >
-            <nldd-date-field :value="state.datum" @change="$event.detail.value && (state.datum = $event.detail.value)"></nldd-date-field>
-          </nldd-form-field>
-        </nldd-container>
-      </nldd-split-view-pane>
-
-      <nldd-split-view-pane slot="main">
-        <nldd-navigation-split-view ref="split" inspector-accessible-label="Uitleg bij het scenario">
-          <nldd-split-view-pane slot="main" has-content>
-            <!-- One page per tab, as the editor gets one per route: a new tab
-                 starts at its top instead of where the last one was scrolled. -->
-            <nldd-page :key="keuzePagina ?? tab" landmarks="page">
-              <nldd-simple-section v-if="state.fout" padding-block="16">
-                <nldd-banner
-                  variant="critical"
-                  text="Deze stap lukt niet"
-                  :supporting-text="melding(state.fout)"
-                  dismissible
-                  @dismiss="state.fout = ''"
-                >
-                  <nldd-text v-if="details" size="sm" color="secondary" lang="en">{{ state.fout }}</nldd-text>
-                  <nldd-button
-                    slot="actions"
-                    appearance="neutral-tinted"
-                    size="sm"
-                    expandable
-                    :expanded="details"
-                    text="Details"
-                    @click="details = !details"
-                  ></nldd-button>
-                </nldd-banner>
-              </nldd-simple-section>
-
-              <nldd-simple-section v-if="unknown" padding-block="16">
-                <nldd-banner
-                  variant="warning"
-                  :text="unknownTitle"
-                  :supporting-text="unknownText"
-                >
-                  <nldd-button
-                    slot="actions"
-                    appearance="neutral-tinted"
-                    size="sm"
-                    :href="base"
-                    text="Naar de casuskeuze"
-                    @click.prevent="toChoice"
-                  ></nldd-button>
-                </nldd-banner>
-              </nldd-simple-section>
-              <UitlegPagina
-                v-else-if="keuzePagina === 'uitleg'"
-                @terug="uitleg.close()"
-                @casus="(id) => uitleg.naarCasus(() => navigate(() => kiezen(id)))"
-              />
-              <KortPagina
-                v-else-if="keuzePagina === 'kort'"
-                @terug="kort.close()"
-                @casus="(id) => kort.naarCasus(() => navigate(() => kiezen(id)))"
-                @uitleg="kortNaarUitleg"
-              />
-              <CasusKeuze
-                v-else-if="!state.casus"
-                @presentatie="presentation.start()"
-                @kort="kort.open()"
-                @demo="startDemo"
-              />
-              <template v-else-if="state.vormen">
-                <ScenarioTab v-if="tab === 'scenarios'" @start="started" />
-                <AanvragerTab v-else-if="tab === 'aanvrager'" />
-                <template v-else-if="tab === 'bestuursorgaan'">
-                  <NaUitspraak v-if="state.casus.beroep" />
-                  <BestuursorgaanTab />
-                </template>
-                <AndereCellenTab v-else-if="tab === 'andere'" />
-                <KroniekTab v-else-if="tab === 'kroniek'" />
-                <LogboekTab v-else @kroniek="toonInKroniek" />
-              </template>
-            </nldd-page>
-          </nldd-split-view-pane>
-          <nldd-split-view-pane v-if="guide && scenario && showGuide" slot="inspector">
-            <ScenarioGuide
-              :guide="guide"
-              :scenario="scenario"
-              :tabs="tabs"
-              :tab="tab"
-              @tab="toTab"
-              @hide="hideGuide"
-              @choose="chooseScenario"
-              @restart="restart"
-            />
-          </nldd-split-view-pane>
-        </nldd-navigation-split-view>
-      </nldd-split-view-pane>
+            <AndereCellenTab v-else-if="tab === 'andere'" />
+            <KroniekTab v-else-if="tab === 'kroniek'" />
+            <LogboekTab v-else @kroniek="toonInKroniek" />
+          </template>
+        </nldd-page>
+        <ScenarioGuide
+          v-if="guide && scenario && showGuide"
+          slot="inspector"
+          :guide="guide"
+          :scenario="scenario"
+          :tabs="tabs"
+          :tab="tab"
+          @tab="toTab"
+          @hide="hideGuide"
+          @choose="chooseScenario"
+          @restart="restart"
+        />
+      </nldd-navigation-split-view>
     </nldd-bar-split-view>
     <HerkomstSheet />
   </nldd-shell>

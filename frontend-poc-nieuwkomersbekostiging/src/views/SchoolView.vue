@@ -2,9 +2,9 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title heading-level="1" size="display-1">
-          <span slot="overline">Voor scholen</span>
-          <span>Het Bestand Nieuwkomers van één school</span>
+        <nldd-title size="display-1">
+          <p slot="overline">Voor scholen</p>
+          <h1>Het Bestand Nieuwkomers van één school</h1>
         </nldd-title>
         <div class="kop-rechts">
           <nldd-form-field label="School">
@@ -43,9 +43,9 @@
            variant van huidig recht onderscheidt. De leerlingenlijst is de
            onderbouwing en staat eronder. -->
       <nldd-simple-section>
-        <nldd-title heading-level="2" size="display-4">
-          <span>Wat er uit het bestand volgt</span>
-          <span slot="supporting-text">Drempel, formulieren, deadline en het geld voor deze peildatum.</span>
+        <nldd-title size="display-4">
+          <h2>Wat er uit het bestand volgt</h2>
+          <p slot="supporting-text">Drempel, formulieren, deadline en het geld voor deze peildatum.</p>
         </nldd-title>
         <!-- Deze melding stond bovenaan de pagina, buiten beeld tegen de tijd
              dat je bij de kolommen bent. Twee identieke kolommen lezen dan als
@@ -61,9 +61,9 @@
 
       <nldd-simple-section background="tinted">
         <div class="school-kop">
-          <nldd-title heading-level="2" size="display-3">
-            <span>{{ schoolId }}</span>
-            <span slot="supporting-text">{{ sectorLabel(sector) }} · {{ pupils.length }} nieuwkomers in de periode · {{ ist.entry.in_bestand }} in het bestand op {{ datumLabel(peildatum) }} (klaar op de {{ bestandDatum(peildatum).slice(8) }}e in Mijn DUO)</span>
+          <nldd-title size="display-3">
+            <h2>{{ schoolId }}</h2>
+            <p slot="supporting-text">{{ sectorLabel(sector) }} · {{ pupils.length }} nieuwkomers in de periode · {{ ist.entry.in_bestand }} in het bestand op {{ datumLabel(peildatum) }} (klaar op de {{ bestandDatum(peildatum).slice(8) }}e in Mijn DUO)</p>
           </nldd-title>
           <nldd-segmented-control v-if="variant" size="sm" :value="bestandKolom" @change="bestandKolom = $event.detail?.value ?? bestandKolom">
             <nldd-segmented-control-item value="ist" :text="istTitel"></nldd-segmented-control-item>
@@ -75,9 +75,9 @@
       </nldd-simple-section>
 
       <nldd-simple-section>
-        <nldd-title heading-level="2" size="display-4">
-          <span>Handelingen voor deze school op deze peildatum</span>
-          <span slot="supporting-text">Welke stappen, hoeveel minuten, en wat dat kost tegen het uurtarief.</span>
+        <nldd-title size="display-4">
+          <h2>Handelingen voor deze school op deze peildatum</h2>
+          <p slot="supporting-text">Welke stappen, hoeveel minuten, en wat dat kost tegen het uurtarief.</p>
         </nldd-title>
         <div class="kolommen">
           <div class="kolom">

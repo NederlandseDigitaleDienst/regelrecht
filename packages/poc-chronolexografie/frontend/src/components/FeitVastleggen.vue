@@ -62,9 +62,9 @@ async function vastleggen(handeling) {
   <nldd-card v-for="h in handelingen" :key="h.feit">
     <nldd-container padding="16" gap="12">
       <nldd-title heading-level="3" size="display-5" :text="`Vastleggen: ${naam(h.feit)}`">
-        <nldd-text slot="supporting-text" size="sm" color="secondary">
+        <p slot="supporting-text">
           <ArtikelLink :basis="artikelVan(h.feit)" />
-        </nldd-text>
+        </p>
         <nldd-button
           v-if="inklapbaar(h.feit)"
           slot="end"

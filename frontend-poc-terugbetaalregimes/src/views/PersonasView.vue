@@ -1,13 +1,13 @@
 <template>
   <nldd-page>
     <nldd-simple-section>
-      <nldd-title heading-level="1" size="display-2">
-        <span slot="overline">Voor beleidsmakers</span>
-        <span>Scenario's: wie gaat erop vooruit, wie achteruit</span>
-        <span slot="supporting-text">
+      <nldd-title size="display-2">
+        <p slot="overline">Voor beleidsmakers</p>
+        <h1>Scenario's: wie gaat erop vooruit, wie achteruit</h1>
+        <p slot="supporting-text">
           Bij terugbetalen hangt de uitkomst af van wie je bent: regime, schuld, inkomen en of je een partner hebt.
           Het gemiddelde verbergt dat. Hier staat elk scenario onder huidig recht naast de varianten die je kiest. Je kunt er zelf een toevoegen.
-        </span>
+        </p>
       </nldd-title>
 
       <!-- Dezelfde kolomkeuze als op /beleid: welke varianten je vergelijkt is

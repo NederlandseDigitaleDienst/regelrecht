@@ -142,7 +142,7 @@ watch(() => session.aanvrager, laadAlles);
     <template v-else-if="session.aanvrager">
       <nldd-simple-section width="820px">
         <nldd-title size="display-2">
-          <span slot="overline">{{ session.aanvrager.partij_naam }} · KVK {{ session.aanvrager.kvk_nummer }}</span>
+          <p slot="overline">{{ session.aanvrager.partij_naam }} · KVK {{ session.aanvrager.kvk_nummer }}</p>
           <h2>Mijn organisatie</h2>
         </nldd-title>
         <nldd-spacer size="24"></nldd-spacer>
@@ -275,7 +275,7 @@ watch(() => session.aanvrager, laadAlles);
       >
         <nldd-container padding="24" gap="16">
           <nldd-title size="display-3">
-            <span slot="overline">{{ session.aanvrager?.partij_naam }}</span>
+            <p slot="overline">{{ session.aanvrager?.partij_naam }}</p>
             <h3>Rekening voor uitbetaling</h3>
           </nldd-title>
           <nldd-rich-text>

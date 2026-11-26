@@ -8,10 +8,13 @@
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="h in groep.items" :key="h.id" size="sm">
           <nldd-text-cell size="sm" :text="handelingTitel(h)" :color="h.aantal ? 'content' : 'secondary'">
-            <span slot="supporting-text" class="hl-toelichting">
-              <span v-if="h.omschrijving">{{ h.omschrijving }}</span>
-              <span class="hl-meta">{{ aanleidingLabel(h.aanleiding) }}{{ h.grondslag?.article ? ` · art. ${h.grondslag.article}${h.grondslag.lid ? ` lid ${h.grondslag.lid}` : ''}` : '' }}</span>
-            </span>
+            <!-- The class sits on a span: a slotted <p> gets reset by the cell. -->
+            <p slot="supporting-text">
+              <span class="hl-toelichting">
+                <span v-if="h.omschrijving">{{ h.omschrijving }}</span>
+                <span class="hl-meta">{{ aanleidingLabel(h.aanleiding) }}{{ h.grondslag?.article ? ` · art. ${h.grondslag.article}${h.grondslag.lid ? ` lid ${h.grondslag.lid}` : ''}` : '' }}</span>
+              </span>
+            </p>
           </nldd-text-cell>
           <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :color="h.aantal ? 'content' : 'secondary'" :text="h.aantal ? `${aantalTekst(h)} · ${minutes(h.totaalMinuten)}` : 'n.v.t.'" :supporting-text="h.aantal ? euro(h.kosten) : ''"></nldd-text-cell>
         </nldd-list-item>

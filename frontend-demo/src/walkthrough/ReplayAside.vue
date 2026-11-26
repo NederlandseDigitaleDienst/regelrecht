@@ -31,7 +31,7 @@ const offered = computed(() => (replay.faq ? [] : offeredFaq(timeline.value, rep
           v-for="f in offered"
           :key="f.id"
           size="sm"
-          appearance="inherit-tinted"
+          appearance="content-tinted"
           start-icon="question"
           horizontal-alignment="left"
           width="full"

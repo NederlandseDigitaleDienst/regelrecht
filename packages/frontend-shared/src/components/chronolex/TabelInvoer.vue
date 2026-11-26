@@ -128,7 +128,7 @@ function verwijder(index: number) {
       <nldd-button-group v-if="!alleenLezen" orientation="horizontal">
         <nldd-button appearance="secondary" start-icon="add" text="Rij toevoegen" @click="nieuw"></nldd-button>
       </nldd-button-group>
-      <nldd-text v-if="herkomst" size="sm" color="secondary">{{ herkomst }}</nldd-text>
+      <nldd-text v-if="herkomst" size="sm" color="secondary"><p>{{ herkomst }}</p></nldd-text>
     </nldd-container>
   </nldd-form-section>
 

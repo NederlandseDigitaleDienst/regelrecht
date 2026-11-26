@@ -18,7 +18,7 @@
       :selected="rij.regime === highlight ? true : undefined"
     >
       <nldd-text-cell>
-        <nldd-tag :color="regimeColor(rij.regime)" size="sm" :text="regimeLabel(rij.regime)"></nldd-tag>
+        <p><nldd-tag :color="regimeColor(rij.regime)" size="sm" :text="regimeLabel(rij.regime)"></nldd-tag></p>
       </nldd-text-cell>
       <nldd-text-cell :text="`${percent(rij.voetRatio, 0)} WML`"></nldd-text-cell>
       <nldd-text-cell :text="rij.draagkrachtLabel ?? percent(rij.draagkrachtRatio, 0)"></nldd-text-cell>

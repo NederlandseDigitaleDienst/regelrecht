@@ -122,7 +122,7 @@
     margin-inline-start: auto;
     padding-inline-start: var(--primitives-space-16, 1rem);
     border-inline-start: 1px solid
-      var(--semantics-surfaces-tinted-border-color);
+      var(--semantics-surfaces-tinted-highlight-border-color);
   }
 }
 
@@ -391,7 +391,7 @@
  * time without needing its own boxed column.
  */
 .rr-roadmap .rr-matrix__cell--kolom-start {
-  border-inline-start: 1px solid var(--semantics-surfaces-tinted-border-color);
+  border-inline-start: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
 }
 
 /* The discipline label sits centred against the tall row of cards beside it. */

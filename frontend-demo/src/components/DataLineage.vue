@@ -89,10 +89,12 @@ const slotName = computed(() => (props.nested ? 'children' : undefined));
            de correctie zelf. Niet `node.value`: de engine rekent de burger zijn
            openstaande correcties al mee (`claimsForEngine`), dus dat ís de
            nieuwe waarde en er stond tweemaal hetzelfde bedrag. -->
-      <template v-if="pending(node)">
-        <s>{{ formatValue(pending(node)?.oldValue, specFor(node)) }}</s> → {{ formatValue(pending(node)?.newValue, specFor(node)) }}
-      </template>
-      <template v-else>{{ formatValue(node.value, specFor(node)) }}</template>
+      <p>
+        <template v-if="pending(node)">
+          <s>{{ formatValue(pending(node)?.oldValue, specFor(node)) }}</s> → {{ formatValue(pending(node)?.newValue, specFor(node)) }}
+        </template>
+        <template v-else>{{ formatValue(node.value, specFor(node)) }}</template>
+      </p>
     </nldd-text-cell>
     <nldd-spacer-cell size="8"></nldd-spacer-cell>
     <nldd-icon-cell v-if="canSubmitClaims" icon="edit" size="16" color="secondary"></nldd-icon-cell>

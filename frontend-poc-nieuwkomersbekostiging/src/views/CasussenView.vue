@@ -2,9 +2,9 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title heading-level="1" size="display-1">
-          <span slot="overline">Voor beleidsmakers</span>
-          <span>Eén leerling door de regeling</span>
+        <nldd-title size="display-1">
+          <p slot="overline">Voor beleidsmakers</p>
+          <h1>Eén leerling door de regeling</h1>
         </nldd-title>
         <div class="kop-rechts">
           <persona-switcher
@@ -36,7 +36,7 @@
       <nldd-simple-section background="tinted">
         <div class="persona-kaart">
           <div>
-            <nldd-title heading-level="2" size="display-3"><span>{{ selected.naam }}</span></nldd-title>
+            <nldd-title size="display-3"><h2>{{ selected.naam }}</h2></nldd-title>
             <p class="omschrijving">{{ selected.omschrijving }}</p>
           </div>
           <dl class="feiten">
@@ -53,9 +53,9 @@
            voor komt, en de herleiding eronder is waar je heen gaat als je hem
            niet gelooft. -->
       <nldd-simple-section>
-        <nldd-title heading-level="2" size="display-4">
-          <span>Regelingen vergelijken per peildatum</span>
-          <span slot="supporting-text">Per kwartaal: telt de leerling, in welke categorie en welk jaar, tegen welk bedrag (25% van het jaarbedrag). Huidig recht staat altijd links; elke gekozen regeling komt daarnaast.</span>
+        <nldd-title size="display-4">
+          <h2>Regelingen vergelijken per peildatum</h2>
+          <p slot="supporting-text">Per kwartaal: telt de leerling, in welke categorie en welk jaar, tegen welk bedrag (25% van het jaarbedrag). Huidig recht staat altijd links; elke gekozen regeling komt daarnaast.</p>
         </nldd-title>
         <nldd-activity-indicator v-if="loading" size="24" timing="instant"></nldd-activity-indicator>
         <peildata-tijdlijn
@@ -70,9 +70,9 @@
       </nldd-simple-section>
 
       <nldd-simple-section>
-        <nldd-title heading-level="2" size="display-4">
-          <span>Waarom deze leerling meetelt, en hoe vaak</span>
-          <span slot="supporting-text">Van de gegevens in ROD naar de categorie (asielzoeker of overige vreemdeling) en het aantal kwartalen dat bekostigd wordt, onder huidig recht.</span>
+        <nldd-title size="display-4">
+          <h2>Waarom deze leerling meetelt, en hoe vaak</h2>
+          <p slot="supporting-text">Van de gegevens in ROD naar de categorie (asielzoeker of overige vreemdeling) en het aantal kwartalen dat bekostigd wordt, onder huidig recht.</p>
         </nldd-title>
         <categorie-uitleg :persona="selected" :uitkomst="uitlegUitkomst" />
       </nldd-simple-section>

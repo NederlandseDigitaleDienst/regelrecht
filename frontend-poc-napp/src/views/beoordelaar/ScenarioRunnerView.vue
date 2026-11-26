@@ -154,7 +154,7 @@ onMounted(run);
       <nldd-spacer size="16"></nldd-spacer>
 
       <nldd-title size="display-2">
-        <span slot="overline">Beoordelingsomgeving</span>
+        <p slot="overline">Beoordelingsomgeving</p>
         <h2>Scenario's</h2>
         <div slot="actions">
           <nldd-button
@@ -209,9 +209,9 @@ onMounted(run);
               ></nldd-icon-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-text-cell :text="scenario.name">
-                <span v-if="!scenario.passed" slot="supporting-text">
+                <p v-if="!scenario.passed" slot="supporting-text">
                   {{ scenario.steps.find((s) => s.status === 'mislukt')?.error }}
-                </span>
+                </p>
               </nldd-text-cell>
               <template v-if="isAangepast(sleutel(feature.feature, scenario.name))">
                 <nldd-cell width="fit-content">
@@ -244,7 +244,7 @@ onMounted(run);
                   ></nldd-icon-cell>
                   <nldd-spacer-cell size="8"></nldd-spacer-cell>
                   <nldd-text-cell size="sm" :text="`**${step.keyword}** ${step.text}`">
-                    <span v-if="step.error" slot="supporting-text">{{ step.error }}</span>
+                    <p v-if="step.error" slot="supporting-text">{{ step.error }}</p>
                   </nldd-text-cell>
                 </nldd-list-item>
                 <template v-if="step.dataTable">

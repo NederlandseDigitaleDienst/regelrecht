@@ -38,7 +38,7 @@ onMounted(async () => {
 
     <nldd-simple-section>
       <nldd-title size="display-1">
-        <span slot="overline">Openbaar register</span>
+        <p slot="overline">Openbaar register</p>
         <h1>Subsidiebesluiten politieke partijen</h1>
       </nldd-title>
       <nldd-spacer size="12"></nldd-spacer>

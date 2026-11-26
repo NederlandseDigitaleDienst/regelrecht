@@ -503,10 +503,12 @@ function addOutput() {
             <nldd-text-cell
               v-if="def.isList"
               horizontal-alignment="right"
-            ><template
-              v-for="(part, i) in def.parts"
-              :key="i"
-            ><span v-if="i > 0">, </span><BreakableName :name="part" /></template></nldd-text-cell>
+            >            <p>
+              <template
+                v-for="(part, i) in def.parts"
+                :key="i"
+              ><span v-if="i > 0">, </span><BreakableName :name="part" /></template>
+            </p></nldd-text-cell>
             <nldd-text-cell
               v-else
               width="fit-content"
@@ -539,7 +541,7 @@ function addOutput() {
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(param, index) in parameters" :key="param.name" size="md">
-          <nldd-text-cell><BreakableName :name="param.name" /> <nldd-tag size="sm" :text="param.type"></nldd-tag></nldd-text-cell>
+          <nldd-text-cell><p><BreakableName :name="param.name" /> <nldd-tag size="sm" :text="param.type"></nldd-tag></p></nldd-text-cell>
           <nldd-spacer-cell v-if="editable" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="editable">
             <RowActionsMenu
@@ -571,7 +573,7 @@ function addOutput() {
           </template>
           <nldd-text-cell
             :supporting-text="[input.sourceRegulation ? lawDisplayName(input.sourceRegulation) : undefined, rowFindings({ kind: 'input', name: input.name })].filter(Boolean).join(' · ') || undefined"
-          ><BreakableName :name="input.name" /> <nldd-tag size="sm" :text="input.type"></nldd-tag></nldd-text-cell>
+          ><p><BreakableName :name="input.name" /> <nldd-tag size="sm" :text="input.type"></nldd-tag></p></nldd-text-cell>
           <nldd-spacer-cell v-if="editable" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="editable">
             <RowActionsMenu
@@ -598,7 +600,7 @@ function addOutput() {
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(output, index) in outputs" :key="output.name" size="md">
-          <nldd-text-cell><BreakableName :name="output.name" /> <nldd-tag size="sm" :text="output.type"></nldd-tag></nldd-text-cell>
+          <nldd-text-cell><p><BreakableName :name="output.name" /> <nldd-tag size="sm" :text="output.type"></nldd-tag></p></nldd-text-cell>
           <nldd-spacer-cell v-if="editable" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="editable">
             <RowActionsMenu

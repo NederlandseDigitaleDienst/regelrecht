@@ -304,7 +304,7 @@ const kerngegevens = [
             </nldd-rich-text>
           ) : (
             <nldd-text size="sm" color="secondary">
-              Nog geen onderzoeksvragen geregistreerd.
+              <p>Nog geen onderzoeksvragen geregistreerd.</p>
             </nldd-text>
           )
         }
@@ -319,7 +319,7 @@ const kerngegevens = [
             </nldd-rich-text>
           ) : (
             <nldd-text size="sm" color="secondary">
-              Geen toelichting toegevoegd.
+              <p>Geen toelichting toegevoegd.</p>
             </nldd-text>
           )
         }
@@ -338,11 +338,11 @@ const kerngegevens = [
                       treatment /rfcs gives the same field. A bare string here
                       would have the site showing one value two ways. */}
                   <nldd-text-cell overline={rfc.id} text={rfc.title} width="full">
-                    <nldd-container slot="supporting-text" layout="wrap" gap="4">
+                    <p slot="supporting-text">
                       <nldd-tag color="neutral" size="md">
                         {rfc.implementation}
                       </nldd-tag>
-                    </nldd-container>
+                    </p>
                   </nldd-text-cell>
                   <nldd-spacer-cell />
                   <nldd-icon-cell size="20" icon="chevron-right" />
@@ -360,7 +360,7 @@ const kerngegevens = [
             {wachtOp.length > 0 && (
               <nldd-container gap="8">
                 <nldd-text size="sm" weight="medium" color="secondary">
-                  Kan pas beginnen als dit opgeleverd is
+                  <p>Kan pas beginnen als dit opgeleverd is</p>
                 </nldd-text>
                 <nldd-list type="navigation" appearance="box-tinted">
                   {wachtOp.map((related) => (
@@ -385,7 +385,7 @@ const kerngegevens = [
             {blokkeert.length > 0 && (
               <nldd-container gap="8">
                 <nldd-text size="sm" weight="medium" color="secondary">
-                  Wacht op dit werkpakket
+                  <p>Wacht op dit werkpakket</p>
                 </nldd-text>
                 <nldd-list type="navigation" appearance="box-tinted">
                   {blokkeert.map((related) => (
@@ -443,7 +443,7 @@ const kerngegevens = [
             </nldd-list>
           ) : (
             <nldd-text size="sm" color="secondary">
-              Geen samenhang met andere werkpakketten geregistreerd.
+              <p>Geen samenhang met andere werkpakketten geregistreerd.</p>
             </nldd-text>
           )
         }
@@ -468,7 +468,7 @@ const kerngegevens = [
     margin-top: var(--primitives-space-4, 0.25rem);
     font: var(--primitives-font-body-xs-regular-snug, inherit);
     color: var(--semantics-content-secondary-color);
-    text-decoration-color: var(--semantics-surfaces-tinted-border-color);
+    text-decoration-color: var(--semantics-surfaces-tinted-highlight-border-color);
   }
 
   .rr-papersectie:hover,

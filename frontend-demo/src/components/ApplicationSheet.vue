@@ -430,7 +430,7 @@ function claimStatus(cl: DemoClaim) {
 
                 <nldd-title size="display-5">
                   <h3>{{ t('sheet.application.basis.title') }}</h3>
-                  <span slot="supporting-text">{{ t('sheet.application.basis.subtitle', { n: usedCount }) }}</span>
+                  <p slot="supporting-text">{{ t('sheet.application.basis.subtitle', { n: usedCount }) }}</p>
                 </nldd-title>
                 <nldd-list type="tree" appearance="box-tinted" :accessible-label="t('sheet.application.basis.label')">
                   <DataLineage :nodes="lineage" @edit="emit('edit-value', { node: $event, law })" />
@@ -488,11 +488,11 @@ function claimStatus(cl: DemoClaim) {
                 <nldd-list appearance="box-tinted" :accessible-label="t('sheet.application.corrections.title')">
                   <nldd-list-item v-for="cl in caseClaims" :key="cl.id" size="sm">
                     <nldd-text-cell size="sm" :text="`${humanize(cl.input)}: ${formatValue(cl.oldValue, claimSpec(cl))} → **${formatValue(cl.newValue, claimSpec(cl))}**`">
-                      <span slot="supporting-text">
+                      <p slot="supporting-text">
                         {{ cl.claimant === 'BEHANDELAAR' ? t('sheet.application.corrections.by_officer') : t('sheet.application.corrections.by_you') }} · {{ cl.reason }}
                         <template v-if="cl.hardship?.clause"><br />{{ t('sheet.application.hardship.invoked', { clause: cl.hardship.clause }) }}</template>
                         <template v-if="cl.evidence"><br />{{ t('sheet.application.evidence', { name: cl.evidence.name }) }}</template>
-                      </span>
+                      </p>
                     </nldd-text-cell>
                     <nldd-cell v-if="cl.hardship?.clause"><nldd-tag size="sm" color="warning" :text="t('sheet.application.hardship.tag')"></nldd-tag></nldd-cell>
                     <!-- Twee losse labels naast elkaar: zonder tussenruimte lezen ze als een. -->

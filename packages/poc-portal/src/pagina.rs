@@ -167,20 +167,21 @@ pub fn index(registry: &Registry) -> String {
         .join("\n");
     let demo_kaart = demo_kaart();
 
-    // De hero draagt zijn eigen contentkleur, dus `color="inherit"` op de titel
-    // en de tekst houdt het contrast in licht én donker zonder een eigen
-    // `scheme`. Hetzelfde patroon als de demo (frontend-demo HomeView) en de
-    // docs-landing (docs/src/components/LandingSections.astro), die het ook al
-    // in kale HTML doet.
+    // De hero draagt zijn eigen contentkleur en geeft die door aan de titel en
+    // de tekst erin, dus die houden hun contrast in licht én donker zonder een
+    // eigen `scheme` of kleurattribuut. Hetzelfde patroon als de demo
+    // (frontend-demo HomeView) en de docs-landing
+    // (docs/src/components/LandingSections.astro), die het ook al in kale HTML
+    // doet.
     let inhoud = format!(
         r#"  <nldd-hero main-width="full" padding-bottom="0">
-    <nldd-title size="display-1" color="inherit">
-      <span slot="overline">regelrecht</span>
+    <nldd-title size="display-1">
+      <p slot="overline">regelrecht</p>
       <h1>Proof-of-concepts</h1>
-      <span slot="supporting-text">Wat wetgeving doet als je haar uitvoert</span>
+      <p slot="supporting-text">Wat wetgeving doet als je haar uitvoert</p>
     </nldd-title>
     <nldd-spacer size="16"></nldd-spacer>
-    <nldd-rich-text color="inherit">
+    <nldd-rich-text>
       <p>Elke omgeving hieronder neemt één stuk regelgeving en voert het uit:
       dezelfde regels, maar dan als iets dat rekent. Daarmee is te zien wat een
       regeling betekent voor wie eronder valt, wat een variant zou veranderen,

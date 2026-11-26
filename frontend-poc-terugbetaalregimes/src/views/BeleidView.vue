@@ -4,9 +4,9 @@
     <div slot="pane-1" class="pane pane-left">
       <nldd-page landmarks="page">
         <div class="pane-inner">
-          <nldd-title heading-level="1" size="display-2">
-            <span slot="overline">Voor beleidsmakers</span>
-            <span>Terugbetaalregimes: draaien aan de wet</span>
+          <nldd-title size="display-2">
+            <p slot="overline">Voor beleidsmakers</p>
+            <h1>Terugbetaalregimes: draaien aan de wet</h1>
           </nldd-title>
 
           <nldd-banner v-if="initError" variant="critical">
@@ -61,26 +61,26 @@
       <nldd-page background="tinted" accessible-label="Effecten">
         <div class="pane-inner">
           <div class="kop-rij">
-            <nldd-title heading-level="2" size="display-3">
-              <span>{{ werkversie || hasChanges ? `Effecten: huidig recht naast ${kolomLabel}` : 'Effecten onder huidig recht' }}</span>
-              <span slot="supporting-text">{{ hasChanges ? `${werkversieLabel} met ${changeCount} bewerkt${changeCount === 1 ? '' : 'e'} document${changeCount === 1 ? '' : 'en'}; de pijlen en de grafiek vergelijken met huidig recht.` : werkversie ? 'De variant zoals hij op de branch staat, vergeleken met huidig recht.' : 'Wijzig links een parameter of kies een variant als werkversie; dan komt huidig recht ernaast te staan.' }}</span>
+            <nldd-title size="display-3">
+              <h2>{{ werkversie || hasChanges ? `Effecten: huidig recht naast ${kolomLabel}` : 'Effecten onder huidig recht' }}</h2>
+              <p slot="supporting-text">{{ hasChanges ? `${werkversieLabel} met ${changeCount} bewerkt${changeCount === 1 ? '' : 'e'} document${changeCount === 1 ? '' : 'en'}; de pijlen en de grafiek vergelijken met huidig recht.` : werkversie ? 'De variant zoals hij op de branch staat, vergeleken met huidig recht.' : 'Wijzig links een parameter of kies een variant als werkversie; dan komt huidig recht ernaast te staan.' }}</p>
             </nldd-title>
             <doorreken-knop v-if="ready" class="kop-actie" />
           </div>
 
           <template v-if="ready">
             <section class="block">
-              <nldd-title heading-level="3" size="display-4">
-                <span>De posten per kolom</span>
-                <span slot="supporting-text">Wat de regeling doet met de OCW-begroting, wat debiteuren ervan merken en welke volumes bij DUO landen. Vink links varianten aan om ze als kolom toe te voegen.</span>
+              <nldd-title size="display-4">
+                <h3>De posten per kolom</h3>
+                <p slot="supporting-text">Wat de regeling doet met de OCW-begroting, wat debiteuren ervan merken en welke volumes bij DUO landen. Vink links varianten aan om ze als kolom toe te voegen.</p>
               </nldd-title>
               <kolom-tabel :columns="columns" :metrics-by-column="metricsByColumn" :running="running" />
             </section>
 
             <section class="block">
-              <nldd-title heading-level="3" size="display-4">
-                <span>Populatie</span>
-                <span slot="supporting-text">De tegels zijn kengetallen onder {{ kolomLabel }}. De grafiek eronder zet dezelfde kolommen als de tabel naast elkaar, per terugbetaalregime.</span>
+              <nldd-title size="display-4">
+                <h3>Populatie</h3>
+                <p slot="supporting-text">De tegels zijn kengetallen onder {{ kolomLabel }}. De grafiek eronder zet dezelfde kolommen als de tabel naast elkaar, per terugbetaalregime.</p>
               </nldd-title>
               <metric-tiles :metrics="metrics" :baseline-metrics="baselineMetrics" :kolom-label="kolomLabel" />
               <regime-metrics-chart :columns="columns" :metrics-by-column="metricsByColumn" />

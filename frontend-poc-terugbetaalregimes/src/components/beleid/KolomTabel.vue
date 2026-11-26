@@ -53,10 +53,11 @@
             size="sm"
             horizontal-alignment="right"
           >
-            <span class="kt-value">{{ metricsByColumn[col.key] ? toon(rij, metricsByColumn[col.key]) : (running[col.key] ? 'rekent…' : '—') }}</span>
-            <span v-if="verschilTekst(rij, col)" slot="supporting-text" class="kt-delta" :class="richting(rij, col)">
-              {{ verschilTekst(rij, col) }}
-            </span>
+            <p><span class="kt-value">{{ metricsByColumn[col.key] ? toon(rij, metricsByColumn[col.key]) : (running[col.key] ? 'rekent…' : '—') }}</span></p>
+            <!-- The class sits on a span: a slotted <p> gets reset by the cell. -->
+            <p v-if="verschilTekst(rij, col)" slot="supporting-text">
+              <span class="kt-delta" :class="richting(rij, col)">{{ verschilTekst(rij, col) }}</span>
+            </p>
           </nldd-text-cell>
         </nldd-table-row>
       </template>

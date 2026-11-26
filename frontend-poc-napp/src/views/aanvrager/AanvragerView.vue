@@ -160,7 +160,7 @@ watch(() => session.aanvrager, laadAanvragen);
       <nldd-simple-section width="560px">
         <template v-if="stap === 'kvk'">
           <nldd-title size="display-2">
-            <span slot="overline">Voor politieke partijen</span>
+            <p slot="overline">Voor politieke partijen</p>
             <h2>Inloggen met eHerkenning</h2>
           </nldd-title>
           <nldd-spacer size="12"></nldd-spacer>
@@ -227,7 +227,7 @@ watch(() => session.aanvrager, laadAanvragen);
                  bestuur); hier kiest u er vrij een voor de demo. -->
             <template v-else>
               <nldd-title size="display-4">
-                <span slot="overline">{{ partijNaam }} · KVK {{ kvk }}</span>
+                <p slot="overline">{{ partijNaam }} · KVK {{ kvk }}</p>
                 <h3>Uw machtigingen voor deze dienst</h3>
               </nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
@@ -353,7 +353,7 @@ watch(() => session.aanvrager, laadAanvragen);
     <template v-else-if="session.aanvrager">
       <nldd-simple-section>
         <nldd-title size="display-2">
-          <span slot="overline">{{ aanvragerOverline }}</span>
+          <p slot="overline">{{ aanvragerOverline }}</p>
           <h2>Uw subsidieaanvragen</h2>
           <div v-if="aanvragen.length" slot="actions">
             <nldd-button

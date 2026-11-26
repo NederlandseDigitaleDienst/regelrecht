@@ -67,9 +67,8 @@ function columns(table: string[][]) {
         <!-- The supporting text goes through the slot, line by line: the
              attribute collapses the line breaks in an engine error. -->
         <nldd-text-cell vertical-alignment="top" :text="emphasiseArguments(renderStep(step).text)">
-          <span v-if="supportingLines(step, i).length" slot="supporting-text"
-            ><template v-for="(line, li) in supportingLines(step, i)" :key="li"><br v-if="li" />{{ line }}</template></span
-          >
+          <p v-if="supportingLines(step, i).length" slot="supporting-text"
+            ><template v-for="(line, li) in supportingLines(step, i)" :key="li"><br v-if="li" />{{ line }}</template></p>
         </nldd-text-cell>
       </nldd-container>
       <!-- Indented to the step text by the same two columns as the step row:

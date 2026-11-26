@@ -333,13 +333,13 @@ async function indienenTegen() {
   <nldd-one-half-one-half-section>
     <nldd-container slot="left" gap="16">
       <nldd-title heading-level="2" size="display-3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
-        <nldd-text slot="supporting-text">
+        <p slot="supporting-text">
           <ArtikelLink :basis="state.casus.besluit" />. De velden komen uit de wet: wat het
           artikel vraagt en wat de Algemene wet
           bestuursrecht erbij eist (artikel 4:2). Een leeg veld laat je weg; de cel legt de
           aanvraag dan vast met dat gegeven als ontbrekend. De dag van ontvangst is de speeldatum
           (Awb 4:13).
-        </nldd-text>
+        </p>
       </nldd-title>
       <nldd-container v-if="eerstInloggen" max-width="560px">
         <nldd-inline-dialog
@@ -399,11 +399,11 @@ async function indienenTegen() {
                    chain: the application its establishing article, a
                    decision the article that took it. -->
               <nldd-text-cell :text="`${s.rol} ${kort(s.gram.id)}`">
-                <nldd-text slot="supporting-text" size="sm" color="secondary">
+                <p slot="supporting-text">
                   {{ s.gram.recorded_on }} ·
                   <ArtikelLink :basis="s.gram.basis" :datum="s.gram.recorded_on" /><template v-if="s.rechter">
                     · {{ state.casus.rechter.cel_naam }}</template>
-                </nldd-text>
+                </p>
               </nldd-text-cell>
               <nldd-cell v-if="!s.rechter && isBesluit(s.gram)" width="fit-content">
                 <nldd-button
@@ -424,7 +424,9 @@ async function indienenTegen() {
             </nldd-list-item>
           </nldd-list>
           <nldd-text v-if="a.missing?.length" color="warning" size="sm">
-            Ontbreekt in de aanvraag: {{ a.missing.map(leesbaar).join(', ') }}
+            <p>
+              Ontbreekt in de aanvraag: {{ a.missing.map(leesbaar).join(', ') }}
+            </p>
           </nldd-text>
           </nldd-container>
         </nldd-card>
@@ -443,10 +445,12 @@ async function indienenTegen() {
         <nldd-simple-section v-if="tegen">
           <nldd-container gap="16">
             <nldd-text v-if="tegen.soort === 'bezwaar'" color="secondary">
-              De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
-              bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
-              {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
-              anders vragen, dan doe je een nieuwe aanvraag.
+              <p>
+                De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
+                bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
+                {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
+                anders vragen, dan doe je een nieuwe aanvraag.
+              </p>
             </nldd-text>
             <nldd-text v-else color="secondary">
               Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
