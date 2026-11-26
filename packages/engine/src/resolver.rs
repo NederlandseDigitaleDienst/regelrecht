@@ -2959,8 +2959,17 @@ articles:
         let mut resolver = RuleResolver::new();
         resolver.load_from_yaml(&v1).unwrap();
         resolver.load_from_yaml(&consumer).unwrap();
-        let err = resolver.load_from_yaml(&v2).unwrap_err().to_string();
+        let refusal = resolver.load_from_yaml(&v2).unwrap_err();
+        let err = refusal.to_string();
         assert!(err.contains("makes 'afnemer' ill-typed"), "{err}");
+        // The records say the findings are in the consumer, not in the law
+        // that was loaded.
+        let diagnostics = refusal.diagnostics();
+        assert!(!diagnostics.is_empty());
+        for diagnostic in &diagnostics {
+            assert_eq!(diagnostic.kind, crate::diagnostic::DiagnosticKind::CrossLaw);
+            assert_eq!(diagnostic.law_id.as_deref(), Some("afnemer"));
+        }
         assert_eq!(resolver.version_count(), 2);
     }
 

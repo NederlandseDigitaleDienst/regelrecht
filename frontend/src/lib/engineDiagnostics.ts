@@ -8,6 +8,7 @@
  * records are factual and in the engine's English; what the user reads is
  * written here.
  */
+import { humanizeLawId } from './lawName';
 
 /** The place within an article a problem is about. */
 export type DiagnosticPlace =
@@ -83,6 +84,38 @@ export function ruleText(diagnostic: EngineDiagnostic): string | null {
 /** The distinct articles the records name, in the order they come. */
 export function articlesOf(diagnostics: readonly EngineDiagnostic[]): string[] {
   return [...new Set(diagnostics.flatMap((d) => (d.article ? [d.article] : [])))];
+}
+
+/** The findings on one article, under the heading the details sheet gives them. */
+export interface ArticleFindings {
+  key: string;
+  /** "Artikel 2", with the regelwerk in front when it is another one than the error's. */
+  heading: string;
+  findings: EngineDiagnostic[];
+}
+
+/**
+ * The findings that name an article, grouped by regelwerk and article, in the
+ * engine's order. A finding in a regelwerk that depends on the refused one
+ * (`cross_law`) says which regelwerk its article belongs to.
+ */
+export function findingsByArticle(diagnostics: readonly EngineDiagnostic[]): ArticleFindings[] {
+  const groups: ArticleFindings[] = [];
+  for (const finding of diagnostics) {
+    if (!finding.article) continue;
+    const otherLaw = finding.kind === 'cross_law' ? finding.law_id : null;
+    const key = `${otherLaw ?? ''}#${finding.article}`;
+    const group = groups.find((g) => g.key === key);
+    if (group) group.findings.push(finding);
+    else {
+      groups.push({
+        key,
+        heading: otherLaw ? `${humanizeLawId(otherLaw)}, artikel ${finding.article}` : `Artikel ${finding.article}`,
+        findings: [finding],
+      });
+    }
+  }
+  return groups;
 }
 
 /** Where a row of the Machine pane is: what the engine calls its place. */

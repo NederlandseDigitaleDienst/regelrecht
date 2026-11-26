@@ -176,6 +176,15 @@ describe('describeEngineLoadError, with the engine\'s records', () => {
     expect(described.diagnostics).toHaveLength(3);
   });
 
+  it('says whose articles they are when the findings are in a regelwerk that depends on this one', () => {
+    const elsewhere = (lawId: string, article: string) => ({ ...finding(article, 'a', 'T5'), kind: 'cross_law' as const, law_id: lawId });
+    expect(describeEngineLoadError({ error: 'x', diagnostics: [elsewhere('wet_a', '2'), elsewhere('wet_a', '4')] }).summary)
+      .toBe('Door dit regelwerk klopt Wet A niet meer. Kijk daar bij de artikelen 2 en 4.');
+    // Two regelwerken can each have an article 2, so no article is named.
+    expect(describeEngineLoadError({ error: 'x', diagnostics: [elsewhere('wet_a', '2'), elsewhere('wet_b', '2')] }).summary)
+      .toBe('Door dit regelwerk klopt Wet A en Wet B niet meer.');
+  });
+
   it('points at the line of a text that cannot be read', () => {
     const described = describeEngineLoadError({
       error: 'YAML parse error: did not find expected node at line 12 column 3',

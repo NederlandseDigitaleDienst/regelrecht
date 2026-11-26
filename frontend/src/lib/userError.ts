@@ -14,6 +14,7 @@
  */
 import { ApiError } from './apiFetch';
 import { articlesOf, diagnosticsOf, type EngineDiagnostic } from './engineDiagnostics';
+import { humanizeLawId } from './lawName';
 
 export interface UserError {
   /** One or two Dutch sentences for the message itself. */
@@ -77,6 +78,16 @@ function withArticles(summary: string, articles: string[]): string {
 /** The sentence for a refusal the engine gave as records. */
 function summaryOfDiagnostics(diagnostics: EngineDiagnostic[]): string | null {
   const placed = diagnostics.filter((d) => d.article);
+  // Findings in a regelwerk that depends on this one: the articles are the
+  // other regelwerk's, so the sentence says whose they are.
+  const elsewhere = placed.filter((d) => d.kind === 'cross_law' && d.law_id);
+  if (elsewhere.length > 0) {
+    const laws = [...new Set(elsewhere.map((d) => humanizeLawId(d.law_id)))];
+    const broken = `Door dit regelwerk klopt ${listInDutch(laws)} niet meer.`;
+    if (laws.length > 1) return broken;
+    const articles = articlesOf(elsewhere);
+    return `${broken} Kijk daar bij ${articles.length === 1 ? 'artikel' : 'de artikelen'} ${listInDutch(articles)}.`;
+  }
   if (placed.length > 0) {
     const found = placed.length === 1
       ? 'De engine vond een fout in het regelwerk.'

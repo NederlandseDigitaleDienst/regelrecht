@@ -99,7 +99,7 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute('text', 'heeft_recht_op_zorgtoeslag');
     await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute(
       'supporting-text',
-      'Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is.',
+      'Fout: Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is.',
     );
     await expect(page.locator('nldd-document-tab-bar-item[selected]')).toHaveAttribute('supporting-text', /bevat een fout/);
 

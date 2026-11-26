@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { articlesOf, diagnosticsOf, findingsAt, findingsText, placeLabel, ruleText, type EngineDiagnostic } from './engineDiagnostics';
+import { articlesOf, diagnosticsOf, findingsAt, findingsByArticle, findingsText, placeLabel, ruleText, type EngineDiagnostic } from './engineDiagnostics';
 
 const base: EngineDiagnostic = {
   severity: 'error', kind: 'type_check', law_id: 't', article: '2', place: null, position: null, rule: 'N1', message: 'm',
@@ -82,5 +82,18 @@ describe('findingsText', () => {
   it('falls back on the engine\'s message, and has nothing for no findings', () => {
     expect(findingsText([{ ...base, rule: null, kind: 'load_check', message: 'the engine says' }])).toBe('the engine says');
     expect(findingsText([])).toBeUndefined();
+  });
+});
+
+describe('findingsByArticle', () => {
+  it('groups per article and leaves out a finding without one', () => {
+    const groups = findingsByArticle([base, { ...base, article: '3' }, { ...base, rule: 'T1' }, { ...base, article: null }]);
+    expect(groups.map((g) => [g.heading, g.findings.length])).toEqual([['Artikel 2', 2], ['Artikel 3', 1]]);
+  });
+
+  it('keeps the same article number of two other regelwerken apart, and names them', () => {
+    const elsewhere = (lawId: string): EngineDiagnostic => ({ ...base, kind: 'cross_law', law_id: lawId });
+    const groups = findingsByArticle([elsewhere('wet_a'), elsewhere('wet_b')]);
+    expect(groups.map((g) => g.heading)).toEqual(['Wet A, artikel 2', 'Wet B, artikel 2']);
   });
 });

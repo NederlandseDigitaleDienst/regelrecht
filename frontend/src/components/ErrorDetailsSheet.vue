@@ -7,31 +7,15 @@
 // findings per article, each a row that opens the place it is about.
 import { storeToRefs } from 'pinia';
 import { useErrorsStore, type ReportedError } from '../stores/errors';
-import { placeLabel, ruleText, type EngineDiagnostic } from '../lib/engineDiagnostics';
+import { findingsByArticle, placeLabel, ruleText, type EngineDiagnostic } from '../lib/engineDiagnostics';
 
 const store = useErrorsStore();
 const { detailsOpen, detailsOf } = storeToRefs(store);
 
-interface ArticleFindings {
-  article: string;
-  findings: EngineDiagnostic[];
-}
-
-/** The findings that name an article, grouped by it, in the engine's order. */
-function byArticle(error: ReportedError): ArticleFindings[] {
-  const groups: ArticleFindings[] = [];
-  for (const finding of error.diagnostics ?? []) {
-    if (!finding.article) continue;
-    const group = groups.find((g) => g.article === finding.article);
-    if (group) group.findings.push(finding);
-    else groups.push({ article: finding.article, findings: [finding] });
-  }
-  return groups;
-}
-
 function open(error: ReportedError, finding: EngineDiagnostic): void {
+  if (!error.goTo) return;
   store.closeDetails();
-  error.goTo?.(finding);
+  error.goTo(finding);
 }
 </script>
 
@@ -49,11 +33,11 @@ function open(error: ReportedError, finding: EngineDiagnostic): void {
               <p>{{ error.summary }}</p>
             </nldd-rich-text>
 
-            <template v-for="group in byArticle(error)" :key="group.article">
+            <template v-for="group in findingsByArticle(error.diagnostics ?? [])" :key="group.key">
               <nldd-spacer size="16"></nldd-spacer>
-              <nldd-title size="display-6"><h3>Artikel {{ group.article }}</h3></nldd-title>
+              <nldd-title size="display-6"><h3>{{ group.heading }}</h3></nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
-              <nldd-list appearance="box-tinted" :accessible-label="`Bevindingen in artikel ${group.article}`">
+              <nldd-list appearance="box-tinted" :accessible-label="`Bevindingen: ${group.heading}`">
                 <nldd-list-item
                   v-for="(finding, findingIndex) in group.findings"
                   :key="findingIndex"
@@ -63,7 +47,7 @@ function open(error: ReportedError, finding: EngineDiagnostic): void {
                   @click="open(error, finding)"
                 >
                   <nldd-text-cell
-                    :text="placeLabel(finding.place) ?? `Artikel ${group.article}`"
+                    :text="placeLabel(finding.place) ?? group.heading"
                     :supporting-text="ruleText(finding) ?? finding.message"
                   ></nldd-text-cell>
                   <nldd-icon-cell v-if="error.goTo" size="20" icon="chevron-right" disclosure></nldd-icon-cell>

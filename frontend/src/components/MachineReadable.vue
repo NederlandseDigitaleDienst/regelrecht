@@ -116,7 +116,9 @@ const { displayName: lawDisplayName } = useCorpus();
 
 /** The text for the findings on a row; undefined for a row without any. */
 function rowFindings(row: RowPlace): string | undefined {
-  return findingsText(findingsAt(props.findings, row));
+  // "Fout:" in the text, because the icon beside it has no name of its own.
+  const text = findingsText(findingsAt(props.findings, row));
+  return text ? `Fout: ${text}` : undefined;
 }
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
@@ -568,7 +570,7 @@ function addOutput() {
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
           </template>
           <nldd-text-cell
-            :supporting-text="rowFindings({ kind: 'input', name: input.name }) ?? (input.sourceRegulation ? lawDisplayName(input.sourceRegulation) : undefined)"
+            :supporting-text="[input.sourceRegulation ? lawDisplayName(input.sourceRegulation) : undefined, rowFindings({ kind: 'input', name: input.name })].filter(Boolean).join(' · ') || undefined"
           ><BreakableName :name="input.name" /> <nldd-tag size="sm" :text="input.type"></nldd-tag></nldd-text-cell>
           <nldd-spacer-cell v-if="editable" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="editable">

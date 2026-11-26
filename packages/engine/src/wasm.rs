@@ -178,13 +178,27 @@ fn strip_undefined_deep(value: JsValue) -> Result<JsValue, JsValue> {
 
 /// Convert internal EngineError to user-friendly WASM error.
 fn engine_error_to_wasm(err: EngineError) -> JsValue {
+    wasm_error(&engine_error_text(&err))
+}
+
+/// The sentence a WASM method throws for an engine error.
+fn engine_error_text(err: &EngineError) -> String {
     match err {
-        EngineError::LawNotFound(ref law_id) => wasm_error(&format!(
-            "Law '{}' not found. Load it first with loadLaw().",
-            law_id
-        )),
-        other => wasm_error(&other.to_string()),
+        EngineError::LawNotFound(law_id) => {
+            format!("Law '{law_id}' not found. Load it first with loadLaw().")
+        }
+        other => other.to_string(),
     }
+}
+
+/// The sentence for a law text over the size limit, or `None` when it fits.
+fn oversize_text(yaml: &str) -> Option<String> {
+    (yaml.len() > config::MAX_YAML_SIZE).then(|| {
+        format!(
+            "YAML exceeds maximum size ({} bytes)",
+            config::MAX_YAML_SIZE
+        )
+    })
 }
 
 /// What `loadLawWithDiagnostics` throws: the error as `loadLaw` words it, and
@@ -319,11 +333,8 @@ impl WasmEngine {
     /// * `Err(JsValue)` - Error message if parsing fails
     #[wasm_bindgen(js_name = loadLaw)]
     pub fn load_law(&mut self, yaml: &str) -> Result<String, JsValue> {
-        if yaml.len() > config::MAX_YAML_SIZE {
-            return Err(wasm_error(&format!(
-                "YAML exceeds maximum size ({} bytes)",
-                config::MAX_YAML_SIZE
-            )));
+        if let Some(error) = oversize_text(yaml) {
+            return Err(wasm_error(&error));
         }
 
         self.service.load_law(yaml).map_err(engine_error_to_wasm)
@@ -343,11 +354,7 @@ impl WasmEngine {
     ///   The records are factual; wording for an end user is the caller's.
     #[wasm_bindgen(js_name = loadLawWithDiagnostics)]
     pub fn load_law_with_diagnostics(&mut self, yaml: &str) -> Result<String, JsValue> {
-        if yaml.len() > config::MAX_YAML_SIZE {
-            let error = format!(
-                "YAML exceeds maximum size ({} bytes)",
-                config::MAX_YAML_SIZE
-            );
+        if let Some(error) = oversize_text(yaml) {
             let diagnostics = vec![Diagnostic::unplaced(
                 DiagnosticKind::Structure,
                 error.clone(),
@@ -355,17 +362,9 @@ impl WasmEngine {
             return Err(load_failure_to_wasm(error, diagnostics));
         }
 
-        self.service.load_law(yaml).map_err(|err| {
-            let diagnostics = err.diagnostics();
-            // The same text `loadLaw` throws for this error.
-            let error = match &err {
-                EngineError::LawNotFound(law_id) => {
-                    format!("Law '{law_id}' not found. Load it first with loadLaw().")
-                }
-                other => other.to_string(),
-            };
-            load_failure_to_wasm(error, diagnostics)
-        })
+        self.service
+            .load_law(yaml)
+            .map_err(|err| load_failure_to_wasm(engine_error_text(&err), err.diagnostics()))
     }
 
     /// Execute a law output with automatic cross-law resolution.
