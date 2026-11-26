@@ -39,6 +39,7 @@ const {
   disconnect: disconnectGithub,
 } = useGithubAuth();
 
+// The editor's panes, and the switches that change what a pane offers.
 const editorPanelFlags: [key: string, label: string][] = [
   ['panel.article_text', 'Tekst editor'],
   ['panel.machine_readable', 'Machine editor'],
@@ -46,6 +47,7 @@ const editorPanelFlags: [key: string, label: string][] = [
   ['panel.yaml_editor', 'YAML editor'],
   ['panel.notes', 'Notities'],
   ['panel.regelrijm', 'RegelRijm (experimenteel)'],
+  ['scenarios.import', "Scenario's importeren (experimenteel)"],
 ];
 
 // De sectie-poorten staan in useSettingsSections, want AppShell stelt dezelfde

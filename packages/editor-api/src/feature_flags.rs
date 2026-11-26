@@ -37,6 +37,10 @@ static DEFAULTS: LazyLock<HashMap<String, bool>> = LazyLock::new(|| {
         // RegelRijm in the editor's Machine pane (RFC-054). Default off while
         // the reading is a draft.
         ("panel.regelrijm".into(), false),
+        // Importing feature files in the editor's scenario pane. The check
+        // runs in the browser; the save is the ordinary scenario PUT. Default
+        // off while it is new.
+        ("scenarios.import".into(), false),
     ])
 });
 

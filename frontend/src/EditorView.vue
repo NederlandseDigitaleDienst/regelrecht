@@ -40,6 +40,8 @@ import MachineReadable from './components/MachineReadable.vue';
 import MachineEmptyState from './components/MachineEmptyState.vue';
 import ScenarioScreen from './components/ScenarioScreen.vue';
 import ScenarioStatusPane from './components/ScenarioStatusPane.vue';
+import ScenarioImportDialog from './components/ScenarioImportDialog.vue';
+import type { ScenarioImport } from './scenario/scenarioImport';
 import { useLawScenarios } from './scenario/useLawScenarios';
 import { statusBadge } from './scenario/statusSummary';
 import { useOpenScenariosStore } from './stores/openScenarios';
@@ -1620,6 +1622,30 @@ const showScenarioStatus = computed(
     !!lawScenarios.listError.value,
 );
 
+// Importing feature files into the open regelwerk's scenario folder. Writes
+// exist only in a traject, so the entry does too.
+const scenarioImportEl = ref<InstanceType<typeof ScenarioImportDialog> | null>(null);
+// Only with the list in: the import refuses a name that is taken, and an
+// unread or failed list would make every name look free.
+const canImportScenarios = computed(
+  () =>
+    canEdit.value &&
+    !!lawId.value &&
+    featureFlags.isEnabled('scenarios.import') &&
+    !lawScenarios.listLoading.value &&
+    !lawScenarios.listError.value,
+);
+const scenarioFilenames = computed(() => lawScenarios.files.value.map((s) => s.file.file.filename));
+function onScenariosImported({ trajectRef, lawId: importedInto, filenames }: ScenarioImport) {
+  // The editor moved on while the dialog was open: the files are saved, but
+  // they belong to another regelwerk than the one on screen.
+  if (trajectRef !== activeTrajectRef.value || importedInto !== lawId.value) return;
+  lawScenarios.refresh().catch(() => {});
+  scenarioSheetOpen.value = false;
+  const [first] = filenames;
+  if (first) openScenarioTab(first, null);
+}
+
 // The engine-loading watch lives below, next to `currentLawYaml`, so it
 // observes in-memory edits rather than only the persisted `rawYaml`.
 
@@ -2731,7 +2757,9 @@ async function handleActionSave() {
                 <ScenarioStatusPane
                   v-else
                   :scenarios="lawScenarios"
+                  :can-import="canImportScenarios"
                   @open="openScenarioTab"
+                  @import="scenarioImportEl?.pick()"
                 />
               </template>
 
@@ -2882,10 +2910,23 @@ async function handleActionSave() {
             @dismiss="scenarioSheetOpen = false"
           ></nldd-top-title-bar>
         </nldd-container>
-        <ScenarioStatusPane :scenarios="lawScenarios" @open="openScenarioFromSheet" />
+        <ScenarioStatusPane
+          :scenarios="lawScenarios"
+          :can-import="canImportScenarios"
+          @open="openScenarioFromSheet"
+          @import="scenarioImportEl?.pick()"
+        />
       </nldd-page>
     </nldd-sheet>
   </Teleport>
+
+  <ScenarioImportDialog
+    ref="scenarioImportEl"
+    :traject-ref="activeTrajectRef"
+    :law-id="lawId ?? null"
+    :existing="scenarioFilenames"
+    @imported="onScenariosImported"
+  />
 
   <!-- Publishing a note is irreversible (it lands in the repo and can't be made
        private again), so confirm before the write. -->
