@@ -48,6 +48,8 @@ const TYPING: ValueTyping = VALUE_TYPING;
  * - "true"/"false" → boolean
  * - "null" and the empty string → null (an absence; the Rust runner reads
  *   `parameter "x" is ""` as Null, so this runner must too)
+ * - digits behind a leading zero ("014", "0123456") → string: a code, not a
+ *   number (see `isZeroLedCode`)
  * - numeric → number (int or float)
  * - otherwise → string
  *
@@ -72,6 +74,8 @@ export function parseValue(str: unknown): unknown {
     }
   }
 
+  if (isZeroLedCode(str)) return str;
+
   // Try integer first, then float
   if (/^-?\d+$/.test(str)) {
     const n = parseInt(str, 10);
@@ -83,6 +87,23 @@ export function parseValue(str: unknown): unknown {
   }
 
   return str;
+}
+
+/**
+ * Whether a value is written as a code that happens to consist of digits: an
+ * SBI code (`014`), a postcode area, a BSN that starts with `0`. Nobody writes
+ * a number with a zero in front of another digit, and reading one as a number
+ * drops the zero, so `014` would reach the law as 14 and miss an
+ * `IN ['011', ..., '016']` without any error. `0` and `0.5` are numbers.
+ *
+ * A workaround for this one case. A code without a leading zero (`6201`) still
+ * becomes a number; what a scenario value is follows from the type the law
+ * declares, which is RFC-055. Mirrors `is_zero_led_code` in the Rust runner.
+ * The open pull requests that change the same rule are listed at
+ * `value_typing` in bdd/grammar.yaml.
+ */
+function isZeroLedCode(str: string): boolean {
+  return /^-?0\d/.test(str);
 }
 
 /**

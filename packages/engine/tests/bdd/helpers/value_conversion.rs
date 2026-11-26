@@ -11,6 +11,7 @@ use rust_decimal::Decimal;
 /// - `true` / `false` -> Bool
 /// - `null` -> Null
 /// - A JSON array or object literal (`[...]` / `{...}`) -> Array / Object
+/// - Digits behind a leading zero (`014`) -> String, see [`is_zero_led_code`]
 /// - Integer literals -> Int
 /// - Decimal literals -> Decimal
 /// - Everything else -> String
@@ -43,6 +44,10 @@ pub fn convert_gherkin_value(val: &str) -> Value {
         return Value::from(json);
     }
 
+    if is_zero_led_code(trimmed) {
+        return Value::String(trimmed.to_string());
+    }
+
     // Try integer first
     if let Ok(i) = trimmed.parse::<i64>() {
         return Value::Int(i);
@@ -55,6 +60,23 @@ pub fn convert_gherkin_value(val: &str) -> Value {
 
     // Default to string
     Value::String(trimmed.to_string())
+}
+
+/// Whether a value is written as a code that happens to consist of digits: an
+/// SBI code (`014`), a postcode area, a BSN that starts with `0`.
+///
+/// Nobody writes a number with a zero in front of another digit, and reading
+/// one as a number drops the zero, so `014` would reach the law as 14 and miss
+/// an `IN ['011', ..., '016']` without any error. `0` and `0.5` are numbers.
+///
+/// A workaround for this one case. A code without a leading zero (`6201`)
+/// still becomes a number; what a scenario value is follows from the type the
+/// law declares, which is RFC-055. Mirrors `isZeroLedCode` in the JS runner.
+/// The open pull requests that change the same rule are listed at
+/// `value_typing` in bdd/grammar.yaml.
+fn is_zero_led_code(val: &str) -> bool {
+    let mut digits = val.strip_prefix('-').unwrap_or(val).chars();
+    digits.next() == Some('0') && digits.next().is_some_and(|c| c.is_ascii_digit())
 }
 
 /// Compare two Values with a small numeric tolerance.
@@ -103,6 +125,17 @@ mod tests {
         assert_eq!(convert_gherkin_value("3.14"), Value::Decimal(dec!(3.14)));
         assert_eq!(convert_gherkin_value("-1.5"), Value::Decimal(dec!(-1.5)));
         assert_eq!(convert_gherkin_value("0.5"), Value::Decimal(dec!(0.5)));
+    }
+
+    #[test]
+    fn test_convert_zero_led_code_stays_text() {
+        for code in ["014", "0123456789", "007.5", "-014"] {
+            assert_eq!(convert_gherkin_value(code), Value::String(code.to_string()));
+        }
+        // A zero and a fraction below one are numbers.
+        assert_eq!(convert_gherkin_value("0"), Value::Int(0));
+        assert_eq!(convert_gherkin_value("-0.5"), Value::Decimal(dec!(-0.5)));
+        assert_eq!(convert_gherkin_value("100"), Value::Int(100));
     }
 
     #[test]

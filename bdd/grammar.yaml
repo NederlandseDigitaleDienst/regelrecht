@@ -16,8 +16,25 @@ version: 1
 # comparison silently goes false instead of failing.
 #
 # A data-table cell carries no quoting either, and reads the same way. The cost
-# is that a numeric-looking identifier loses its string form (a leading zero
-# does not survive); which literals this language actually knows is #1172.
+# is that a numeric-looking identifier loses its string form. One case is
+# excepted: digits behind a leading zero (`014`, an SBI code) stay text, because
+# as a number they would lose the zero. A code without one (`6201`) still
+# becomes a number; which literals this language actually knows is #1172.
+#
+# The leading-zero exception is a workaround, added while the typing of a
+# scenario value is still being decided for RFC-055. Two open pull requests
+# change the same rule and have to be reconciled with it when that work
+# continues:
+#   - #2012 lets a table cell say it is text by double quotes (`"0111"`).
+#   - #2021 makes digits in double quotes text (`quoted:
+#     inferred_without_numbers`) and has the engine refuse a value that is not
+#     of the declared type. With that rule the exception only still matters
+#     for a bare table cell (`| sbi | 014 |`), which then has to be either kept
+#     as text or refused; a number 14 is the one outcome it must not have.
+# Whichever way that is decided, remove or keep the exception on purpose: it
+# lives in `isZeroLedCode` (packages/frontend-shared/src/gherkin/actions.ts)
+# and `is_zero_led_code` (packages/engine/tests/bdd/helpers/value_conversion.rs),
+# with scenarios in bdd/conformance/value_typing.feature.
 #
 # Codegen carries these three keys into both dispatchers (Rust
 # packages/engine/tests/bdd, JS frontend/src/gherkin), so a change here changes

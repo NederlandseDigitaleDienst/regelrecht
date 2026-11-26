@@ -160,10 +160,11 @@ Feature: Numbers
       | 007  | 1.0    |
     When I evaluate "x" of "law"
 `));
-    // 007 and 1.0 are numbers to the runner too; the leading zero and the
-    // trailing .0 do not survive a save, and that is the documented rule.
-    expect(defined(defined(form.scenarios[0]).setup.parameters[0]).value).toEqual([{ code: 7, bedrag: 1 }]);
-    expect(formStateToGherkin(form)).toContain('| 7 | 1 |');
+    // 1.0 is a number to the runner too, and its trailing .0 does not survive
+    // a save. 007 is a code: digits behind a leading zero stay text, so the
+    // zero is still there after a save.
+    expect(defined(defined(form.scenarios[0]).setup.parameters[0]).value).toEqual([{ code: '007', bedrag: 1 }]);
+    expect(formStateToGherkin(form)).toContain('| 007 | 1 |');
   });
 
   describe('syncEditedValues', () => {

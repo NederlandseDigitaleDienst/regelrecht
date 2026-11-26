@@ -171,6 +171,21 @@ describe('quoted and table-cell values', () => {
     expect(quotedValue('GM0384')).toBe('GM0384');
   });
 
+  it('keeps digits behind a leading zero as the code they are written as', () => {
+    expect(quotedValue('014')).toBe('014');
+    expect(tableCellValue('014')).toBe('014');
+    expect(quotedValue('0123456789')).toBe('0123456789');
+    expect(quotedValue('007.5')).toBe('007.5');
+    expect(quotedValue('-014')).toBe('-014');
+  });
+
+  it('still reads a zero and a fraction below one as numbers', () => {
+    expect(quotedValue('0')).toBe(0);
+    expect(quotedValue('0.5')).toBe(0.5);
+    expect(quotedValue('-0.5')).toBe(-0.5);
+    expect(quotedValue('100')).toBe(100);
+  });
+
   // RFC-036: the Rust runner reads `parameter "x" is ""` as Null
   // (`convert_gherkin_value("")`), so the quoted empty string is an absence
   // here too, not the string ''. The empty *cell* never gets this far.

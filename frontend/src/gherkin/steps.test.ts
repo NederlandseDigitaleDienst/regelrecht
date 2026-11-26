@@ -221,6 +221,12 @@ describe('value typing follows bdd/grammar.yaml', () => {
     expect(await runStep('parameter "gemeente" is "GM0384"')).toEqual({ gemeente: 'GM0384' });
   });
 
+  it('keeps digits behind a leading zero as a code', async () => {
+    expect(await runStep('parameter "sbi" is "014"')).toEqual({ sbi: '014' });
+    expect(await runStep('the following parameters:', [['sbi', '014']])).toEqual({ sbi: '014' });
+    expect(await runStep('parameter "waarde" is "14"')).toEqual({ waarde: 14 });
+  });
+
   it('reads a bare value as a number', async () => {
     expect(await runStep('parameter "waarde" is 42')).toEqual({ waarde: 42 });
   });
