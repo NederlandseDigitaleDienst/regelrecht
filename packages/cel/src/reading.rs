@@ -405,6 +405,53 @@ pub struct Reader<'c> {
 }
 
 impl<'c> Reader<'c> {
+    /// The version of `reduction` in force on `day` and its article that
+    /// gives the answer `name`, after the checks every answer passes: the
+    /// reduction is loaded, is a REDUCTIE, is one the cell keeps, and has
+    /// that output. `None` before its first version is in force.
+    fn reduction_article<'s>(
+        &self,
+        service: &'s LawExecutionService,
+        reduction: &str,
+        name: &str,
+        day: NaiveDate,
+    ) -> Result<Option<(&'s ArticleBasedLaw, &'s regelrecht_engine::Article)>> {
+        if !service.has_law(reduction) {
+            return Err(setup(format!(
+                "the answer '{name}' comes from the reduction '{reduction}', which is not loaded"
+            )));
+        }
+        // Before its first version the reduction gives nothing: the cell is
+        // silent, and the policy that takes the answer says what then holds,
+        // as it did then (a decision taken then still replays).
+        let Some(law) = service.resolver().get_law_for_date(reduction, Some(day)) else {
+            return Ok(None);
+        };
+        if law.regulatory_layer != RegulatoryLayer::Reductie {
+            return Err(setup(format!(
+                "the answer '{name}' comes from '{reduction}', which is {}, not a REDUCTIE",
+                law.regulatory_layer.as_str()
+            )));
+        }
+        // A cell gives only the answers of its own reductions. Opening the
+        // cell checks its catalogue against them; a reader made otherwise
+        // is held to the same.
+        if !self.reductions.contains(reduction) {
+            return Err(refused(format!(
+                "the answer '{name}' comes from the reduction '{reduction}', which the cell of \
+                 '{}' does not keep; a cell gives only the answers of its own reductions",
+                self.recording_actor
+            )));
+        }
+        let article = law.find_article_by_output(name).ok_or_else(|| {
+            setup(format!(
+                "the answer '{name}' comes from the reduction '{reduction}', which has no output \
+                 '{name}'"
+            ))
+        })?;
+        Ok(Some((law, article)))
+    }
+
     /// The cell of `recording_actor`, who is `authority`, with the
     /// catalogue `answers` and the reductions `reductions`, reading `grams`.
     /// The reader runs the reduction for the answer `explain` with its
@@ -446,39 +493,9 @@ impl<'c> Reader<'c> {
         day: NaiveDate,
     ) -> Result<Option<(AnswerProvenance, ArticleResult)>> {
         let name = request.name;
-        if !service.has_law(reduction) {
-            return Err(setup(format!(
-                "the answer '{name}' comes from the reduction '{reduction}', which is not loaded"
-            )));
-        }
-        // Before its first version the reduction gives nothing: the cell is
-        // silent, and the policy that takes the answer says what then holds,
-        // as it did then (a decision taken then still replays).
-        let Some(law) = service.resolver().get_law_for_date(reduction, Some(day)) else {
+        let Some((law, article)) = self.reduction_article(service, reduction, name, day)? else {
             return Ok(None);
         };
-        if law.regulatory_layer != RegulatoryLayer::Reductie {
-            return Err(setup(format!(
-                "the answer '{name}' comes from '{reduction}', which is {}, not a REDUCTIE",
-                law.regulatory_layer.as_str()
-            )));
-        }
-        // A cell gives only the answers of its own reductions. Opening the
-        // cell checks its catalogue against them; a reader made otherwise
-        // is held to the same.
-        if !self.reductions.contains(reduction) {
-            return Err(refused(format!(
-                "the answer '{name}' comes from the reduction '{reduction}', which the cell of \
-                 '{}' does not keep; a cell gives only the answers of its own reductions",
-                self.recording_actor
-            )));
-        }
-        let article = law.find_article_by_output(name).ok_or_else(|| {
-            setup(format!(
-                "the answer '{name}' comes from the reduction '{reduction}', which has no output \
-                 '{name}'"
-            ))
-        })?;
         let declared = article.get_parameters();
         if let Some(extra) = request
             .parameters
@@ -646,6 +663,151 @@ impl ChronicleSource for Reader<'_> {
     }
 }
 
+/// A parameter an answer of the cell takes: the name its reduction gives it,
+/// and whether the reduction can do without it ([`Reader::takes`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnswerParameter {
+    pub name: String,
+    pub required: bool,
+}
+
+/// An answer the cell gave on its own account, outside a decision
+/// ([`crate::Cell::give_answer`]): the value, where it comes from, and the
+/// versions of the rulework the reduction ran on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GivenAnswer {
+    pub value: Value,
+    pub provenance: AnswerProvenance,
+    pub regulations_read: Vec<regelrecht_engine::RegulationRead>,
+}
+
+impl Reader<'_> {
+    /// The parameters of the answer `name` on `day`, as the article of its
+    /// reduction declares them. `None` when the catalogue does not name the
+    /// answer, or before the first version of its reduction is in force.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded, is no reduction the cell keeps, or
+    /// has no output `name`.
+    pub fn takes(
+        &self,
+        service: &LawExecutionService,
+        name: &str,
+        day: NaiveDate,
+    ) -> Result<Option<Vec<AnswerParameter>>> {
+        let Some(reduction) = self.answers.get(name) else {
+            return Ok(None);
+        };
+        let Some((_, article)) = self.reduction_article(service, reduction, name, day)? else {
+            return Ok(None);
+        };
+        Ok(Some(
+            article
+                .get_parameters()
+                .iter()
+                .map(|p| AnswerParameter {
+                    name: p.name.clone(),
+                    required: p.required != Some(false),
+                })
+                .collect(),
+        ))
+    }
+
+    /// The answer `name` with `parameters` on `day`, as the engine would get
+    /// it through a binding, but asked directly: for a party the cell tells
+    /// what it knows, not for a decision. `None` when the cell is silent:
+    /// the catalogue does not name the answer, its reduction is not in force
+    /// yet, or a required parameter is `null`.
+    ///
+    /// # Errors
+    ///
+    /// As a binding that asks it: a parameter the reduction does not take or
+    /// one it needs that is left out, and whatever the engine refuses.
+    pub fn give(
+        &self,
+        service: &LawExecutionService,
+        name: &str,
+        parameters: &BTreeMap<String, Value>,
+        day: NaiveDate,
+    ) -> Result<Option<GivenAnswer>> {
+        let date = day.to_string();
+        let request = AnswerRequest {
+            name,
+            parameters,
+            calculation_date: &date,
+            trace: false,
+        };
+        let Some(ran) = self.guarded(service, &request, day)? else {
+            return Ok(None);
+        };
+        let reduction = ran.provenance.law_id.as_str();
+        // The reduction ran, so the version in force on `day` is there.
+        let mut regulations_read = ran.result.regulations_read;
+        if let Some(law) = service.resolver().get_law_for_date(reduction, Some(day)) {
+            let own = regelrecht_engine::RegulationRead::of(law);
+            if !regulations_read.contains(&own) {
+                regulations_read.insert(0, own);
+            }
+        }
+        Ok(Some(GivenAnswer {
+            value: ran.value,
+            provenance: ran.provenance,
+            regulations_read,
+        }))
+    }
+
+    /// The answer of `request` on `day`, from the reduction the catalogue
+    /// names for it: what a binding ([`OpenTermAnswerer::answer`]) and a
+    /// direct question ([`Reader::give`]) both get. The cell refuses an
+    /// answer it is giving already, which a reduction that asks its own
+    /// answer would ask without end. `None` when the cell is silent.
+    fn guarded(
+        &self,
+        service: &LawExecutionService,
+        request: &AnswerRequest<'_>,
+        day: NaiveDate,
+    ) -> Result<Option<Ran>> {
+        let name = request.name;
+        let Some(reduction) = self.answers.get(name) else {
+            return Ok(None);
+        };
+        if self.answering.borrow().iter().any(|a| a == name) {
+            let chain = self.answering.borrow().join(" -> ");
+            return Err(EngineError::CircularReference(format!(
+                "the cell of '{}' is asked the answer '{name}' while giving it ({chain}): its \
+                 reduction '{reduction}' asks its own answer",
+                self.recording_actor
+            ))
+            .into());
+        }
+        self.answering.borrow_mut().push(name.to_string());
+        let ran = self.run(service, reduction, request, day);
+        self.answering.borrow_mut().pop();
+        let Some((provenance, result)) = ran? else {
+            return Ok(None);
+        };
+        let value = result.outputs.get(name).cloned().ok_or_else(|| {
+            setup(format!(
+                "reduction '{reduction}' of the cell of '{}' gave no '{name}'",
+                self.recording_actor
+            ))
+        })?;
+        Ok(Some(Ran {
+            value,
+            provenance,
+            result,
+        }))
+    }
+}
+
+/// What a reduction gave for one answer ([`Reader::guarded`]).
+struct Ran {
+    value: Value,
+    provenance: AnswerProvenance,
+    result: ArticleResult,
+}
+
 impl OpenTermAnswerer for Reader<'_> {
     fn authority(&self) -> &Authority {
         self.authority
@@ -657,38 +819,23 @@ impl OpenTermAnswerer for Reader<'_> {
         request: &AnswerRequest<'_>,
     ) -> regelrecht_engine::Result<Option<EngineAnswer>> {
         let name = request.name;
-        let Some(reduction) = self.answers.get(name) else {
-            return Ok(None);
-        };
         let day = NaiveDate::parse_from_str(request.calculation_date, "%Y-%m-%d")
             .map_err(|e| EngineError::InvalidDate(format!("{}: {e}", request.calculation_date)))?;
-        if self.answering.borrow().iter().any(|a| a == name) {
-            let chain = self.answering.borrow().join(" -> ");
-            return Err(EngineError::CircularReference(format!(
-                "the cell of '{}' is asked the answer '{name}' while giving it ({chain}): its \
-                 reduction '{reduction}' asks its own answer",
-                self.recording_actor
-            )));
-        }
-        self.answering.borrow_mut().push(name.to_string());
-        let ran = self.run(service, reduction, request, day);
-        self.answering.borrow_mut().pop();
-        let Some((provenance, result)) = ran.map_err(|e| match e {
+        let ran = self.guarded(service, request, day).map_err(|e| match e {
             crate::Error::Engine(e) => e,
             other => EngineError::ResolutionError(format!(
                 "the cell of '{}' giving the answer '{name}': {other}",
                 self.recording_actor
             )),
-        })?
+        })?;
+        let Some(Ran {
+            value,
+            provenance,
+            result,
+        }) = ran
         else {
             return Ok(None);
         };
-        let value = result.outputs.get(name).cloned().ok_or_else(|| {
-            EngineError::ResolutionError(format!(
-                "reduction '{reduction}' of the cell of '{}' gave no '{name}'",
-                self.recording_actor
-            ))
-        })?;
         // When the engine traces, the reduction's run is how the cell came
         // to the answer: for a projection, the `PROJECTION` node with the
         // records that count and the fold, and the steps' law calls.
@@ -1500,6 +1647,60 @@ articles:
         };
         let answer = reader.answer(&service, &request).unwrap().unwrap();
         assert_eq!(answer.value, Value::Bool(true));
+    }
+
+    #[test]
+    fn an_answer_takes_the_parameters_of_its_reduction_each_required_or_not() {
+        let required = reduction("reductie_a", "2026-01-01");
+        let optional = required.replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n            required: false\n        input:",
+        );
+        for (law, needed) in [(required, true), (optional, false)] {
+            let service = service_with(&law);
+            let reader = Reader::new(
+                ACTOR,
+                authority(),
+                answers(),
+                reductions(),
+                Vec::new(),
+                None,
+            );
+            let takes = reader.takes(&service, "al_verleend", day()).unwrap();
+            assert_eq!(
+                takes,
+                Some(vec![AnswerParameter {
+                    name: "bsn".to_string(),
+                    required: needed,
+                }])
+            );
+        }
+    }
+
+    #[test]
+    fn an_answer_given_directly_names_the_version_of_its_reduction_once() {
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let given = reader
+            .give(&service, "al_verleend", &parameters(), day())
+            .unwrap()
+            .expect("the catalogue names the answer and its reduction is in force");
+        assert_eq!(given.value, Value::Bool(true));
+        assert_eq!(given.provenance.law_id, "reductie_a");
+        let own: Vec<_> = given
+            .regulations_read
+            .iter()
+            .filter(|read| read.law_id == "reductie_a")
+            .collect();
+        assert_eq!(own.len(), 1, "{:?}", given.regulations_read);
+        assert_eq!(given.regulations_read[0].law_id, "reductie_a");
     }
 
     #[test]

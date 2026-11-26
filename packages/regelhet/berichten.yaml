@@ -1,0 +1,207 @@
+---
+# De berichtenspec van dit RegelHet: welk bericht aan de burger volgt uit
+# welke vastlegging in de kroniek van de gemeente Wilgendaal, en hoe het
+# bericht uit die vastlegging wordt opgebouwd. Het template staat in
+# BERICHTEN.md; de server leest dit bestand met src/berichten.rs van de
+# poc-crate en weigert wat een deel of een sleutel stil zou laten wegvallen.
+#
+# Per berichtsoort:
+# - `vastlegging`: de binding aan de kroniek. De rol (besluit, indiening of
+#   vastlegging van een feit), het artikel, bij een feit het feit, het
+#   rechtskarakter dat het artikel voortbrengt (`produces`) en de uitkomst
+#   die het besluit draagt.
+# - `patroon`: het wettelijke skelet uit de generieke Awb-laag. Het patroon
+#   eist een deel op bepaalde plekken (`vereist_door`); ontbreekt er een, dan
+#   weigert de server de spec.
+# - `sjabloon`: de tekst uit de tekstlaag (berichtteksten.yaml). In deze spec
+#   staat geen zin: alleen waar elke sleutel en voorwaarde van die tekst
+#   vandaan komt (`sleutels`).
+# - `delen`: per deel de plek (die ook de volgorde geeft), het artikel dat
+#   het eist, de bron (`tekst` uit het sjabloon op kop, `regels` met velden,
+#   een `tabel`, of wat de `wet` geeft), de voorwaarde (`als`) en het
+#   NLDD-element (`nldd`).
+# - `invarianten`: wat tussen de delen moet gelden. Een schending toont het
+#   scherm, nooit stil.
+# - `kanaal` en `status`: langs welke weg het bericht de burger bereikt, en
+#   wanneer het bekendgemaakt is.
+#
+# `verzending` zegt hoe een bericht de deur uitgaat: als een feit in de
+# kroniek van het college, met het bericht bevroren zoals het ging (de inhoud
+# en een hash ervan). De burger leest het uit dat feit, niet uit een nieuwe
+# opbouw; de dag van verzending is de dag van bekendmaking. Doorsturen is een
+# feit van hetzelfde artikel waarvan de rechtbank de ontvangst vastlegt (de
+# kern levert het af). Het artikel is fictief beleid van Wilgendaal, het laatste
+# artikel van het beleid voor de gehandicaptenparkeerkaart.
+verzending:
+  feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#13#bericht_verzonden
+  doorsturen: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#13#bericht_doorgestuurd
+  velden:
+    bsn_aanvrager: {veld: bsn_aanvrager}
+
+berichtsoorten:
+  # Het besluit op de aanvraag, toekenning en afwijzing op één template.
+  - id: beschikking
+    naam: beschikking
+    patroon: beschikking
+    vastlegging:
+      rol: besluit
+      artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+      rechtskarakter: BESCHIKKING
+      uitkomst: gehandicaptenparkeerkaart_verstrekt
+      stap: besluit
+    sjabloon: beschikking_kaart
+    sleutels:
+      toekenning: {uitkomst: gehandicaptenparkeerkaart_verstrekt, is: true}
+      afwijzing: {uitkomst: gehandicaptenparkeerkaart_verstrekt, is: false}
+      aanvraagdag: {veld: dagtekening, vorm: datum}
+      geldig_tot: {uitkomst: kaart_geldig_tot, vorm: datum}
+      bezwaardag: {uitkomst: termijn_einddatum, vorm: datum}
+      bezwaarzin: {zin: bezwaarzin}
+      houder: {veld: naam_aanvrager, vorm: tekst}
+      bestuurder: {uitkomst: kaart_vermeldt_bestuurder}
+      passagier: {uitkomst: kaart_vermeldt_passagier}
+    delen:
+      - {id: kop, plek: kop, bron: {regels: [naam_aanvrager, adres_aanvrager]}, nldd: nldd-identity}
+      - {id: inleiding, plek: inleiding, bron: {tekst: ['']}, nldd: nldd-rich-text}
+      - {id: dictum, plek: dictum, vereist_door: Awb 1:3, bron: {tekst: [Ons besluit]}, nldd: nldd-box}
+      - {id: grondslag, plek: grondslag, vereist_door: Awb 3:47, bron: {wet: grondslag}, nldd: nldd-list}
+      - id: motivering
+        plek: motivering
+        vereist_door: Awb 3:46
+        bron: {tekst: [Waarom wij zo besluiten], wet: keten}
+        nldd: nldd-rich-text
+      - id: kaart
+        plek: specificatie
+        titel: Uw kaart
+        als: toekenning
+        bron: {regels: [kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot]}
+        nldd: nldd-list
+      - {id: ondertekening, plek: ondertekening, vereist_door: Awb 10:10, bron: {wet: ondertekening}, nldd: nldd-text}
+      - id: rechtsmiddelen
+        plek: rechtsmiddelen
+        vereist_door: Awb 3:45
+        bron: {tekst: [Bezwaar], wet: rechtsmiddelen}
+        nldd: nldd-box
+      # Een kleine bijlage: de gegevens die op de kaart komen, in kolommen. De
+      # rij bouwt de spec uit sleutels; elke kop en cel komt uit de tekstlaag.
+      - id: kaartgegevens
+        plek: bijlage
+        als: toekenning
+        bron:
+          bijlage:
+            labels: kaartgegevens
+            rijen:
+              - velden: {houder: houder, bestuurder: bestuurder, passagier: passagier, geldig_tot: geldig_tot}
+            kolommen:
+              - {kop: kop_houder, tekst: cel_houder}
+              - {kop: kop_bestuurder, tekst: cel_bestuurder}
+              - {kop: kop_passagier, tekst: cel_passagier}
+              - {kop: kop_geldig, tekst: cel_geldig}
+        nldd: nldd-table
+    invarianten:
+      # Een toekenning verstrekt een kaart voor de bestuurder of de passagier;
+      # een afwijzing geen van beide.
+      - soort: oordeel_past
+        oordelen:
+          toekenning:
+            een_van:
+              - {uitkomst: kaart_vermeldt_bestuurder, is: true}
+              - {uitkomst: kaart_vermeldt_passagier, is: true}
+          afwijzing:
+            alle:
+              - {uitkomst: kaart_vermeldt_bestuurder, is: false}
+              - {uitkomst: kaart_vermeldt_passagier, is: false}
+    kanaal: {vast: portaal}
+    status:
+      bekendgemaakt: {veld: bekendmaking_datum, gevuld: true}
+
+  # De ontvangstbevestiging van de aanvraag, met wat onder het artikel van
+  # de aanvraag uit haar volgt (GET /api/dossier/uitkomsten).
+  - id: ontvangstbevestiging
+    naam: ontvangstbevestiging
+    patroon: ontvangstbevestiging
+    vastlegging:
+      rol: indiening
+      artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+      rechtskarakter: AANVRAAG
+      stap: aanvraag
+    sjabloon: ontvangstbevestiging
+    sleutels:
+      aanvraagdag: {veld: dagtekening, vorm: datum}
+      beslisdag: {indiening: redelijke_beslistermijn_einddatum, vorm: datum}
+      beslisdagzin: {zin: beslisdagzin}
+      volledig: {indiening: aanvraag_bevat_wat_artikel_4_2_eist, is: true}
+    delen:
+      - {id: kop, plek: kop, bron: {regels: [naam_aanvrager, adres_aanvrager]}, nldd: nldd-identity}
+      - {id: wat, plek: dictum, vereist_door: Awb 2:17, bron: {tekst: ['', Uw aanvraag is compleet]}, nldd: nldd-box}
+      - id: aanvraag
+        plek: specificatie
+        titel: Wat u aanvroeg
+        bron: {regels: [gevraagde_beschikking, kaart_als_bestuurder, kaart_als_passagier, dagtekening]}
+        nldd: nldd-list
+      - {id: verder, plek: mededeling, bron: {tekst: [Wat er nu gebeurt]}, nldd: nldd-rich-text}
+      - {id: ondertekening, plek: ondertekening, bron: {wet: ondertekening}, nldd: nldd-text}
+    kanaal: {vast: portaal}
+
+  # Het verzoek om de aanvraag aan te vullen (Awb 4:5), uit de vastlegging
+  # van artikel 12 van het fictieve beleid.
+  - id: herstelverzoek
+    naam: herstelverzoek
+    patroon: herstelverzoek
+    vastlegging:
+      rol: vastlegging
+      artikel: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#12
+      feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#12#verzoek_tot_aanvulling_verzonden
+      stap: herstelverzoek
+    sjabloon: herstelverzoek
+    sleutels:
+      aanvraagdag: {veld: dagtekening, vorm: datum}
+      uiterstedag: {veld: aanvullen_uiterlijk, vorm: datum}
+      ontbreekt: {veld: ontbrekende_gegevens, vorm: tekst}
+    delen:
+      - {id: kop, plek: kop, bron: {regels: [naam_aanvrager, adres_aanvrager]}, nldd: nldd-identity}
+      - {id: inleiding, plek: inleiding, bron: {tekst: ['']}, nldd: nldd-rich-text}
+      - {id: verzoek, plek: dictum, vereist_door: Awb 4:5, bron: {tekst: [Wat wij van u vragen]}, nldd: nldd-box}
+      - {id: ontbreekt, plek: specificatie, vereist_door: Awb 4:5, bron: {tekst: [Wat er ontbreekt]}, nldd: nldd-rich-text}
+      - {id: gevolg, plek: mededeling, bron: {tekst: [Als u niet aanvult]}, nldd: nldd-rich-text}
+      - {id: ondertekening, plek: ondertekening, bron: {wet: ondertekening}, nldd: nldd-text}
+    kanaal: {vast: portaal}
+
+  # De beslissing op bezwaar (Awb 7:11), met de drie uitkomsten op één template.
+  - id: beslissing_op_bezwaar
+    naam: beslissing op bezwaar
+    patroon: beslissing_op_bezwaar
+    vastlegging:
+      rol: besluit
+      artikel: algemene_wet_bestuursrecht#7:11
+      rechtskarakter: BESCHIKKING
+      uitkomst: bestreden_besluit_herroepen
+      stap: beslissing op bezwaar
+    sjabloon: beslissing_op_bezwaar
+    sleutels:
+      niet_ontvankelijk: {uitkomst: bezwaar_ontvankelijk, is: false}
+      heroverwogen: {uitkomst: bezwaar_ontvankelijk, is: true}
+      ongegrond: {alle: [{uitkomst: bezwaar_ontvankelijk, is: true}, {uitkomst: bestreden_besluit_herroepen, is: false}]}
+      gegrond: {uitkomst: bestreden_besluit_herroepen, is: true}
+    delen:
+      - {id: kop, plek: kop, bron: {regels: [naam_indiener, adres_indiener]}, nldd: nldd-identity}
+      - {id: inleiding, plek: inleiding, bron: {tekst: ['']}, nldd: nldd-rich-text}
+      - {id: dictum, plek: dictum, vereist_door: Awb 7:11, bron: {tekst: [Onze beslissing]}, nldd: nldd-box}
+      - id: motivering
+        plek: motivering
+        vereist_door: Awb 7:12
+        bron: {tekst: [Waarom wij zo beslissen], wet: keten}
+        nldd: nldd-rich-text
+      - {id: ondertekening, plek: ondertekening, vereist_door: Awb 10:10, bron: {wet: ondertekening}, nldd: nldd-text}
+      - id: rechtsmiddelen
+        plek: rechtsmiddelen
+        vereist_door: Awb 3:45
+        bron: {tekst: [Beroep], wet: rechtsmiddelen}
+        nldd: nldd-box
+    invarianten:
+      - soort: oordeel_past
+        oordelen:
+          niet_ontvankelijk: {uitkomst: bestreden_besluit_herroepen, is: false}
+          ongegrond: {uitkomst: heroverweging_geeft_aanleiding, is: false}
+          gegrond: {uitkomst: heroverweging_geeft_aanleiding, is: true}
+    kanaal: {vast: portaal}

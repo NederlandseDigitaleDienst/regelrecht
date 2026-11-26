@@ -1,0 +1,27 @@
+{{- range $i, $inst := include "regelhet.instances" . | fromJsonArray }}
+{{- with $ }}
+{{- if $i }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $inst.name }}
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+    {{- if $inst.suffix }}
+    app.kubernetes.io/component: {{ $inst.surface }}
+    {{- end }}
+spec:
+  selector:
+    {{- include "regelhet.selectorLabels" . | nindent 4 }}
+    {{- if $inst.suffix }}
+    app.kubernetes.io/component: {{ $inst.surface }}
+    {{- end }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+{{- end }}
+{{- end }}

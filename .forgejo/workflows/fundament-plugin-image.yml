@@ -1,0 +1,73 @@
+---
+# Builds the Fundament plugin from packages/fundament-plugin/Dockerfile and
+# pushes it to the registry of the organisation as
+# code.digitaledienst.overheid.nl/regelrecht/regelhet-plugin.
+#
+# - A tag regelhet-plugin-vX.Y.Z releases version vX.Y.Z: the tag must match
+#   metadata.version in definition.yaml, and a version already in the registry
+#   is never overwritten. The image gets both :vX.Y.Z and :<commit>.
+# - Started by hand on main, it builds a test image tagged :<commit> only.
+#
+# It pushes with the organisation secrets REGISTRY_USER and REGISTRY_TOKEN; a
+# personal token needs the package scope for that, and a job's own token
+# cannot push at all. It runs on `vm`, because `docker build` needs a Docker
+# daemon, and only from main or a tag: the fieldlab rules allow a push to the
+# registry from there only. Publishing the plugin to the marketplace
+# (`functl plugin publish`) stays a step by hand, because it needs a Fundament
+# API key.
+name: Fundament plugin image
+on:
+  push:
+    tags: [regelhet-plugin-v*]
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: forgejo.ref == 'refs/heads/main' || startsWith(forgejo.ref, 'refs/tags/regelhet-plugin-v')
+    runs-on: vm
+    timeout-minutes: 30
+    container:
+      image: docker:29-cli@sha256:5e6baf67325a79f64ed3bed6863954d5e05d0f3d4e57cbdb14809346814bbfdb
+    steps:
+      # actions/checkout needs node, which this image does not have.
+      - name: Check out
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          git init -q .
+          git fetch -q --depth 1 \
+            "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" "${{ forgejo.sha }}"
+          git checkout -q FETCH_HEAD
+
+      - name: Build and push
+        env:
+          SERVER: ${{ forgejo.server_url }}
+          REF: ${{ forgejo.ref }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          HOST="${SERVER#https://}"
+          IMAGE="${HOST}/regelrecht/regelhet-plugin"
+          SHA="${{ forgejo.sha }}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$HOST" -u "$REGISTRY_USER" --password-stdin
+          VERSION=""
+          case "$REF" in
+            refs/tags/regelhet-plugin-*)
+              VERSION="${REF#refs/tags/regelhet-plugin-}"
+              DEFINED="$(sed -n 's/^  version: *//p' packages/fundament-plugin/definition.yaml | head -1)"
+              if [ "$VERSION" != "$DEFINED" ]; then
+                echo "tag says ${VERSION}, definition.yaml says '${DEFINED}'"; exit 1
+              fi
+              if docker manifest inspect "${IMAGE}:${VERSION}" > /dev/null 2>&1; then
+                echo "${IMAGE}:${VERSION} already exists; raise metadata.version"; exit 1
+              fi
+              ;;
+          esac
+          docker build --platform linux/amd64 -t "${IMAGE}:${SHA}" packages/fundament-plugin
+          docker push "${IMAGE}:${SHA}"
+          if [ -n "$VERSION" ]; then
+            docker tag "${IMAGE}:${SHA}" "${IMAGE}:${VERSION}"
+            docker push "${IMAGE}:${VERSION}"
+          fi
+          docker logout "$HOST"

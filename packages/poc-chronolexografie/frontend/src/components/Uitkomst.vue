@@ -23,7 +23,9 @@ const uitvoer = computed(() =>
   <nldd-container gap="12">
     <nldd-title heading-level="4" size="display-5" :text="titel">
       <nldd-text slot="supporting-text" size="sm" color="secondary">
-        <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
+        <p>
+          <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
+        </p>
       </nldd-text>
       <nldd-tag
         slot="end"

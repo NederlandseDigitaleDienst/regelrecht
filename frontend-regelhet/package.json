@@ -1,0 +1,41 @@
+{
+  "name": "regelrecht-frontend-regelhet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "De schermen van het RegelHet in packages/regelhet: een publieke voorkant voor burgers en een backoffice voor medewerkers, elk als eigen build voor een eigen instantie van de server",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:all && npm run build:burger && npm run build:backoffice && npm run build:organisatie",
+    "build:all": "vite build --mode all",
+    "build:app": "vite build --mode app",
+    "build:burgerapp": "vite build --mode burgerapp",
+    "build:burger": "vite build --mode burger",
+    "build:backoffice": "vite build --mode backoffice",
+    "build:organisatie": "vite build --mode organisatie",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@nldd/design-system": "^0.29.0",
+    "@regelrecht/frontend-shared": "*",
+    "@tauri-apps/api": "^2.12.4",
+    "jose": "^6.2.16",
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.5",
+    "@types/node": "^26.6.5",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.9.1",
+    "happy-dom": "^21.0.4",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "vue-tsc": "^3.3.13"
+  }
+}

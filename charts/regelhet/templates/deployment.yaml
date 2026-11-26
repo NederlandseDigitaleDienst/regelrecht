@@ -1,0 +1,423 @@
+{{- include "regelhet.checkLogin" . }}
+{{- include "regelhet.checkLink" . }}
+{{- range $i, $inst := include "regelhet.instances" . | fromJsonArray }}
+{{- with $ }}
+{{- $front := .Values.voorkant.enabled }}
+{{- if $i }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $inst.name }}
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+    {{- if $inst.suffix }}
+    app.kubernetes.io/component: {{ $inst.surface }}
+    {{- end }}
+spec:
+  replicas: 1
+  {{- if include "regelhet.database" . }}
+  # The chronicles are in PostgreSQL, so the old pod serves until the new one
+  # is ready. The new one migrates under the advisory lock at startup and
+  # only listens, and so only turns ready, once that is done; a pod killed
+  # while it waits or migrates loses its connection and with it the lock.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  {{- else }}
+  {{- /* On a front the store in memory holds the sessions, not chronicles. */}}
+  # Memory store: a second replica would hold a second, separate set of
+  # chronicles. Recreate keeps it at one during a rollout too.
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "regelhet.selectorLabels" . | nindent 6 }}
+      {{- if $inst.suffix }}
+      app.kubernetes.io/component: {{ $inst.surface }}
+      {{- end }}
+  template:
+    metadata:
+      {{- if $front }}
+      # A process that registers or leaves changes the ConfigMap; this
+      # restarts the front, which reads it at start.
+      annotations:
+        checksum/processen: {{ .Values.voorkant.processen | default list | toYaml | sha256sum }}
+      {{- end }}
+      labels:
+        {{- include "regelhet.selectorLabels" . | nindent 8 }}
+        {{- if $inst.suffix }}
+        app.kubernetes.io/component: {{ $inst.surface }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        # The user `app` of the RegelHet image.
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if not $front }}
+      initContainers:
+        {{- with .Values.case.snapshot.configMaps }}
+        # The case from the snapshot the Fundament plugin made: no network,
+        # no Secret. The parts join, in order, into one tar.gz.
+        - name: unpack-case
+          image: {{ $.Values.gitImage.ref }}
+          terminationMessagePolicy: FallbackToLogsOnError
+          imagePullPolicy: {{ $.Values.gitImage.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - cat {{ range $i, $_ := . }}/snapshot/{{ $i }}/part {{ end }}| tar -xzf - -C /case
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: case
+              mountPath: /case
+            {{- range $i, $_ := . }}
+            - name: snapshot-{{ $i }}
+              mountPath: /snapshot/{{ $i }}
+              readOnly: true
+            {{- end }}
+        {{- else }}
+        - name: clone-case
+          image: {{ .Values.gitImage.ref }}
+          # A failed clone leaves its last lines in the container status, where
+          # the Fundament plugin reads why a RegelHet does not start.
+          terminationMessagePolicy: FallbackToLogsOnError
+          imagePullPolicy: {{ .Values.gitImage.pullPolicy }}
+          # Fetch rather than clone: `git clone --branch` takes a branch or a
+          # tag, `git fetch` also a commit, so a release can pin the case to
+          # the commit its image was built from. Repository and ref come in
+          # through the environment and never become part of the script.
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              git init -q /case
+              cd /case
+              {{- if .Values.case.credentialsSecret }}
+              # git asks this helper for the credentials of repoUrl; it reads
+              # them from the environment, so they never appear in the
+              # arguments of a process.
+              git config credential.helper '!f() { echo "username=${GIT_USERNAME}"; echo "password=${GIT_TOKEN}"; }; f'
+              {{- end }}
+              git fetch -q --depth=1 "$CASE_REPO" "$CASE_REF"
+              git checkout -q FETCH_HEAD
+          env:
+            # The emptyDir at /case belongs to root and the step runs as
+            # another user, so git would refuse to work in it ("dubious
+            # ownership"). This marks it safe, without a config file.
+            - name: GIT_CONFIG_COUNT
+              value: "1"
+            - name: GIT_CONFIG_KEY_0
+              value: safe.directory
+            - name: GIT_CONFIG_VALUE_0
+              value: /case
+            - name: CASE_REPO
+              value: {{ .Values.case.repoUrl | quote }}
+            - name: CASE_REF
+              value: {{ .Values.case.ref | quote }}
+            - name: HOME
+              value: /tmp
+            # Never prompt for credentials: a public repository needs none,
+            # and a private one gets them from the Secret below.
+            - name: GIT_TERMINAL_PROMPT
+              value: "0"
+            {{- with .Values.case.credentialsSecret }}
+            - name: GIT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: username
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: token
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: case
+              mountPath: /case
+            - name: tmp
+              mountPath: /tmp
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: regelhet
+          image: {{ .Values.image.ref }}
+          # The server's reason to stop (a manifest it cannot read, a case it
+          # refuses) lands in the container status, for the plugin to show.
+          terminationMessagePolicy: FallbackToLogsOnError
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: REGELHET_MODE
+              value: {{ .Values.regelhet.mode | quote }}
+            - name: REGELHET_SURFACE
+              value: {{ $inst.surface | quote }}
+            {{- if include "regelhet.database" . }}
+            - name: REGELHET_STORE
+              value: postgres
+            # The connection string CNPG writes for the app user of the
+            # cluster's own database.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "regelhet.dbCluster" . }}-app
+                  key: uri
+            - name: REGELHET_DB_MAX_CONNECTIONS
+              value: {{ .Values.database.maxConnections | quote }}
+            {{- else }}
+            - name: REGELHET_STORE
+              value: memory
+            {{- end }}
+            - name: REGELHET_LOGIN
+              value: {{ .Values.regelhet.login | quote }}
+            {{- with .Values.regelhet.subjectClaim }}
+            - name: REGELHET_SUBJECT_CLAIM
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if eq .Values.regelhet.login "oidc" }}
+            {{- $client := get .Values.oidc.clients (include "regelhet.clientKey" $inst.surface) }}
+            - name: OIDC_DISCOVERY_URL
+              value: {{ include "regelhet.oidcIssuer" . | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ $client.clientId | quote }}
+            # The secret comes from a Secret only; the chart never holds it.
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "regelhet.oidcSecret" . }}
+                  key: {{ $client.secretKey }}
+            - name: OIDC_REQUIRED_ROLE
+              value: {{ .Values.oidc.requiredRole | quote }}
+            # Keycloak sends the browser back to <BASE_URL>/auth/callback, so
+            # this must be the host the instance's client allows.
+            - name: BASE_URL
+              value: {{ printf "https://%s" $inst.host | quote }}
+            {{- end }}
+            {{- if $front }}
+            # The front of an organisation: no case, the registered processes
+            # and the key it signs its statements with instead.
+            - name: REGELHET_ROL
+              value: organisatie
+            - name: REGELHET_ORGANISATIE_ID
+              value: {{ .Values.voorkant.id | quote }}
+            - name: REGELHET_ORGANISATIE_NAAM
+              value: {{ .Values.voorkant.naam | quote }}
+            {{- with .Values.voorkant.logo }}
+            - name: REGELHET_ORGANISATIE_LOGO
+              value: {{ . | quote }}
+            {{- end }}
+            - name: REGELHET_PROCESSEN
+              value: /etc/regelhet/organisatie/processen.yaml
+            - name: REGELHET_ORGANISATIE_SLEUTEL
+              value: /etc/regelhet/organisatie-sleutel/private-key.pem
+            {{- else }}
+            - name: REGELHET_MANIFEST
+              value: {{ printf "/case/%s" (include "regelhet.casePath" .) | quote }}
+            {{- with .Values.case.id }}
+            - name: REGELHET_CASUS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.organisatie }}
+            {{- if .id }}
+            # A process of an organisation: it accepts statements for
+            # <id>#<surface> signed by the front's key, and links back to the
+            # front of its side.
+            - name: REGELHET_PROCES_ID
+              value: {{ printf "%s/%s" $.Release.Namespace $.Release.Name | quote }}
+            - name: REGELHET_ORGANISATIE_ID
+              value: {{ .id | quote }}
+            {{- with .naam }}
+            - name: REGELHET_ORGANISATIE_NAAM
+              value: {{ . | quote }}
+            {{- end }}
+            - name: REGELHET_ORGANISATIE_URL
+              value: {{ ternary .medewerkersUrl .url (eq $inst.surface "backoffice") | quote }}
+            {{- with .sleutelUrl }}
+            - name: REGELHET_ORGANISATIE_SLEUTEL_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .sleutelJwk }}
+            - name: REGELHET_ORGANISATIE_SLEUTEL_JWK
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            - name: REGELHET_PORT
+              value: "8000"
+            {{- if and .Values.fsc4b.enabled (ne $inst.surface "backoffice") }}
+            # FSC voor Burgers on the demo Stelsel, for citizens only: the
+            # server generates its keys at start, so no Secret is mounted.
+            - name: REGELHET_FSC4B_DEMO
+              value: "true"
+            # Where apps reach this instance; the discovery configuration
+            # names its services under it.
+            - name: REGELHET_FSC4B_PUBLIC_URL
+              value: {{ printf "https://%s" $inst.host | quote }}
+            {{- with .Values.fsc4b.origins }}
+            # The browser apps that may call the channel from their own
+            # address (CORS).
+            - name: REGELHET_FSC4B_ORIGINS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.theme.accentColor }}
+            - name: REGELHET_ACCENT_COLOR
+              value: {{ . | quote }}
+            {{- end }}
+            {{- /* The front carries the organisation's name; the server refuses a title there. */}}
+            {{- if not $front }}
+            {{- with .Values.theme.title }}
+            - name: REGELHET_TITLE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- /* Only where employees work: not for citizens, and not on the front of an organisation. */}}
+            {{- if and .Values.vlam.existingSecret (ne $inst.surface "burger") (not $front) }}
+            {{- if not .Values.vlam.baseUrl }}
+            {{- fail "vlam.existingSecret needs vlam.baseUrl, the OpenAI-compatible base of Vlam up to and including /v1" }}
+            {{- end }}
+            - name: REGELHET_VLAM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.vlam.existingSecret }}
+                  key: {{ .Values.vlam.secretKey }}
+            - name: REGELHET_VLAM_BASE_URL
+              value: {{ .Values.vlam.baseUrl | quote }}
+            {{- with .Values.vlam.model }}
+            - name: REGELHET_VLAM_MODEL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- /*
+            One instance of a release holds the link: the one for employees,
+            or the single one. It sends, it is the address peers send to, and
+            it signs, so a release has one key. What the citizens' instance
+            records is in the shared chronicle, where the worker finds it.
+            */}}
+            {{- $linked := and .Values.koppeling.peers (ne $inst.surface "burger") }}
+            {{- if and $linked .Values.koppeling.partij }}
+            - name: REGELHET_LINK_PARTY
+              value: {{ .Values.koppeling.partij | quote }}
+            {{- end }}
+            {{- if $linked }}
+            - name: REGELHET_LINK_PEERS
+              value: {{ .Values.koppeling.peers | toJson | quote }}
+            {{- end }}
+            {{- if and $linked .Values.koppeling.keySecret }}
+            - name: REGELHET_LINK_KEY_FILE
+              value: /koppeling/key.pem
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if $front }}
+            - name: processen
+              mountPath: /etc/regelhet/organisatie
+              readOnly: true
+            - name: sleutel
+              mountPath: /etc/regelhet/organisatie-sleutel
+              readOnly: true
+            {{- else }}
+            - name: case
+              mountPath: /case
+              readOnly: true
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+            {{- if and .Values.koppeling.peers .Values.koppeling.keySecret (ne $inst.surface "burger") }}
+            - name: koppeling
+              mountPath: /koppeling
+              readOnly: true
+            {{- end }}
+      volumes:
+        {{- if and .Values.koppeling.peers .Values.koppeling.keySecret (ne $inst.surface "burger") }}
+        - name: koppeling
+          secret:
+            secretName: {{ .Values.koppeling.keySecret }}
+            items:
+              - key: key.pem
+                path: key.pem
+        {{- end }}
+        {{- if $front }}
+        - name: processen
+          configMap:
+            name: {{ include "regelhet.organisatieName" . }}
+        # Generated by the Job in templates/secrets-job.yaml.
+        - name: sleutel
+          secret:
+            secretName: {{ include "regelhet.organisatieName" . }}
+            defaultMode: 0440
+            items:
+              - key: private-key
+                path: private-key.pem
+        {{- else }}
+        - name: case
+          emptyDir:
+            sizeLimit: 2Gi
+        {{- range $i, $name := .Values.case.snapshot.configMaps }}
+        - name: snapshot-{{ $i }}
+          configMap:
+            name: {{ $name }}
+        {{- end }}
+        {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- end }}
+{{- end }}

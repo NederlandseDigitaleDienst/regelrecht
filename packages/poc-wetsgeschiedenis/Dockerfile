@@ -50,7 +50,7 @@ WORKDIR /build
 FROM chef AS planner
 COPY packages/Cargo.lock packages/Cargo.toml ./
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"cel"/d; /"corpus"/d; /"editor-api"/d; /"engine"/d; /"github"/d; /"harvester"/d; /"law-model"/d; /"pipeline"/d; /"poc-chronolexografie"/d; /"poc-napp"/d; /"poc-portal"/d; /"shared"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"cel"/d; /"corpus"/d; /"editor-api"/d; /"engine"/d; /"github"/d; /"harvester"/d; /"law-model"/d; /"pipeline"/d; /"poc-chronolexografie"/d; /"poc-napp"/d; /"poc-portal"/d; /"shared"/d; /"tui"/d; /"regelhet"/d; /"regelhet-app"/d; /"fsc4b"/d' Cargo.toml
 COPY packages/poc-wetsgeschiedenis/ poc-wetsgeschiedenis/
 RUN cargo chef prepare --recipe-path recipe.json
 

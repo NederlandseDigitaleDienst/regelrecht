@@ -60,6 +60,7 @@ jobs:
               - frontend/**
               - frontend-lawmaking/**
               - frontend-demo/**
+              - frontend-regelhet/**
               - frontend-poc-portal/**
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
@@ -829,6 +830,20 @@ jobs:
       - name: Type check demo
         run: npm run typecheck -w frontend-demo
 
+      - name: Run regelhet tests
+        run: npm test -w frontend-regelhet
+
+      - name: Type check regelhet
+        run: npm run typecheck -w frontend-regelhet
+
+      # Also a pre-commit hook, but the Pre-commit job has no `npm ci` and skips
+      # them there for want of js-yaml. Here the workspace is installed.
+      - name: Fundament plugin console tests
+        run: >-
+          node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+          packages/fundament-plugin/console-test/organisaties-body.test.js
+          packages/fundament-plugin/console-test/crd-conformance.test.js
+
       - name: Run chronolexografie poc tests
         run: npm test -w packages/poc-chronolexografie/frontend
 
@@ -887,6 +902,15 @@ jobs:
       # de bundel zonder engine: het gaat om de Vue-build en de corpuskopie.
       - name: Build demo bundle
         run: npm run build -w frontend-demo
+
+      # De drie webbuilds: gecombineerd (all), burgers (cookie) en backoffice.
+      - name: Build regelhet bundles
+        run: npm run build -w frontend-regelhet
+
+      # De burger-entry met het vervoer van de app (Tauri-commando's). De
+      # Tauri-schil zelf bouwt CI niet.
+      - name: Build regelhet app bundle
+        run: npm run build:app -w frontend-regelhet
 
   # Verplichte check op main. De benen hierboven dragen nieuwe namen en mogen
   # dus van vorm veranderen; deze naam moet blijven bestaan, want een required

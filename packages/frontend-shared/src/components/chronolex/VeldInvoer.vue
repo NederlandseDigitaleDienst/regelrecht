@@ -1,16 +1,23 @@
 <script setup lang="ts">
-// One field as the law asks it: its type picks the input, its basis shows
-// under it. An amount (`amount`) is a number in the unit the law counts it in,
+// One field as the law asks it: its type picks the input, and the article it
+// rests on stands in the line under it ("Volgens Awb artikel 4:2."), where a
+// reader meets it as a sentence rather than as a second label. An amount (`amount`) is a number in the unit the law counts it in,
 // such as eurocent. An empty text or date field is `undefined`: the submission
 // then leaves it out, and the cell names it in `missing` (Awb 4:5).
 // `herkomst` is the line under a prefilled field: which cell it comes from, or
-// that the applicant changed it (voorinvulling.ts). A switch (yes or no) does
-// not show it: nldd-switch-field stands outside an nldd-form-field. A table
+// that the applicant changed it (voorinvulling.ts). A checkbox (yes or no)
+// carries its own label; with a line under it, it stands in an
+// nldd-form-field without a label of its own, which holds that line. A table
 // (an array with `kolommen`, schema v0.8.20) is a TabelInvoer. A field the
 // system fills (`alleenLezen`) shows its value, read-only.
 // `label` names the field on the screen, as a UI spec may say it; without it
 // the field goes by its name in the regelwerk. `help` is a line under it.
-// Shared by the chronolexografie poc and the wetsprocessysteem.
+// A field the screen requires (`verplicht`) loses its "Optioneel" badge where
+// the law lets it be empty, and the form refuses to submit it empty; the
+// validation list under it then says so, as the browser judges it.
+// `regels` makes a text field a multi-line one with that many lines, for an
+// answer of a few sentences (`lines` in the UI spec).
+// Shared by the chronolexografie poc and RegelHet.
 import { computed } from 'vue';
 import { leesbaar } from '../../chronolex/waarden';
 import type { Kolom } from '../../chronolex/tabel';
@@ -33,13 +40,42 @@ const props = withDefaults(
     alleenLezen?: boolean;
     label?: string;
     help?: string;
+    /** Draw the control bare: a group around it carries the line under it. */
+    kaal?: boolean;
+    /** The browser's autofill hint, for an input that answers part of a field. */
+    autocomplete?: string;
+    /** The on-screen keyboard a phone raises for it. */
+    keyboard?: string;
+    /** How wide the input is, as a CSS length; without it, as wide as the form. */
+    width?: string;
+    /** Name the article the field rests on under it. Off where a screen of its own holds them. */
+    artikel?: boolean;
+    /** The form does not submit it empty, whatever the law lets be empty. */
+    verplicht?: boolean;
+    /** The lines a text field shows; from two up it takes more than one line. */
+    regels?: number;
   }>(),
-  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '', help: '' },
+  {
+    modelValue: undefined,
+    herkomst: '',
+    alleenLezen: false,
+    label: '',
+    help: '',
+    kaal: false,
+    autocomplete: '',
+    keyboard: '',
+    width: '',
+    artikel: true,
+    verplicht: false,
+    regels: 0,
+  },
 );
 const emit = defineEmits<{ 'update:modelValue': [waarde: unknown] }>();
 
 const naam = computed(() => props.label || leesbaar(props.veld.naam));
-const onder = computed(() => [props.help, props.herkomst].filter(Boolean).join(' '));
+/** The article the field rests on, as a sentence. */
+const volgens = computed(() => (props.artikel && props.veld.basis ? `Volgens ${props.veld.basis}.` : ''));
+const onder = computed(() => (props.kaal ? '' : [props.help, volgens.value, props.herkomst].filter(Boolean).join(' ')));
 const tekst = computed(() => (props.modelValue === undefined || props.modelValue === null ? '' : String(props.modelValue)));
 
 const zet = (waarde: unknown) => emit('update:modelValue', waarde === '' ? undefined : waarde);
@@ -66,17 +102,27 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
     :label="label"
     @update:model-value="emit('update:modelValue', $event)"
   />
-  <nldd-switch-field
+  <nldd-form-field v-else-if="veld.type === 'boolean' && onder">
+    <nldd-checkbox-field
+      :label="naam"
+      :checked="modelValue === true"
+      :disabled="alleenLezen || undefined"
+      @change="zet(aan($event))"
+    ></nldd-checkbox-field>
+    <nldd-form-field-help-text>{{ onder }}</nldd-form-field-help-text>
+  </nldd-form-field>
+  <nldd-checkbox-field
     v-else-if="veld.type === 'boolean'"
     :label="naam"
     :checked="modelValue === true"
     :disabled="alleenLezen || undefined"
     @change="zet(aan($event))"
-  ></nldd-switch-field>
-  <nldd-form-field v-else :label="naam" :supporting-label="veld.basis" :optional="veld.mag_leeg">
+  ></nldd-checkbox-field>
+  <nldd-form-field v-else :label="naam" :optional="(veld.mag_leeg && !verplicht) || undefined">
     <nldd-date-field
       v-if="veld.type === 'date'"
       :value="tekst"
+      :required="verplicht || undefined"
       :readonly="alleenLezen || undefined"
       @change="zet(uit($event))"
     ></nldd-date-field>
@@ -84,15 +130,30 @@ const aan = (e: Event): boolean => Boolean((e as CustomEvent<{ checked?: unknown
       v-else-if="veld.type === 'number' || veld.type === 'amount'"
       keyboard="decimal"
       :value="tekst"
+      :required="verplicht || undefined"
       :readonly="alleenLezen || undefined"
       @input="zet(getal(uit($event)))"
     ></nldd-text-field>
+    <nldd-multi-line-text-field
+      v-else-if="regels > 1"
+      :rows="regels"
+      :value="tekst"
+      :width="width || undefined"
+      :required="verplicht || undefined"
+      :readonly="alleenLezen || undefined"
+      @input="zet(uit($event))"
+    ></nldd-multi-line-text-field>
     <nldd-text-field
       v-else
       :value="tekst"
+      :autocomplete="autocomplete || undefined"
+      :keyboard="keyboard || undefined"
+      :width="width || undefined"
+      :required="verplicht || undefined"
       :readonly="alleenLezen || undefined"
       @input="zet(uit($event))"
     ></nldd-text-field>
+    <nldd-validation-list v-if="verplicht"></nldd-validation-list>
     <nldd-form-field-help-text v-if="onder">{{ onder }}</nldd-form-field-help-text>
   </nldd-form-field>
 </template>

@@ -9,6 +9,8 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        # Helm templates are Go templates that render to YAML, not YAML.
+        exclude: ^charts/[^/]+/templates/
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: check-case-conflict
@@ -86,7 +88,7 @@ repos:
         entry: script/check-tool-pins.sh
         language: system
         pass_filenames: false
-        files: (^frontend/Dockerfile$|^packages/(admin|pipeline|poc-portal|poc-napp)/Dockerfile$)
+        files: (^frontend/Dockerfile$|^packages/(admin|pipeline|poc-portal|poc-napp|regelhet)/Dockerfile$)
 
       - id: review-gate-tests
         name: Merge-poort op de Claude-review doet wat hij belooft
@@ -108,6 +110,13 @@ repos:
         language: system
         pass_filenames: false
         files: ^(script/require-security-approval(\.test)?\.sh|\.github/workflows/(security-update-gate|claude-dependabot)\.yml)$
+
+      - id: fundament-plugin-console-tests
+        name: De wizards van de Fundament-plugin bouwen wat de CRDs aannemen
+        entry: just fundament-plugin-console-test
+        language: system
+        pass_filenames: false
+        files: ^packages/fundament-plugin/(console|console-test|crds)/
 
       - id: dev-preflight-tests
         name: Dev-preflight eist mold alleen waar cargo ermee linkt
@@ -249,7 +258,7 @@ repos:
         entry: just dockerfile-consistency-test
         language: system
         pass_filenames: false
-        files: ^((frontend|frontend-demo)/Dockerfile|packages/(admin|pipeline|poc-portal|poc-napp)/Dockerfile|packages/Cargo\.toml|rust-toolchain\.toml|\.github/workflows/deploy\.yml|script/dockerfile-consistency\.test\.mjs)$
+        files: ^((frontend|frontend-demo)/Dockerfile|packages/(admin|pipeline|poc-portal|poc-napp|regelhet)/Dockerfile|packages/Cargo\.toml|rust-toolchain\.toml|\.github/workflows/deploy\.yml|script/dockerfile-consistency\.test\.mjs)$
 
       - id: playwright-image
         name: Playwright-image in CI volgt de lockfiles

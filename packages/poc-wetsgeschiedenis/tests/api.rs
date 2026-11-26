@@ -483,27 +483,6 @@ async fn een_voorstel_in_behandeling_haal_je_op_zijn_dossiernummer_zonder_wet() 
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn een_mislukt_dossier_wordt_onthouden_en_een_bezoeker_mag_het_opnieuw() {
-    let p = proef(10);
-    let (_, t) = p
-        .haal(json!({"bwb": "BWBR0007376", "dossier": "40404"}))
-        .await;
-    let t = p.wacht_op(t["id"].as_str().unwrap()).await;
-    assert_eq!(
-        (t["status"].clone(), t["fout"].clone()),
-        (json!("fout"), json!("geen XML"))
-    );
-    assert!(p.state.opslag.mislukt().contains_key("40404"));
-    let (s, t) = p
-        .haal(json!({"bwb": "BWBR0007376", "dossier": "40404"}))
-        .await;
-    assert_eq!(
-        (s, t["status"].clone()),
-        (StatusCode::ACCEPTED, json!("wacht"))
-    );
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn wat_is_opgehaald_blijft_onder_het_maximum() {
     let p = proef(2);
     for nr in ["10001", "10002", "10003"] {

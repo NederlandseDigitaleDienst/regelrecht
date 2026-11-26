@@ -7,7 +7,7 @@ valid_from: '2026-01-01'
 # FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
 # beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
 # url wijst daarom naar het artikel dat dit beleid uitwerkt.
-# Artikel 2 tot en met 4 en artikel 7 koppelen open begrippen aan de
+# Artikel 2 tot en met 4, 7 en 11 koppelen open begrippen aan de
 # antwoorden van cellen (source.reduction, RFC-048): het college ontleent wat
 # het anders per aanvraag vaststelt aan wat zijn eigen cel uit haar kroniek
 # haalt. Daar staan ook de adviezen die het van de GGD ontving (artikel 5).
@@ -16,6 +16,22 @@ valid_from: '2026-01-01'
 # stelt het college het zelf vast, bij artikel 4 geldt zonder vaststelling dat
 # er geen onderzoek was, bij artikel 7 stelt het vast wat het advies opgeeft.
 # Artikel 5 en 6 gaan over het geneeskundig advies.
+# Artikel 8 zegt wanneer een elektronisch ingediende aanvraag als ondertekend
+# geldt. Het is geen open begrip van de wet: het geeft een waarde voor het
+# veld aanvraag_ondertekend, dat volgens artikel 4:2 van de Awb in de aanvraag
+# staat. Het systeem waarmee de aanvrager indient, voert het uit en zet de
+# uitkomst in dat veld (de UI-beschrijving van RegelHet).
+# Artikel 9 zegt wanneer het college de GGD om een geneeskundig onderzoek
+# vraagt. Ook dat is geen open begrip van de wet: RegelHet voert
+# het uit als een aanvraag binnenkomt, en legt het verzoek vast bij de
+# gemeente en bij de GGD. Artikel 10 koppelt de twee open begrippen van
+# artikel 9 aan de antwoorden van de cel van de gemeente.
+# Het laatste artikel zegt dat het college om aanvulling vraagt als een
+# aanvraag een gegeven mist (Awb 4:5), en legt dat verzoek vast: de vastlegging
+# waaruit het herstelverzoek aan de aanvrager volgt.
+# Het artikel daarna zegt hoe het college een bericht verzendt en doorstuurt:
+# het verzonden bericht is een vastlegging met een bevroren inhoud (Awb 3:41,
+# 2:10), en de rechtbank legt de ontvangst van een doorgestuurd bericht vast.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -903,3 +919,444 @@ articles:
                     value: null
                   then: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
               default: $antwoord_ernstige_beperkingen_andere_dan_loopbeperkingen
+  - number: '8'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      aanvraag om een gehandicaptenparkeerkaart of om een duplicaat daarvan
+      die de aanvrager elektronisch indient nadat hij zich met DigiD heeft
+      aangemeld, geldt als ondertekend.
+      Het college acht die methode van ondertekening voldoende betrouwbaar.
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel2:16
+    machine_readable:
+      # Een gewone uitvoer, geen invulling van een open begrip: artikel 4:2
+      # van de Awb vraagt een ondertekende aanvraag, en dit artikel zegt hoe
+      # het college dat bij een elektronische aanvraag vaststelt. Het systeem
+      # waarmee de aanvrager indient, kent het middel waarmee hij zich
+      # aanmeldde, voert dit artikel daarmee uit en zet de uitkomst in het
+      # veld aanvraag_ondertekend van de aanvraag. De uitvoering van de wet
+      # verandert er niet door; wie het beleid aanpast, past dit artikel aan.
+      execution:
+        parameters:
+          - name: inlogmiddel
+            type: string
+            nullable: true
+            description: >-
+              Het middel waarmee de aanvrager zich aanmeldde toen hij de
+              aanvraag elektronisch indiende; leeg als hij zich niet aanmeldde.
+        output:
+          - name: aanvraag_geldt_als_ondertekend
+            type: boolean
+            description: >-
+              Of de elektronisch ingediende aanvraag als ondertekend geldt:
+              alleen na een aanmelding met DigiD.
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '2:16'
+              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel2:16
+              juriconnect: jci1.3:c:BWBR0005537&artikel=2:16&z=2021-07-01&g=2021-07-01
+              explanation: >-
+                Het college legt vast welke methode van elektronisch
+                ondertekenen het voldoende betrouwbaar acht.
+        actions:
+          - output: aanvraag_geldt_als_ondertekend
+            value:
+              operation: EQUALS
+              subject: $inlogmiddel
+              value: DigiD
+  - number: '9'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Komt een aanvraag om een gehandicaptenparkeerkaart binnen, dan vraagt
+      het college de Gemeentelijke Gezondheidsdienst dezelfde dag om een
+      geneeskundig onderzoek van de aanvrager (artikel 3, eerste lid, van de
+      Regeling gehandicaptenparkeerkaart).
+
+      2 Het college vraagt geen onderzoek als voor de aanvrager al een verzoek
+      openstaat. Een verzoek staat open tot het college een advies ontvangt
+      (artikel 5) van een onderzoek op of na de dag van het verzoek.
+
+      3 Het college vraagt ook geen onderzoek als het de aanvrager eerder een
+      gehandicaptenparkeerkaart verstrekte. Dan kan het het onderzoek
+      achterwege laten (artikel 2, tweede lid, onder a en b, van de regeling),
+      en daarover beslist het bij het besluit op de aanvraag.
+
+      4 Het college legt het verzoek vast. De Gemeentelijke Gezondheidsdienst
+      legt vast dat zij het verzoek ontving.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet als een aanvraag
+      # binnenkomt, niet wat het besluit. Het RegelHet van de
+      # gemeente voert dit artikel uit bij elke aanvraag van de casus
+      # (bij_aanvraag in het casusbestand). Zegt het artikel dat er een
+      # onderzoek gevraagd moet worden, dan legt de cel van de gemeente het
+      # feit geneeskundig_onderzoek_aangevraagd vast, met de waarden van de
+      # parameters, en de cel van de GGD in haar eigen kroniek het feit
+      # verzoek_om_geneeskundig_onderzoek_ontvangen, met dezelfde waarden.
+      # Dat is hetzelfde patroon als het advies terug (artikel 5): twee
+      # feiten van één artikel met dezelfde parameters, één per cel.
+      # Of er een verzoek openstaat (lid 2) en of de aanvrager eerder een kaart
+      # kreeg (lid 3), zijn open begrippen van dit artikel. Artikel 10 koppelt
+      # ze aan de antwoorden van de cel van de gemeente, uit haar eigen
+      # kroniek (RFC-048). Niet verplicht: zonder antwoord gelden ze als nee,
+      # en vraagt het college een onderzoek. Liever een verzoek te veel dan
+      # een aanvraag zonder onderzoek.
+      open_terms:
+        - id: verzoek_om_geneeskundig_onderzoek_staat_open
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Of er voor de aanvrager al een verzoek om een geneeskundig
+            onderzoek openstaat (lid 2).
+        - id: aanvrager_eerder_kaart_verstrekt
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
+          description: >-
+            Of het college de aanvrager eerder een gehandicaptenparkeerkaart
+            verstrekte (lid 3).
+      requires:
+        - fact: geneeskundig_onderzoek_aangevraagd
+          description: >-
+            Dat het college de Gemeentelijke Gezondheidsdienst om een
+            geneeskundig onderzoek van de aanvrager vroeg, op welke dag, en
+            bij welke aanvraag (lid 1 en 4).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_verzoek
+            - aanvraag
+        - fact: verzoek_om_geneeskundig_onderzoek_ontvangen
+          description: >-
+            Dat de Gemeentelijke Gezondheidsdienst het verzoek van het college
+            om een geneeskundig onderzoek ontving, met wat het verzoek
+            vermeldt (lid 4).
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_verzoek
+            - aanvraag
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager die onderzocht moet worden.
+          - name: datum_verzoek
+            type: date
+            description: De dag waarop de aanvraag binnenkwam en het college het onderzoek vraagt.
+          - name: aanvraag
+            type: string
+            description: De aanvraag waarvoor het college het onderzoek vraagt.
+        output:
+          - name: geneeskundig_onderzoek_aanvragen
+            type: boolean
+            description: >-
+              Of het college de Gemeentelijke Gezondheidsdienst om een
+              geneeskundig onderzoek van de aanvrager vraagt: niet als er al
+              een verzoek openstaat, en niet als de aanvrager eerder een kaart
+              kreeg.
+        actions:
+          - output: geneeskundig_onderzoek_aanvragen
+            value:
+              operation: AND
+              conditions:
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $verzoek_om_geneeskundig_onderzoek_staat_open
+                    value: true
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $aanvrager_eerder_kaart_verstrekt
+                    value: true
+  - number: '10'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      er voor de aanvrager al een verzoek om een geneeskundig onderzoek
+      openstaat en of het college de aanvrager eerder een
+      gehandicaptenparkeerkaart verstrekte (artikel 9), ontleent het college
+      aan het antwoord van zijn eigen cel over de verzoeken die het deed, de
+      adviezen die het ontving en zijn eerdere besluiten. Geeft de cel geen
+      antwoord, dan is het antwoord nee.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      # Zoals artikel 2 en 3: een koppeling van een open begrip aan het
+      # antwoord van de cel van het college (source.reduction, RFC-048).
+      implements:
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '9'
+          open_term: verzoek_om_geneeskundig_onderzoek_staat_open
+        - law: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+          article: '9'
+          open_term: aanvrager_eerder_kaart_verstrekt
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+        input:
+          - name: antwoord_verzoek_open
+            type: boolean
+            nullable: true
+            source:
+              reduction: verzoek_om_geneeskundig_onderzoek_staat_open
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+          - name: antwoord_eerder_verstrekt
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+        output:
+          - name: verzoek_om_geneeskundig_onderzoek_staat_open
+            type: boolean
+            description: Of er voor de aanvrager een verzoek openstaat, volgens de cel; zonder antwoord nee.
+          - name: aanvrager_eerder_kaart_verstrekt
+            type: boolean
+            description: Of de aanvrager eerder een kaart van het college kreeg, volgens de cel; zonder antwoord nee.
+        actions:
+          - output: verzoek_om_geneeskundig_onderzoek_staat_open
+            value:
+              operation: EQUALS
+              subject: $antwoord_verzoek_open
+              value: true
+          - output: aanvrager_eerder_kaart_verstrekt
+            value:
+              operation: EQUALS
+              subject: $antwoord_eerder_verstrekt
+              value: true
+  - number: '11'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Of
+      de kaart die de aanvrager verloren meldt een kaart is die het college
+      hem verstrekte en uitreikte en die nog geldig is, zodat hij een
+      duplicaat kan krijgen (artikel 52 van het BABW), ontleent het college
+      aan het antwoord van zijn eigen cel.
+      Geeft de cel geen antwoord, dan is er geen zo'n kaart.
+    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel52
+    machine_readable:
+      # Een koppeling als artikel 2. Een duplicaat vraagt geen nieuw
+      # geneeskundig onderzoek: artikel 52 van het BABW kent geen criteria
+      # van de regeling, en dit beleid vraagt bij een aanvraag om een
+      # duplicaat niets aan de GGD (artikel 9 geldt bij een aanvraag om een
+      # kaart).
+      implements:
+        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+          article: '52'
+          open_term: verloren_kaart_is_uitgereikt_en_geldig
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de houder van de kaart.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag om een duplicaat besluit.
+          - name: verloren_kaart
+            type: string
+            description: Het besluit dat de verloren kaart verstrekte.
+        input:
+          - name: antwoord_uitgereikte_kaart
+            type: boolean
+            nullable: true
+            source:
+              reduction: aanvrager_heeft_uitgereikte_geldige_kaart
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                besluit_datum: $besluit_datum
+                verloren_kaart: $verloren_kaart
+        output:
+          - name: verloren_kaart_is_uitgereikt_en_geldig
+            type: boolean
+            description: >-
+              Of het college de aanvrager een kaart verstrekte en uitreikte die
+              nog geldig is, volgens zijn cel.
+        actions:
+          - output: verloren_kaart_is_uitgereikt_en_geldig
+            value:
+              operation: EQUALS
+              subject: $antwoord_uitgereikte_kaart
+              value: true
+  - number: '12'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Mist een aanvraag om een gehandicaptenparkeerkaart een gegeven dat
+      nodig is om haar te beoordelen, dan stelt het college de aanvrager in
+      de gelegenheid de aanvraag aan te vullen (artikel 4:5, eerste lid, van
+      de Algemene wet bestuursrecht).
+
+      2 Het college legt het verzoek tot aanvulling vast, met wat ontbreekt en
+      de dag waarop de aanvulling uiterlijk binnen moet zijn.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-01-01#Artikel4:5
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet als een aanvraag
+      # niet volledig is. Het feit is de vastlegging waaruit het bericht aan
+      # de aanvrager volgt, het herstelverzoek (de berichtenspec van
+      # RegelHet). Wat ontbreekt en de dag zijn de gegevens die dat bericht
+      # draagt; de termijn stelt het college zelf (artikel 4:5, eerste lid:
+      # "binnen een door het bestuursorgaan gestelde termijn").
+      requires:
+        - fact: verzoek_tot_aanvulling_verzonden
+          description: >-
+            Dat het college de aanvrager in de gelegenheid stelde de aanvraag
+            aan te vullen: aan wie, bij welke aanvraag, wat ontbreekt en tot
+            welke dag (lid 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - aanvraag
+            - ontbrekende_gegevens
+            - aanvullen_uiterlijk
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager aan wie het verzoek gaat.
+          - name: aanvraag
+            type: string
+            description: De aanvraag die moet worden aangevuld.
+          - name: ontbrekende_gegevens
+            type: string
+            description: Wat de aanvraag mist, in een zin.
+          - name: aanvullen_uiterlijk
+            type: date
+            description: De dag waarop de aanvulling uiterlijk binnen moet zijn.
+        output:
+          - name: aanvulling_gevraagd
+            type: boolean
+            description: Of het college de aanvrager om aanvulling vroeg.
+        actions:
+          - output: aanvulling_gevraagd
+            value: true
+  - number: '13'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid.
+
+      1 Het college maakt een besluit bekend door het bericht dat het bevat
+      aan de aanvrager te verzenden of uit te reiken (artikel 3:41, eerste
+      lid, van de Algemene wet bestuursrecht). Gaat het bericht langs het
+      portaal, dan krijgt de aanvrager er een kennisgeving van (artikel 2:10
+      van die wet).
+
+      2 Het college legt het verzonden bericht vast: welk bericht, bij welke
+      vastlegging, langs welke weg, op welke dag, en de inhoud zoals zij werd
+      verzonden. Een later bericht vervangt een eerder bericht en noemt het;
+      het eerdere blijft vastgelegd.
+
+      3 Stuurt het college een bericht door aan de bestuursrechter, dan legt
+      de rechtbank de ontvangst vast.
+    url: https://wetten.overheid.nl/BWBR0005537/2026-01-01#Artikel3:41
+    machine_readable:
+      # Geen open begrip van de wet: wat het college doet om een bericht de deur
+      # uit te laten gaan. Het feit is de vastlegging van het bericht zelf, met
+      # een bevroren inhoud (de berichtenspec van RegelHet, BERICHTEN.md): de
+      # tekst, de bijlage en een hash van de weergave. Een latere herbouw van
+      # het bericht verandert het verzonden bericht niet. Het doorsturen is
+      # een paar feiten met dezelfde parameters, een bij het college en de
+      # ontvangst bij de rechtbank, dat de kern in beide kronieken vastlegt.
+      requires:
+        - fact: bericht_verzonden
+          description: >-
+            Dat het college een bericht aan de aanvrager verzond of uitreikte,
+            met wat het bevat zoals het werd verzonden (lid 1 en 2).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - berichtsoort
+            - vastlegging
+            - kanaal
+            - verzonden_op
+            - inhoud
+            - hash
+            - vervangt
+        - fact: bericht_doorgestuurd
+          description: >-
+            Dat het college een verzonden bericht doorstuurde aan de
+            bestuursrechter (lid 3).
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - bericht
+            - berichtsoort
+            - inhoud
+            - hash
+        - fact: doorgestuurd_bericht_ontvangen
+          description: >-
+            Dat de bestuursrechter het doorgestuurde bericht ontving, met wat
+            het bevat (lid 3).
+          competent_authority:
+            - name: de bestuursrechter
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - bericht
+            - berichtsoort
+            - inhoud
+            - hash
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            required: false
+            nullable: true
+            description: Burgerservicenummer van de aanvrager aan wie het bericht gaat.
+          - name: berichtsoort
+            type: string
+            description: De soort bericht, zoals de berichtenspec haar noemt.
+          - name: vastlegging
+            type: string
+            required: false
+            nullable: true
+            description: De vastlegging waaruit het bericht volgt, zoals het besluit.
+          - name: kanaal
+            type: string
+            required: false
+            nullable: true
+            description: De weg van het bericht (email, portaal of papier).
+          - name: verzonden_op
+            type: date
+            required: false
+            nullable: true
+            description: De dag waarop het bericht werd verzonden of uitgereikt, de dag van bekendmaking.
+          - name: inhoud
+            type: string
+            description: Het bericht zoals het werd verzonden, bevroren.
+          - name: hash
+            type: string
+            description: De hash van de weergave van het bericht.
+          - name: vervangt
+            type: string
+            required: false
+            nullable: true
+            description: Het eerder verzonden bericht dat dit bericht vervangt.
+          - name: bericht
+            type: string
+            required: false
+            nullable: true
+            description: Het verzonden bericht dat wordt doorgestuurd.
+        output:
+          - name: bekendgemaakt_op
+            type: date
+            nullable: true
+            description: De dag van bekendmaking van het besluit door dit bericht (lid 1).
+        actions:
+          - output: bekendgemaakt_op
+            value: $verzonden_op

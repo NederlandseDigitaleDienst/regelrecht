@@ -41,6 +41,13 @@ use crate::ui_spec;
 /// `packages/corpus/src/source_manifest.rs`).
 pub const UI_SPEC: &str = "ui_spec.yaml";
 
+/// Where a source holds its message spec and the text layer of its
+/// authority ([`crate::berichten`]): at its root, where the portal puts the
+/// files its manifest names (`BERICHTEN` and `BERICHTTEKSTEN` in
+/// `packages/corpus/src/source_manifest.rs`).
+pub const BERICHTEN: &str = "berichten.yaml";
+pub const BERICHTTEKSTEN: &str = "berichtteksten.yaml";
+
 /// This crate's corpus, under the repository root: the cases under
 /// `casussen`, the regelwerken under `regulation/nl` and the cells under
 /// `cells`, with their reductions.
@@ -103,11 +110,23 @@ pub struct BronStand {
 /// regelrecht bundle fails as before; a broken source does not: what went
 /// wrong is in its [`BronStand`], and the other cases play on. A case from
 /// a source with the id of a case before it is set aside, with a message.
+///
+/// An empty bundle holds no cases of its own: a page that plays only the
+/// cases of its sources, such as the citizen's app with the source of a
+/// RegelHet (`frontend-regelhet`), gives `{}`.
+///
+/// # Errors
+///
+/// When a bundle that is not empty makes no cases ([`casussen`]).
 pub fn met_bronnen(
     files: BTreeMap<String, String>,
     bronnen: Vec<Bron>,
 ) -> Result<(Vec<Corpus>, Vec<BronStand>)> {
-    let mut alle = casussen(files.clone())?;
+    let mut alle = if files.is_empty() {
+        Vec::new()
+    } else {
+        casussen(files)?
+    };
     let mut standen = Vec::new();
     for bron in bronnen {
         let mut stand = BronStand {
@@ -141,8 +160,14 @@ pub fn met_bronnen(
 }
 
 /// The cases of `bron`, each on the source under `bron/<name>` alone. A case
-/// that does not load is in `stand.fouten`.
-fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
+/// that does not load is in `stand.fouten`. The RegelHet component loads
+/// its one case with this too (`packages/regelhet/src/case.rs`).
+///
+/// # Errors
+///
+/// When the name of the source is no name, its files make no bundle, or its
+/// regelwerken or case files do not read.
+pub fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
     let wortel = Path::new(BRONNEN).join(&bron.naam);
     // A name is one path component of a-z, 0-9 and '-', so it stays under
     // `bron/`.
@@ -178,6 +203,26 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         }
         None => ui_spec::UiSpec::default(),
     };
+    // A message spec that does not read costs the messages, not the cases:
+    // the source says why, and each record shows without its message.
+    let berichten =
+        match bron.bestanden.get(BERICHTEN).map(|t| {
+            crate::berichten::lees(t, bron.bestanden.get(BERICHTTEKSTEN).map(String::as_str))
+        }) {
+            Some(Ok(b)) => {
+                stand
+                    .meldingen
+                    .extend(b.meldingen.iter().map(|m| format!("{BERICHTEN}: {m}")));
+                b
+            }
+            Some(Err(e)) => {
+                stand
+                    .meldingen
+                    .push(format!("{BERICHTEN}: {e}; no record shows as a message"));
+                crate::berichten::Berichtenspec::default()
+            }
+            None => crate::berichten::Berichtenspec::default(),
+        };
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
     stand
         .meldingen
@@ -189,6 +234,7 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
             Ok(mut c) => {
                 c.ui_spec = spec.clone();
+                c.berichten = berichten.clone();
                 // A coupling between a hook and its host that cannot work
                 // as written still loads and plays; the source says so. A
                 // service that does not load is the case's own error, when
@@ -476,6 +522,16 @@ mod tests {
     }
 
     #[test]
+    fn an_empty_bundle_plays_only_the_cases_of_its_sources() {
+        let (alle, standen) = met_bronnen(BTreeMap::new(), vec![voorbeeld()]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let ids: Vec<&str> = alle.iter().map(|c| c.casus.id.as_str()).collect();
+        assert_eq!(ids, ["voorbeeld_subsidie"]);
+        let (alle, standen) = met_bronnen(BTreeMap::new(), Vec::new()).unwrap();
+        assert!(alle.is_empty() && standen.is_empty());
+    }
+
+    #[test]
     fn a_case_from_a_source_plays_to_a_decision() {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
@@ -624,9 +680,12 @@ mod tests {
         assert_eq!(
             vormen["systeem"],
             serde_json::json!({
-                "aanhef": { "bron": "voorbeeld_inschrijving#4#aanhef" },
-                "kenmerk": { "waarde": "K-1" },
-                "referentie": { "waarde": "voorbeeld_inschrijving#1" },
+                "aanhef": { "soort": "bron", "bron": "voorbeeld_inschrijving#4#aanhef" },
+                "kenmerk": { "soort": "waarde", "waarde": "K-1" },
+                "referentie": {
+                    "soort": "gevraagd_besluit",
+                    "waarde": "voorbeeld_inschrijving#1"
+                },
             })
         );
         assert_eq!(

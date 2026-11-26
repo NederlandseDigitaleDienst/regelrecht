@@ -86,3 +86,39 @@ fn a_cell_lists_the_answers_it_gives() {
         ]
     );
 }
+
+#[test]
+fn a_cell_names_the_parameters_an_answer_of_its_catalogue_takes() {
+    let parameters = cell()
+        .answer_parameters(&service(), VALID, day("2026-10-20"))
+        .unwrap()
+        .expect("the catalogue names the answer and its reduction is in force");
+    let named: Vec<(&str, bool)> = parameters
+        .iter()
+        .map(|p| (p.name.as_str(), p.required))
+        .collect();
+    assert_eq!(named, [("bsn_aanvrager", true), ("besluit_datum", true)]);
+}
+
+#[test]
+fn a_cell_gives_an_answer_of_its_catalogue_outside_a_decision() {
+    let mut cell = cell();
+    apply_and_decide(&mut cell, APPLICANT, true, "2026-10-20");
+    let parameters = [
+        (
+            "bsn_aanvrager".to_string(),
+            regelrecht_engine::Value::String(APPLICANT.into()),
+        ),
+        (
+            "besluit_datum".to_string(),
+            regelrecht_engine::Value::String("2027-03-01".into()),
+        ),
+    ]
+    .into();
+    let given = cell
+        .give_answer(&service(), VALID, &parameters, day("2027-03-01"))
+        .unwrap()
+        .expect("the cell knows the grant");
+    assert_eq!(given.value, regelrecht_engine::Value::Bool(true));
+    assert_eq!(given.provenance.law_id, REDUCTION);
+}

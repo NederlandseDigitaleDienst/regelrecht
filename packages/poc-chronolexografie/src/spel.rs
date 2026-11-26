@@ -103,7 +103,25 @@ impl Spel {
     ) -> Result<T, Fout> {
         let spel = self.gekozen.as_mut().ok_or(Fout::GeenCasus)?;
         let corpus = &self.casussen[spel.casus];
-        Ok(stap(corpus, &mut spel.cell)?)
+        let kop = spel.cell.eigen.grams().len();
+        // The step runs on a copy, and the copy replaces the game only when
+        // the step and what the system then does by itself both succeed.
+        let mut proef = spel.cell.sandbox();
+        let uit = stap(corpus, &mut proef)?;
+        // A step that recorded something may bring about an act the system
+        // takes itself, such as ordering a granted card (crate::vervolg).
+        if let Some(datum) = proef
+            .eigen
+            .grams()
+            .get(kop..)
+            .and_then(|nieuw| nieuw.last())
+            .map(|g| g.recorded_on)
+        {
+            let voor = crate::vervolg::standen(corpus, &spel.cell, datum)?;
+            crate::vervolg::automatisch(corpus, &mut proef, &voor, datum)?;
+        }
+        spel.cell = proef;
+        Ok(uit)
     }
 
     fn positie(&self, id: &str) -> Result<usize, Fout> {
@@ -315,6 +333,21 @@ impl Spel {
             let cel = cel.unwrap_or(&c.casus.cel);
             kern::antwoord(c, cell, cel, bron, invoer, datum)
         })?)
+    }
+
+    /// What the case's cell hands out on `datum` about the applicant whose
+    /// login field `inlogveld` holds `waarde`
+    /// ([`crate::brongegevens::brongegevens`]): what an executor signs and
+    /// gives an applicant, computed here on this game's chronicles, so the
+    /// applicant's app compares the same function on both sides. Nothing is
+    /// recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::brongegevens::brongegevens`], and when no case is chosen.
+    pub fn brongegevens(&mut self, inlogveld: &str, waarde: &str, datum: NaiveDate) -> Antwoord {
+        ok(self
+            .met(|c, cell| crate::brongegevens::brongegevens(c, cell, inlogveld, waarde, datum))?)
     }
 
     /// Log in through the case's login step ([`inlogstap::inloggen`]): the

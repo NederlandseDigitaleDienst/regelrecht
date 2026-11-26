@@ -113,7 +113,7 @@ function toUitleg() {
                    system. The inherit appearance takes its colour from the
                    blue panel. -->
               <div v-if="slide.kind === 'closing'" class="to-uitleg">
-                <nldd-button appearance="inherit-filled" size="lg" :text="slide.button" @click="toUitleg"></nldd-button>
+                <nldd-button appearance="content-filled" size="lg" :text="slide.button" @click="toUitleg"></nldd-button>
               </div>
             </template>
 
@@ -141,35 +141,35 @@ function toUitleg() {
           <span class="counter" :aria-label="`Dia ${p.index.value + 1} van ${p.total.value}`">{{ counter }}</span>
           <div class="hints">
             <span class="hint">
-              <nldd-keyboard-shortcut size="sm" color="inherit" keys="←" always-visible></nldd-keyboard-shortcut>
-              <nldd-keyboard-shortcut size="sm" color="inherit" keys="→" always-visible></nldd-keyboard-shortcut>
+              <nldd-keyboard-shortcut size="sm" color="content" keys="←" always-visible></nldd-keyboard-shortcut>
+              <nldd-keyboard-shortcut size="sm" color="content" keys="→" always-visible></nldd-keyboard-shortcut>
               of
-              <nldd-keyboard-shortcut size="sm" color="inherit" keys="Space" always-visible></nldd-keyboard-shortcut>
+              <nldd-keyboard-shortcut size="sm" color="content" keys="Space" always-visible></nldd-keyboard-shortcut>
               bladeren
             </span>
             <span class="hint">
-              <nldd-keyboard-shortcut size="sm" color="inherit" keys="Esc" always-visible></nldd-keyboard-shortcut>
+              <nldd-keyboard-shortcut size="sm" color="content" keys="Esc" always-visible></nldd-keyboard-shortcut>
               sluiten
             </span>
             <span class="hint">
-              <nldd-keyboard-shortcut size="sm" color="inherit" keys="F" always-visible></nldd-keyboard-shortcut>
+              <nldd-keyboard-shortcut size="sm" color="content" keys="F" always-visible></nldd-keyboard-shortcut>
               volledig scherm
             </span>
           </div>
         </div>
         <nldd-button-bar>
           <nldd-icon-button
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             icon="back"
             text="Vorige dia"
             tooltip-timing="never"
             :disabled="p.index.value === 0 || undefined"
             @click="p.prev()"
           ></nldd-icon-button>
-          <nldd-button v-if="p.isLast.value" appearance="inherit-tinted" text="Sluiten" @click="p.stop()"></nldd-button>
+          <nldd-button v-if="p.isLast.value" appearance="content-tinted" text="Sluiten" @click="p.stop()"></nldd-button>
           <nldd-icon-button
             v-else
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             icon="forward"
             text="Volgende dia"
             tooltip-timing="never"

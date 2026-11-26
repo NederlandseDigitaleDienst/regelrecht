@@ -1,0 +1,527 @@
+// The wizard: one step at a time, each a form of its own whose submit is
+// "Volgende" (runWizard in _shared.js). The last step shows what will be made
+// and makes it: the RegelHet, for a private repository the Secret with its
+// token, owned by the RegelHet so both go together, and a new Organisatie
+// when one is asked for. A RegelHet may run as an external party of another
+// (spec.partij), chosen in the step Rol.
+import {
+  loadSdk,
+  loadNlddDesignSystem,
+  escapeHtml,
+  navigateToDetail,
+  renderKeyValueList,
+  runWizard,
+  field,
+  textField,
+  radios,
+  optionHtml,
+  chosenRadio,
+  namespaceControl,
+  accentDropdown,
+} from './_shared.js';
+import {
+  ORGANISATIE_EXISTING,
+  ORGANISATIE_NEW,
+  ORGANISATIE_NONE,
+  ORGANISATIE_RESOURCE,
+  buildOrganisatie,
+  displayNameError,
+  hostnamesClash,
+  logoError,
+  organisatieKey,
+  organisatieReference,
+  sortOrganisaties,
+} from './organisaties-body.js';
+import {
+  DEFAULT_PATH,
+  DEFAULT_REF,
+  SECRET_RESOURCE,
+  REGELHET_RESOURCE,
+  addresses,
+  buildSecret,
+  buildRegelHet,
+  commitError,
+  hostnameError,
+  namespaceError,
+  pathError,
+  refError,
+  repoUrlError,
+  secretName,
+  titleError,
+  casusError,
+  tokenError,
+  usernameError,
+  nameFromHostname,
+  keycloakSecretName,
+  fsc4bDiscoveryUrl,
+  ROLE_EXECUTOR,
+  ROLE_PARTY,
+  partyChoices,
+  partijReference,
+  partyAccentColor,
+  fsc4bOrigins,
+  fsc4bOriginsError,
+} from './regelhets-body.js';
+
+await Promise.all([loadSdk(), loadNlddDesignSystem()]);
+const ctx = await fundament.init;
+
+const content = document.getElementById('content');
+const stepBar = document.getElementById('steps');
+
+const state = {
+  repoUrl: '',
+  ref: DEFAULT_REF,
+  path: DEFAULT_PATH,
+  privateRepo: false,
+  stable: false,
+  testAccounts: true,
+  fsc4b: false,
+  fsc4bOrigins: '',
+  role: ROLE_EXECUTOR,
+  partyChoice: '',
+  username: '',
+  token: '',
+  pinned: false,
+  version: '',
+  accentColor: '',
+  title: '',
+  casus: '',
+  hostname: '',
+  namespace: ctx.namespaces?.[0] ?? '',
+  organisatie: ORGANISATIE_NONE,
+  existingOrganisatie: '',
+  orgDisplayName: '',
+  orgHostname: '',
+  orgLogo: '',
+  orgAccentColor: '',
+};
+
+// The organisaties a RegelHet can join: those in the namespaces of the
+// project. The plugin refuses one of another project, so the wizard offers
+// none. Not readable is no reason to stop the wizard: it offers none then.
+async function listOrganisaties() {
+  const namespaces = Array.isArray(ctx.namespaces) && ctx.namespaces.length > 0 ? ctx.namespaces : [undefined];
+  try {
+    const lists = await Promise.all(
+      namespaces.map((namespace) => fundament.k8s.list({ ...ORGANISATIE_RESOURCE, namespace })),
+    );
+    return sortOrganisaties(lists.flatMap((l) => l.items ?? []));
+  } catch {
+    return [];
+  }
+}
+const organisaties = await listOrganisaties();
+
+// The parties a new procedure can run as: those the cases of the procedures
+// in the namespaces of the project ask something of. The plugin refuses an
+// executor of another project, so the wizard offers none. Not readable
+// offers none either.
+async function listPartyChoices() {
+  const namespaces = Array.isArray(ctx.namespaces) && ctx.namespaces.length > 0 ? ctx.namespaces : [undefined];
+  try {
+    const lists = await Promise.all(
+      namespaces.map((namespace) => fundament.k8s.list({ ...REGELHET_RESOURCE, namespace })),
+    );
+    return partyChoices(lists.flatMap((l) => l.items ?? []));
+  } catch {
+    return [];
+  }
+}
+const choices = await listPartyChoices();
+state.partyChoice = choices[0]?.value ?? '';
+
+function partyLabel(value) {
+  return choices.find((c) => c.value === value)?.label ?? value;
+}
+
+// The accent colour the procedure gets: the chosen one, or for a party that
+// chose none a colour other than its executor's.
+function accentColor() {
+  if (state.accentColor || !isParty()) return state.accentColor;
+  return partyAccentColor(choices.find((c) => c.value === state.partyChoice)?.accentColor);
+}
+state.existingOrganisatie = organisaties[0] ? organisatieKey(organisaties[0]) : '';
+
+function organisatieLabel(key) {
+  const item = organisaties.find((o) => organisatieKey(o) === key);
+  return item ? `${item.spec?.displayName ?? item.metadata.name} (${key})` : key;
+}
+
+// Each step: its title in the step bar, its fields, the checks on submit and
+// what it keeps in the state. `checks` takes the form and returns
+// [control, check] pairs, as wireSubmit wants them.
+const steps = [
+  {
+    title: 'Casus',
+    intro: 'Waar staat de casus? Het manifest (bron.yaml) noemt het casusbestand en de artikelen; die staan in dezelfde repository.',
+    fields: () => `
+      ${field('Repository', textField('repoUrl', state.repoUrl, 'type="url" required placeholder="https://code.digitaledienst.overheid.nl/regelrecht/regelhet-parkeerkaart"'), { errorId: 'e-repo', hint: 'Het https-adres om de repository te klonen.' })}
+      ${field('Branch, tag of commit', textField('ref', state.ref), { errorId: 'e-ref', hint: 'Leeg is main.' })}
+      ${field('Pad naar het manifest', textField('path', state.path), { errorId: 'e-path', hint: 'In een manifestrepository staat bron.yaml bovenin. In de repository fieldlab-2026 zelf is het packages/regelhet/bron.yaml.' })}
+      ${field('Casus', textField('casus', state.casus, 'maxlength="100" placeholder="bedrijfsparkeervergunning"'), { errorId: 'e-casus', hint: 'Alleen als het manifest meer dan één casus heeft: de naam van het casusbestand onder casussen/, zonder .yaml. Leeg is de enige casus. Een naam die het manifest niet kent, laat de procedure niet starten.' })}`,
+    checks: (f) => [
+      [f.querySelector('[name="repoUrl"]'), repoUrlError],
+      [f.querySelector('[name="ref"]'), refError],
+      [f.querySelector('[name="path"]'), pathError],
+      [f.querySelector('[name="casus"]'), casusError],
+    ],
+    keep: (v) => Object.assign(state, { repoUrl: v('repoUrl'), ref: v('ref'), path: v('path'), casus: v('casus') }),
+  },
+  {
+    title: 'Toegang',
+    intro: 'Wie mag de casus lezen, en hoe loggen mensen in?',
+    fields: () => `
+      <nldd-title size="5" heading-level="3" text="De repository"></nldd-title>
+      ${radios('access', 'Toegang tot de repository', [['public', 'Openbaar'], ['private', 'Privé, met een token']], state.privateRepo ? 'private' : 'public')}
+      <div id="credentials"${state.privateRepo ? '' : ' hidden'}>
+        <nldd-spacer size="16"></nldd-spacer>
+        ${field('Gebruikersnaam', textField('username', state.username, 'autocomplete="off"'), { errorId: 'e-user' })}
+        ${field('Token', `<nldd-password-field name="token" value="${escapeHtml(state.token)}" autocomplete="off"></nldd-password-field>`, { errorId: 'e-token', hint: 'Een token dat de repository alleen mag lezen. Het cluster gebruikt het één keer, om een kopie van de casus te maken, en verwijdert het daarna. Een nieuwe versie van de casus vraagt een nieuw token.' })}
+      </div>
+      <nldd-spacer size="24"></nldd-spacer>
+      <nldd-title size="5" heading-level="3" text="Inloggen"></nldd-title>
+      ${radios('login', 'Inloggen', [['test', 'Testomgeving: iedereen kiest zelf een testpersoon, en een beheerder zet de datum'], ['stable', 'Stabiel: inloggen via een eigen Keycloak, met de echte datum']], state.stable ? 'stable' : 'test')}
+      <div id="stable"${state.stable ? '' : ' hidden'}>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-rich-text>
+          <p>De procedure krijgt een eigen Keycloak op een derde adres, &lt;naam&gt;-login. Het wachtwoord van de beheerder van die Keycloak maakt het cluster zelf aan, in een Secret in de namespace; de detailpagina noemt de naam van dat Secret.</p>
+        </nldd-rich-text>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-checkbox-field name="testAccounts" label="Met de testaccounts van de casus, die allemaal één gegenereerd wachtwoord delen"${state.testAccounts ? ' checked' : ''}></nldd-checkbox-field>
+      </div>
+      <div id="fsc4b"${state.stable ? ' hidden' : ''}>
+        <nldd-spacer size="12"></nldd-spacer>
+        <nldd-checkbox-field name="fsc4b" label="Ook FSC voor Burgers: een app mag namens een testburger aanvragen indienen en het dossier lezen, met een test-Activatiedienst die niemand controleert"${state.fsc4b ? ' checked' : ''}></nldd-checkbox-field>
+        <div id="fsc4bOrigins"${state.fsc4b ? '' : ' hidden'}>
+          <nldd-spacer size="12"></nldd-spacer>
+          ${field('Apps in de browser', textField('fsc4bOrigins', state.fsc4bOrigins, 'placeholder="https://burgerapp.cluster-a.fieldlab2026.nl"'), { errorId: 'e-fsc4b-origins', hint: 'De adressen van apps die vanaf hun eigen adres FSC voor Burgers aanroepen, zoals de burgerapp. Meer dan één met komma\'s ertussen. Leeg: alleen apps die geen browser zijn.' })}
+        </div>
+      </div>`,
+    wire: (f) => {
+      f.querySelector('nldd-radio-button-group[name="access"]').addEventListener('change', () => {
+        f.querySelector('#credentials').hidden = chosenRadio(f, 'access') !== 'private';
+      });
+      f.querySelector('nldd-radio-button-group[name="login"]').addEventListener('change', () => {
+        f.querySelector('#stable').hidden = chosenRadio(f, 'login') !== 'stable';
+        f.querySelector('#fsc4b').hidden = chosenRadio(f, 'login') === 'stable';
+      });
+      f.querySelector('nldd-checkbox-field[name="fsc4b"]').addEventListener('change', (e) => {
+        f.querySelector('#fsc4bOrigins').hidden = !e.currentTarget.checked;
+      });
+    },
+    checks: (f) => {
+      const fsc4b = chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked);
+      return [
+        ...(chosenRadio(f, 'access') === 'private'
+          ? [
+              [f.querySelector('[name="username"]'), usernameError],
+              [f.querySelector('[name="token"]'), tokenError],
+            ]
+          : []),
+        ...(fsc4b ? [[f.querySelector('[name="fsc4bOrigins"]'), fsc4bOriginsError]] : []),
+      ];
+    },
+    keep: (v, f) =>
+      Object.assign(state, {
+        privateRepo: chosenRadio(f, 'access') === 'private',
+        username: v('username'),
+        token: v('token'),
+        stable: chosenRadio(f, 'login') === 'stable',
+        testAccounts: Boolean(f.querySelector('nldd-checkbox-field[name="testAccounts"]')?.checked),
+        fsc4b: chosenRadio(f, 'login') !== 'stable' && Boolean(f.querySelector('nldd-checkbox-field[name="fsc4b"]')?.checked),
+        fsc4bOrigins: v('fsc4bOrigins'),
+      }),
+  },
+  {
+    title: 'Versie',
+    intro: 'Welke versie van RegelHet draait de casus?',
+    fields: () => `
+      ${radios('version', 'Versie', [['latest', 'Laatste versie (main), die meegaat met elke nieuwe build'], ['pinned', 'Een vaste commit']], state.pinned ? 'pinned' : 'latest')}
+      <div id="commit"${state.pinned ? '' : ' hidden'}>
+        <nldd-spacer size="16"></nldd-spacer>
+        ${field('Commit', textField('commit', state.version, 'maxlength="40"'), { errorId: 'e-commit', hint: 'De volledige hash van een commit van regelrecht waarvoor een image is gebouwd.' })}
+      </div>`,
+    wire: (f) => {
+      f.querySelector('nldd-radio-button-group').addEventListener('change', () => {
+        f.querySelector('#commit').hidden = chosenRadio(f, 'version') !== 'pinned';
+      });
+    },
+    checks: (f) => (chosenRadio(f, 'version') === 'pinned' ? [[f.querySelector('[name="commit"]'), commitError]] : []),
+    keep: (v, f) => {
+      const pinned = chosenRadio(f, 'version') === 'pinned';
+      Object.assign(state, { pinned, version: pinned ? v('commit') : '' });
+    },
+  },
+  {
+    title: 'Uiterlijk',
+    intro: 'De titel bovenaan de schermen, en hun accentkleur, een van de kleuren van het NLDD-designsysteem.',
+    fields: () => `
+      ${field('Titel', textField('title', state.title, 'maxlength="80"'), { errorId: 'e-title', hint: 'Bovenaan elk scherm, zoals Parkeervergunningen. Leeg is de titel uit het casusbestand.' })}
+      ${field('Accentkleur', accentDropdown('accentColor', state.accentColor), { hint: 'Leeg is donkerblauw. Een partij krijgt dan rood, naast een rode uitvoerder robijnrood.' })}`,
+    checks: (f) => [[f.querySelector('[name="title"]'), titleError]],
+    keep: (v) => Object.assign(state, { title: v('title'), accentColor: v('accentColor') }),
+  },
+  {
+    title: 'Adres',
+    intro: 'Onder welke naam is de procedure te bereiken, en in welke namespace komt ze?',
+    fields: () => {
+      const ns = namespaceControl(ctx, state.namespace);
+      return `
+        ${field('Hostnaam', textField('hostname', state.hostname, 'required placeholder="zorgtoeslag"'), {
+          errorId: 'e-host',
+          hint: 'Burgers gebruiken <naam>.<basisdomein>, medewerkers <naam>-medewerkers.<basisdomein>. Een eigen domein mag ook, met punten erin. De naam is ook de naam van de procedure.',
+        })}
+        ${field('Namespace', ns, { errorId: 'e-ns' })}`;
+    },
+    checks: (f) => [
+      [f.querySelector('[name="hostname"]'), hostnameError],
+      [f.querySelector('[name="namespace"]'), namespaceError],
+    ],
+    keep: (v) => Object.assign(state, { hostname: v('hostname'), namespace: v('namespace') }),
+  },
+  {
+    title: 'Rol',
+    // A party is linked with keys made at start, in test mode only.
+    skip: () => state.stable,
+    intro: 'Voert de procedure de casus zelf uit, of draait ze als partij voor een andere procedure? Een partij is bijvoorbeeld de GGD, die voor de gemeente een onderzoek doet. Haar medewerkers loggen in op het adres van deze procedure en zien daar wat de gemeente van haar vraagt; verzoeken en antwoorden gaan vanzelf heen en weer.',
+    fields: () => {
+      const options = [[ROLE_EXECUTOR, 'Een procedure die zelf uitvoert']];
+      if (choices.length) options.push([ROLE_PARTY, 'Deze procedure draait als partij voor een andere procedure']);
+      const chosen = choices.length ? state.role : ROLE_EXECUTOR;
+      const list = choices.map((c) => optionHtml(c.value, c.label, c.value === state.partyChoice)).join('');
+      const none = choices.length
+        ? ''
+        : `<nldd-spacer size="12"></nldd-spacer>
+           <nldd-rich-text><p>Geen procedure in dit project vraagt een partij iets die nog geen eigen procedure heeft. Een procedure noemt de partijen van haar casus pas als ze draait.</p></nldd-rich-text>`;
+      return `
+        ${radios('role', 'Rol', options, chosen)}
+        ${none}
+        <div id="party"${chosen === ROLE_PARTY ? '' : ' hidden'}>
+          <nldd-spacer size="16"></nldd-spacer>
+          ${field('Partij van', `<nldd-dropdown><select name="partyChoice">${list}</select></nldd-dropdown>`, { hint: 'De partij en de procedure die haar iets vraagt. De lijst noemt alleen partijen die de regelgeving van die casus iets vraagt.' })}
+          <nldd-spacer size="12"></nldd-spacer>
+          <nldd-rich-text><p>Een partij heeft één adres, de hostnaam zelf, voor haar medewerkers, en geen kant voor burgers. Ze staat daarom niet achter de voorkant van een organisatie, en FSC voor Burgers gaat uit. Kies in de eerste stap dezelfde casus als die van de uitvoerder: beide servers moeten dezelfde partijen en feiten kennen.</p></nldd-rich-text>
+        </div>`;
+    },
+    wire: (f) => {
+      f.querySelector('nldd-radio-button-group[name="role"]').addEventListener('change', () => {
+        f.querySelector('#party').hidden = chosenRadio(f, 'role') !== ROLE_PARTY;
+      });
+    },
+    checks: () => [],
+    keep: (v, f) =>
+      Object.assign(state, {
+        role: chosenRadio(f, 'role') === ROLE_PARTY ? ROLE_PARTY : ROLE_EXECUTOR,
+        partyChoice: v('partyChoice') || state.partyChoice,
+      }),
+  },
+  {
+    title: 'Organisatie',
+    // An organisatie runs in test mode only, and the plugin refuses a stable
+    // RegelHet behind a front in test mode. A party has no citizens' side to
+    // put behind a front.
+    skip: () => state.stable || isParty(),
+    intro: 'Staat de procedure achter de voorkant van een organisatie? Die geeft medewerkers en burgers één adres en één login voor al haar procedures. De procedure houdt ook haar eigen adressen.',
+    fields: () => {
+      const options = [
+        [ORGANISATIE_NONE, 'Geen, een losse procedure'],
+        [ORGANISATIE_NEW, 'Een nieuwe organisatie'],
+      ];
+      if (organisaties.length) options.push([ORGANISATIE_EXISTING, 'Een bestaande organisatie']);
+      const chosen = state.organisatie === ORGANISATIE_EXISTING && !organisaties.length ? ORGANISATIE_NONE : state.organisatie;
+      const existing = organisaties
+        .map((o) => optionHtml(organisatieKey(o), organisatieLabel(organisatieKey(o)), organisatieKey(o) === state.existingOrganisatie))
+        .join('');
+      return `
+        ${radios('organisatie', 'Organisatie', options, chosen)}
+        <div id="org-new"${chosen === ORGANISATIE_NEW ? '' : ' hidden'}>
+          <nldd-spacer size="16"></nldd-spacer>
+          ${field('Naam', textField('orgDisplayName', state.orgDisplayName, 'placeholder="Gemeente Wilgendaal"'), { errorId: 'e-org-name', hint: 'De naam die medewerkers en burgers zien.' })}
+          ${field('Hostnaam', textField('orgHostname', state.orgHostname, 'placeholder="wilgendaal"'), { errorId: 'e-org-host', hint: 'Burgers gebruiken <naam>.<basisdomein>, medewerkers <naam>-medewerkers.<basisdomein>. De organisatie komt in dezelfde namespace als de procedure.' })}
+          ${field('Logo', textField('orgLogo', state.orgLogo, 'type="url" placeholder="https://"'), { errorId: 'e-org-logo', hint: 'Het https-adres van het logo; leeg toont alleen de naam.' })}
+          ${field('Accentkleur', accentDropdown('orgAccentColor', state.orgAccentColor))}
+        </div>
+        <div id="org-existing"${chosen === ORGANISATIE_EXISTING ? '' : ' hidden'}>
+          <nldd-spacer size="16"></nldd-spacer>
+          ${field('Organisatie', `<nldd-dropdown><select name="existingOrganisatie">${existing}</select></nldd-dropdown>`, { hint: 'De organisaties in de namespaces van dit project.' })}
+        </div>`;
+    },
+    wire: (f) => {
+      f.querySelector('nldd-radio-button-group[name="organisatie"]').addEventListener('change', () => {
+        f.querySelector('#org-new').hidden = chosenRadio(f, 'organisatie') !== ORGANISATIE_NEW;
+        f.querySelector('#org-existing').hidden = chosenRadio(f, 'organisatie') !== ORGANISATIE_EXISTING;
+      });
+    },
+    checks: (f) => {
+      if (chosenRadio(f, 'organisatie') !== ORGANISATIE_NEW) return [];
+      return [
+        [f.querySelector('[name="orgDisplayName"]'), displayNameError],
+        [
+          f.querySelector('[name="orgHostname"]'),
+          (v) =>
+            hostnameError(v) ??
+            (hostnamesClash(v, state.hostname) || nameFromHostname(v) === nameFromHostname(state.hostname)
+              ? 'Een andere naam dan die van de procedure zelf.'
+              : null),
+        ],
+        [f.querySelector('[name="orgLogo"]'), logoError],
+      ];
+    },
+    keep: (v, f) =>
+      Object.assign(state, {
+        organisatie: chosenRadio(f, 'organisatie') || ORGANISATIE_NONE,
+        existingOrganisatie: v('existingOrganisatie') || state.existingOrganisatie,
+        orgDisplayName: v('orgDisplayName'),
+        orgHostname: v('orgHostname'),
+        orgLogo: v('orgLogo'),
+        orgAccentColor: v('orgAccentColor'),
+      }),
+  },
+  {
+    title: 'Controleren',
+    intro: 'Dit wordt de procedure.',
+    fields: () => {
+      const a = addresses(state.hostname);
+      const party = isParty();
+      return `
+        ${renderKeyValueList(
+          [
+            ['Naam', nameFromHostname(state.hostname)],
+            ['Namespace', ctx.namespaceDisplayNames?.[state.namespace] ?? state.namespace],
+            ['Repository', state.repoUrl],
+            ['Branch of tag', state.ref || DEFAULT_REF],
+            ['Manifest', state.path || DEFAULT_PATH],
+            ['Casus', state.casus || 'de enige casus van het manifest'],
+            ['Toegang', state.privateRepo ? `privé, token in Secret ${secretName(nameFromHostname(state.hostname))}, verwijderd na de kopie` : 'openbaar'],
+            ['Versie', state.version || 'laatste versie (main)'],
+            ['Titel', state.title || 'uit het casusbestand'],
+            ['Accentkleur', accentColor() || 'standaard (donkerblauw)'],
+            [
+              'Inloggen',
+              state.stable
+                ? `stabiel, via Keycloak${state.testAccounts ? ', met testaccounts' : ''}`
+                : 'testomgeving',
+            ],
+            ['Rol', party ? `partij: ${partyLabel(state.partyChoice)}` : 'voert zelf uit'],
+            ...(party
+              ? [['Medewerkers van de partij', a.burger]]
+              : [
+                  ['Organisatie', organisatieSummary()],
+                  ['FSC voor Burgers', state.fsc4b ? `aan, met het demo-stelsel: ${fsc4bDiscoveryUrl(state.hostname)}` : 'uit'],
+                  ...(state.fsc4b && fsc4bOrigins(state.fsc4bOrigins).length
+                    ? [['Apps in de browser', fsc4bOrigins(state.fsc4bOrigins).join(', ')]]
+                    : []),
+                  ['Burgers', a.burger],
+                  ['Medewerkers', a.medewerkers],
+                ]),
+            ...(state.stable
+              ? [
+                  ['Inloggen via', a.login],
+                  ['Secret met de wachtwoorden', keycloakSecretName(nameFromHostname(state.hostname))],
+                ]
+              : []),
+          ],
+          'Samenvatting',
+        )}
+        <nldd-spacer size="16"></nldd-spacer>
+        <nldd-banner variant="warning" text="Verwijderen haalt ook de data weg"
+                     supporting-text="De procedure krijgt een eigen database${state.stable ? ', en zijn Keycloak een tweede' : ''}. Wie het later verwijdert, verwijdert die database${state.stable ? 's' : ''} en de volumes eronder mee, met alle kronieken${state.stable ? ' en accounts' : ''}. Er is geen back-up."></nldd-banner>`;
+    },
+    checks: () => [],
+    keep: () => {},
+  },
+];
+
+// Whether the procedure runs as a party: chosen in the step Rol, which a
+// stable procedure skips.
+function isParty() {
+  return !state.stable && state.role === ROLE_PARTY && Boolean(state.partyChoice);
+}
+
+function organisatieSummary() {
+  switch (state.organisatie) {
+    case ORGANISATIE_NEW:
+      return `nieuw: ${state.orgDisplayName}, op ${addresses(state.orgHostname).burger} en ${addresses(state.orgHostname).medewerkers}`;
+    case ORGANISATIE_EXISTING:
+      return organisatieLabel(state.existingOrganisatie);
+    default:
+      return 'geen, losse procedure';
+  }
+}
+
+// Makes the new Organisatie first, so the RegelHet finds it at once; when
+// the RegelHet is not made after all, it goes again.
+async function create() {
+  const { namespace } = state;
+  // A stable RegelHet and a party skip the step Organisatie; a choice made
+  // before that does not count.
+  if (state.stable || isParty()) state.organisatie = ORGANISATIE_NONE;
+  let organisatie;
+  if (state.organisatie === ORGANISATIE_NEW) {
+    try {
+      organisatie = await fundament.k8s.create(
+        { ...ORGANISATIE_RESOURCE, namespace },
+        buildOrganisatie({
+          namespace,
+          hostname: state.orgHostname,
+          displayName: state.orgDisplayName,
+          logo: state.orgLogo,
+          accentColor: state.orgAccentColor,
+        }),
+      );
+    } catch (err) {
+      if (err?.code === 'forbidden') throw new Error('alleen een beheerder van het project mag een organisatie maken');
+      throw new Error(`de organisatie is niet aangemaakt (${err?.message ?? err}); er is niets aangemaakt`);
+    }
+  }
+  const dropOrganisatie = () =>
+    organisatie
+      ? fundament.k8s.delete({ ...ORGANISATIE_RESOURCE, name: organisatie.metadata.name, namespace }).catch(() => {})
+      : Promise.resolve();
+
+  const regelhet = buildRegelHet({
+    ...state,
+    fsc4bOrigins: fsc4bOrigins(state.fsc4bOrigins),
+    accentColor: accentColor(),
+    partij: isParty() ? partijReference(state.partyChoice, namespace) : undefined,
+    organisatie: organisatieReference(
+      { choice: state.organisatie, existing: state.existingOrganisatie, newHostname: state.orgHostname },
+      namespace,
+    ),
+  });
+  let made;
+  try {
+    made = await fundament.k8s.create({ ...REGELHET_RESOURCE, namespace }, regelhet);
+  } catch (err) {
+    await dropOrganisatie();
+    if (err?.code === 'forbidden') throw new Error('alleen een beheerder van het project mag een procedure maken');
+    throw err;
+  }
+  if (state.privateRepo) {
+    try {
+      await fundament.k8s.create(
+        { ...SECRET_RESOURCE, namespace },
+        buildSecret(made, { username: state.username, token: state.token }),
+      );
+    } catch (err) {
+      // Without its Secret the RegelHet cannot copy the casus; take it
+      // away again rather than leave one behind that waits forever.
+      await fundament.k8s
+        .delete({ ...REGELHET_RESOURCE, name: made.metadata.name, namespace })
+        .catch(() => {});
+      await dropOrganisatie();
+      throw new Error(`het token is niet bewaard (${err?.message ?? err}); er is niets aangemaakt`);
+    }
+  }
+  navigateToDetail(made.metadata.name, namespace);
+}
+
+runWizard({
+  content,
+  stepBar,
+  steps,
+  finishText: 'Procedure aanmaken',
+  failPrefix: 'De procedure is niet aangemaakt',
+  finish: create,
+});

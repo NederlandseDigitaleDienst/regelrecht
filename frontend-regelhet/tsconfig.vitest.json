@@ -1,0 +1,12 @@
+// The tests. They import app code, which is then checked with these options.
+{
+  "extends": "./tsconfig.app.json",
+  "include": ["env.d.ts", "src/**/*.test.ts"],
+  "exclude": [],
+  "compilerOptions": {
+    // The libs (DOM, ESNext) come from the app config: the tests check the app
+    // code they import, components included, with the same libs as the app.
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.vitest.tsbuildinfo"
+  }
+}

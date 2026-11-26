@@ -9,6 +9,7 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
+import { genummerd, stapTekst as gedeeldeStapTekst } from '@regelrecht/frontend-shared/chronolex/keten';
 import {
   artikelNaam as gedeeldArtikelNaam,
   toon,
@@ -16,13 +17,13 @@ import {
 } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { bezwaarBasis, kort, leesbaar, state, toegewezen } from './state.js';
 
-/** A value from the chain in words, shared with the wetsprocessysteem. */
+/** A value from the chain in words, shared with RegelHet. */
 export { toon };
 
 /** The name the case gives a regelwerk, if any (`api.casus`). */
 const naamInCasus = (wet) => state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
 
-/** The name of a regelwerk, shared with the wetsprocessysteem, with the names of this case. */
+/** The name of a regelwerk, shared with RegelHet, with the names of this case. */
 export const wetNaam = (wet) => gedeeldeWetNaam(wet, naamInCasus);
 
 /** `leerplichtwet_1969`, `13a` → `Leerplichtwet 1969 artikel 13a`. */
@@ -92,40 +93,17 @@ export function ingevuldDoor(by, grammen) {
   return 'niet ingevuld';
 }
 
+/** How this app names what the chain names, for the shared chain (frontend-shared/chronolex/keten). */
+export const NAMEN = Object.freeze({ wet: wetNaam, artikel: artikelNaam, veld: leesbaar });
+
 /** Een stap uit de keten in woorden: een regel tekst en een toelichting. */
-export function stapTekst(stap) {
-  switch (stap.soort) {
-    case 'artikel':
-      return stap.uitvoer
-        ? { tekst: `${leesbaar(stap.uitvoer)} uit ${wetNaam(stap.wet)}` }
-        : { tekst: `${artikelNaam(stap.wet, stap.artikel)} wordt uitgevoerd` };
-    case 'hook':
-      return { tekst: `Ook van toepassing: ${artikelNaam(stap.wet, stap.artikel)}` };
-    case 'uitkomst':
-      return stap.ontbreekt.length
-        ? {
-            tekst: `${leesbaar(stap.naam)}: niet bepaald`,
-            toelichting: `ontbreekt: ${stap.ontbreekt.map(leesbaar).join(', ')}`,
-          }
-        : { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
-    // Who filled the term in shows as a tag (herkomst.js), not as a sentence.
-    case 'begrip':
-      return { tekst: `${leesbaar(stap.naam)}: ${toon(stap.waarde)}` };
-    default:
-      return { tekst: stap.soort };
-  }
-}
+export const stapTekst = (stap) => gedeeldeStapTekst(stap, NAMEN);
 
 /**
  * The chain as a tree. Each step gets a `nummer` (`1`, `1.2`, `1.2.3`) that
  * serves as its key; the chain does not show it.
  */
-export function genummerd(stappen, prefix = '') {
-  return stappen.map((stap, i) => {
-    const nummer = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
-    return { nummer, stap, kinderen: genummerd(stap.stappen ?? [], nummer) };
-  });
-}
+export { genummerd };
 
 /** Wat een handeling uitkwam, als badge: tekst en kleur. */
 export function uitslag(g) {

@@ -1,0 +1,50 @@
+{{- /*
+An HTTPS listener for the app's host on the shared Gateway, added from this
+namespace with a ListenerSet, and the route to the Service. The Gateway's HTTP
+listener carries the redirect to HTTPS. As the default mode of
+charts/regelhet (templates/exposure.yaml).
+*/}}
+{{- $host := include "burgerapp.host" . }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "burgerapp.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ printf "letsencrypt-%s" .Values.tls.acme }}
+spec:
+  parentRef:
+    name: {{ .Values.gateway.shared.name }}
+    namespace: {{ .Values.gateway.shared.namespace }}
+  listeners:
+    - name: https
+      hostname: {{ $host }}
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .Release.Name }}-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "burgerapp.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: ListenerSet
+      name: {{ .Release.Name }}
+      sectionName: https
+  hostnames:
+    - {{ $host }}
+  rules:
+    - backendRefs:
+        - name: {{ .Release.Name }}
+          port: 80

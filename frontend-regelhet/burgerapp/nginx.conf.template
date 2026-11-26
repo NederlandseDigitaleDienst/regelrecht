@@ -1,0 +1,54 @@
+# The citizen's own app (frontend-regelhet/burgerapp/Dockerfile). The image's
+# entrypoint fills in ${BURGERAPP_CONNECT_SRC}, the origins of the RegelHets
+# the app may call; nginx's own variables are left alone.
+server {
+    listen 8000;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    server_tokens off;
+
+    # script-src: 'wasm-unsafe-eval' for the kern as WebAssembly, blob: for
+    # its JS glue, which comes in through a blob URL (fsc4b/rekenen.ts).
+    # style-src keeps 'unsafe-inline' for the NLDD components, as the other
+    # static sites do. connect-src: this origin and the RegelHets of the list.
+    set $csp "default-src 'self'; script-src 'self' blob: 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ${BURGERAPP_CONNECT_SRC}; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript application/wasm;
+
+    location = /.well-known/security.txt {
+        include /etc/nginx/security-headers.conf;
+        return 302 https://www.ncsc.nl/.well-known/security.txt;
+    }
+
+    location / {
+        include /etc/nginx/security-headers.conf;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # The list is the deployment's and may change without a new image.
+    location = /regelhets.json {
+        include /etc/nginx/security-headers.conf;
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    # A missing kern must fail its fetch, not come back as index.html.
+    location /wasm/ {
+        include /etc/nginx/security-headers.conf;
+        try_files $uri =404;
+    }
+
+    location ~* \.wasm$ {
+        types { application/wasm wasm; }
+        include /etc/nginx/security-headers.conf;
+        try_files $uri =404;
+    }
+
+    location /health {
+        access_log off;
+        default_type text/plain;
+        return 200 "OK";
+    }
+}

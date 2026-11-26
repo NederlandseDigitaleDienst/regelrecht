@@ -15,11 +15,17 @@
 //! ([`bundel`]). Er is geen server met gedeelde toestand: elk tabblad speelt
 //! zijn eigen casus.
 
+pub mod berichten;
+pub mod brongegevens;
 pub mod bundel;
 pub mod casus;
 pub mod inlogstap;
 pub mod kern;
 pub mod spel;
+pub mod stand;
+pub mod tijdlijn;
 pub mod ui_spec;
+pub mod vervolg;
+pub mod verzoek;
 #[cfg(feature = "wasm")]
 pub mod wasm;

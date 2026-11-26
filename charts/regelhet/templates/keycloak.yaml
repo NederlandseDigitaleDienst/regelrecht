@@ -1,0 +1,163 @@
+{{- if .Values.keycloak.enabled }}
+{{- $kc := include "regelhet.keycloakName" . }}
+{{- $k := .Values.keycloak }}
+{{- $sides := splitList "," (include "regelhet.realmSides" .) }}
+{{- /* The Secret <release>-keycloak comes from templates/secrets-job.yaml. */}}
+# The realm (templates/_realm.tpl), imported at Keycloak's first start. Only
+# placeholders here, no secrets: Keycloak fills them in from its environment.
+# An existing realm is left alone, so a change here reaches a new database only.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $kc }}-realm
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+data:
+  {{ $k.realm }}-realm.json: {{ include "regelhet.realm" . | fromYaml | toJson | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $kc }}
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  replicas: 1
+  # One pod at a time: Keycloak migrates its database at start, and two
+  # versions side by side during a rollout would race on that migration.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "regelhet.keycloakSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "regelhet.keycloakSelectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        # The user `keycloak` of the image.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak
+          image: {{ $k.image.ref }}
+          imagePullPolicy: {{ $k.image.pullPolicy }}
+          args: ["start", "--import-realm"]
+          env:
+            - name: KC_HOSTNAME
+              value: {{ printf "https://%s" (include "regelhet.keycloakHost" .) | quote }}
+            # TLS ends at the Gateway, which sets X-Forwarded-*.
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            # One pod: no cluster cache to discover.
+            - name: KC_CACHE
+              value: local
+            - name: KC_DB
+              value: postgres
+            - name: KC_DB_URL_HOST
+              value: {{ $kc }}-db-rw
+            - name: KC_DB_URL_DATABASE
+              value: app
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $kc }}-db-app
+                  key: username
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $kc }}-db-app
+                  key: password
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $kc }}
+                  key: admin-password
+            # The placeholders of the realm.
+            {{- range $sides }}
+            - name: REGELHET_{{ upper . }}_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $kc }}
+                  key: {{ (get $.Values.oidc.clients .).secretKey }}
+            {{- end }}
+            {{- if $k.testUsers }}
+            - name: REGELHET_TEST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $kc }}
+                  key: {{ $k.testPasswordKey }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: management
+              containerPort: 9000
+              protocol: TCP
+          # The first start builds Keycloak's configuration and migrates the
+          # database, which takes a few minutes on a small share of a node.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            # Keycloak writes its build to its own directory at start.
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml $k.resources | nindent 12 }}
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+      volumes:
+        - name: realm
+          configMap:
+            name: {{ $kc }}-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $kc }}
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keycloak
+spec:
+  selector:
+    {{- include "regelhet.keycloakSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+{{- end }}

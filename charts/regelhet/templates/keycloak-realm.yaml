@@ -1,0 +1,34 @@
+{{- $import := .Values.keycloak.realmImport }}
+{{- if $import.enabled }}
+{{- $secret := required "keycloak.realmImport.secretName is required: the client secrets come from a Secret" $import.secretName }}
+# The realm (templates/_realm.tpl) for a Keycloak that the Keycloak operator
+# runs. The operator imports it once, when the realm does not exist yet; a
+# change here does not reach a realm that exists.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: {{ .Release.Name }}-realm
+  {{- with $import.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+  labels:
+    {{- include "regelhet.labels" . | nindent 4 }}
+    app.kubernetes.io/component: realm
+spec:
+  keycloakCRName: {{ $import.keycloakCRName }}
+  placeholders:
+    {{- range $side := splitList "," (include "regelhet.realmSides" .) }}
+    REGELHET_{{ upper $side }}_CLIENT_SECRET:
+      secret:
+        name: {{ $secret }}
+        key: {{ (get $.Values.oidc.clients $side).secretKey }}
+    {{- end }}
+    {{- if .Values.keycloak.testUsers }}
+    REGELHET_TEST_PASSWORD:
+      secret:
+        name: {{ $secret }}
+        key: {{ .Values.keycloak.testPasswordKey }}
+    {{- end }}
+  realm:
+    {{- include "regelhet.realm" . | nindent 4 }}
+{{- end }}

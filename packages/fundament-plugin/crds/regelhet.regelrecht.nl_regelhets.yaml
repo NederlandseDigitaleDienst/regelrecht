@@ -1,0 +1,557 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: regelhets.regelhet.regelrecht.nl
+spec:
+  group: regelhet.regelrecht.nl
+  names:
+    kind: RegelHet
+    listKind: RegelHetList
+    plural: regelhets
+    singular: regelhet
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.auth.mode
+      name: Auth
+      type: string
+    - jsonPath: .status.url
+      name: URL
+      type: string
+    - jsonPath: .status.snapshot.commit
+      name: Commit
+      priority: 1
+      type: string
+    - jsonPath: .status.backofficeUrl
+      name: Medewerkers
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          RegelHet is one RegelHet: a case from a git repository, run by
+          the RegelHet server on its own address.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RegelHetSpec is one RegelHet.
+            properties:
+              auth:
+                description: Auth is how people log in. Empty is the test login.
+                properties:
+                  mode:
+                    default: test
+                    description: |-
+                      Mode is test (the test login) or stable (a Keycloak of its own on
+                      <hostname>-login, beside the other addresses).
+                    enum:
+                    - test
+                    - stable
+                    type: string
+                  testAccounts:
+                    description: |-
+                      TestAccounts gives the Keycloak of stable mode the test accounts of the
+                      case, all with one password the chart generates. For a test setup
+                      only; without them, accounts are made in Keycloak itself.
+                    type: boolean
+                type: object
+              casus:
+                description: |-
+                  Casus chooses the case to run from a manifest that makes several, by
+                  the name of its case file: `bedrijfsparkeervergunning` for
+                  casussen/bedrijfsparkeervergunning.yaml. So one manifest repository
+                  holds several procedures, each its own RegelHet. Empty runs the only
+                  case of the manifest; the server refuses to start when the manifest
+                  makes several, or none by this name.
+                maxLength: 100
+                pattern: ^([a-z0-9][a-z0-9_-]*)?$
+                type: string
+              fsc:
+                description: |-
+                  Fsc sends what this RegelHet has for a linked RegelHet through
+                  OpenFSC. Empty reaches every linked RegelHet on its public address.
+                properties:
+                  grants:
+                    description: |-
+                      Grants are, per cell this RegelHet is linked with, the grant under
+                      which the outway may call that cell's service. A linked cell without
+                      one is reached on its public address.
+                    items:
+                      description: FscGrant is the FSC grant to call the service of
+                        one linked cell.
+                      properties:
+                        cel:
+                          description: |-
+                            Cel is the linked cell as the case names it: for a party its
+                            executor's cell, for an executor the cell of a party.
+                          maxLength: 100
+                          minLength: 1
+                          pattern: ^[A-Za-z0-9_-]+$
+                          type: string
+                        grantHash:
+                          description: |-
+                            GrantHash is the hash of the service connection grant, as the
+                            contract in OpenFSC holds it.
+                          maxLength: 200
+                          minLength: 1
+                          pattern: ^[!-~]+$
+                          type: string
+                      required:
+                      - cel
+                      - grantHash
+                      type: object
+                    maxItems: 20
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - cel
+                    x-kubernetes-list-type: map
+                  outway:
+                    description: |-
+                      Outway is the address of this RegelHet's FSC outway inside the
+                      cluster, such as http://fsc-outway-default.<namespace>, without a
+                      slash at the end.
+                    maxLength: 253
+                    pattern: ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$
+                    type: string
+                required:
+                - outway
+                type: object
+              fsc4b:
+                description: Fsc4b is FSC voor Burgers. Empty is off.
+                properties:
+                  enabled:
+                    description: |-
+                      Enabled offers the citizens' routes to an app that proves who the
+                      citizen is with a credential, on the demo Stelsel with a test
+                      Activatiedienst that checks no identity. Test mode only.
+                    type: boolean
+                  origins:
+                    description: |-
+                      Origins are the browser apps that may call the channel from an
+                      address of their own, such as the citizen's app: each an origin,
+                      https://host or https://host:port, or http on localhost or 127.0.0.1
+                      for an app run on a developer's machine. The server answers them with
+                      CORS headers on /fsc4b/ (the chart's fsc4b.origins). Only with
+                      enabled.
+                    items:
+                      pattern: ^(https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?|http://(localhost|127\.0\.0\.1)(:[0-9]{1,5})?)$
+                      type: string
+                    maxItems: 20
+                    type: array
+                type: object
+              hostname:
+                description: |-
+                  Hostname is the address: a name under the plugin's base domain
+                  (`zorgtoeslag` gives zorgtoeslag.<domain> for citizens and
+                  zorgtoeslag-medewerkers.<domain> for employees), or a domain name of
+                  your own, with a dot in it (employees on medewerkers.<hostname>).
+                maxLength: 253
+                minLength: 1
+                pattern: ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$
+                type: string
+              manifest:
+                description: Manifest is the case to run.
+                properties:
+                  credentialsSecretRef:
+                    description: |-
+                      CredentialsSecretRef names a Secret with the keys `username` and
+                      `token`, for a private repository. The token needs read access only.
+                      Only the Job that copies the case reads it, at install and after a
+                      change of the manifest; the pods of the release never do. With the
+                      annotation regelhet.regelrecht.nl/delete-after-snapshot: "true" the
+                      plugin deletes the Secret after that copy, and a later change of the
+                      manifest needs a new one.
+                    properties:
+                      name:
+                        description: Name of the Secret.
+                        maxLength: 253
+                        minLength: 1
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  path:
+                    default: bron.yaml
+                    description: |-
+                      Path of the manifest inside the repository: bron.yaml at the root of a
+                      manifest repository, packages/regelhet/bron.yaml in regelrecht itself.
+                    pattern: ^[^/\s]\S*$
+                    type: string
+                  ref:
+                    default: main
+                    description: Ref is the branch or tag.
+                    pattern: ^[A-Za-z0-9._/][A-Za-z0-9._/-]*$
+                    type: string
+                  repoUrl:
+                    description: RepoURL is the HTTPS URL of the git repository, without
+                      credentials.
+                    pattern: ^https://[^@/\s]+/\S+$
+                    type: string
+                required:
+                - repoUrl
+                type: object
+              organisatie:
+                description: |-
+                  Organisatie puts this RegelHet on the list of an Organisatie in the
+                  same Fundament project, behind its front. The RegelHet keeps its own
+                  addresses. Empty runs it on its own.
+                properties:
+                  name:
+                    description: Name of the Organisatie.
+                    maxLength: 40
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace of the Organisatie; empty is the namespace of the
+                      RegelHet. It must be a namespace of the same Fundament project.
+                    maxLength: 63
+                    type: string
+                required:
+                - name
+                type: object
+              partij:
+                description: |-
+                  Partij runs this RegelHet as the server of one external party of the
+                  case of another RegelHet, the executor, linked with it. Such a
+                  RegelHet has one address, for the party's staff: its hostname
+                  itself. Empty runs it as an executor, whose external
+                  parties either run as a RegelHet of their own that names it here or
+                  are entered by an admin in the admin panel. Test mode only.
+                properties:
+                  cel:
+                    description: |-
+                      Cel is the party as the case of the executor names it, such as
+                      ggd_wilgendaal. The executor's case must ask that party something by
+                      its policy.
+                    maxLength: 100
+                    minLength: 1
+                    pattern: ^[A-Za-z0-9_-]+$
+                    type: string
+                  uitvoerder:
+                    description: |-
+                      Uitvoerder is the RegelHet of the executor, in the same Fundament
+                      project.
+                    properties:
+                      name:
+                        description: Name of the RegelHet.
+                        maxLength: 40
+                        minLength: 1
+                        type: string
+                      namespace:
+                        description: |-
+                          Namespace of the RegelHet; empty is the namespace of the RegelHet
+                          that names it. It must be a namespace of the same Fundament project.
+                        maxLength: 63
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - cel
+                - uitvoerder
+                type: object
+              theme:
+                description: Theme is how the screens look.
+                properties:
+                  accentColor:
+                    description: |-
+                      AccentColor is a theme of the NLDD design system. Empty keeps its own
+                      accent.
+                    enum:
+                    - ""
+                    - bruin
+                    - donkerblauw
+                    - donkerbruin
+                    - donkergeel
+                    - donkergroen
+                    - geel
+                    - groen
+                    - hemelblauw
+                    - lichtblauw
+                    - mintgroen
+                    - mosgroen
+                    - oranje
+                    - paars
+                    - robijnrood
+                    - rood
+                    - roze
+                    - violet
+                    type: string
+                type: object
+              title:
+                description: |-
+                  Title is the text in the bar at the top of the screens, at most 80
+                  characters on one line, without spaces at either end. Empty carries
+                  the title of the case (`titel` in the case file).
+                maxLength: 80
+                pattern: ^(\S([^\x00-\x1f\x7f]*\S)?)?$
+                type: string
+              version:
+                description: |-
+                  Version is the regelrecht commit whose RegelHet image runs, the full
+                  40-character hash, and whose chart installs it. Empty follows main: the
+                  chart on main and the latest build it names.
+                pattern: ^([0-9a-f]{40})?$
+                type: string
+            required:
+            - hostname
+            - manifest
+            type: object
+            x-kubernetes-validations:
+            - message: 'partij links two servers with keys made at start: test mode
+                only'
+              rule: '!(has(self.partij) && has(self.auth) && has(self.auth.mode) &&
+                self.auth.mode == ''stable'')'
+            - message: partij runs a server for the staff of a party, without a citizens'
+                side for fsc4b
+              rule: '!(has(self.partij) && has(self.fsc4b) && has(self.fsc4b.enabled)
+                && self.fsc4b.enabled)'
+            - message: partij runs a server for the staff of a party, without a citizens'
+                side to put behind the front of an organisatie
+              rule: '!(has(self.partij) && has(self.organisatie))'
+            - message: 'fsc4b.enabled runs on the demo Stelsel, whose test Activatiedienst
+                checks no identity: test mode only'
+              rule: '!(has(self.fsc4b) && has(self.fsc4b.enabled) && self.fsc4b.enabled
+                && has(self.auth) && has(self.auth.mode) && self.auth.mode == ''stable'')'
+            - message: 'fsc4b.origins lets browser apps call FSC voor Burgers: only
+                with fsc4b.enabled'
+              rule: '!(has(self.fsc4b) && has(self.fsc4b.origins) && size(self.fsc4b.origins)
+                > 0 && !(has(self.fsc4b.enabled) && self.fsc4b.enabled))'
+          status:
+            description: RegelHetStatus is what the plugin last saw.
+            properties:
+              askedParties:
+                description: |-
+                  AskedParties are the external parties that the case asks something
+                  of by its policy, as the running server last named them: the cells a
+                  RegelHet with spec.partij may run as for this one. Empty for a
+                  RegelHet that is itself a party.
+                items:
+                  description: |-
+                    AskedParty is an external party that the case of an executor asks
+                    something of by its policy, as its running server names it.
+                  properties:
+                    cell:
+                      description: Cell is the party as the case names it.
+                      type: string
+                    name:
+                      description: Name is what a screen calls it.
+                      type: string
+                  required:
+                  - cell
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - cell
+                x-kubernetes-list-type: map
+              backofficeUrl:
+                description: BackofficeURL is where employees do.
+                type: string
+              conditions:
+                description: |-
+                  Conditions are Ready, SnapshotReady, ReleaseReady and PartiesLinked,
+                  and OrganisatieGevonden with spec.organisatie.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              executorCell:
+                description: |-
+                  ExecutorCell is the cell of the case the executor's release works
+                  for, which a party's release names as its peer; set with
+                  AskedParties.
+                type: string
+              fsc4bDiscoveryUrl:
+                description: |-
+                  Fsc4bDiscoveryURL is the discovery configuration of FSC voor Burgers,
+                  where an app finds the services; empty when it is off.
+                type: string
+              keycloakSecret:
+                description: |-
+                  KeycloakSecret names the Secret in the namespace of this RegelHet
+                  that the chart generates for stable mode: the Keycloak admin password
+                  (user admin) under admin-password, and the password of the test
+                  accounts under test-password. Only the name, never a value.
+                type: string
+              loginUrl:
+                description: LoginURL is the Keycloak of stable mode; empty in test
+                  mode.
+                type: string
+              message:
+                description: Message says why the phase is what it is.
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the generation of the spec this
+                  status is about.
+                format: int64
+                type: integer
+              parties:
+                description: |-
+                  Parties are the external parties that run on a RegelHet of their
+                  own, linked with this one; empty when none does.
+                items:
+                  description: |-
+                    PartyStatus is an external party that runs on a RegelHet of its own,
+                    linked with this one.
+                  properties:
+                    cell:
+                      description: Cell is the party as the case names it.
+                      type: string
+                    name:
+                      description: Name is what a screen calls it.
+                      type: string
+                    procedure:
+                      description: Procedure is the RegelHet the party runs on.
+                      properties:
+                        name:
+                          description: Name of the RegelHet.
+                          maxLength: 40
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace of the RegelHet; empty is the namespace of the RegelHet
+                            that names it. It must be a namespace of the same Fundament project.
+                          maxLength: 63
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    url:
+                      description: URL is where its staff log in.
+                      type: string
+                    via:
+                      description: |-
+                        Via is how this RegelHet reaches the party: `fsc` through its FSC
+                        outway, `direct` on the party's public address.
+                      type: string
+                  required:
+                  - cell
+                  - url
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - cell
+                x-kubernetes-list-type: map
+              phase:
+                description: Phase is Pending, Ready or Failed.
+                type: string
+              snapshot:
+                description: |-
+                  Snapshot is the copy of the case that the release runs: the commit it
+                  was taken from and the ConfigMaps that hold it.
+                properties:
+                  commit:
+                    description: |-
+                      Commit is the full hash of the commit of manifest.ref the copy was
+                      taken from.
+                    type: string
+                  configMaps:
+                    description: |-
+                      ConfigMaps hold the copy, a tar.gz of the manifest and the files it
+                      names, in parts of at most 900 KiB, in this order.
+                    items:
+                      type: string
+                    type: array
+                type: object
+              token:
+                description: |-
+                  Token says whether the Secret in credentialsSecretRef is still in the
+                  namespace: Present or Absent; empty without credentialsSecretRef.
+                type: string
+              url:
+                description: URL is where citizens use RegelHet.
+                type: string
+            type: object
+        required:
+        - spec
+        type: object
+        x-kubernetes-validations:
+        - message: 'the name is at most 40 characters: it names the Helm release and
+            the objects of the chart'
+          rule: size(self.metadata.name) <= 40
+    served: true
+    storage: true
+    subresources:
+      status: {}

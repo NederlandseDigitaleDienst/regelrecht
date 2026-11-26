@@ -1,0 +1,37 @@
+---
+# The front of gemeente Wilgendaal with two processes, as the Fundament plugin
+# renders it for an Organisatie `wilgendaal` in its own namespace. CI renders
+# the chart with this file; it is also the example of the values contract.
+domain: cluster-a.fieldlab2026.nl
+host: wilgendaal.cluster-a.fieldlab2026.nl
+surfaces:
+  burger:
+    host: wilgendaal.cluster-a.fieldlab2026.nl
+  backoffice:
+    host: wilgendaal-medewerkers.cluster-a.fieldlab2026.nl
+theme:
+  accentColor: groen
+tls:
+  acme: staging
+voorkant:
+  enabled: true
+  id: tnt-rr-voorbeeld--wilgendaal/wilgendaal
+  naam: Gemeente Wilgendaal
+  logo: https://wilgendaal.example.org/logo.svg
+  processen:
+    - id: tnt-rr-voorbeeld--parkeerkaart/parkeerkaart
+      naam: parkeerkaart
+      burger:
+        intern: http://parkeerkaart-burger.tnt-rr-voorbeeld--parkeerkaart.svc.cluster.local:8000
+        publiek: https://parkeerkaart.cluster-a.fieldlab2026.nl
+      backoffice:
+        intern: http://parkeerkaart-backoffice.tnt-rr-voorbeeld--parkeerkaart.svc.cluster.local:8000
+        publiek: https://parkeerkaart-medewerkers.cluster-a.fieldlab2026.nl
+    - id: tnt-rr-voorbeeld--iit-wilgendaal/iit-wilgendaal
+      naam: iit-wilgendaal
+      burger:
+        intern: http://iit-wilgendaal-burger.tnt-rr-voorbeeld--iit-wilgendaal.svc.cluster.local:8000
+        publiek: https://iit-wilgendaal.cluster-a.fieldlab2026.nl
+      backoffice:
+        intern: http://iit-wilgendaal-backoffice.tnt-rr-voorbeeld--iit-wilgendaal.svc.cluster.local:8000
+        publiek: https://iit-wilgendaal-medewerkers.cluster-a.fieldlab2026.nl

@@ -81,7 +81,73 @@ pub struct Casus {
     /// Who logs in to apply, where the case has a login ([`Inloggen`]).
     #[serde(default)]
     pub inloggen: Option<Inloggen>,
+    /// The answers of the case's cell that it hands out to the applicant
+    /// about themself ([`crate::brongegevens`]), by their name in its
+    /// catalogue. Without it the cell hands out nothing. The list is the
+    /// case's and not the cell's: the cell's catalogue serves every case
+    /// that runs it, and what goes out to an applicant is a choice of the
+    /// procedure, as the login it goes with.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub uitgeven: Vec<String>,
+    /// What the case's cell does by its own policy when an application comes
+    /// in ([`Opvolging`]), such as asking the GGD for an examination.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bij_aanvraag: Vec<Opvolging>,
+    /// What the case's cell does after a grant, act by act
+    /// ([`crate::vervolg`]), where the case says so.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub na_toekenning: Option<crate::vervolg::NaToekenning>,
     pub scenarios: Vec<Scenario>,
+}
+
+/// An article of the case cell's own policy that runs when an application
+/// comes in ([`crate::verzoek`]). Its one boolean output says whether the
+/// cell acts; if so, the cell records the fact of the article it establishes,
+/// and another cell that the article names for a fact with the same
+/// parameters records its receipt, in the same step. That is a request to
+/// another party, as the municipality asks the GGD for an examination.
+///
+/// The article runs on the fields of the application and on `parameters`,
+/// which name per parameter what the system knows of the submission.
+/// `antwoord` names the fact by which the other party answers the request,
+/// such as the GGD's advice.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Opvolging {
+    /// The article, `<regelwerk>#<article>`.
+    pub artikel: String,
+    #[serde(default)]
+    pub parameters: BTreeMap<String, Aanvraaggegeven>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub antwoord: Option<Verzoekantwoord>,
+}
+
+/// What the system knows of an application, for a parameter of an
+/// [`Opvolging`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Aanvraaggegeven {
+    /// The day the application came in.
+    #[serde(rename = "date")]
+    Datum,
+    /// The id of the record that occasions the step: the application, or
+    /// for a step after a grant the record that granted.
+    #[serde(rename = "submission")]
+    Aanvraag,
+}
+
+/// The fact by which the other party answers a request (`feit`,
+/// `<regelwerk>#<article>#<fact>`). An answer belongs to a request when it
+/// holds the same values in the fields both have, and its field `datum` is a
+/// day on or after the day of the request. `taak` names the answer as a step
+/// still to take, such as "Geneeskundig advies uitbrengen": the fact names
+/// what is recorded once it is taken.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Verzoekantwoord {
+    pub feit: String,
+    pub datum: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taak: Option<String>,
 }
 
 /// Logging in to apply, without a real means of login. `feit`
@@ -1240,6 +1306,18 @@ impl Afleiding {
     /// The submission established by `artikel` (`<law>#<article>`).
     pub fn indiening(&self, artikel: &str) -> Option<&Indiening> {
         self.indieningen.iter().find(|i| i.artikel == artikel)
+    }
+
+    /// The fact in which a cell records the receipt of a copy of a decision
+    /// under `besluit` (`<law>#<article>`), when the law requires one: that
+    /// of the submission asking for a decision under that article
+    /// ([`Indiening::ontvangst`]). A decision without it is sent to no other
+    /// cell (`kern::toezenden`).
+    pub fn ontvangst_van(&self, besluit: &str) -> Option<&str> {
+        self.indieningen
+            .iter()
+            .find(|i| i.besluit == besluit)
+            .and_then(|i| i.ontvangst.as_deref())
     }
 }
 

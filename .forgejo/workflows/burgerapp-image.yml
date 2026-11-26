@@ -1,0 +1,61 @@
+---
+# Builds the citizen's app in the browser from
+# frontend-regelhet/burgerapp/Dockerfile and pushes it to the registry of the
+# organisation, as code.digitaledienst.overheid.nl/regelrecht/burgerapp:main
+# and :<commit>. charts/burgerapp deploys it.
+#
+# This runs on `vm`, because `docker build` needs a Docker daemon, and only
+# from main: the fieldlab rules allow a push to the registry from main or a tag
+# only. The image is public, like every image of the organisation, and holds
+# no secrets: the app has no backend, and its list of RegelHets comes from the
+# deployment.
+name: burgerapp image
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/cel/**
+      - packages/engine/**
+      - packages/law-model/**
+      - packages/poc-chronolexografie/**
+      - packages/shared/**
+      - packages/frontend-shared/**
+      - packages/Cargo.lock
+      - packages/Cargo.toml
+      - frontend-regelhet/**
+      - deploy/nginx/**
+      - package.json
+      - package-lock.json
+      - .forgejo/workflows/burgerapp-image.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: vm
+    timeout-minutes: 60
+    container:
+      image: docker:29-cli@sha256:5e6baf67325a79f64ed3bed6863954d5e05d0f3d4e57cbdb14809346814bbfdb
+    steps:
+      # actions/checkout needs node, which this image does not have.
+      - name: Check out
+        env:
+          TOKEN: ${{ forgejo.token }}
+          SERVER: ${{ forgejo.server_url }}
+        run: |
+          git clone --depth 1 --branch "${{ forgejo.ref_name }}" \
+            "https://x:${TOKEN}@${SERVER#https://}/${{ forgejo.repository }}.git" .
+
+      - name: Build and push
+        env:
+          SERVER: ${{ forgejo.server_url }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          HOST="${SERVER#https://}"
+          IMAGE="${HOST}/regelrecht/burgerapp"
+          docker build --platform linux/amd64 -f frontend-regelhet/burgerapp/Dockerfile \
+            -t "${IMAGE}:main" -t "${IMAGE}:${{ forgejo.sha }}" .
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$HOST" -u "$REGISTRY_USER" --password-stdin
+          docker push "${IMAGE}:${{ forgejo.sha }}"
+          docker push "${IMAGE}:main"
+          docker logout "$HOST"

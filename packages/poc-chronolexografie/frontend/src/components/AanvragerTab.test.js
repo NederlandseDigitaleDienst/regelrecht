@@ -175,14 +175,16 @@ describe('the form in a case with a login step', () => {
 });
 
 describe('a field the system fills', () => {
-  it('shows its value without a line under it', async () => {
+  it('shows its value, with nothing under it but the article it rests on', async () => {
     state.vormen = vormen(INLOGGEN, { dagtekening: { waarde: '2026-01-05' } });
     zetSessie(casus.id, BAKKER);
     await mount();
     const veld = el.querySelector('nldd-date-field');
     expect(veld.getAttribute('value')).toBe('2026-01-05');
     expect(veld.hasAttribute('readonly')).toBe(true);
-    expect(veld.closest('nldd-form-field').querySelector('nldd-form-field-help-text')).toBeNull();
+    // The article stands in the line under every field (VeldInvoer); nothing says where the value came from.
+    const onder = veld.closest('nldd-form-field').querySelector('nldd-form-field-help-text');
+    expect(onder?.textContent.trim()).toMatch(/^Volgens [^ ]+\.$/);
   });
 });
 

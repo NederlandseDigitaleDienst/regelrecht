@@ -79,6 +79,10 @@ ignore: |
   .tox/
   node_modules/
   .github/workflows/
+  # Helm templates are Go templates that render to YAML, not YAML.
+  charts/*/templates/
+  # CRDs that controller-gen writes from Go types; regenerated, never edited.
+  packages/fundament-plugin/crds/
   # Casus-inhoud van de proof-of-concepts: overgenomen uit de losse PoC-repo's
   # en daar met de hand geschreven in een eigen stijl. Het is geen geldend
   # recht en het gaat niet door `just validate`; het herformatteren van
@@ -86,3 +90,7 @@ ignore: |
   # risico (een cijfer dat verschuift) dan de winst. pocs/registry.yaml — dat
   # wél hier is geschreven — valt er bewust buiten en wordt gewoon gelint.
   corpus-poc/
+  # Hetzelfde voor de casus-corpus van RegelHet voor de individuele
+  # inkomenstoeslag: wetteksten zoals ze zijn overgenomen. De twee regelingen
+  # die het van het corpus leent zijn symlinks en worden daar gelint.
+  packages/regelhet/iit-groningen/corpus/

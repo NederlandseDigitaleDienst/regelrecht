@@ -1,0 +1,281 @@
+<script setup lang="ts">
+// One decision from the citizen's dossier, as a page one level below it
+// (DossierView.vue), whose back button returns to it: what came out, why, and the submissions the citizen can
+// make against it: an objection against a decision on an application, an
+// appeal to the court against the decision on that objection. Which those
+// are follows from the case (keten.ts `indieningenTegen`).
+// Its fields come from the law, without what the decision already holds.
+// Whether the decision still holds comes from the server (`stand`): one a
+// later record revoked is marked as such, and one that took a new decision
+// in the place of the decision it revoked shows that new decision, which
+// holds now.
+import { computed, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { hoofdletter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
+import Bericht from '../gedeeld/Bericht.vue';
+import { verzendingenVan } from '../gedeeld/bericht';
+import { longDate } from '../gedeeld/datum';
+import { beginwaarden, tegenBesluitVelden } from '../gedeeld/formulier';
+import Gegevens from '../gedeeld/Gegevens.vue';
+import { foutTekst, nieuweSleutel } from '../gedeeld/http';
+import {
+  artikelNaam,
+  besluitNaam,
+  celNaam,
+  herroeping as herroepingVan,
+  herroepingTekst,
+  indieningenTegen,
+  isBesluit,
+  nieuwBesluitVan,
+  termijn,
+  toegewezen,
+} from '../gedeeld/keten';
+import SpecFormulier from '../gedeeld/SpecFormulier.vue';
+import { useSchermtitel } from '../gedeeld/schil';
+import type { Casus, CasusIndiening, Gram, Stand, Vormen, Waarom } from '../gedeeld/types';
+import WaaromLijst from '../gedeeld/WaaromLijst.vue';
+import { burgerApi } from './api';
+
+const props = defineProps<{ id: string; casus: Casus; vormen: Vormen | null; dossier: Gram[]; stand: Stand }>();
+const router = useRouter();
+const waarom = ref<Waarom | null>(null);
+const waaromFout = ref('');
+
+/**
+ * The message about the decision as it went out: the last fact of sending in the dossier (`verzending` in the
+ * message spec), with its content frozen. Where the spec says how a message goes out and none went yet, the
+ * citizen has no message: the decision is not made known to her.
+ */
+const verzonden = computed(() => (besluit.value ? (verzendingenVan(besluit.value.id, props.dossier, props.vormen?.berichten).at(-1) ?? null) : null));
+const nogNietVerzonden = computed(() => !!props.vormen?.berichten?.verzending && !verzonden.value);
+const besluit = computed(() => {
+  const g = props.dossier.find((x) => x.id === props.id);
+  return g && isBesluit(g, props.stand) ? g : null;
+});
+/** The field of a submission against the decision that holds its deadline, as the server derives it from the law. */
+const termijnveld = computed(
+  () => tegen.value.map((i) => props.vormen?.indieningen[i.artikel]?.termijn).find(Boolean) ?? null,
+);
+/** The deadline to object or appeal, by the test clock or the real day (`casus.vandaag`). */
+const deadline = computed(() => (besluit.value ? termijn(besluit.value, props.casus.vandaag, termijnveld.value) : null));
+/** What the UI spec says of a late submission, under the field of the deadline. */
+const teLaat = computed(() => (termijnveld.value ? props.vormen?.teksten?.[termijnveld.value]?.help ?? '' : ''));
+/** What the citizen can file against it, in words: `bezwaar`, or `bezwaar of beroep`. */
+const tegenWoorden = computed(() => tegen.value.map((i) => soortNaam(i).toLowerCase()).join(' of '));
+const titel = computed(() =>
+  besluit.value ? `${besluitNaam(besluit.value, props.casus)} van ${longDate(besluit.value.recorded_on)}` : 'Besluit',
+);
+useSchermtitel(() => titel.value);
+const naamVanCel = (cel: string) => celNaam(cel, props.casus);
+const uitkomst = computed(() => (besluit.value ? toegewezen(besluit.value, props.casus) : undefined));
+/** What revoked this decision, if anything did, in a sentence. */
+const herroeping = computed(() => {
+  const h = besluit.value ? herroepingVan(besluit.value.id, props.stand, props.dossier) : undefined;
+  return h ? `${herroepingTekst(h, props.casus, props.stand)}.` : null;
+});
+/** The new decision this decision took in the place of the one it revoked, while it holds. */
+const nieuw = computed(() => (besluit.value ? nieuwBesluitVan(besluit.value.id, props.stand) : undefined));
+const nieuwUitkomst = computed(() => (nieuw.value ? toegewezen(nieuw.value, props.casus) : undefined));
+const tegen = computed(() => (besluit.value ? indieningenTegen(besluit.value, props.casus) : []));
+
+watch(
+  besluit,
+  async (b) => {
+    waarom.value = null;
+    waaromFout.value = '';
+    if (!b) return;
+    try {
+      waarom.value = await burgerApi.waarom(b.id);
+    } catch (e) {
+      waaromFout.value = foutTekst(e);
+    }
+  },
+  { immediate: true },
+);
+
+// The submission against this decision the sheet holds, with its fields and values.
+const open = ref(false);
+const keuze = ref<CasusIndiening | null>(null);
+const waarden = ref<Record<string, unknown>>({});
+const melding = ref('');
+const bezig = ref(false);
+let sleutel = nieuweSleutel();
+const velden = computed(() => {
+  const vorm = keuze.value && props.vormen?.indieningen[keuze.value.artikel];
+  return vorm && besluit.value ? tegenBesluitVelden(vorm, besluit.value, props.vormen?.teksten) : [];
+});
+const soortNaam = (i: CasusIndiening) => hoofdletter(i.soort.toLowerCase());
+
+function start(i: CasusIndiening) {
+  keuze.value = i;
+  melding.value = '';
+  sleutel = nieuweSleutel();
+  waarden.value = beginwaarden(velden.value);
+  open.value = true;
+}
+
+async function indienen() {
+  if (!keuze.value || !besluit.value) return;
+  bezig.value = true;
+  melding.value = '';
+  try {
+    await burgerApi.indienen(
+      { artikel: keuze.value.artikel, op: besluit.value.id, velden: zonderLeeg(waarden.value) },
+      sleutel,
+    );
+    open.value = false;
+    await router.push({ name: 'dossier', query: { ingediend: keuze.value.soort } });
+  } catch (e) {
+    melding.value = foutTekst(e);
+  } finally {
+    bezig.value = false;
+  }
+}
+</script>
+
+<template>
+  <nldd-page landmarks="page" sticky-header :accessible-label="titel">
+    <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn aanvragen" collapse-anchor="besluit-titel" @back="router.push({ name: 'dossier' })"></nldd-top-title-bar>
+    <nldd-two-thirds-one-third-section>
+      <nldd-title
+        v-if="besluit"
+        id="besluit-titel"
+        slot="header"
+        size="display-2"
+        :supporting-text="`${naamVanCel(besluit.recording_actor)} · onder ${artikelNaam(besluit.basis)}`"
+      >
+        <h3>{{ titel }}</h3>
+        <nldd-tag
+          v-if="uitkomst !== undefined"
+          slot="end"
+          :text="uitkomst ? 'Toegewezen' : 'Afgewezen'"
+          :color="uitkomst ? 'success' : 'critical'"
+        ></nldd-tag>
+      </nldd-title>
+      <nldd-inline-dialog v-if="!besluit" text="Dit besluit staat niet in uw dossier"></nldd-inline-dialog>
+      <template v-else>
+        <template v-if="herroeping">
+          <nldd-banner variant="warning" text="Dit besluit geldt niet meer" :supporting-text="herroeping"></nldd-banner>
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
+        <template v-if="nieuw">
+          <nldd-title size="display-5">
+            <h4>Het nieuwe besluit</h4>
+            <nldd-badge slot="end" text="Geldt" color="success" size="sm"></nldd-badge>
+          </nldd-title>
+          <nldd-text color="secondary"><p>Dit besluit herriep het eerdere besluit en nam een nieuw besluit in de plaats daarvan.</p></nldd-text>
+          <nldd-spacer size="8"></nldd-spacer>
+          <nldd-tag
+            v-if="nieuwUitkomst !== undefined"
+            :text="nieuwUitkomst ? 'Toegewezen' : 'Afgewezen'"
+            :color="nieuwUitkomst ? 'success' : 'critical'"
+          ></nldd-tag>
+          <Gegevens :waarden="nieuw.outputs" :teksten="vormen?.teksten" label="Uitkomst van het nieuwe besluit" />
+          <nldd-spacer size="24"></nldd-spacer>
+        </template>
+
+        <!-- The decision as the message that makes it known (Awb 3:41), with its grounds and the remedy. -->
+        <nldd-inline-dialog
+          v-if="nogNietVerzonden"
+          icon="info"
+          text="Het bericht over dit besluit is nog niet verzonden"
+          supporting-text="U krijgt het in uw berichten zodra het is verzonden."
+        ></nldd-inline-dialog>
+        <Bericht
+          v-else
+          :gram="besluit"
+          :verzonden="verzonden"
+          rol="besluit"
+          :vormen="vormen"
+          :grammen="dossier"
+          :waarom="waarom"
+          :afzender="naamVanCel(besluit.recording_actor)"
+          :cel-naam="naamVanCel"
+          weergave="burger"
+        />
+        <nldd-spacer size="24"></nldd-spacer>
+
+        <nldd-title size="display-5"><h4>Wat eruit kwam</h4></nldd-title>
+        <nldd-spacer size="8"></nldd-spacer>
+        <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" :volgorde="vormen?.volgorde" label="Uitkomst van het besluit" />
+        <nldd-spacer size="24"></nldd-spacer>
+
+        <nldd-title size="display-5"><h4>Waarop het besluit rust</h4></nldd-title>
+        <nldd-text color="secondary"><p>Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte.</p></nldd-text>
+        <nldd-spacer size="8"></nldd-spacer>
+        <WaaromLijst
+          v-if="waarom && besluit"
+          :waarom="waarom"
+          :teksten="vormen?.teksten"
+          :cel-naam="naamVanCel"
+          :beslisser="naamVanCel(besluit.recording_actor)"
+        />
+        <nldd-inline-dialog v-else-if="waaromFout" icon="warning" text="De uitleg laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
+        <nldd-activity-indicator v-else></nldd-activity-indicator>
+
+        <template v-if="tegen.length && !herroeping">
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-title size="display-5"><h4>Bent u het niet eens met dit besluit?</h4></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
+          <template v-if="deadline">
+            <nldd-inline-dialog
+              v-if="deadline.voorbij"
+              icon="warning"
+              :text="`De termijn liep tot en met ${longDate(deadline.einde)}`"
+              :supporting-text="[`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat.`, teLaat, 'Schrijf in de gronden waarom u later bent.'].filter(Boolean).join(' ')"
+            ></nldd-inline-dialog>
+            <nldd-text v-else><p>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</p></nldd-text>
+            <nldd-spacer size="8"></nldd-spacer>
+          </template>
+          <nldd-button-group>
+            <nldd-button
+              v-for="i in tegen"
+              :key="i.artikel"
+              appearance="secondary"
+              :text="`${soortNaam(i)} indienen`"
+              @click="start(i)"
+            ></nldd-button>
+          </nldd-button-group>
+        </template>
+      </template>
+      <!-- What the dossier puts beside the record, such as the timeline of its application. -->
+      <nldd-container v-if="$slots.naast" slot="right">
+        <slot name="naast"></slot>
+      </nldd-container>
+    </nldd-two-thirds-one-third-section>
+    <nldd-page-footer slot="footer"></nldd-page-footer>
+  </nldd-page>
+
+  <Teleport to="body">
+    <nldd-sheet width="720px" :open="open || undefined" @close="open = false">
+      <nldd-page>
+        <nldd-top-title-bar
+          slot="header"
+          heading-level="2"
+          :text="keuze ? `${soortNaam(keuze)} tegen het besluit` : ''"
+          dismiss-text="Annuleer"
+        ></nldd-top-title-bar>
+        <nldd-simple-section v-if="keuze">
+          <nldd-container>
+            <nldd-text color="secondary">
+              <p>
+                De vragen komen uit de wet. Wat het besluit al vastlegt, zoals de termijn, neemt
+                {{ naamVanCel(keuze.cel) }} uit het besluit zelf.
+              </p>
+            </nldd-text>
+            <nldd-spacer size="16"></nldd-spacer>
+            <SpecFormulier :velden="velden" :waarden="waarden" :volgorde="vormen?.volgorde" @zet="(n, v) => (waarden[n] = v)" />
+            <template v-if="melding">
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-inline-dialog icon="warning" icon-color="critical" text="Niet ingediend" :supporting-text="melding"></nldd-inline-dialog>
+            </template>
+            <nldd-spacer size="24"></nldd-spacer>
+            <nldd-button-group>
+              <nldd-button appearance="primary" :text="`${soortNaam(keuze)} indienen`" :loading="bezig || undefined" @click="indienen"></nldd-button>
+            </nldd-button-group>
+          </nldd-container>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-sheet>
+  </Teleport>
+</template>

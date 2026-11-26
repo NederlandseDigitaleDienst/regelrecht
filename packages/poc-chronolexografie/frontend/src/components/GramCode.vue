@@ -45,13 +45,17 @@ const door = computed(() => verwezenDoor(props.gram));
       <nldd-tag v-for="w in labels" :key="w" size="sm" :text="w"></nldd-tag>
     </nldd-container>
     <nldd-text v-for="r in naar" :key="r.id" size="sm">
-      {{ r.soort }}: <GramLink :doel="r.doel" />
+      <p>
+        {{ r.soort }}: <GramLink :doel="r.doel" />
+      </p>
     </nldd-text>
     <nldd-text v-if="door.length" size="sm">
-      Verwezen door:
-      <template v-for="(d, i) in door" :key="d.id"
+      <p>
+        Verwezen door:
+        <template v-for="(d, i) in door" :key="d.id"
         ><GramLink :doel="d" /><template v-if="i < door.length - 1">, </template></template
-      >
+        >
+      </p>
     </nldd-text>
   </UitklapCode>
 </template>

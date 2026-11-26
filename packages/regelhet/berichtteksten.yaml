@@ -1,0 +1,172 @@
+---
+# De tekstlaag van de gemeente Wilgendaal (fictief): de teksten van de
+# berichten die het college aan de aanvrager stuurt. Een register van het
+# bestuursorgaan, geen code: de gemeente stelt haar eigen standaardbrieven
+# vast. Wat een bericht is en waar elke waarde vandaan komt, zegt de
+# berichtenspec ernaast (berichten.yaml); hier staat alleen de tekst, met
+# sleutels tussen accolades ({aanvraagdag}) en voorwaarden (`als`) die de
+# berichtenspec aan de gegevens van het dossier bindt. Een sleutel die daar
+# geen bron heeft, laat het bericht niet stil weg maar toont het als
+# schending (BERICHTEN.md).
+#
+# De vorm is die van een tekstlaag: `afzender` (wie tekent, als rol, en of
+# het college in mandaat besluit), `sjablonen` (per bericht de titel, het
+# onderwerp, de aanhef, de alinea's met een kop en eventueel `als`, en het
+# slot) en `zinnen` (een zin die alleen staat als al haar sleutels een
+# waarde hebben).
+afzender:
+  organisatie: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+  # Er is geen mandaat in dit regelwerk: het college tekent zelf (Awb 10:10).
+  in_mandaat: false
+  rollen:
+    behandelaar: het team Parkeren
+    beslisser: het college van burgemeester en wethouders
+
+# Het briefhoofd: de tekst in het lint (geen logo), het retouradres boven het
+# adresblok en de regels van de voettekst. Fictief, als de gemeente zelf.
+briefhoofd:
+  lint: Gemeente Wilgendaal
+  retouradres: Retouradres Postbus 100, 9999 ZZ Wilgendaal
+  voettekst:
+    - Gemeente Wilgendaal (fictief)
+    - Postbus 100, 9999 ZZ Wilgendaal
+    - Telefoon 14 0000
+
+# De teksten van de bijlagen: per bijlage de koppen en cellen, met de velden
+# van een rij tussen accolades.
+bijlagen:
+  kaartgegevens:
+    titel: Gegevens op uw kaart
+    kop_houder: Houder
+    cel_houder: '{houder}'
+    kop_bestuurder: Voor de bestuurder
+    cel_bestuurder: '{bestuurder}'
+    kop_passagier: Voor de passagier
+    cel_passagier: '{passagier}'
+    kop_geldig: Geldig tot en met
+    cel_geldig: '{geldig_tot}'
+
+zinnen:
+  bezwaarzin: ', dus uiterlijk op {bezwaardag}'
+  beslisdagzin: ' Wij beslissen uiterlijk op {beslisdag}.'
+
+sjablonen:
+  - id: beschikking_kaart
+    titel: Besluit op uw aanvraag om een gehandicaptenparkeerkaart
+    ondertekenaar: beslisser
+    betreft_bij:
+      toekenning: U krijgt een gehandicaptenparkeerkaart
+      afwijzing: U krijgt geen gehandicaptenparkeerkaart
+    aanhef: Geachte heer of mevrouw,
+    alineas:
+      - tekst: Op {aanvraagdag} vroeg u een gehandicaptenparkeerkaart aan.
+      - kop: Ons besluit
+        als: toekenning
+        tekst: >-
+          Wij verstrekken u een gehandicaptenparkeerkaart. De kaart is geldig
+          tot en met {geldig_tot}.
+      - kop: Ons besluit
+        als: afwijzing
+        tekst: Wij wijzen uw aanvraag om een gehandicaptenparkeerkaart af.
+      - kop: Waarom wij zo besluiten
+        als: toekenning
+        tekst: >-
+          Uit het geneeskundig onderzoek blijkt dat u voldoet aan de
+          voorwaarden voor een gehandicaptenparkeerkaart.
+      - kop: Waarom wij zo besluiten
+        als: afwijzing
+        tekst: >-
+          Uit wat wij weten, blijkt niet dat u voldoet aan de voorwaarden voor
+          een gehandicaptenparkeerkaart. Hieronder staan de artikelen waarop
+          wij dit besluit nemen, in de volgorde waarin wij ze toepasten.
+      - kop: Bezwaar
+        tekst: >-
+          Bent u het niet eens met dit besluit, dan kunt u binnen zes weken na
+          de dag waarop het is bekendgemaakt bezwaar maken bij het college{bezwaarzin}.
+          Vermeld uw naam en adres, de datum, een omschrijving van dit besluit
+          en waarom u het er niet mee eens bent.
+    slot: Met vriendelijke groet,
+
+  - id: ontvangstbevestiging
+    titel: Wij hebben uw aanvraag ontvangen
+    ondertekenaar: behandelaar
+    betreft: Wij hebben uw aanvraag ontvangen
+    aanhef: Geachte heer of mevrouw,
+    alineas:
+      - tekst: >-
+          Op {aanvraagdag} ontvingen wij uw aanvraag om een
+          gehandicaptenparkeerkaart.{beslisdagzin}
+      - kop: Wat er nu gebeurt
+        tekst: >-
+          Wij vragen de GGD om een geneeskundig onderzoek. De GGD neemt
+          contact met u op voor een afspraak. Daarna nemen wij een besluit.
+      - kop: Uw aanvraag is compleet
+        als: volledig
+        tekst: Uw aanvraag bevat wat de wet van een aanvraag vraagt.
+    slot: Met vriendelijke groet,
+
+  - id: herstelverzoek
+    titel: Verzoek om uw aanvraag aan te vullen
+    ondertekenaar: behandelaar
+    betreft: Uw aanvraag om een gehandicaptenparkeerkaart is nog niet compleet
+    aanhef: Geachte heer of mevrouw,
+    alineas:
+      - tekst: >-
+          Op {aanvraagdag} ontvingen wij uw aanvraag om een
+          gehandicaptenparkeerkaart. Om haar te kunnen beoordelen, hebben wij
+          nog iets van u nodig.
+      - kop: Wat wij van u vragen
+        tekst: >-
+          Wij vragen u uw aanvraag aan te vullen. Uw aanvulling moet uiterlijk
+          op {uiterstedag} bij ons binnen zijn.
+      - kop: Wat er ontbreekt
+        tekst: '{ontbreekt}'
+      - kop: Als u niet aanvult
+        tekst: >-
+          Ontvangen wij uw aanvulling niet op tijd, dan kunnen wij besluiten
+          uw aanvraag niet te behandelen (artikel 4:5 van de Algemene wet
+          bestuursrecht).
+    slot: Met vriendelijke groet,
+
+  - id: beslissing_op_bezwaar
+    titel: Beslissing op uw bezwaar
+    ondertekenaar: beslisser
+    betreft_bij:
+      niet_ontvankelijk: Wij behandelen uw bezwaar niet
+      ongegrond: Uw bezwaar is ongegrond
+      gegrond: Uw bezwaar is gegrond
+    aanhef: Geachte heer of mevrouw,
+    alineas:
+      - tekst: >-
+          U maakte bezwaar tegen ons besluit over uw gehandicaptenparkeerkaart.
+          Wij hebben dat besluit opnieuw bekeken (artikel 7:11 van de Algemene
+          wet bestuursrecht).
+      - kop: Onze beslissing
+        als: niet_ontvankelijk
+        tekst: >-
+          Wij verklaren uw bezwaar niet-ontvankelijk: wij nemen het niet in
+          behandeling.
+      - kop: Onze beslissing
+        als: ongegrond
+        tekst: Uw bezwaar is ongegrond. Ons besluit blijft zoals het was.
+      - kop: Onze beslissing
+        als: gegrond
+        tekst: >-
+          Uw bezwaar is gegrond. Wij herroepen ons besluit en nemen een nieuw
+          besluit in de plaats daarvan.
+      - kop: Waarom wij zo beslissen
+        als: niet_ontvankelijk
+        tekst: >-
+          Een bezwaar moet op tijd binnen zijn en komen van iemand die
+          belanghebbende is. Aan een van die eisen is niet voldaan.
+      - kop: Waarom wij zo beslissen
+        als: heroverwogen
+        tekst: >-
+          Wij hebben uw aanvraag opnieuw beoordeeld met wat wij nu weten. De
+          artikelen waarop deze beslissing berust, staan hieronder.
+      - kop: Beroep
+        tekst: >-
+          Bent u het niet eens met deze beslissing, dan kunt u binnen zes weken
+          na de dag waarop zij is bekendgemaakt beroep instellen bij de
+          rechtbank.
+    slot: Met vriendelijke groet,

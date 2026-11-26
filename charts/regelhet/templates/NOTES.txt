@@ -1,0 +1,30 @@
+{{- if .Values.voorkant.enabled -}}
+RegelHet runs as the front of {{ .Values.voorkant.naam }} ({{ .Values.voorkant.id }}),
+in {{ .Values.regelhet.mode }} mode, {{ ternary "logging in through Keycloak" "with the test login" (eq .Values.regelhet.login "oidc") }}.
+Registered processes: {{ len (.Values.voorkant.processen | default list) }}{{ range .Values.voorkant.processen }}
+  {{ .id }}{{ end }}
+Signing key: Secret {{ include "regelhet.organisatieName" . }}, key private-key.
+{{- else -}}
+RegelHet runs the case from {{ .Values.case.repoUrl }} at {{ .Values.case.ref }} ({{ .Values.case.path }}),
+in {{ .Values.regelhet.mode }} mode, {{ ternary "logging in through Keycloak" "with the test login" (eq .Values.regelhet.login "oidc") }}.
+Chronicles: {{ if include "regelhet.database" . }}PostgreSQL, CNPG Cluster {{ include "regelhet.dbCluster" . }}{{ else }}in memory, gone at every restart{{ end }}.
+{{- with .Values.organisatie }}{{ if .id }}
+Organisation: {{ .id }}, front at {{ .url }}.
+{{- end }}{{ end }}
+{{- end }}
+{{- if .Values.gateway.enabled }}
+
+Addresses:
+{{- range include "regelhet.instances" . | fromJsonArray }}
+  {{ .surface }}: https://{{ .host }}
+{{- end }}
+{{- if .Values.keycloak.enabled }}
+  keycloak: https://{{ include "regelhet.keycloakHost" . }} (realm {{ .Values.keycloak.realm }}; admin password in Secret {{ include "regelhet.keycloakName" . }}, key admin-password)
+{{- end }}
+{{- if .Values.fsc4b.enabled }}
+  FSC voor Burgers (demo Stelsel): https://{{ include "regelhet.citizenHost" . }}/fsc4b/discovery
+{{- end }}
+(Let's Encrypt {{ .Values.tls.acme }})
+The hosts must resolve to the address of Gateway {{ .Release.Name }}:
+  kubectl -n {{ .Release.Namespace }} get gateway {{ .Release.Name }}
+{{- end }}

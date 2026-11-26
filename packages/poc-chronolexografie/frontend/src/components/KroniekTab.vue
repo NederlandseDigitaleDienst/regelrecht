@@ -44,17 +44,21 @@ onBeforeUnmount(() => {
   <nldd-simple-section v-for="k in kronieken" :key="k.naam">
     <nldd-title heading-level="2" slot="header" size="display-3" :text="`Kroniek van ${k.naam}`">
       <nldd-text v-if="k.eigen" slot="supporting-text">
-        Eén kroniek, van de cel van de uitvoerder. Elke stap in het proces legt er één
-        chronolexogram in vast (een beslissing op bezwaar die herroept, legt er twee vast); er wordt
-        nooit iets in gewijzigd of uit verwijderd.<template v-if="state.casus?.begin"> Bovenaan
-        staat wat de cel vóór het eerste scenario vastlegde, zoals de vestiging van een school
-        (RFC-051).</template>
+        <p>
+          Eén kroniek, van de cel van de uitvoerder. Elke stap in het proces legt er één
+          chronolexogram in vast (een beslissing op bezwaar die herroept, legt er twee vast); er wordt
+          nooit iets in gewijzigd of uit verwijderd.<template v-if="state.casus?.begin"> Bovenaan
+          staat wat de cel vóór het eerste scenario vastlegde, zoals de vestiging van een school
+          (RFC-051).</template>
+        </p>
       </nldd-text>
       <nldd-text v-else-if="k.rechter" slot="supporting-text">
-        De kroniek van de rechtbank, een andere cel. Een beroep verwijst niet naar het bestreden
-        besluit, want dat staat in een andere kroniek: het draagt wat de rechtbank ontving.
+        <p>
+          De kroniek van de rechtbank, een andere cel. Een beroep verwijst niet naar het bestreden
+          besluit, want dat staat in een andere kroniek: het draagt wat de rechtbank ontving.
+        </p>
       </nldd-text>
-      <nldd-text v-else slot="supporting-text">Een andere cel van de casus, met haar eigen kroniek.</nldd-text>
+      <nldd-text v-else slot="supporting-text"><p>Een andere cel van de casus, met haar eigen kroniek.</p></nldd-text>
     </nldd-title>
     <nldd-inline-dialog
       v-if="k.grammen.length === 0"

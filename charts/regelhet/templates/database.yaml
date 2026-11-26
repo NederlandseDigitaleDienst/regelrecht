@@ -1,0 +1,17 @@
+{{- if include "regelhet.database" . }}
+{{- if not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1/Cluster") }}
+{{- fail "database.enabled needs the CloudNativePG operator on the cluster (postgresql.cnpg.io/v1 Cluster); set database.enabled=false and surfaces.split=false for the setup in memory" }}
+{{- end }}
+# One PostgreSQL for the release, run by the CloudNativePG operator. CNPG makes
+# the database `app`, owned by the user `app`, and writes its connection string
+# to the secret <cluster>-app; the server makes its schema `regelhet` there.
+{{ include "regelhet.cnpgCluster" (dict "root" . "name" (include "regelhet.dbCluster" .) "db" .Values.database "component" "database") }}
+{{- end }}
+{{- if .Values.keycloak.enabled }}
+{{- if not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1/Cluster") }}
+{{- fail "keycloak.enabled needs the CloudNativePG operator on the cluster (postgresql.cnpg.io/v1 Cluster) for the database of Keycloak" }}
+{{- end }}
+---
+# The database of the Keycloak of this release, apart from the chronicles.
+{{ include "regelhet.cnpgCluster" (dict "root" . "name" (printf "%s-db" (include "regelhet.keycloakName" .)) "db" .Values.keycloak.database "component" "keycloak-database") }}
+{{- end }}

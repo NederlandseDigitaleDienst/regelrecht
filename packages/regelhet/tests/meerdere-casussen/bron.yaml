@@ -1,0 +1,10 @@
+---
+# Een manifest met meer dan één casus, voor de tests van de casuskeuze
+# (REGELHET_CASUS, src/case.rs): het hele corpus van de chronolexografie-poc,
+# met al zijn casussen. Een server op dit manifest start alleen met een
+# gekozen casus.
+repo_root: ../../../..
+directories:
+  casussen: packages/poc-chronolexografie/corpus/casussen
+  regulation: packages/poc-chronolexografie/corpus/regulation
+  cells: packages/poc-chronolexografie/corpus/cells

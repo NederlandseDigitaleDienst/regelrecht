@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn an_identifier_is_quoted() {
-        assert_eq!(quote_identifier("wetsproces"), "\"wetsproces\"");
+        assert_eq!(quote_identifier("regelhet"), "\"regelhet\"");
         assert_eq!(quote_identifier("a\"b"), "\"a\"\"b\"");
     }
 }

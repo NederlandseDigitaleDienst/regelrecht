@@ -46,6 +46,11 @@ const klik = async (b) => {
 /** The form field of a column in the sheet: the input under its label. */
 const invoer = (label) =>
   [...sheet().querySelectorAll('nldd-form-field, nldd-switch-field')].find((f) => f.getAttribute('label') === label);
+/** Choose `value` in a toggle button group, as its button reports the choice. */
+const kies = (groep, value) =>
+  groep
+    .querySelector(`nldd-toggle-button[value="${value}"]`)
+    .dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { selected: true, value } }));
 const typ = async (label, tekst) => {
   const veld = invoer(label).querySelector('nldd-text-field');
   veld.value = tekst;
@@ -177,17 +182,16 @@ describe('a table field', () => {
       'nldd-text-field',
       'nldd-text-field',
       'nldd-date-field',
-      'nldd-dropdown',
+      'nldd-toggle-button-group',
     ]);
-    // Every cell may stay empty: yes or no is a choice of three.
-    const select = invoer('ja nee').querySelector('select');
-    expect([...select.options].map((o) => o.value)).toEqual(['', 'ja', 'nee']);
+    // Every cell may stay empty: yes or no is a choice of three, side by side.
+    const keuze = invoer('ja nee').querySelector('nldd-toggle-button-group');
+    expect([...keuze.querySelectorAll('nldd-toggle-button')].map((o) => o.getAttribute('value'))).toEqual(['leeg', 'ja', 'nee']);
     await typ('getal', '2,5');
     await typ('bedrag', '1250');
     const datum = invoer('datum').querySelector('nldd-date-field');
     datum.dispatchEvent(new CustomEvent('change', { detail: { value: '2026-03-01' } }));
-    select.value = 'ja';
-    select.dispatchEvent(new Event('change'));
+    kies(keuze, 'ja');
     await nextTick();
     await bewaar();
     expect(uit[0]).toEqual([{ tekst: null, getal: 2.5, bedrag: 1250, datum: '2026-03-01', ja_nee: true }]);
@@ -207,10 +211,9 @@ describe('a yes-or-no column', () => {
     await nextTick();
     expect(cellen(rijen()[0])).toEqual(['ja']);
     await klik(knop(rijen()[0], 'Bewerk'));
-    const select = invoer('actief').querySelector('select');
-    expect(select.value).toBe('ja');
-    select.value = '';
-    select.dispatchEvent(new Event('change'));
+    const keuze = invoer('actief').querySelector('nldd-toggle-button-group');
+    expect(keuze.querySelector('nldd-toggle-button[selected]').getAttribute('value')).toBe('ja');
+    kies(keuze, 'leeg');
     await nextTick();
     await bewaar();
     expect(uit[0]).toEqual([{ actief: null }]);

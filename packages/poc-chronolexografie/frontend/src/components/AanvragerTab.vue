@@ -334,11 +334,13 @@ async function indienenTegen() {
     <nldd-container slot="left" gap="16">
       <nldd-title heading-level="2" size="display-3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
         <nldd-text slot="supporting-text">
-          <ArtikelLink :basis="state.casus.besluit" />. De velden komen uit de wet: wat het
-          artikel vraagt en wat de Algemene wet
-          bestuursrecht erbij eist (artikel 4:2). Een leeg veld laat je weg; de cel legt de
-          aanvraag dan vast met dat gegeven als ontbrekend. De dag van ontvangst is de speeldatum
-          (Awb 4:13).
+          <p>
+            <ArtikelLink :basis="state.casus.besluit" />. De velden komen uit de wet: wat het
+            artikel vraagt en wat de Algemene wet
+            bestuursrecht erbij eist (artikel 4:2). Een leeg veld laat je weg; de cel legt de
+            aanvraag dan vast met dat gegeven als ontbrekend. De dag van ontvangst is de speeldatum
+            (Awb 4:13).
+          </p>
         </nldd-text>
       </nldd-title>
       <nldd-container v-if="eerstInloggen" max-width="560px">
@@ -424,7 +426,9 @@ async function indienenTegen() {
             </nldd-list-item>
           </nldd-list>
           <nldd-text v-if="a.missing?.length" color="warning" size="sm">
-            Ontbreekt in de aanvraag: {{ a.missing.map(leesbaar).join(', ') }}
+            <p>
+              Ontbreekt in de aanvraag: {{ a.missing.map(leesbaar).join(', ') }}
+            </p>
           </nldd-text>
           </nldd-container>
         </nldd-card>
@@ -443,16 +447,20 @@ async function indienenTegen() {
         <nldd-simple-section v-if="tegen">
           <nldd-container gap="16">
             <nldd-text v-if="tegen.soort === 'bezwaar'" color="secondary">
-              De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
-              bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
-              {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
-              anders vragen, dan doe je een nieuwe aanvraag.
+              <p>
+                De velden komen uit de Awb (artikel 6:5, via 7:11). Het bestreden besluit en de
+                bezwaartermijn neemt de cel uit het besluit. Het bezwaar wijzigt de aanvraag niet:
+                {{ state.casus.rol }} heroverweegt het besluit op grond van wat je aanvoert. Wil je iets
+                anders vragen, dan doe je een nieuwe aanvraag.
+              </p>
             </nldd-text>
             <nldd-text v-else color="secondary">
-              Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
-              kroniek. De velden komen uit de wet: <ArtikelLink :basis="state.casus.beroep" />, met artikel 6:5 dat erop haakt.
-              {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
-              beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
+              <p>
+                Het beroepschrift gaat naar {{ state.casus.rechter.cel_naam }}, een eigen cel met een eigen
+                kroniek. De velden komen uit de wet: <ArtikelLink :basis="state.casus.beroep" />, met artikel 6:5 dat erop haakt.
+                {{ state.casus.cel_naam }} maakt een afschrift van haar beslissing, en de rechtbank legt het
+                beroep vast met wat zij ontving. De beroepstermijn neemt zij uit dat afschrift.
+              </p>
             </nldd-text>
             <VeldInvoer
               v-for="veld in indieningVelden"

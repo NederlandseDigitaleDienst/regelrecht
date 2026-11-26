@@ -1,0 +1,14 @@
+---
+# Wie deze cel is (RFC-046): het college van de gemeente Groningen, in de
+# casus individuele inkomenstoeslag van RegelHet. Een open
+# begrip of feit noemt wie bevoegd is (competent_authority); de engine vraagt
+# een cel alleen als die haar naam of categorie noemt.
+name: Het college van burgemeester en wethouders van de gemeente Groningen
+category: college van burgemeester en wethouders
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048): de gegevens die de behandelaar over de aanvrager vastlegde, en of
+# de gemeente hem in de twaalf maanden voor de aanvraag al een toeslag
+# verleende (artikel 36, derde lid, van de Participatiewet).
+answers:
+  iit_gegevens_aanvrager: reductie_iit_gegevens
+  in_twaalf_maanden_voor_aanvraag_verleend: reductie_verleende_iit

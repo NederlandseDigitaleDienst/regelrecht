@@ -25,7 +25,9 @@ path = [
   "**.rs",
   "**.sh",
   "**.sql",
+  "**.template",
   "**.toml",
+  "**.tpl",
   "**.ts",
   "**.txt",
   "**.vue",
@@ -37,6 +39,7 @@ path = [
   "**Justfile",
   "**.dockerignore",
   "**.gitignore",
+  "**.helmignore",
   "**.npmrc",
   "**.skill-path-exceptions",
   "**.yamllint",
@@ -63,11 +66,12 @@ path = "corpus/demo/walkthrough/*.vtt"
 SPDX-FileCopyrightText = "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)"
 SPDX-License-Identifier = "EUPL-1.2"
 
-# Eigen beeldmateriaal: het regelrecht-icoon en schermafbeeldingen van de
-# eigen applicaties.
+# Eigen beeldmateriaal: het regelrecht-icoon (ook als PNG van de app) en
+# schermafbeeldingen van de eigen applicaties.
 [[annotations]]
 path = [
   "**/public/regelrecht-icon.svg",
+  "frontend-regelhet/src-tauri/icons/icon.png",
   "docs/src/assets/editor-notities-screenshot.png",
   "docs/src/assets/portaal-en-screenshot.png",
   "docs/src/assets/portaal-screenshot.png",
@@ -137,6 +141,8 @@ path = [
   "frontend-demo/public/logos/SZW.png",
   "frontend-demo/public/logos/TOESLAGEN.png",
   "frontend-demo/public/logos/VWS.png",
+  "frontend-regelhet/public/favicon.svg",
+  "frontend-regelhet/public/touch-icon.png",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "Staat der Nederlanden"
@@ -197,3 +203,14 @@ path = "frontend-poc-*/public/img/digid-logo.svg"
 precedence = "override"
 SPDX-FileCopyrightText = "Staat der Nederlanden (Logius)"
 SPDX-License-Identifier = "LicenseRef-Trademark"
+
+# De Fundament-plugin is afgeleid van de Haven+-plugin
+# (gitlab.com/commonground/haven/havenplus/plugin-fundament), ook onder de
+# EUPL-1.2: de opzet, de statusrapportage en de tests komen daarvandaan.
+[[annotations]]
+path = "packages/fundament-plugin/**"
+SPDX-FileCopyrightText = [
+  "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)",
+  "De auteurs van Haven+ plugin-fundament (https://gitlab.com/commonground/haven/havenplus/plugin-fundament)",
+]
+SPDX-License-Identifier = "EUPL-1.2"

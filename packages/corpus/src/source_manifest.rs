@@ -1,7 +1,7 @@
 //! A source made of directories elsewhere in a repository, by a manifest
 //! (`bron.yaml`): read from a local checkout ([`lokaal`]) or from a GitHub
 //! tarball ([`uit_tarball`], feature `github`). The poc-portal serves such a
-//! source to a static poc, and the wetsproces component loads its one case
+//! source to a static poc, and the RegelHet component loads its one case
 //! from one, so both read a manifest with this code.
 
 use std::collections::BTreeMap;
@@ -21,21 +21,64 @@ use serde::Deserialize;
 /// `ui_spec` names one file of the repository, under `repo_root`, that the
 /// source holds at its root as [`UI_SPEC`]: the UI spec of the source,
 /// from which the poc reads which field of an application is prefilled from
-/// which source (poc-chronolexografie, `src/ui_spec.rs`).
+/// which source (poc-chronolexografie, `src/ui_spec.rs`). It may also name a
+/// list of files: the layers of a UI spec, such as a generic layer and the
+/// layer of one executor that builds on it. The source then holds them as
+/// one file of several YAML documents, in the order of the list.
+/// `berichten` and `berichtteksten` name the message spec beside it and the
+/// text layer of the authority, held at the root as [`BERICHTEN`] and
+/// [`BERICHTTEKSTEN`] (poc-chronolexografie, `src/berichten.rs`).
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     #[serde(default)]
     pub repo_root: String,
     pub directories: BTreeMap<String, String>,
+    #[serde(default, deserialize_with = "een_of_meer")]
+    pub ui_spec: Vec<String>,
     #[serde(default)]
-    pub ui_spec: Option<String>,
+    pub berichten: Option<String>,
+    #[serde(default)]
+    pub berichtteksten: Option<String>,
+}
+
+/// `ui_spec` as a list: one file, or a list of them.
+fn een_of_meer<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum EenOfMeer {
+        Een(String),
+        Meer(Vec<String>),
+    }
+    Ok(match Option::<EenOfMeer>::deserialize(d)? {
+        None => Vec::new(),
+        Some(EenOfMeer::Een(pad)) => vec![pad],
+        Some(EenOfMeer::Meer(paden)) => paden,
+    })
 }
 
 /// Where the source holds the file `ui_spec` of a manifest names.
 pub const UI_SPEC: &str = "ui_spec.yaml";
+/// Where the source holds the message spec (`berichten`).
+pub const BERICHTEN: &str = "berichten.yaml";
+/// Where the source holds the text layer of the authority (`berichtteksten`).
+pub const BERICHTTEKSTEN: &str = "berichtteksten.yaml";
 
 impl Manifest {
+    /// The single files the manifest names beside its directories: per file
+    /// what it is (for a message), where the source holds it, and its path
+    /// under the repository. Each layer of the UI spec is one, in order.
+    fn losse_bestanden(&self) -> Vec<(&'static str, &'static str, &String)> {
+        let lagen = self.ui_spec.iter().map(|p| ("UI spec", UI_SPEC, p));
+        let rest = [
+            ("message spec", BERICHTEN, &self.berichten),
+            ("text layer", BERICHTTEKSTEN, &self.berichtteksten),
+        ]
+        .into_iter()
+        .filter_map(|(wat, waar, pad)| pad.as_ref().map(|p| (wat, waar, p)));
+        lagen.chain(rest).collect()
+    }
+
     /// Whether `path` names a manifest rather than a folder.
     pub fn is_manifest(path: &str) -> bool {
         path.ends_with(".yaml") || path.ends_with(".yml")
@@ -57,7 +100,7 @@ impl Manifest {
             .directories
             .keys()
             .chain(m.directories.values())
-            .chain(&m.ui_spec)
+            .chain(m.losse_bestanden().into_iter().map(|(_, _, p)| p))
         {
             let pad = pad.trim_matches('/');
             if pad.is_empty()
@@ -70,14 +113,15 @@ impl Manifest {
                 ));
             }
         }
-        // The UI spec is one YAML file, as the portal reads only YAML from
-        // a branch, and lies outside every directory the source is made of:
-        // there it would also be read as a case or a regelwerk.
-        if let Some(pad) = &m.ui_spec {
+        // The UI spec, the message spec and the text layer are each one
+        // YAML file, as the portal reads only YAML from a branch, and lie
+        // outside every directory the source is made of: there they would
+        // also be read as a case or a regelwerk.
+        for (wat, _, pad) in m.losse_bestanden() {
             let pad = pad.trim_matches('/');
             if !Self::is_manifest(pad) {
                 return Err(format!(
-                    "the manifest {waar}: the UI spec '{pad}' is no YAML file (.yaml or .yml)"
+                    "the manifest {waar}: the {wat} '{pad}' is no YAML file (.yaml or .yml)"
                 ));
             }
             if let Some(van) = m
@@ -87,7 +131,7 @@ impl Manifest {
                 .find(|van| pad.starts_with(&format!("{van}/")))
             {
                 return Err(format!(
-                    "the manifest {waar}: the UI spec '{pad}' lies in '{van}', a directory of the source"
+                    "the manifest {waar}: the {wat} '{pad}' lies in '{van}', a directory of the source"
                 ));
             }
         }
@@ -159,14 +203,18 @@ impl Manifest {
                 ));
             }
         }
-        if let Some(pad) = &self.ui_spec {
+        // Per place the files that land there; the layers of a UI spec as
+        // the documents of one YAML stream, in the order of the manifest.
+        let mut lagen: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for (wat, waar, pad) in self.losse_bestanden() {
             let pad = pad.trim_matches('/');
             let tekst = alle.get(pad).ok_or_else(|| {
-                format!(
-                    "the manifest names '{pad}' for its UI spec, which the branch does not hold"
-                )
+                format!("the manifest names '{pad}' for its {wat}, which the branch does not hold")
             })?;
-            uit.insert(UI_SPEC.to_string(), tekst.clone());
+            lagen.entry(waar).or_default().push(tekst.clone());
+        }
+        for (waar, teksten) in lagen {
+            uit.insert(waar.to_string(), teksten.join("\n---\n"));
         }
         Ok(uit)
     }
@@ -254,7 +302,7 @@ pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
             alle.insert(format!("{van}/{onder}"), tekst);
         }
     }
-    if let Some(pad) = &m.ui_spec {
+    for (_, _, pad) in m.losse_bestanden() {
         let pad = pad.trim_matches('/');
         let bestand = repo_root.join(pad);
         match std::fs::read_to_string(&bestand) {
@@ -301,6 +349,41 @@ pub fn uit_map(dir: &Path) -> Result<BTreeMap<String, String>, String> {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_layered_ui_spec_is_one_file_of_its_layers_in_order() {
+        let m = Manifest::lees(
+            "directories: {a: b}\nui_spec: [ui/generiek.yaml, ui/eigen.yaml]",
+            "m",
+        )
+        .unwrap();
+        assert_eq!(
+            m.ui_spec,
+            vec!["ui/generiek.yaml".to_string(), "ui/eigen.yaml".to_string()]
+        );
+        let alle: BTreeMap<String, String> = [
+            ("b/x.yaml", "$id: x"),
+            ("ui/generiek.yaml", "elements: [{id: G1}]"),
+            ("ui/eigen.yaml", "elements: [{id: E1, builds_on: G1}]"),
+        ]
+        .into_iter()
+        .map(|(p, t)| (p.to_string(), t.to_string()))
+        .collect();
+        let bron = m.bron(&alle).unwrap();
+        assert_eq!(
+            bron[UI_SPEC],
+            "elements: [{id: G1}]\n---\nelements: [{id: E1, builds_on: G1}]"
+        );
+        // One file reads as before.
+        let een = Manifest::lees("directories: {a: b}\nui_spec: ui/eigen.yaml", "m").unwrap();
+        assert_eq!(een.ui_spec, vec!["ui/eigen.yaml".to_string()]);
+        assert_eq!(
+            een.bron(&alle).unwrap()[UI_SPEC],
+            "elements: [{id: E1, builds_on: G1}]"
+        );
+        // Every layer is checked as one file is.
+        assert!(Manifest::lees("directories: {a: b}\nui_spec: [u.yaml, b/v.yaml]", "m").is_err());
+    }
 
     /// A gzipped tar laid out as GitHub's tarball endpoint lays it out.
     #[cfg(feature = "github")]
@@ -473,6 +556,35 @@ mod tests {
         assert!(e.contains("no YAML file"), "{e}");
         let e = Manifest::lees("directories: {a: b}\nui_spec: b/u.yaml", "m").unwrap_err();
         assert!(e.contains("lies in 'b'"), "{e}");
+    }
+
+    #[test]
+    fn a_manifest_places_its_message_spec_and_text_layer_at_the_root_of_the_source() {
+        let dir = std::env::temp_dir().join(format!("poc-bron-berichten-{}", std::process::id()));
+        let files = [
+            (
+                "werk/m/bron.yaml",
+                "repo_root: ../..\ndirectories: {casussen: werk/m/casussen}\n\
+                 berichten: werk/berichten.yaml\nberichtteksten: werk/teksten.yaml\n",
+            ),
+            ("werk/m/casussen/k.yaml", "cel: c"),
+            ("werk/berichten.yaml", "berichtsoorten: []"),
+            ("werk/teksten.yaml", "sjablonen: []"),
+        ];
+        for (pad, tekst) in files {
+            let pad = dir.join(pad);
+            std::fs::create_dir_all(pad.parent().unwrap()).unwrap();
+            std::fs::write(pad, tekst).unwrap();
+        }
+        let bestanden = lokaal(&dir.join("werk/m/bron.yaml"));
+        std::fs::remove_dir_all(&dir).unwrap();
+        let bestanden = bestanden.unwrap();
+        assert_eq!(bestanden[BERICHTEN], "berichtsoorten: []");
+        assert_eq!(bestanden[BERICHTTEKSTEN], "sjablonen: []");
+        let e = Manifest::lees("directories: {a: b}\nberichten: b/x.yaml", "m").unwrap_err();
+        assert!(e.contains("the message spec 'b/x.yaml' lies in 'b'"), "{e}");
+        let e = Manifest::lees("directories: {a: b}\nberichtteksten: t.txt", "m").unwrap_err();
+        assert!(e.contains("the text layer 't.txt' is no YAML file"), "{e}");
     }
 
     #[test]

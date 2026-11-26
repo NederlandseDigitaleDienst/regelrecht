@@ -90,9 +90,11 @@ const termijn = (o) => {
   <nldd-simple-section v-if="openOntvangsten().length || Object.keys(beslissingen).length">
     <nldd-title heading-level="2" slot="header" size="display-3" text="Na een uitspraak">
       <nldd-text slot="supporting-text">
-        De rechter vernietigde een beslissing op bezwaar en droeg een nieuw besluit op. Het
-        bestuursorgaan beslist dan opnieuw op hetzelfde bezwaar: het heroverweegt het bestreden
-        besluit zoals de eerste keer, en de nieuwe beslissing noemt de ontvangst van de uitspraak.
+        <p>
+          De rechter vernietigde een beslissing op bezwaar en droeg een nieuw besluit op. Het
+          bestuursorgaan beslist dan opnieuw op hetzelfde bezwaar: het heroverweegt het bestreden
+          besluit zoals de eerste keer, en de nieuwe beslissing noemt de ontvangst van de uitspraak.
+        </p>
       </nldd-text>
     </nldd-title>
     <nldd-container gap="16">
@@ -111,7 +113,7 @@ const termijn = (o) => {
           </nldd-list>
           <nldd-text size="sm" color="secondary">{{ termijn(o) }}</nldd-text>
           <template v-if="!toetsen[o.id]">
-            <nldd-text size="sm" color="secondary">Is het bezwaar ontvankelijk? De nieuwe beslissing legt de oordelen van het bestuursorgaan zelf vast. Ze staan hieronder zoals de vernietigde beslissing ze vastlegde; wijzig ze waar het bestuursorgaan nu anders oordeelt.</nldd-text>
+            <nldd-text size="sm" color="secondary"><p>Is het bezwaar ontvankelijk? De nieuwe beslissing legt de oordelen van het bestuursorgaan zelf vast. Ze staan hieronder zoals de vernietigde beslissing ze vastlegde; wijzig ze waar het bestuursorgaan nu anders oordeelt.</p></nldd-text>
             <EigenOordelen
               :velden="ontvankelijkheidsOordelen()"
               :waarden="vorm.waarden(o.id)"

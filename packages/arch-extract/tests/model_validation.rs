@@ -101,6 +101,7 @@ fn product_crates_present() {
         "corpus",
         "editor-api",
         "engine",
+        "fsc4b",
         "github",
         "harvester",
         "law-model",
@@ -111,6 +112,8 @@ fn product_crates_present() {
         "poc-wetsgeschiedenis",
         "shared",
         "tui",
+        "regelhet",
+        "regelhet-app",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -304,6 +307,7 @@ fn frontend_apps_extracted() {
         "app:frontend-poc-terugbetaalregimes",
         "app:frontend-poc-wetsgeschiedenis",
         "app:frontend-shared",
+        "app:frontend-regelhet",
         "app:poc-chronolexografie-frontend",
     ]
     .iter()

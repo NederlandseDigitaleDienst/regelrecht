@@ -1,0 +1,369 @@
+---
+# De UI-beschrijving van dit RegelHet, in de vorm van de
+# UI-beschrijving van een bron (packages/poc-chronolexografie/src/ui_spec.rs),
+# per veld. Welke velden een formulier heeft, zegt de wet; deze beschrijving
+# zegt hoe het scherm ze toont en waar elke waarde vandaan komt.
+#
+# Herkomst per veld (`fill`):
+# - zonder `fill` vult de burger het veld zelf in;
+# - `{by: system}` zonder meer: het inloggen, met de identiteit van wie
+#   inlogde (het BSN);
+# - `{by: system, login: naam}`: het inloggen, met de naam;
+# - `{by: system, submission: ...}`: wat het systeem van de indiening weet:
+#   `date` de dag van indiening volgens de klok van de server (in test mode de
+#   testklok), `requested_decision` het artikel waarvan de aanvraag het
+#   besluit vraagt (`requests` in de wet), `login_method` het middel waarmee
+#   de burger inlogde (DigiD, Keycloak of FSC voor Burgers);
+# - `{by: system, value: ...}`: een vaste waarde;
+# - `{by: system, from: <regelwerk>#<artikel>#<uitvoer>}`: de uitkomst van
+#   een machine-uitvoerbaar artikel, dat de server uitvoert met wat hij van
+#   de indiening weet (`parameters`). Zo'n regel geeft het veld een waarde;
+#   het veld blijft een gewoon invoerveld van de aanvraag.
+# De server vult elk veld met `by: system` zelf bij het indienen en weigert een
+# verzoek dat zo'n veld meestuurt.
+#
+# Zichtbaarheid: zonder `visibility` vraagt het scherm het veld; `shown` op een
+# veld van het systeem toont het zonder dat de burger het kan wijzigen;
+# `hidden` toont het niet op het formulier. Een verborgen veld dat het systeem
+# vult, vult de server toch, en de aanvraag bevat het.
+#
+# Volgorde en groepering: het scherm toont de velden in de volgorde van deze
+# beschrijving, onder de kop van hun `group`. `label` en `help` zeggen hoe een
+# veld heet en wat eronder staat; zonder die twee heet een veld naar zijn naam
+# in het regelwerk. `lines` maakt van een tekstveld een vak van zoveel regels,
+# voor een antwoord van een paar zinnen; zonder is het één regel.
+#
+# Die drie zijn de teksten van het formulier, en dat spreekt wie het invult
+# aan. Een scherm dat een vastgelegd stuk toont, praat óver de indiening: het
+# dossier van de burger, de werkvoorraad en de kroniek van de gemeente. Voor
+# die schermen staan onder `record` dezelfde drie sleutels; wat daar
+# ontbreekt, nemen ze van het formulier over. Een lege `help` onder `record`
+# zet er niets onder: een hulpregel die alleen bij het invullen helpt.
+# `summary: true` onder `record` zet een veld bij de paar gegevens die zo'n
+# scherm bovenaan toont, naast de stand: wat er is aangevraagd. Daaronder
+# staat het dan niet nog eens. `when_true` en `when_false` noemen een ja of
+# nee in woorden: "Aangevraagd" zegt waar het antwoord over gaat, "ja" niet.
+#
+# Een bericht aan de burger, zoals het besluit of de ontvangstbevestiging,
+# is geen element van deze beschrijving: berichten.yaml ernaast zegt welk
+# bericht uit welke vastlegging volgt (BERICHTEN.md).
+elements:
+  - id: UI1
+    element: aanvraagformulier
+    fields:
+      # Awb 4:2, eerste lid, onder c: de aanduiding van de gevraagde
+      # beschikking. Een vaste waarde: dit formulier vraagt altijd dezelfde.
+      # Niet op het formulier; de aanvraag bevat haar wel, en de formulieren
+      # noemen haar herkomst voor een scherm dat de aanvraag toont. Ze staat
+      # vooraan: wat er gevraagd is, gaat voor hoe.
+      - name: gevraagde_beschikking
+        group: Over deze aanvraag
+        visibility: hidden
+        fill: {by: system, value: gehandicaptenparkeerkaart}
+        label: Wat vraagt u aan?
+        record: {label: Gevraagd besluit, summary: true}
+      # De twee keuzes delen het begin van de zin; dat staat één keer in de
+      # kop, zodat elke keuze alleen noemt waarin ze verschilt. Op een scherm
+      # dat de aanvraag toont, staan ze direct onder het gevraagde besluit:
+      # ze zeggen welke kaart er gevraagd is.
+      - name: kaart_als_bestuurder
+        group: Vraag gehandicaptenparkeerkaart aan als
+        label: Bestuurder van de auto
+        record: {group: Over deze aanvraag, label: Kaart als bestuurder, summary: true,
+                 when_true: Aangevraagd, when_false: Niet aangevraagd}
+      - name: kaart_als_passagier
+        group: Vraag gehandicaptenparkeerkaart aan als
+        label: Passagier
+        record: {group: Over deze aanvraag, label: Kaart als passagier, summary: true,
+                 when_true: Aangevraagd, when_false: Niet aangevraagd}
+      - name: naam_aanvrager
+        group: Uw persoonsgegevens
+        visibility: shown
+        fill: {by: system, login: naam}
+        label: Naam
+        record: {group: Aanvrager}
+      - name: bsn_aanvrager
+        group: Uw persoonsgegevens
+        visibility: shown
+        fill: {by: system}
+        label: Burgerservicenummer
+        record: {group: Aanvrager}
+      # De wet vraagt één adres (Awb 4:2, eerste lid, onder a); het scherm
+      # vraagt het in de stukken waarin mensen het kennen. Het formulier voegt
+      # ze in deze volgorde samen tot de ene waarde die de wet kent.
+      #
+      # Het regelwerk laat het adres leeg toe, omdat een aanvraag op papier
+      # onvolledig kan binnenkomen en artikel 4:5 dan zegt wat er volgt. Het
+      # scherm zegt het bij indienen meteen, dus het neemt er geen aan zonder.
+      - name: adres_aanvrager
+        group: Uw persoonsgegevens
+        label: Adres
+        record: {group: Aanvrager}
+        required: true
+        parts:
+          - name: straat_huisnummer
+            label: Straat en huisnummer
+            autocomplete: street-address
+          - name: postcode
+            label: Postcode
+            autocomplete: postal-code
+            # Zo breed als "1234 AB" met het validatiepictogram ernaast, plus
+            # ruimte voor wat de browser in het veld zet (Safari's AutoFill-knop,
+            # het pictogram van een wachtwoordmanager).
+            width: 17ch
+          - name: woonplaats
+            label: Woonplaats
+            autocomplete: address-level2
+      # Awb 4:2, eerste lid, onder b: de dag van indiening, volgens de klok
+      # van de server. Niet op het formulier: zij vraagt niets van de burger
+      # en staat pas vast als de server de aanvraag vastlegt. Het scherm
+      # noemt haar daarna, in de bevestiging. De aanvraag bevat haar wel.
+      - name: dagtekening
+        group: Over deze aanvraag
+        visibility: hidden
+        fill: {by: system, submission: date}
+        label: Dagtekening
+      # Awb 4:2, eerste lid, aanhef: de ondertekening. Geen vinkje: het
+      # fictieve beleid van Wilgendaal, artikel 8, zegt wanneer een
+      # elektronische aanvraag als ondertekend geldt. De server voert dat
+      # artikel uit met het middel waarmee de burger inlogde. Niet op het
+      # scherm, wel in de aanvraag, met dat artikel als herkomst.
+      - name: aanvraag_ondertekend
+        group: Over deze aanvraag
+        visibility: hidden
+        fill:
+          by: system
+          from: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#8#aanvraag_geldt_als_ondertekend
+          parameters: {inlogmiddel: login_method}
+        label: Ondertekend
+        help: >-
+          Een aanvraag die u indient nadat u met DigiD bent ingelogd, geldt als
+          ondertekend.
+        record:
+          help: >-
+            Een aanvraag die na inloggen met DigiD is ingediend, geldt als
+            ondertekend.
+  # Wat een besluit over de termijn zegt. Dezelfde velden staan in het
+  # besluit op de aanvraag (de bezwaartermijn), in de beslissing op bezwaar
+  # (de beroepstermijn) en in het bezwaar dat ze overneemt, dus de namen
+  # passen bij elk van die drie.
+  - id: UI2
+    element: besluit
+    fields:
+      - name: termijn_startdatum
+        label: Begin van de termijn voor bezwaar of beroep
+      # De hulptekst staat onder de laatste dag, en het besluitscherm zet haar
+      # ook bij een te laat bezwaar of beroep: wat Awb 6:11 zegt over een
+      # indiening na afloop van de termijn.
+      - name: termijn_einddatum
+        label: Laatste dag voor bezwaar of beroep
+        help: >-
+          Een later bezwaar of beroep wordt alleen nog behandeld als
+          redelijkerwijs niet kan worden geoordeeld dat de indiener in verzuim
+          is geweest (Awb artikel 6:11).
+      - name: termijn_weken
+        label: Duur van die termijn in weken
+      - name: motivering_vereist
+        label: Het besluit moet gemotiveerd worden
+  # Wat de gemeente na een toekenning vastlegt over de kaart (artikel 5 van
+  # het fictieve beleid over verstrekte kaarten). De dag van elke handeling
+  # is de dag van de klok van de server (in test mode de testklok), en de
+  # ontvangst stelt altijd de postkamer vast: die velden vult het systeem.
+  # Alleen de wijze van uitreiken kiest de medewerker.
+  - id: UI3
+    element: kaart na toekenning
+    fields:
+      - name: datum_bestelling
+        group: De bestelling
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Besteld op
+        help: De dag waarop de gemeente de drukker opdracht gaf de kaart te drukken.
+      - name: datum_ontvangst
+        group: De ontvangst
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Ontvangen op
+        help: De dag waarop de gedrukte kaart bij de gemeente binnenkwam.
+      - name: ontvangst_vastgesteld_door
+        group: De ontvangst
+        visibility: shown
+        fill: {by: system, value: postkamer}
+        label: Vastgesteld door
+        help: De afdeling die de ontvangst vaststelt; dat is altijd de postkamer.
+      - name: datum_uitreiking
+        group: De uitreiking
+        visibility: shown
+        fill: {by: system, submission: date}
+        label: Uitgereikt op
+        help: De dag waarop de gemeente de kaart uitreikte of verstuurde.
+      - name: per_post_verzonden
+        group: De uitreiking
+        label: Per post verzonden
+        help: >-
+          Zet dit aan als de gemeente de kaart per post verstuurt. Uit
+          betekent dat de aanvrager haar aan de balie heeft afgehaald.
+        record:
+          help: >-
+            Nee betekent dat de aanvrager de kaart aan de balie heeft
+            afgehaald.
+  # Het verzoek van de gemeente aan de GGD om een geneeskundig onderzoek
+  # (artikel 9 van het fictieve beleid). Het systeem legt het vast bij een
+  # aanvraag; dossier, werkvoorraad en beheerpaneel tonen deze velden.
+  - id: UI4
+    element: verzoek_geneeskundig_onderzoek
+    fields:
+      - name: datum_verzoek
+        group: Het verzoek
+        label: Dag van het verzoek
+        help: De dag waarop de aanvraag binnenkwam en de gemeente de GGD om een onderzoek vroeg.
+        record: {summary: true}
+      - name: aanvraag
+        group: Het verzoek
+        label: Bij de aanvraag
+        help: De aanvraag waarvoor de gemeente het onderzoek vroeg.
+        record: {summary: true}
+  # De aanvraag om een duplicaat van een kaart die kwijt is (artikel 52 van
+  # het BABW). Burgerservicenummer, naam, dagtekening en ondertekening vult
+  # het systeem zoals bij de aanvraag (UI1); de burger vult de rest.
+  - id: UI5
+    element: kaart kwijt
+    fields:
+      - name: verloren_kaart
+        visibility: hidden
+        fill: {by: system, submission: referred_record}
+        label: Om welke kaart het gaat
+        record: {label: Kaart die kwijt is}
+      - name: datum_vermissing
+        group: Wat er gebeurde
+        label: Wanneer raakte u de kaart kwijt?
+        help: De dag waarop u merkte dat de kaart weg was, als u het niet precies weet.
+        record:
+          label: Kwijtgeraakt op
+          help: >-
+            De dag waarop de aanvrager merkte dat de kaart weg was, als die het
+            niet precies wist.
+      - name: omstandigheden_verlies
+        group: Wat er gebeurde
+        label: Wat is er gebeurd?
+        help: Bijvoorbeeld waar u de kaart voor het laatst had, of dat zij gestolen is.
+        lines: 3
+        record: {label: Wat er gebeurde, help: ''}
+      - name: verklaring_naar_waarheid
+        group: Wat er gebeurde
+        label: Ik verklaar dat de kaart kwijt is en dat ik dit naar waarheid heb ingevuld
+        record: {label: Verklaard naar waarheid}
+  # Wat een medewerker vastlegt over een bericht of een verzoek aan de
+  # burger: de tekst ervan beslaat een paar zinnen, dus het veld ook.
+  - id: UI7
+    element: berichten en verzoeken
+    fields:
+      - name: ontbrekende_gegevens
+        lines: 3
+      - name: inhoud
+        lines: 6
+  # De oordelen die het recht aan een cel laat: wat de beslisser van de
+  # gemeente invult, en wat de GGD en de rechtbank via het beheerpaneel
+  # invullen. Het label blijft het begrip uit het regelwerk; `when_true` en
+  # `when_false` zeggen het antwoord als een uitspraak, zodat wie de
+  # bevindingen scant het antwoord leest zonder de vraag. Zonder die twee
+  # staat er ja of nee.
+  - id: UI6
+    element: oordelen
+    fields:
+      - name: geneeskundig_onderzoek_achterwege_gelaten
+        when_true: Onderzoek achterwege laten
+        when_false: Onderzoek is nog nodig
+      - name: bekend_dat_aanvrager_nog_steeds_voldoet
+        when_true: Aanvrager voldoet nog steeds
+        when_false: Niet bekend of aanvrager nog voldoet
+      - name: keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet
+        when_true: Aanvrager voldoet nog steeds
+        when_false: Aanvrager voldoet niet meer
+      - name: bevoegdheid_tot_verstrekken_gebruikt
+        when_true: Bevoegdheid is gebruikt
+        when_false: Bevoegdheid is niet gebruikt
+      - name: verloren_kaart_is_uitgereikt_en_geldig
+        when_true: Kaart is uitgereikt en geldig
+        when_false: Kaart is niet uitgereikt of niet geldig
+      - name: langdurige_loopbeperking
+        when_true: Aanvrager heeft een langdurige loopbeperking
+        when_false: Aanvrager heeft geen langdurige loopbeperking
+      - name: continu_afhankelijk_van_hulp_bestuurder
+        when_true: Aanvrager is continu afhankelijk van hulp
+        when_false: Aanvrager is niet continu afhankelijk van hulp
+      - name: permanent_rolstoelgebonden
+        when_true: Aanvrager is permanent rolstoelgebonden
+        when_false: Aanvrager is niet permanent rolstoelgebonden
+      - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+        when_true: Aanvrager heeft andere ernstige beperkingen dan loopbeperkingen
+        when_false: Aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen
+      - name: geneeskundig_onderzoek_heeft_plaatsgehad
+        when_true: Onderzoek heeft plaatsgehad
+        when_false: Onderzoek heeft niet plaatsgehad
+      - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+        when_true: Aanvrager heeft eerder een kaart gekregen
+        when_false: Aanvrager heeft niet eerder een kaart gekregen
+      - name: indiener_bezwaarschrift_is_belanghebbende
+        when_true: Indiener is belanghebbende
+        when_false: Indiener is geen belanghebbende
+      - name: indiener_bezwaarschrift_niet_in_verzuim
+        when_true: Indiener is niet in verzuim
+        when_false: Indiener is in verzuim
+      - name: indiener_is_belanghebbende
+        when_true: Indiener is belanghebbende
+        when_false: Indiener is geen belanghebbende
+      - name: indiener_beroepschrift_niet_in_verzuim
+        when_true: Indiener is niet in verzuim
+        when_false: Indiener is in verzuim
+      - name: rechtsregel_geschonden
+        when_true: Er is een rechtsregel geschonden
+        when_false: Er is geen rechtsregel geschonden
+      - name: rechtsgevolgen_in_stand
+        when_true: Rechtsgevolgen blijven in stand
+        when_false: Rechtsgevolgen vervallen
+      - name: uitspraak_treedt_in_de_plaats
+        when_true: Uitspraak treedt in de plaats van het besluit
+        when_false: Uitspraak treedt niet in de plaats van het besluit
+      - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college
+        when_true: Aanvrager heeft eerder een kaart gekregen
+        when_false: Aanvrager heeft niet eerder een kaart gekregen
+      - name: aanvrager_eerder_kaart_verstrekt
+        when_true: Aanvrager heeft eerder een kaart gekregen
+        when_false: Aanvrager heeft niet eerder een kaart gekregen
+      - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
+        when_true: Aanvrager heeft een geldige kaart
+        when_false: Aanvrager heeft geen geldige kaart
+      - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college
+        when_true: Aanvrager heeft een geldige kaart
+        when_false: Aanvrager heeft geen geldige kaart
+      - name: geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
+        when_true: Onderzoek heeft plaatsgehad
+        when_false: Onderzoek heeft niet plaatsgehad
+      - name: verzoek_om_geneeskundig_onderzoek_staat_open
+        when_true: Verzoek om onderzoek loopt nog
+        when_false: Er loopt geen verzoek om onderzoek
+      - name: langdurige_loopbeperking_volgens_college
+        when_true: Aanvrager heeft een langdurige loopbeperking
+        when_false: Aanvrager heeft geen langdurige loopbeperking
+      - name: continu_afhankelijk_van_hulp_bestuurder_volgens_college
+        when_true: Aanvrager is continu afhankelijk van hulp
+        when_false: Aanvrager is niet continu afhankelijk van hulp
+      - name: permanent_rolstoelgebonden_volgens_college
+        when_true: Aanvrager is permanent rolstoelgebonden
+        when_false: Aanvrager is niet permanent rolstoelgebonden
+      - name: ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
+        when_true: Aanvrager heeft andere ernstige beperkingen dan loopbeperkingen
+        when_false: Aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen
+      - name: advies_langdurige_loopbeperking_volgens_college
+        when_true: 'Advies: aanvrager heeft een langdurige loopbeperking'
+        when_false: 'Advies: aanvrager heeft geen langdurige loopbeperking'
+      - name: advies_continu_afhankelijk_van_hulp_bestuurder_volgens_college
+        when_true: 'Advies: aanvrager is continu afhankelijk van hulp'
+        when_false: 'Advies: aanvrager is niet continu afhankelijk van hulp'
+      - name: advies_permanent_rolstoelgebonden_volgens_college
+        when_true: 'Advies: aanvrager is permanent rolstoelgebonden'
+        when_false: 'Advies: aanvrager is niet permanent rolstoelgebonden'
+      - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
+        when_true: 'Advies: aanvrager heeft andere ernstige beperkingen dan loopbeperkingen'
+        when_false: 'Advies: aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen'

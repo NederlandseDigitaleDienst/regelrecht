@@ -806,6 +806,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "concat-kdf"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d72c1252426a83be2092dd5884a5f6e3b8e7180f6891b6263d2c21b92ec8816"
+dependencies = [
+ "digest",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4114,6 +4123,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "regelrecht-fsc4b"
+version = "0.1.0"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.23.1",
+ "concat-kdf",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "regelrecht-github"
 version = "0.1.0"
 dependencies = [
@@ -4289,6 +4312,58 @@ dependencies = [
  "tower-http 0.7.1",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "regelrecht-regelhet"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64 0.23.1",
+ "chrono",
+ "futures",
+ "http-body-util",
+ "regelrecht-auth",
+ "regelrecht-cel",
+ "regelrecht-corpus",
+ "regelrecht-fsc4b",
+ "regelrecht-poc-chronolexografie",
+ "regelrecht-shared",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tower-sessions",
+ "tower-sessions-memory-store",
+ "tower-sessions-sqlx-store",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "regelrecht-regelhet-app"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "regelrecht-fsc4b",
+ "regelrecht-regelhet",
+ "regelrecht-regelhet-app",
+ "reqwest 0.12.28",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

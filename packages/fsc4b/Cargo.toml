@@ -1,0 +1,33 @@
+[package]
+name = "regelrecht-fsc4b"
+version = "0.1.0"
+edition.workspace = true
+authors = ["MinBZK <noreply@minbzk.nl>"]
+description = "The protocol side of FSC voor Burgers that a server and an app share: the JOSE formats, the names on the wire, and a client of the protocol"
+license = "EUPL-1.2"
+repository = "https://github.com/NederlandseDigitaleDienst/regelrecht"
+publish = false
+
+[dependencies]
+# ES256, ECDH-ES and AES-256-GCM from aws-lc-rs, the library rustls and sqlx
+# already link, so an image carries no second cryptographic backend; the
+# Concat KDF of RFC 7518 §4.6.2 from RustCrypto; base64 and SHA-256 for the
+# JOSE encodings and the JWK thumbprint.
+aws-lc-rs = { version = "1.18", default-features = false, features = ["aws-lc-sys", "alloc"] }
+concat-kdf = "0.1"
+base64.workspace = true
+sha2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# The client (src/client.rs) speaks HTTP; the version the RegelHet server
+# uses, without a TLS provider of its own: whoever uses the client brings one.
+reqwest = { version = "0.12", default-features = false, features = ["json"], optional = true }
+
+[features]
+# The client of the protocol, for the end-to-end tests of the server and for
+# the app (packages/regelhet-app). The server itself does not need it.
+client = ["dep:reqwest"]
+
+[lints]
+workspace = true

@@ -89,6 +89,22 @@ articles:
             actions:
               - output: duur_maanden
                 value: 0
+        # Onderdeel b en het tweede lid: de verordening over de individuele
+        # inkomenstoeslag regelt in ieder geval de hoogte en de invulling van
+        # "langdurig" en "laag inkomen" (artikel 36, eerste lid). Zonder
+        # verordening is er geen invulling; daarom geen default.
+        - id: heeft_langdurig_laag_inkomen
+          type: boolean
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 8 lid 1 onderdeel b en lid 2 Participatiewet
+        - id: hoogte_individuele_inkomenstoeslag
+          type: amount
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 8 lid 1 onderdeel b en lid 2 Participatiewet
       execution:
         parameters:
           - name: gemeente_code
@@ -102,11 +118,29 @@ articles:
           - name: duur_maanden
             type: number
             description: Duur van de verlaging in maanden uit gemeentelijke afstemmingsverordening
+          - name: heeft_langdurig_laag_inkomen
+            type: boolean
+            nullable: true
+            description: >-
+              Of de persoon een langdurig laag inkomen heeft, zoals de gemeentelijke verordening over de
+              individuele inkomenstoeslag dat invult (onderdeel b, tweede lid)
+          - name: hoogte_individuele_inkomenstoeslag
+            type: amount
+            nullable: true
+            type_spec:
+              unit: eurocent
+            description: >-
+              De hoogte van de individuele inkomenstoeslag volgens de gemeentelijke verordening (onderdeel b,
+              tweede lid)
         actions:
           - output: verlaging_percentage
             value: $verlaging_percentage
           - output: duur_maanden
             value: $duur_maanden
+          - output: heeft_langdurig_laag_inkomen
+            value: $heeft_langdurig_laag_inkomen
+          - output: hoogte_individuele_inkomenstoeslag
+            value: $hoogte_individuele_inkomenstoeslag
 
   - number: '11'
     text: |-
@@ -229,8 +263,14 @@ articles:
       definitions:
         norm_alleenstaande:
           value: 109171
+          type: amount
+          type_spec:
+            unit: eurocent
         norm_gehuwden:
           value: 155958
+          type: amount
+          type_spec:
+            unit: eurocent
       execution:
         produces:
           legal_character: WAARDEBEPALING
@@ -257,6 +297,13 @@ articles:
             required: false
             description: 'Heeft AOW-leeftijd bereikt (bron: AOW)'
         output:
+          # Onderdeel b afzonderlijk: gemeentelijke regelingen rekenen met
+          # "de gehuwdennorm als bedoeld in artikel 21 onderdeel b", los van
+          # de leefvorm van wie het betreft.
+          - name: norm_gehuwden_artikel_21
+            type: amount
+            type_spec:
+              unit: eurocent
           - name: normbedrag_artikel_21
             type: amount
             type_spec:
@@ -278,6 +325,8 @@ articles:
                 - operation: EQUALS
                   subject: $heeft_pensioengerechtigde_leeftijd_bereikt
                   value: false
+          - output: norm_gehuwden_artikel_21
+            value: $norm_gehuwden
           # Calculate the norm based on household type
           - output: normbedrag_artikel_21
             value:

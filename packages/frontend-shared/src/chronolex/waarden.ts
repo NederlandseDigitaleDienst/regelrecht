@@ -1,7 +1,7 @@
 /**
  * Values of the chronolexografie kern in words, for the apps that run its
  * steps: the poc (packages/poc-chronolexografie/frontend) and the
- * wetsprocessysteem (frontend-wetsproces). A name from the law, a yes or no,
+ * RegelHet (frontend-regelhet). A name from the law, a yes or no,
  * a decimal as a chronolexogram holds it, an unknown value (RFC-036), and a
  * decision held as a value.
  */
@@ -12,6 +12,9 @@ export const leesbaar = (naam: unknown): string => String(naam).replaceAll('_', 
 
 /** `verlof verleend` → `Verlof verleend`. */
 export const hoofdletter = (tekst: string): string => tekst.charAt(0).toUpperCase() + tekst.slice(1);
+
+/** `Verlof verleend` → `verlof verleend`, to go on within a sentence; an abbreviation such as `BSN` keeps its capitals. */
+export const kleineLetter = (tekst: string): string => (/^[A-Z][a-z]/.test(tekst) ? tekst.charAt(0).toLowerCase() + tekst.slice(1) : tekst);
 
 /** Regelwerken that go by their abbreviation everywhere. */
 const AFKORTINGEN: Record<string, string> = {

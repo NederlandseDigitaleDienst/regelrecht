@@ -1,0 +1,9 @@
+{
+  "regelhets": [
+    {
+      "id": "parkeerkaart-wilgendaal",
+      "naam": "Gehandicaptenparkeerkaart, gemeente Wilgendaal",
+      "adres": "http://localhost:7180"
+    }
+  ]
+}

@@ -213,6 +213,22 @@ nldd-slots:
 nldd-slots-test:
     node --test script/nldd-slots.test.mjs
 
+# The console wizards of the Fundament plugin against its CRDs. The CRD test
+# reads the CRDs with js-yaml from the npm workspace. The Pre-commit job in CI
+# runs without `npm ci`, so there it skips and says so; Frontend tests, which
+# has the workspace installed, runs the tests without this recipe.
+[doc("Check the Fundament plugin's console wizards against its CRDs")]
+fundament-plugin-console-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d node_modules/js-yaml ]; then
+      echo "js-yaml is not installed (no npm ci): skipped here; the Frontend tests job runs these tests."
+      exit 0
+    fi
+    node --test packages/fundament-plugin/console-test/regelhets-body.test.js \
+      packages/fundament-plugin/console-test/organisaties-body.test.js \
+      packages/fundament-plugin/console-test/crd-conformance.test.js
+
 # A test that runs nowhere stays green because it never starts. This guard
 # reads what CI runs (workflow steps, pre-commit hooks, and the recipes and npm
 # scripts they reach) and fails on a test outside it, a crate no `cargo test`
@@ -306,10 +322,11 @@ check: format lint build-check validate validate-annotations deploy-filters-test
 
 # Crates with testcontainers-backed suites. Enumerates the exceptions, not the
 # members: a new crate is covered by --workspace. The list is exactly the crates
-# that dev-depend on regelrecht-pipeline/test-utils:
-#   grep -l 'regelrecht-pipeline.*test-utils' packages/*/Cargo.toml
-db_crates_exclude := "--exclude regelrecht-pipeline --exclude regelrecht-editor-api --exclude regelrecht-admin"
-db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admin"
+# that dev-depend on a `test-utils` feature that starts Postgres
+# (regelrecht-pipeline's, or regelrecht-shared's underneath it):
+#   grep -lE '(regelrecht-pipeline|regelrecht-shared).*test-utils' packages/*/Cargo.toml
+db_crates_exclude := "--exclude regelrecht-pipeline --exclude regelrecht-editor-api --exclude regelrecht-admin --exclude regelrecht-regelhet"
+db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admin -p regelrecht-regelhet"
 
 # Every recipe below is ONE cargo invocation, and that is load-bearing. Cargo
 # unifies features over the selected packages, so two invocations with different
@@ -1081,6 +1098,92 @@ poc: poc-build
     POC_STATIC_DIR="$(pwd)/.poc-static" \
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
+
+# Run RegelHet locally in test mode (packages/regelhet): the
+# chronicles in memory, the test login at POST /auth/testlogin, and the clock
+# set by an admin with PUT /api/backoffice/klok. Binds to 0.0.0.0;
+# REGELHET_PORT picks another port. With REGELHET_STORE=postgres and
+# DATABASE_URL the chronicles stay in Postgres; with the OIDC_* variables the
+# login goes through Keycloak instead. It serves both sides on one address
+# (REGELHET_SURFACE=all); set REGELHET_SURFACE=burger or backoffice, each
+# on its own port, to run the two environments apart on one database.
+regelhet:
+    REGELHET_MODE=test REGELHET_PORT="${REGELHET_PORT:-7180}" \
+    cargo run --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+
+# The individuele inkomenstoeslag of Groningen as a second case of the
+# RegelHet, beside the parking card, on http://localhost:7181. The
+# case, its profiles and the demo route are in
+# packages/regelhet/iit-groningen/README.md.
+regelhet-iit:
+    REGELHET_MODE=test REGELHET_PORT="${REGELHET_PORT:-7181}" \
+    REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml \
+    cargo run --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+
+# Whether the case of a manifest starts, without starting a server: the
+# check loads it as the server does at start, in test mode with the store in
+# memory, and prints what the case is about or why it does not start (exit
+# code 1). `just regelhet-check packages/regelhet/iit-groningen/bron.yaml`.
+regelhet-check manifest="packages/regelhet/bron.yaml" case="":
+    cargo run --quiet --manifest-path packages/Cargo.toml --package regelrecht-regelhet -- check "{{manifest}}" {{case}}
+
+# The kern of the citizen's app in the browser as WebAssembly
+# (frontend-regelhet, `--mode burgerapp`): the cell, the engine and the game
+# of packages/poc-chronolexografie, into frontend-regelhet/burgerapp/wasm/pkg.
+# The build of the app stops with a clear message without it.
+burgerapp-wasm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bindgen=$({{just_executable()}} wasm-bindgen-cli)
+    cargo build --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --features wasm --target wasm32-unknown-unknown --release --target-dir packages/target
+    "$bindgen" --target web --out-dir frontend-regelhet/burgerapp/wasm/pkg packages/target/wasm32-unknown-unknown/release/regelrecht_poc_chronolexografie.wasm
+
+# The citizen's own app in the browser, on the Vite dev server at
+# http://localhost:7150/burger.html. It talks to the RegelHets in
+# frontend-regelhet/burgerapp/regelhets.json: by default `just regelhet` on
+# port 7180, which needs FSC voor Burgers in test mode and this origin in
+# REGELHET_FSC4B_ORIGINS. See docs, components/burgerapp.
+burgerapp: burgerapp-wasm
+    npm run dev -w frontend-regelhet -- --mode burgerapp
+
+# An organisation in front of two processes, in test mode: the parking card
+# on http://localhost:7184, the IIT of Groningen on :7185, and the front of the
+# organisation (REGELHET_ROL=organisatie) on both sides at
+# http://localhost:7186. The processes fetch the front's key from it. Log in
+# at the front and a tile opens a process without a second login. A browser
+# keeps cookies per host, not per port, so the tiles lead to 127.0.0.1: the
+# front's session on localhost stays apart from the processes'. Stop all
+# three with Ctrl-C. Build the screens first (`npm run build -w
+# frontend-regelhet`) to see them.
+regelhet-organisatie:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --manifest-path packages/Cargo.toml --package regelrecht-regelhet
+    dir="$(mktemp -d)"
+    cat > "$dir/processen.yaml" <<YAML
+    processen:
+      - id: lokaal/parkeerkaart
+        naam: parkeerkaart
+        burger: { intern: 'http://localhost:7184', publiek: 'http://127.0.0.1:7184' }
+        backoffice: { intern: 'http://localhost:7184', publiek: 'http://127.0.0.1:7184' }
+      - id: lokaal/iit-groningen
+        naam: iit-groningen
+        burger: { intern: 'http://localhost:7185', publiek: 'http://127.0.0.1:7185' }
+        backoffice: { intern: 'http://localhost:7185', publiek: 'http://127.0.0.1:7185' }
+    YAML
+    trap 'kill 0' EXIT
+    run=(cargo run -q --manifest-path packages/Cargo.toml --package regelrecht-regelhet)
+    member=(REGELHET_MODE=test REGELHET_ORGANISATIE_ID=lokaal/wilgendaal \
+      "REGELHET_ORGANISATIE_NAAM=Gemeente Wilgendaal" \
+      REGELHET_ORGANISATIE_URL=http://localhost:7186 \
+      REGELHET_ORGANISATIE_SLEUTEL_URL=http://localhost:7186/organisatie/v1/sleutel)
+    env "${member[@]}" REGELHET_PORT=7184 REGELHET_PROCES_ID=lokaal/parkeerkaart "${run[@]}" &
+    env "${member[@]}" REGELHET_PORT=7185 REGELHET_PROCES_ID=lokaal/iit-groningen \
+      REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml "${run[@]}" &
+    env REGELHET_MODE=test REGELHET_ROL=organisatie REGELHET_PORT=7186 \
+      REGELHET_ORGANISATIE_ID=lokaal/wilgendaal "REGELHET_ORGANISATIE_NAAM=Gemeente Wilgendaal" \
+      REGELHET_PROCESSEN="$dir/processen.yaml" "${run[@]}" &
+    wait
 
 # Start de wetsgeschiedenis los, op http://localhost:8420/wetsgeschiedenis/
 #

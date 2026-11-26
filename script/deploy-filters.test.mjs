@@ -363,3 +363,35 @@ test('een Dockerfile raakt alleen de images die hem gebruiken', () => {
   assert.equal(source.editor, true);
   assert.equal(source.admin, true);
 });
+
+test('regelhet volgt zijn eigen map, de kern van de poc en het corpus dat zijn manifest noemt', () => {
+  for (const pad of [
+    'packages/regelhet/src/service.rs',
+    'packages/regelhet/bron.yaml',
+    'packages/regelhet/casussen/gehandicaptenparkeerkaart.yaml',
+    'packages/regelhet/Dockerfile',
+    'packages/poc-chronolexografie/src/kern.rs',
+    'packages/poc-chronolexografie/corpus/cells/gemeente_wilgendaal/cel.yaml',
+    'packages/cel/src/cell.rs',
+    'packages/corpus/src/source_manifest.rs',
+    'frontend-regelhet/src/App.vue',
+    'packages/frontend-shared/src/chronolex/voorinvulling.ts',
+  ]) {
+    assert.equal(namesOf([pad]).regelhet, true, pad);
+  }
+
+  // De frontend van de poc zit niet in het image, maar ligt in de map van de
+  // crate; een te ruime build is hier de goedkope kant.
+  assert.equal(namesOf(['packages/poc-chronolexografie/frontend/src/App.vue']).regelhet, true);
+
+  // Het portaal, de demo en het regelrecht-corpus raken het niet.
+  assert.equal(namesOf(['packages/poc-portal/src/app.rs']).regelhet, false);
+  assert.equal(namesOf(['frontend-demo/src/App.vue']).regelhet, false);
+  assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).regelhet, false);
+
+  // Een wijziging in alleen RegelHet raakt geen ander image.
+  const alleen = namesOf(['packages/regelhet/src/api.rs']);
+  for (const naam of allComponents.filter((n) => n !== 'regelhet')) {
+    assert.equal(alleen[naam], false, naam);
+  }
+});

@@ -1,0 +1,98 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: reductie_verleende_iit
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de gemeente Groningen
+# over zijn eigen kroniek, per besluit op een aanvraag om individuele
+# inkomenstoeslag (artikel 36 van de Participatiewet). Zo weet de gemeente of
+# zij de aanvrager in de twaalf maanden voor een nieuwe aanvraag al een toeslag
+# verleende (artikel 36, derde lid).
+# Beperking: alleen het besluit zelf telt. Een beslissing op bezwaar die het
+# herroept of een uitspraak die het vernietigt, verwerkt deze reductie niet;
+# de reductie van de parkeerkaart laat zien hoe dat moet (Awb 7:11 en 8:79).
+url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+name: Verleende individuele inkomenstoeslag bij de gemeente Groningen (reductie)
+articles:
+  - number: besluit
+    text: >-
+      Geen regelgeving. Het systeem van het college van de gemeente Groningen
+      houdt door middel van een chronolexografische reductie op zijn eigen
+      kroniek per besluit op een aanvraag om individuele inkomenstoeslag bij of
+      het de toeslag verleent, en op welke dag het werd genomen.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      projection:
+        per: participatiewet#36#BESCHIKKING
+        state:
+          - name: verleend
+            type: boolean
+          - name: besluit_datum
+            type: date
+        steps:
+          - record: participatiewet#36#BESCHIKKING
+            actions:
+              - output: verleend
+                value: $record.individuele_inkomenstoeslag_verleend
+              - output: besluit_datum
+                value: $record.besluit_datum
+  - number: in_twaalf_maanden_voor_aanvraag_verleend
+    text: >-
+      Geen regelgeving. Het systeem van het college kijkt door middel van een
+      chronolexografische reductie op zijn eigen kroniek of het de aanvrager in
+      de periode van twaalf maanden onmiddellijk voorafgaande aan de aanvraag
+      een individuele inkomenstoeslag verleende: een besluit dat de toeslag
+      verleent, genomen op of na de dag twaalf maanden voor de dagtekening en
+      vóór de dagtekening.
+    url: https://wetten.overheid.nl/BWBR0015703/2026-01-01#Artikel36
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+        input:
+          - name: besluiten
+            type: array
+            source:
+              projections: reductie_verleende_iit#besluit
+              where:
+                bsn_aanvrager: $bsn_aanvrager
+        output:
+          - name: in_twaalf_maanden_voor_aanvraag_verleend
+            type: boolean
+            description: Of de gemeente de aanvrager in de twaalf maanden voor de aanvraag een toeslag verleende.
+        actions:
+          # Eigen keuze bij lid 3: de twaalf maanden lopen tot de dagtekening,
+          # de dag zelf niet meegerekend, en de dag van het besluit telt als
+          # de dag van verlening (dossier iit-groningen, N3).
+          - output: in_twaalf_maanden_voor_aanvraag_verleend
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $dagtekening, value: null}
+                  then: false
+              default:
+                operation: FOREACH
+                collection: $besluiten
+                as: b
+                filter:
+                  operation: AND
+                  conditions:
+                    - $b.verleend
+                    - operation: GREATER_THAN_OR_EQUAL
+                      subject: $b.besluit_datum
+                      value:
+                        operation: DATE_ADD
+                        date: $dagtekening
+                        months: -12
+                    - operation: LESS_THAN
+                      subject: $b.besluit_datum
+                      value: $dagtekening
+                body: true
+                combine: OR

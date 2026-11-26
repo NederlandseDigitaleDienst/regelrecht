@@ -1,0 +1,33 @@
+---
+# Het RegelHet van deze instantie: de individuele inkomenstoeslag van de
+# gemeente Groningen (artikel 36 van de Participatiewet), met de verordening
+# en de beleidsregels van Groningen en de Awb-keten van aanvraag, bezwaar en
+# beroep. De verordening en de beleidsregels staan in het corpus van fieldlab
+# (dossier iit-groningen); de Participatiewet is een uittreksel per
+# 2026-01-01 in deze map, het uitvoeringsbeleid en de cel zijn fictief.
+#
+# Draaien, naast de parkeerkaart:
+#   REGELHET_MANIFEST=packages/regelhet/iit-groningen/bron.yaml \
+#   REGELHET_PORT=7181 just regelhet
+cel: gemeente_groningen
+artikel: participatiewet#36
+corpus:
+  - regulation/nl/wet/participatiewet
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - regulation/nl/gemeentelijke_verordening/groningen/verordening_individuele_inkomenstoeslag_participatiewet
+  - regulation/nl/beleidsregel/groningen/beleidsregels_individuele_inkomenstoeslag_participatiewet
+  - regulation/nl/uitvoeringsbeleid/beleid_iit_gemeente_groningen
+# De uitvoer die zegt of het besluit het gevraagde toewijst.
+uitkomst: individuele_inkomenstoeslag_verleend
+titel: Individuele inkomenstoeslag
+cel_naam: gemeente Groningen
+# De dag waarop de bestuurbare klok in test mode begint. De normen van het
+# fictieve beleid (artikel 2) lopen tot en met 2026.
+speeldatum: 2026-10-13
+voorbeeld: {}
+# De bestuursrechter, met een eigen kroniek (RFC-053), voor beroep tegen een
+# beslissing op bezwaar. Een simulatie; geen cel van Wilgendaal.
+andere_cellen:
+  - cel: rechtbank_noord_nederland
+    cel_naam: Rechtbank Noord-Nederland
+scenarios: []

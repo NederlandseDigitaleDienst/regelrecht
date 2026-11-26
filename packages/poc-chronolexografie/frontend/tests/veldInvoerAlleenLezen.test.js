@@ -34,9 +34,9 @@ describe('VeldInvoer alleen-lezen', () => {
     expect(el.querySelector('nldd-date-field').hasAttribute('readonly')).toBe(true);
   });
 
-  it('disables a switch the system fills', async () => {
+  it('disables a checkbox the system fills', async () => {
     await mount({ naam: 'elektronisch', type: 'boolean' }, true, true);
-    expect(el.querySelector('nldd-switch-field').hasAttribute('disabled')).toBe(true);
+    expect(el.querySelector('nldd-checkbox-field').hasAttribute('disabled')).toBe(true);
   });
 
   it('shows a table the system fills without its buttons', async () => {

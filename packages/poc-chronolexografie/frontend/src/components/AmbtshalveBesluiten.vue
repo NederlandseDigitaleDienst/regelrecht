@@ -78,7 +78,7 @@ const genomen = computed(() => artikelen.value.flatMap((a) => besluitenOnder(a))
             </select>
           </nldd-dropdown>
         </nldd-form-field>
-        <nldd-text size="sm" color="secondary"><ArtikelLink :basis="artikel" /></nldd-text>
+        <nldd-text size="sm" color="secondary"><p><ArtikelLink :basis="artikel" /></p></nldd-text>
         <nldd-form-field label="Over besluit" supporting-label="Het besluit waarover dit besluit gaat, of geen" optional>
           <nldd-dropdown>
             <select :value="over(artikel)" @change="keuze.over[artikel] = $event.target.value">
@@ -108,7 +108,7 @@ const genomen = computed(() => artikelen.value.flatMap((a) => besluitenOnder(a))
           :text="`Besluit ${kort(g.id)}`"
           :supporting-text="`ambtshalve genomen op ${longDate(g.recorded_on)}${g.refers_to ? ` · over besluit ${kort(g.refers_to)}` : ''}`"
         ></nldd-title>
-        <nldd-text size="sm" color="secondary"><ArtikelLink :basis="g.basis" :datum="g.recorded_on" /></nldd-text>
+        <nldd-text size="sm" color="secondary"><p><ArtikelLink :basis="g.basis" :datum="g.recorded_on" /></p></nldd-text>
         <nldd-list appearance="box-base">
           <nldd-list-item v-for="(w, naam) in g.outputs ?? {}" :key="naam" size="sm">
             <nldd-text-cell :text="leesbaar(naam)"></nldd-text-cell>

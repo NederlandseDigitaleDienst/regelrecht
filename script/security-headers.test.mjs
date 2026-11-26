@@ -29,14 +29,15 @@ const SHARED = read(SHARED_PATH);
 
 // Zoeken in plaats van opsommen: een derde site die zijn eigen nginx.conf
 // meebrengt hoort onder dezelfde eisen te vallen zonder dat iemand hem hier
-// toevoegt.
+// toevoegt. Een `nginx.conf.template` telt mee: het image van nginx vult er bij
+// het starten omgevingsvariabelen in, verder is het dezelfde configuratie.
 function findNginxConfigs(dir = '', found = []) {
   const skip = new Set(['node_modules', '.git', 'target', 'dist', '.worktrees']);
   for (const entry of readdirSync(join(root, dir))) {
     if (skip.has(entry) || entry.startsWith('.')) continue;
     const rel = dir ? `${dir}/${entry}` : entry;
     if (statSync(join(root, rel)).isDirectory()) findNginxConfigs(rel, found);
-    else if (entry === 'nginx.conf') found.push(rel);
+    else if (entry === 'nginx.conf' || entry === 'nginx.conf.template') found.push(rel);
   }
   return found;
 }
@@ -175,7 +176,7 @@ test('elk nginx-image kopieert het gedeelde bestand mee', () => {
   for (const site of Object.keys(NGINX_SITES)) {
     // Zonder de COPY faalt nginx pas bij containerstart op de ontbrekende
     // include, dus in deploy-preview in plaats van hier.
-    const dockerfile = read(`${site.replace(/\/nginx\.conf$/, '')}/Dockerfile`);
+    const dockerfile = read(`${site.replace(/\/nginx\.conf(\.template)?$/, '')}/Dockerfile`);
     assert.ok(
       dockerfile.includes(`COPY ${SHARED_PATH} ${SHARED_TARGET}`),
       `${site}: de Dockerfile kopieert ${SHARED_PATH} niet`,

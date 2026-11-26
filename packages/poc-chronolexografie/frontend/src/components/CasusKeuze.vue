@@ -68,7 +68,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
 <template>
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Voor de demo">
-      <nldd-text slot="supporting-text">Eerst de presentatie, dan de demoscenario's.</nldd-text>
+      <nldd-text slot="supporting-text"><p>Eerst de presentatie, dan de demoscenario's.</p></nldd-text>
     </nldd-title>
     <nldd-container gap="16">
       <nldd-button-bar>
@@ -90,7 +90,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
             <nldd-title size="display-5" heading-level="3" :overline="`Demo ${i + 1} · ${d.titel}`" :text="d.guide.name"></nldd-title>
           </nldd-container>
           <nldd-container padding="16">
-            <nldd-text>{{ d.guide.summary }}</nldd-text>
+            <nldd-text><p>{{ d.guide.summary }}</p></nldd-text>
           </nldd-container>
           <nldd-container slot="footer" padding="16">
             <nldd-button
@@ -106,9 +106,11 @@ const kies = (c) => navigate(() => kiezen(c.id));
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Kies een casus">
       <nldd-text slot="supporting-text">
-        Elke casus is een aanvraag, het besluit erop en het bezwaar ertegen, bij een verzonnen
-        uitvoerder. De cel legt elke stap vast in haar kroniek en leest die terug bij een volgend
-        besluit. Welke regels meelopen, volgt uit het artikel van de casus.
+        <p>
+          Elke casus is een aanvraag, het besluit erop en het bezwaar ertegen, bij een verzonnen
+          uitvoerder. De cel legt elke stap vast in haar kroniek en leest die terug bij een volgend
+          besluit. Welke regels meelopen, volgt uit het artikel van de casus.
+        </p>
       </nldd-text>
     </nldd-title>
     <nldd-container v-if="meldingen.length" gap="12" padding-bottom="16">
@@ -119,7 +121,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
         :text="m.tekst"
         supporting-text="De andere casussen werken gewoon."
       >
-        <nldd-text v-for="r in m.regels" :key="r" size="sm" color="secondary" lang="en">{{ r }}</nldd-text>
+        <nldd-text v-for="r in m.regels" :key="r" size="sm" color="secondary" lang="en"><p>{{ r }}</p></nldd-text>
       </nldd-banner>
     </nldd-container>
     <nldd-collection layout="grid" item-min-width="320px">

@@ -379,7 +379,7 @@ export const longDate = (iso) =>
   });
 
 // Names, yes-or-no, decimals, decisions held as a value and their words are
-// shared with the wetsprocessysteem (@regelrecht/frontend-shared/chronolex).
+// shared with RegelHet (@regelrecht/frontend-shared/chronolex).
 export {
   hoofdletter,
   isBesluitwaarde,

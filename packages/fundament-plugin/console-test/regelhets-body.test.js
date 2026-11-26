@@ -1,0 +1,376 @@
+// What the wizard builds: the RegelHet and the Secret of a private
+// repository, and the checks that say what is wrong before the API server
+// refuses it. Run with `node --test packages/fundament-plugin/console-test/*.test.js`.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+  ACCENT_COLORS,
+  addresses,
+  buildSecret,
+  buildRegelHet,
+  fsc4bDiscoveryUrl,
+  fsc4bOrigins,
+  fsc4bOriginsError,
+  keycloakSecretName,
+  commitError,
+  failureAdvice,
+  hostnameError,
+  pathError,
+  phaseBadge,
+  refError,
+  repoUrlError,
+  titleError,
+  casusError,
+  partyChoices,
+  partijReference,
+  partijText,
+  partyAccentColor,
+} from '../console/regelhets-body.js';
+
+const base = {
+  namespace: 'tnt-voorbeeld--regelhet',
+  hostname: 'zorgtoeslag',
+  repoUrl: 'https://git.example.org/casus/a.git',
+  ref: '',
+  path: '',
+  privateRepo: false,
+  version: '',
+  accentColor: '',
+};
+
+test('a public casus on the latest version leaves out what the plugin defaults', () => {
+  const w = buildRegelHet(base);
+  assert.deepEqual(w, {
+    apiVersion: 'regelhet.regelrecht.nl/v1alpha1',
+    kind: 'RegelHet',
+    metadata: { name: 'zorgtoeslag', namespace: 'tnt-voorbeeld--regelhet' },
+    spec: {
+      manifest: { repoUrl: 'https://git.example.org/casus/a.git', ref: 'main', path: 'bron.yaml' },
+      hostname: 'zorgtoeslag',
+    },
+  });
+});
+
+test('a private casus names its Secret, and the Secret is owned by the RegelHet', () => {
+  const w = buildRegelHet({ ...base, privateRepo: true, version: 'a'.repeat(40), accentColor: 'paars' });
+  assert.deepEqual(w.spec.manifest.credentialsSecretRef, { name: 'zorgtoeslag-repo' });
+  assert.equal(w.spec.version, 'a'.repeat(40));
+  assert.deepEqual(w.spec.theme, { accentColor: 'paars' });
+
+  const made = { ...w, metadata: { ...w.metadata, uid: 'uid-1' } };
+  const secret = buildSecret(made, { username: 'lezer', token: 't0k3n' });
+  assert.equal(secret.metadata.name, 'zorgtoeslag-repo');
+  assert.equal(secret.metadata.namespace, 'tnt-voorbeeld--regelhet');
+  assert.deepEqual(secret.metadata.ownerReferences, [
+    { apiVersion: 'regelhet.regelrecht.nl/v1alpha1', kind: 'RegelHet', name: 'zorgtoeslag', uid: 'uid-1' },
+  ]);
+  assert.deepEqual(secret.stringData, { username: 'lezer', token: 't0k3n' });
+  // The token is for the one copy of the casus: the plugin deletes it after.
+  assert.deepEqual(secret.metadata.annotations, { 'regelhet.regelrecht.nl/delete-after-snapshot': 'true' });
+});
+
+test('an own domain names the object after its first label', () => {
+  const w = buildRegelHet({ ...base, hostname: 'zorg.example.nl' });
+  assert.equal(w.metadata.name, 'zorg');
+  assert.deepEqual(addresses('zorg.example.nl'), {
+    burger: 'zorg.example.nl',
+    medewerkers: 'medewerkers.zorg.example.nl',
+    login: 'zorg-login.example.nl',
+  });
+  assert.deepEqual(addresses('zorgtoeslag', 'c.example.org'), {
+    burger: 'zorgtoeslag.c.example.org',
+    medewerkers: 'zorgtoeslag-medewerkers.c.example.org',
+    login: 'zorgtoeslag-login.c.example.org',
+  });
+});
+
+test('the checks refuse what the CRD and the plugin refuse', () => {
+  assert.equal(repoUrlError('https://git.example.org/a.git'), null);
+  assert.ok(repoUrlError('http://git.example.org/a.git'));
+  assert.ok(repoUrlError('https://user:pw@git.example.org/a.git'));
+  assert.equal(refError(''), null);
+  assert.ok(refError('refs/heads/main'));
+  assert.ok(refError('-main'));
+  assert.equal(pathError('packages/regelhet/bron.yaml'), null);
+  assert.ok(pathError('../bron.yaml'));
+  assert.equal(commitError('0123456789abcdef0123456789abcdef01234567'), null);
+  assert.ok(commitError('0123456'));
+  assert.equal(hostnameError('zorgtoeslag'), null);
+  assert.equal(hostnameError('zorg.example.nl'), null);
+  assert.ok(hostnameError('Zorgtoeslag'));
+  assert.ok(hostnameError('a'.repeat(51)), 'with -medewerkers a label passes 63');
+  assert.ok(hostnameError(''));
+});
+
+test('the accent colours are the ones the CRD allows', () => {
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  const block = crd.slice(crd.indexOf('accentColor:'), crd.indexOf('type: string', crd.indexOf('accentColor:')));
+  const allowed = [...block.matchAll(/^\s+- (\S+)$/gm)].map((m) => m[1]).filter((v) => v !== '""');
+  assert.deepEqual(allowed, ACCENT_COLORS);
+});
+
+test('the badge follows the phase', () => {
+  assert.equal(phaseBadge({ status: { phase: 'Ready' } }).color, 'success');
+  assert.equal(phaseBadge({ status: { phase: 'Failed' } }).color, 'critical');
+  assert.equal(phaseBadge({}).text, 'Bezig');
+});
+
+test('stable mode asks for the Keycloak of the chart; test mode says nothing', () => {
+  assert.equal(buildRegelHet(base).spec.auth, undefined);
+  const w = buildRegelHet({ ...base, stable: true, testAccounts: true });
+  assert.deepEqual(w.spec.auth, { mode: 'stable', testAccounts: true });
+  assert.deepEqual(buildRegelHet({ ...base, stable: true }).spec.auth, { mode: 'stable', testAccounts: false });
+  assert.equal(keycloakSecretName('zorgtoeslag'), 'zorgtoeslag-keycloak');
+});
+
+test('FSC voor Burgers is in the spec only when chosen, and never in stable mode', () => {
+  assert.equal(buildRegelHet(base).spec.fsc4b, undefined);
+  assert.deepEqual(buildRegelHet({ ...base, fsc4b: true }).spec.fsc4b, { enabled: true });
+  assert.equal(buildRegelHet({ ...base, fsc4b: true, stable: true }).spec.fsc4b, undefined);
+});
+
+test('the browser apps of FSC voor Burgers go in the spec with it, and only origins pass the check', () => {
+  const origins = ['https://burgerapp.cluster-a.fieldlab2026.nl', 'http://localhost:7150'];
+  assert.deepEqual(buildRegelHet({ ...base, fsc4b: true, fsc4bOrigins: origins }).spec.fsc4b, { enabled: true, origins });
+  assert.equal(buildRegelHet({ ...base, fsc4bOrigins: origins }).spec.fsc4b, undefined);
+  assert.deepEqual(fsc4bOrigins(' https://a.example.org,\nhttp://localhost:7150  '), ['https://a.example.org', 'http://localhost:7150']);
+  assert.equal(fsc4bOriginsError(''), null);
+  assert.equal(fsc4bOriginsError('https://a.example.org:8443, http://127.0.0.1'), null);
+  for (const fout of ['http://a.example.org', 'https://a.example.org/', 'https://a.example.org/app', '*']) {
+    assert.match(fsc4bOriginsError(fout), /geen herkomst/, fout);
+  }
+});
+
+test('the discovery URL of FSC voor Burgers is on the citizens\' host', () => {
+  assert.equal(fsc4bDiscoveryUrl('a', 'cluster.example.org'), 'https://a.cluster.example.org/fsc4b/discovery');
+  assert.equal(fsc4bDiscoveryUrl('zorg.example.nl'), 'https://zorg.example.nl/fsc4b/discovery');
+});
+
+// Two procedures of one project: a municipality whose case asks the GGD
+// and the court something, the GGD already running for it as a procedure of
+// its own, and one that is a party itself.
+const procedures = [
+  {
+    metadata: { name: 'parkeerkaart', namespace: 'tnt-voorbeeld--regelhet' },
+    spec: { title: 'Gehandicaptenparkeerkaart' },
+    status: {
+      askedParties: [
+        { cell: 'ggd_wilgendaal', name: 'GGD Wilgendaal' },
+        { cell: 'rechtbank', name: 'Rechtbank' },
+      ],
+      parties: [{ cell: 'rechtbank', url: 'https://r-medewerkers.example.org/' }],
+    },
+  },
+  {
+    metadata: { name: 'ggd', namespace: 'tnt-voorbeeld--ggd' },
+    spec: { partij: { cel: 'lab', uitvoerder: { name: 'x' } } },
+    status: { askedParties: [{ cell: 'lab' }] },
+  },
+  {
+    metadata: { name: 'stabiel', namespace: 'tnt-voorbeeld--regelhet' },
+    spec: { auth: { mode: 'stable' } },
+    status: { askedParties: [{ cell: 'ggd_wilgendaal' }] },
+  },
+];
+
+test('a procedure can run as a party the case of another asks something of, and no other runs as', () => {
+  assert.deepEqual(partyChoices(procedures), [
+    {
+      value: 'tnt-voorbeeld--regelhet/parkeerkaart/ggd_wilgendaal',
+      label: 'GGD Wilgendaal voor Gehandicaptenparkeerkaart (tnt-voorbeeld--regelhet/parkeerkaart)',
+      accentColor: '',
+    },
+  ]);
+  assert.deepEqual(partyChoices(undefined), []);
+  // A procedure that names the cell already, linked or not, takes it.
+  const claiming = {
+    metadata: { name: 'ggd-wilgendaal', namespace: 'tnt-voorbeeld--ggd' },
+    spec: { partij: { cel: 'ggd_wilgendaal', uitvoerder: { name: 'parkeerkaart', namespace: 'tnt-voorbeeld--regelhet' } } },
+  };
+  assert.deepEqual(partyChoices([...procedures, claiming]), []);
+});
+
+test('a party that chose no colour is told apart from its executor', () => {
+  assert.equal(partyAccentColor(''), 'rood');
+  assert.equal(partyAccentColor('paars'), 'rood');
+  assert.equal(partyAccentColor('rood'), 'robijnrood');
+});
+
+test('a party names its executor, with its namespace only when it is another', () => {
+  const choice = 'tnt-voorbeeld--regelhet/parkeerkaart/ggd_wilgendaal';
+  assert.deepEqual(partijReference(choice, 'tnt-voorbeeld--regelhet'), {
+    cel: 'ggd_wilgendaal',
+    uitvoerder: { name: 'parkeerkaart' },
+  });
+  assert.deepEqual(partijReference(choice, 'tnt-voorbeeld--ggd'), {
+    cel: 'ggd_wilgendaal',
+    uitvoerder: { name: 'parkeerkaart', namespace: 'tnt-voorbeeld--regelhet' },
+  });
+  assert.equal(partijReference('', 'x'), undefined);
+  assert.equal(
+    partijText({ cel: 'ggd_wilgendaal', uitvoerder: { name: 'parkeerkaart' } }, 'tnt-voorbeeld--regelhet'),
+    'ggd_wilgendaal voor tnt-voorbeeld--regelhet/parkeerkaart',
+  );
+});
+
+test('a party is a test procedure for staff only: no FSC voor Burgers, no organisatie', () => {
+  const partij = { cel: 'ggd_wilgendaal', uitvoerder: { name: 'parkeerkaart' } };
+  const w = buildRegelHet({ ...base, hostname: 'ggd', fsc4b: true, organisatie: { name: 'o' }, partij });
+  assert.deepEqual(w.spec.partij, partij);
+  assert.equal(w.spec.fsc4b, undefined);
+  assert.equal(w.spec.organisatie, undefined);
+  assert.equal(buildRegelHet({ ...base, stable: true, partij }).spec.partij, undefined);
+  assert.equal(buildRegelHet(base).spec.partij, undefined);
+  assert.equal(buildRegelHet(base).spec.parties, undefined, 'ownInstances is gone');
+});
+
+test('the CRD knows spec.partij and no longer parties.ownInstances', () => {
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  assert.ok(crd.includes('              partij:'));
+  assert.ok(!crd.includes('ownInstances'));
+});
+
+test('a title is in the spec only when given, and the check refuses what the CRD refuses', () => {
+  assert.equal(buildRegelHet(base).spec.title, undefined);
+  assert.equal(buildRegelHet({ ...base, title: '  ' }).spec.title, undefined);
+  assert.equal(buildRegelHet({ ...base, title: ' IIT Groningen ' }).spec.title, 'IIT Groningen');
+  assert.equal(titleError(''), null);
+  assert.equal(titleError('é'.repeat(80)), null);
+  assert.ok(titleError('é'.repeat(81)));
+  assert.ok(titleError('een\ntwee'));
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  const block = crd.slice(crd.indexOf('              title:'), crd.indexOf('type: string', crd.indexOf('              title:')));
+  assert.match(block, /maxLength: 80\n/);
+});
+
+test('a case is in the spec only when chosen, by the name of its case file', () => {
+  assert.equal(buildRegelHet(base).spec.casus, undefined);
+  assert.equal(buildRegelHet({ ...base, casus: 'bedrijfsparkeervergunning' }).spec.casus, 'bedrijfsparkeervergunning');
+  assert.equal(casusError(''), null);
+  assert.equal(casusError('individuele_inkomenstoeslag'), null);
+  assert.ok(casusError('bedrijfsparkeervergunning.yaml'));
+  assert.ok(casusError('casussen/a'));
+  assert.ok(casusError('A'));
+  assert.ok(casusError('a'.repeat(101)));
+  const crd = readFileSync(new URL('../crds/regelhet.regelrecht.nl_regelhets.yaml', import.meta.url), 'utf8');
+  assert.ok(crd.includes('pattern: ^([a-z0-9][a-z0-9_-]*)?$'), 'the wizard checks what the CRD checks');
+});
+
+// A failed procedure, as the plugin writes it: phase, message and the Ready
+// condition with its reason.
+const failed = (reason, message) => ({
+  status: {
+    phase: 'Failed',
+    message,
+    conditions: [{ type: 'Ready', status: 'False', reason, message }],
+  },
+});
+
+test('a running or starting procedure needs no advice', () => {
+  assert.equal(failureAdvice({ status: { phase: 'Ready', message: 'Flux: ok' } }), null);
+  assert.equal(failureAdvice({ status: { phase: 'Pending' } }), null);
+  assert.equal(failureAdvice({}), null);
+});
+
+test('each refusal of the plugin reads as what to do', () => {
+  for (const reason of [
+    'InvalidSpec',
+    'HostnameInUse',
+    'NameInUse',
+    'StableNeedsProductionCerts',
+    'ChartNotInCommit',
+    'ReleaseStalled',
+    'OrganisatieModeMismatch',
+  ]) {
+    const advice = failureAdvice(failed(reason, 'iets'));
+    assert.ok(advice?.text && advice?.action, reason);
+  }
+  assert.match(failureAdvice(failed('HostnameInUse', 'x')).text, /adres/);
+});
+
+test('a procedure that does not start is told apart by the last line of its container', () => {
+  const cases = [
+    ["container clone-case: fatal: Authentication failed for 'https://git.example.org/casus/a.git/' (Error)", /token/],
+    ["container clone-case: fatal: couldn't find remote ref refs/heads/mian (Error)", /bestaat niet/],
+    [
+      'container regelhet: regelhet: the case: the manifest does not read: bron.yml: No such file or directory (os error 2) (Error)',
+      /manifest/,
+    ],
+    [
+      "container regelhet: regelhet: the case: the source does not load: setup: casussen/a.yaml: unknown field `casus` (Error)",
+      /laadt niet/,
+    ],
+    [
+      'container regelhet: regelhet: the service: the case names 0 fields the login fills (CrashLoopBackOff)',
+      /kan hem zo niet uitvoeren/,
+    ],
+    [
+      'container regelhet: regelhet: the case: the manifest makes 2 cases (a, b); choose one with REGELHET_CASUS (Error)',
+      /meer dan één casus/,
+    ],
+    [
+      'container regelhet: regelhet: the case: REGELHET_CASUS is `c`, which the manifest does not make; it makes a, b (Error)',
+      /meer dan één casus/,
+    ],
+    ['container regelhet: regelhet: the case: the manifest makes no case (Error)', /laadt niet/],
+    ['container regelhet: regelhet: the case: a case does not load: casussen/a.yaml: x (Error)', /laadt niet/],
+    ['container regelhet: Back-off pulling image "x/regelhet:0123" (ImagePullBackOff)', /image/],
+    ['container regelhet: secret "a-repo" not found (CreateContainerConfigError)', /Secret/],
+    ['container regelhet: regelhet: something new (CrashLoopBackOff)', /stopt steeds/],
+  ];
+  for (const [message, expected] of cases) {
+    const advice = failureAdvice(failed('NotStarting', message));
+    assert.ok(advice, message);
+    assert.match(advice.text, expected, message);
+  }
+});
+
+test('a failure this table does not know keeps the message of the plugin alone', () => {
+  assert.equal(failureAdvice(failed('SomethingNew', 'x')), null);
+  assert.equal(failureAdvice(failed('NotStarting', 'container x: "<b>" & \'q\' (Unknown)')), null);
+});
+
+test('the message comes from the condition when the status has none', () => {
+  const item = failed('NotStarting', 'container clone-case: fatal: Authentication failed (Error)');
+  delete item.status.message;
+  assert.match(failureAdvice(item).text, /token/);
+});
+
+test('a copy of the case that fails says what to fix in the repository', () => {
+  const copy = (line) => failed('SnapshotFailed', `copying the case failed: container snapshot: ${line}`);
+  const cases = [
+    [
+      'the git server refused access to https://git.example.org/casus/a.git: check the token in the Secret of credentialsSecretRef, which needs read access (Authentication failed)',
+      /token/,
+    ],
+    ["https://git.example.org/casus/a.git has no branch, tag or commit mian (couldn't find remote ref mian)", /branch, tag of commit/],
+    ['https://git.example.org/casus/b.git is not there, or is private and needs a token in credentialsSecretRef (not found)', /bestaat niet/],
+    ['the manifest bron.yml is not in commit 0123abc of main', /manifest/],
+    ["the manifest bron.yaml names 'corpus/beëindiging' for 'regulation/nl/x', which holds no YAML file in commit 0123abc", /manifest/],
+    ['the case is 9000000 bytes packed, more than the 3000000 a snapshot holds; let the manifest name fewer directories', /te groot/],
+  ];
+  for (const [line, expected] of cases) {
+    const advice = failureAdvice(copy(line));
+    assert.ok(advice, line);
+    assert.match(advice.text, expected, line);
+  }
+  assert.match(failureAdvice(copy('something new')).text, /niet uit de repository/);
+});
+
+test('a missing token is said while the procedure waits for it', () => {
+  const item = failed('TokenMissing', 'the Secret a-repo with the token is not in the namespace');
+  item.status.phase = 'Pending';
+  assert.match(failureAdvice(item).text, /token ontbreekt/);
+  const pending = failed('SnapshotPending', 'copying the case');
+  pending.status.phase = 'Pending';
+  assert.equal(failureAdvice(pending), null);
+});
+
+test('a party the plugin refuses says what to change about it', () => {
+  // The reasons of parties.go, each refused under the Ready condition.
+  for (const reason of ['ExecutorNotFound', 'ExecutorInOtherProject', 'ExecutorNotUsable', 'PartyNotAsked', 'PartyTaken']) {
+    const advice = failureAdvice(failed(reason, 'x'));
+    assert.ok(advice?.text && advice.action, reason);
+  }
+});
