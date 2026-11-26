@@ -622,3 +622,37 @@ async fn a_stop_while_the_result_is_written_discards_it() {
         .unwrap();
     assert_eq!(tasks, 0);
 }
+
+#[tokio::test]
+async fn ending_a_stopped_run_cancels_it_and_drops_its_input() {
+    let db = TestDb::new().await;
+    let job_id = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    insert_input_blob(&db, job_id).await;
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job_id)
+        .await
+        .unwrap();
+
+    regelrecht_pipeline::worker::cancel_enrich_task_job(&db.pool, &job)
+        .await
+        .unwrap();
+    assert_eq!(
+        job_queue::get_job(&db.pool, job_id).await.unwrap().status,
+        JobStatus::Cancelled
+    );
+    assert_eq!(blob_count(&db, job_id).await, 0);
+
+    // The reaper ended it first: the call still succeeds and the input goes.
+    insert_input_blob(&db, job_id).await;
+    regelrecht_pipeline::worker::cancel_enrich_task_job(&db.pool, &job)
+        .await
+        .unwrap();
+    assert_eq!(blob_count(&db, job_id).await, 0);
+}

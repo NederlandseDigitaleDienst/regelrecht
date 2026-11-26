@@ -844,19 +844,19 @@ impl<G: LawGraphs> Walker<'_, G> {
             return;
         }
 
-        // A shorter route found later wins: the depth only ever falls.
-        let known = self.out.law_depth.get(&target_law).copied();
-        if known.is_none_or(|settled| there < settled) {
-            if there > self.walk.depth {
-                if known.is_none() {
-                    self.gap(GapKind::BeyondDepth, &target_law);
-                    return;
-                }
-            } else {
+        // A law new to the walk is taken only within the depth. A law already
+        // in it takes any further article, and a shorter route found later
+        // wins: its depth only ever falls. A settled depth never exceeds the
+        // limit, so neither does the lower one.
+        match self.out.law_depth.get_mut(&target_law) {
+            Some(settled) => *settled = (*settled).min(there),
+            None if there > self.walk.depth => {
+                self.gap(GapKind::BeyondDepth, &target_law);
+                return;
+            }
+            None => {
                 self.out.law_depth.insert(target_law.clone(), there);
             }
-        } else if known.is_some_and(|settled| settled > self.walk.depth) {
-            return;
         }
 
         // `reads` is written once the edge is known to lead somewhere real; a
@@ -1949,6 +1949,7 @@ articles:
     struct MemLaws {
         docs: BTreeMap<String, Value>,
         layers: BTreeMap<String, String>,
+        implementors: BTreeMap<Node, Vec<Node>>,
     }
 
     impl MemLaws {
@@ -1959,7 +1960,19 @@ articles:
                 docs.insert((*bwb).to_string(), serde_yaml_ng::from_str(yaml).unwrap());
                 layers.insert((*bwb).to_string(), (*layer).to_string());
             }
-            Self { docs, layers }
+            Self {
+                docs,
+                layers,
+                implementors: BTreeMap::new(),
+            }
+        }
+
+        fn with_implementor(mut self, open_term: Node, implementor: Node) -> Self {
+            self.implementors
+                .entry(open_term)
+                .or_default()
+                .push(implementor);
+            self
         }
     }
 
@@ -1987,6 +2000,27 @@ articles:
                 .iter()
                 .find(|(_, d)| d.get("$id").and_then(Value::as_str) == Some(law_id))
                 .map(|(bwb, _)| bwb.clone())
+        }
+
+        fn implementors(&self, bwb_id: &str, article: &str) -> Vec<Node> {
+            self.implementors
+                .get(&Node::new(bwb_id, article))
+                .cloned()
+                .unwrap_or_default()
+        }
+    }
+
+    /// [`MemLaws`] that knows no `$id`s and no implementors: what the trait
+    /// defaults leave a corpus that only has its laws by BWB id.
+    struct ByBwbOnly(MemLaws);
+
+    impl LawGraphs for ByBwbOnly {
+        fn entry(&self, bwb_id: &str) -> Option<LawEntry> {
+            self.0.entry(bwb_id)
+        }
+
+        fn load(&mut self, bwb_id: &str) -> Option<LoadedLaw> {
+            self.0.load(bwb_id)
         }
     }
 
@@ -2139,5 +2173,203 @@ articles:
                 .get(&(GapKind::OutsideCorpus, "onbekend".to_string())),
             Some(&1)
         );
+    }
+    #[test]
+    fn without_a_way_to_resolve_ids_a_binding_to_another_law_is_a_known_gap() {
+        let mut laws = ByBwbOnly(bound_laws());
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(true, None),
+        )
+        .unwrap();
+        assert_eq!(closure.taken.len(), 1, "{:?}", closure.taken);
+        assert_eq!(
+            closure.gaps,
+            BTreeMap::from([((GapKind::OutsideCorpus, "wet_b".to_string()), 1)])
+        );
+    }
+
+    #[test]
+    fn a_binding_inside_the_law_is_followed_to_its_producer() {
+        let mut laws = MemLaws::new(&[(
+            "BWBA",
+            "WET",
+            r"
+$id: wet_a
+bwb_id: BWBA
+articles:
+  - number: '1'
+    text: Het recht.
+    machine_readable:
+      execution:
+        input:
+          - name: drempel
+            source:
+              output: drempel
+          - name: zelf
+            source:
+              output: recht
+          - name: weg
+            source:
+              article: wet_a#99
+        output:
+          - name: recht
+  - number: '2'
+    text: De drempel.
+    machine_readable:
+      execution:
+        output:
+          - name: drempel
+",
+        )]);
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(true, None),
+        )
+        .unwrap();
+        assert_eq!(
+            closure.taken["BWBA"],
+            BTreeSet::from(["1".to_string(), "2".to_string()])
+        );
+        let via = &closure.via[&Node::new("BWBA", "2")];
+        assert_eq!(via.from, Node::new("BWBA", "1"));
+        assert_eq!(via.kind, EdgeKind::Binds);
+        // The article the model calls does not exist; reading its own output
+        // is no edge at all.
+        assert_eq!(
+            closure.gaps,
+            BTreeMap::from([((GapKind::ArticleNotInLaw, "BWBA".to_string()), 1)])
+        );
+    }
+
+    #[test]
+    fn an_implementor_is_followed_inside_the_law_and_out_of_it() {
+        let mut laws = MemLaws::new(&[
+            (
+                "BWBA",
+                "WET",
+                r"
+$id: wet_a
+bwb_id: BWBA
+articles:
+  - number: '1'
+    text: De premie wordt nader bepaald.
+  - number: '2'
+    text: De premie in een bijzonder geval.
+",
+            ),
+            (
+                "BWBR",
+                "MINISTERIELE_REGELING",
+                r"
+$id: regeling_r
+bwb_id: BWBR
+articles:
+  - number: '7'
+    text: De premie bedraagt honderd euro.
+",
+            ),
+        ])
+        .with_implementor(Node::new("BWBA", "1"), Node::new("BWBA", "2"))
+        .with_implementor(Node::new("BWBA", "1"), Node::new("BWBR", "7"));
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(true, None),
+        )
+        .unwrap();
+        assert_eq!(
+            closure.taken["BWBA"],
+            BTreeSet::from(["1".to_string(), "2".to_string()])
+        );
+        assert_eq!(closure.taken["BWBR"], BTreeSet::from(["7".to_string()]));
+        assert_eq!(closure.law_depth["BWBR"], 1);
+        // Only the step out of the law is a read between laws.
+        assert_eq!(
+            closure.reads,
+            BTreeMap::from([("BWBA".to_string(), BTreeSet::from(["BWBR".to_string()]))])
+        );
+        for node in [Node::new("BWBA", "2"), Node::new("BWBR", "7")] {
+            assert_eq!(closure.via[&node].kind, EdgeKind::Implements, "{node:?}");
+        }
+    }
+
+    #[test]
+    fn a_shorter_route_found_later_lowers_a_laws_depth() {
+        // A/1 reaches B; B/5 cites a new article of A and C/1, so C is first
+        // met at depth 2. A/9 then cites C/2 from depth 0: C sits at 1.
+        let mut laws = MemLaws::new(&[
+            (
+                "BWBA",
+                "WET",
+                r"
+$id: wet_a
+bwb_id: BWBA
+articles:
+  - number: '1'
+    text: Zie wet B.
+    references:
+      - id: r1
+        bwb_id: BWBB
+        artikel: '5'
+  - number: '9'
+    text: Zie wet C.
+    references:
+      - id: r1
+        bwb_id: BWBC
+        artikel: '2'
+",
+            ),
+            (
+                "BWBB",
+                "WET",
+                r"
+$id: wet_b
+bwb_id: BWBB
+articles:
+  - number: '5'
+    text: Zie wet A en wet C.
+    references:
+      - id: r1
+        bwb_id: BWBA
+        artikel: '9'
+      - id: r2
+        bwb_id: BWBC
+        artikel: '1'
+",
+            ),
+            (
+                "BWBC",
+                "WET",
+                r"
+$id: wet_c
+bwb_id: BWBC
+articles:
+  - number: '1'
+    text: Het eerste.
+  - number: '2'
+    text: Het tweede.
+",
+            ),
+        ]);
+        let closure = walk_closure(
+            &mut laws,
+            "BWBA",
+            &["1".to_string()],
+            bound_walk(false, None),
+        )
+        .unwrap();
+        assert_eq!(
+            closure.taken["BWBC"],
+            BTreeSet::from(["1".to_string(), "2".to_string()])
+        );
+        assert_eq!(closure.law_depth["BWBA"], 0);
+        assert_eq!(closure.law_depth["BWBB"], 1);
+        assert_eq!(closure.law_depth["BWBC"], 1, "{:?}", closure.via);
     }
 }

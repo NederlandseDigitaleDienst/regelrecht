@@ -648,6 +648,9 @@ articles:
             source:
               regulation: lezer
               output: drempel
+          - name: eigen_besluit
+            source:
+              article: lezer#5
 "));
         let binds = graph.binds_to.get("2").unwrap();
         let expected: BTreeSet<Binding> = [
@@ -671,6 +674,12 @@ articles:
                 regulation: None,
                 output: Some("drempel".into()),
                 article: None,
+            },
+            // So is calling an article of the own law.
+            Binding {
+                regulation: None,
+                output: None,
+                article: Some("5".into()),
             },
         ]
         .into_iter()

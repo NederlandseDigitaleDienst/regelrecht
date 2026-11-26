@@ -174,13 +174,6 @@ impl LawFacts {
         self.articles.iter().find(|a| a.number == number)
     }
 
-    /// References that name another statute but no article in it:
-    /// `(article, BWB id)`.
-    #[must_use]
-    pub fn outward_law_only(&self) -> &BTreeSet<(String, String)> {
-        &self.graph.outward_law_only
-    }
-
     /// The law as the closure walk loads it.
     #[must_use]
     pub fn loaded(&self) -> LoadedLaw {
@@ -321,6 +314,19 @@ articles:
         // A lapsed article has nothing to model.
         assert!(!facts.article("3a").unwrap().missing_mr);
         assert_eq!(facts.article("4").unwrap().open_terms, ["standaardpremie"]);
+    }
+
+    #[test]
+    fn only_a_short_text_that_says_vervallen_is_lapsed() {
+        assert!(!says_something(""));
+        assert!(!says_something("  Vervallen.  "));
+        assert!(!says_something("[Vervallen per 01-01-2024]"));
+        // Short, but not lapsed: a one-line article still has a norm.
+        assert!(says_something("De standaardpremie."));
+        // Says "vervallen", but at length: the word is part of a norm.
+        assert!(says_something(
+            "Het recht op zorgtoeslag is vervallen indien de verzekerde niet langer verzekerd is."
+        ));
     }
 
     #[test]

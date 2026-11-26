@@ -1024,4 +1024,58 @@ mod process_tests {
             })
         );
     }
+
+    /// `sleep 30` as the leader of its own process group, as the agent runs.
+    #[allow(clippy::unwrap_used)] // test setup; a failure here is the failure
+    fn group_leader() -> std::process::Child {
+        use std::os::unix::process::CommandExt;
+        std::process::Command::new("sleep")
+            .arg("30")
+            .process_group(0)
+            .spawn()
+            .unwrap()
+    }
+
+    /// How `child` ended within a few seconds, or `None` while it still runs.
+    #[allow(clippy::unwrap_used)] // test helper; a failing wait is the failure
+    fn ended_within(child: &mut std::process::Child, wait: Duration) -> Option<i32> {
+        use std::os::unix::process::ExitStatusExt;
+        let deadline = std::time::Instant::now() + wait;
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                return status.signal();
+            }
+            if std::time::Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn dropping_the_guard_kills_the_group() {
+        let mut child = group_leader();
+        drop(KillGroupOnDrop(Some(child.id())));
+        let ended = ended_within(&mut child, Duration::from_secs(5));
+        if ended.is_none() {
+            child.kill().unwrap();
+            child.wait().unwrap();
+        }
+        assert_eq!(ended, Some(libc::SIGKILL));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_disarmed_guard_hands_back_the_pid_and_kills_nothing() {
+        let mut child = group_leader();
+        let mut guard = KillGroupOnDrop(Some(child.id()));
+        assert_eq!(guard.disarm(), Some(child.id()));
+        drop(guard);
+        let ended = ended_within(&mut child, Duration::from_millis(300));
+        // Clean up either way: on a child that already ended and was reaped,
+        // `kill` and `wait` both return `Ok`.
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(ended, None, "the group outlived the disarmed guard");
+    }
 }
