@@ -39,6 +39,30 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
   });
 
+  test('closing the notification leaves a sign in the top bar that opens the details', async ({ page }) => {
+    await mockLaw(page, breakLaw(loadFixture('zorgtoeslag-full.yaml')));
+    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
+    const indicator = page.locator('[data-testid="error-indicator"]:visible');
+
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    await expect(indicator).toHaveAttribute('text', '1 fout');
+
+    await notification(page).evaluate((el) => el.dispatchEvent(new CustomEvent('dismiss')));
+    await expect(notification(page)).toHaveCount(0);
+    await expect(indicator).toBeVisible();
+
+    await indicator.click();
+    await expect(detailsSheet(page)).toHaveAttribute('open', '');
+    await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
+
+    // Closing the sheet hands the focus back to the sign it was opened from.
+    await page.keyboard.press('Escape');
+    await expect(detailsSheet(page)).not.toHaveAttribute('open', '');
+    await expect(indicator).toBeFocused();
+    // The notification was dismissed and stays away.
+    await expect(notification(page)).toHaveCount(0);
+  });
+
   test('broken by an unsaved edit: the panes stay', async ({ page }) => {
     await mockLaw(page, loadFixture('zorgtoeslag-full.yaml'));
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');

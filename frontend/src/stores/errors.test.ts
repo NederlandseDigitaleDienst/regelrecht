@@ -71,4 +71,14 @@ describe('errors store', () => {
     expect(store.detailsOpen).toBe(false);
     expect(store.detailsOf[0]?.details).toBe('HTTP 500');
   });
+
+  it('keeps a dismissed error standing until its source clears it', () => {
+    const store = useErrorsStore();
+    store.report('engine-load', 'Wet A kan niet worden uitgevoerd', { summary: 'Fout.', details: 'raw' });
+    store.dismissVisible();
+    expect(store.visible).toEqual([]);
+    expect(store.standing.map((e) => e.title)).toEqual(['Wet A kan niet worden uitgevoerd']);
+    store.clear('engine-load');
+    expect(store.standing).toEqual([]);
+  });
 });

@@ -23,7 +23,8 @@ interface Report {
  * failure is over. The shell shows what is reported as one notification
  * (`ErrorNotification`): the error itself when there is one, a count when
  * there are more, so a run of failures does not stack up on screen. The
- * details sheet (`ErrorDetailsSheet`) lists them.
+ * details sheet (`ErrorDetailsSheet`) lists them. The indicator in the top bar
+ * (`ErrorIndicator`) stays for as long as an error holds and opens the sheet.
  */
 export const useErrorsStore = defineStore('errors', () => {
   const reports = ref(new Map<string, Report>());
@@ -32,6 +33,12 @@ export const useErrorsStore = defineStore('errors', () => {
   const visible = computed<ReportedError[]>(() =>
     [...reports.value.values()].filter((r) => !r.dismissed).map((r) => r.shown),
   );
+
+  /**
+   * Every error that still holds, dismissed or not, for the indicator in the
+   * top bar: closing the notification does not repair anything.
+   */
+  const standing = computed<ReportedError[]>(() => [...reports.value.values()].map((r) => r.shown));
 
   /**
    * Report the error of one source. The title says what failed and for which
@@ -76,5 +83,5 @@ export const useErrorsStore = defineStore('errors', () => {
     detailsOpen.value = false;
   }
 
-  return { visible, report, clear, dismissVisible, detailsOpen, detailsOf, showDetails, closeDetails };
+  return { visible, standing, report, clear, dismissVisible, detailsOpen, detailsOf, showDetails, closeDetails };
 });
