@@ -38,6 +38,9 @@ import EditSheet from './components/EditSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
 import MachineReadable from './components/MachineReadable.vue';
 import MachineEmptyState from './components/MachineEmptyState.vue';
+import EnrichSheet from './components/EnrichSheet.vue';
+import { articleOf, describeScope } from './lib/enrichScope';
+import type { EnrichOptions, EnrichSignal, PlanOutcome } from './composables/useTasks';
 import ScenarioScreen from './components/ScenarioScreen.vue';
 import ScenarioStatusPane from './components/ScenarioStatusPane.vue';
 import { useLawScenarios } from './scenario/useLawScenarios';
@@ -1785,6 +1788,9 @@ onBeforeUnmount(() => clearTimeout(engineLoadDebounce));
 // zonder de 30s-poll van useTasks() te starten voor elke editor-bezoeker.
 const {
   isEnriching,
+  isStopping: enrichStopping,
+  stopEnrich,
+  runningScope,
   reviewReady,
   reviewArticleForPane,
   openReviewForLaw,
@@ -1833,6 +1839,107 @@ async function enrichLaw(_trigger?: EventTarget | null, provider?: string) {
 }
 function dismissEnrichFeedback() {
   enrichFeedback.value = null;
+}
+
+const reviewSignals = review.signals;
+const reviewInstruction = review.instruction;
+const SIGNAL_KINDS: Record<string, string> = {
+  scope_reverted: 'Teruggezet: buiten de scope',
+  consumer_breaks: 'Lezer elders breekt',
+  outside_corpus: 'Buiten het corpus',
+  agent: 'Gemeld door de verrijker',
+};
+function signalSource(signal: EnrichSignal): string {
+  const where = [signal.law_id, signal.article ? `artikel ${signal.article}` : null].filter(Boolean).join(', ');
+  const kind = SIGNAL_KINDS[signal.kind] ?? signal.kind;
+  return where ? `${kind} · ${where}` : kind;
+}
+
+// --- Verrijken met scope: artikelmodus en wetmodus (flag `enrich.scoped`) ---
+// De artikelmodus start vanuit het artikelpaneel en verrijkt één artikel, met
+// de stelselcontext en een optionele instructie. De wetmodus is de klassieke
+// verrijking met een keuze van artikelen, model en rondes. Beide lopen via
+// EnrichSheet, zodat je vóór het versturen ziet wat er gaat gebeuren.
+const scopedEnrich = computed(() => featureFlags.isEnabled('enrich.scoped'));
+// The chain in the article mode's steps (flag `enrich.hotspots`).
+const hotspotsEnabled = computed(() => scopedEnrich.value && featureFlags.isEnabled('enrich.hotspots'));
+const enrichingScope = computed(() => (runningScope.value ? describeScope(runningScope.value) : ''));
+const enrichSheetMode = ref<'article' | 'law' | null>(null);
+const enrichSheetBusy = ref(false);
+// The article the open entry belongs to, by the rule the worker selects
+// entries with (see lib/enrichScope).
+const enrichTargetArticle = computed(() => {
+  if (selectedArticleNumber.value == null) return null;
+  const entries = new Set((law.value?.articles ?? []).map((a) => String(a.number)));
+  return articleOf(String(selectedArticleNumber.value), entries);
+});
+// Fixed when the sheet opens: navigating to another article while it is open
+// must not quietly change what "Verrijk dit artikel" sends.
+const enrichSheetArticle = ref<string | null>(null);
+function openEnrichSheet(mode: 'article' | 'law') {
+  if (!canEnrichLaw.value) return;
+  if (mode === 'article' && !enrichTargetArticle.value) return;
+  enrichSheetArticle.value = enrichTargetArticle.value;
+  enrichSheetMode.value = mode;
+}
+async function submitEnrichSheet(options: EnrichOptions) {
+  if (!activeTrajectRef.value || !lawId.value) return;
+  enrichSheetBusy.value = true;
+  try {
+    const { alreadyRunning, tooMany, running } = await requestEnrich(options);
+    if (alreadyRunning) {
+      enrichFeedback.value = {
+        variant: 'warning',
+        text: `Er loopt al een verrijking voor ${describeScope(running ?? null)}. Wacht tot dat voorstel er is.`,
+      };
+    } else if (tooMany) {
+      enrichFeedback.value = { variant: 'warning', text: 'Je hebt te veel verrijkingen tegelijk lopen.' };
+    } else {
+      enrichFeedback.value = {
+        variant: 'success',
+        text: options.mode === 'article'
+          ? `Verrijking van artikel ${options.articles?.[0]} gestart - je krijgt een taak per gewijzigd artikel zodra het voorstel klaarstaat.`
+          : 'Verrijking gestart - je krijgt een taak per gewijzigd artikel zodra het resultaat klaarstaat.',
+      };
+    }
+    enrichSheetMode.value = null;
+  } catch (e) {
+    // De editor-api zegt wat er aan de aanvraag niet klopt (een artikel dat
+    // niet bestaat, niets te verrijken); die tekst is voor de gebruiker.
+    const status = (e as { status?: number }).status;
+    const body = (e as { body?: string }).body;
+    const message = status && status < 500 && body ? body : 'Verrijking aanvragen mislukt.';
+    enrichFeedback.value = { variant: 'critical', text: message };
+    enrichSheetMode.value = null;
+  } finally {
+    enrichSheetBusy.value = false;
+  }
+}
+
+// Stop the running enrichment; a refusal is said, not swallowed.
+async function stopEnrichWithFeedback() {
+  try {
+    await stopEnrich();
+  } catch {
+    enrichFeedback.value = { variant: 'critical', text: 'Stoppen is mislukt. Probeer het opnieuw.' };
+  }
+}
+
+// The stepped flow sends its requests itself, one per law; this says what
+// came of them. A refusal stays visible in the sheet too.
+function onEnrichPlanSubmitted(outcome: PlanOutcome) {
+  const refused = outcome.conflicts.length + outcome.tooMany.length + outcome.failed.length;
+  if (!outcome.started.length) {
+    enrichFeedback.value = { variant: 'critical', text: 'Geen verrijking gestart; de sheet zegt per wet waarom.' };
+    return;
+  }
+  const started = outcome.started.length === 1 ? '1 verrijking' : `${outcome.started.length} verrijkingen`;
+  enrichFeedback.value = {
+    variant: refused ? 'warning' : 'success',
+    text: refused
+      ? `${started} gestart; ${refused} niet. De sheet zegt per wet waarom.`
+      : `${started} gestart - je krijgt een taak per gewijzigd artikel zodra de voorstellen klaarstaan.`,
+  };
 }
 
 // Single save handler shared by the Tekst and Machine panes. The PUT writes
@@ -2171,6 +2278,34 @@ async function handleActionSave() {
               dismissible
               @dismiss="dismissEnrichFeedback"
             ></nldd-banner>
+          </nldd-container>
+
+          <!-- Een gerichte verrijking meldt naast zijn wijzigingen wat de
+               beoordelaar moet weten: teruggezette bewerkingen buiten de scope,
+               lezers elders die braken, problemen in andere wetten. Geen
+               oordeel, wel context erbij; daarom naast de onderdelen en niet
+               als onderdeel. -->
+          <nldd-container v-if="reviewSignals.length || reviewInstruction" padding="8">
+            <nldd-inline-dialog
+              icon="info"
+              :text="reviewSignals.length
+                ? `Deze verrijking meldt ${reviewSignals.length === 1 ? 'één signaal' : `${reviewSignals.length} signalen`}`
+                : 'Instructie bij deze verrijking'"
+              :supporting-text="reviewInstruction ? `Instructie: ${reviewInstruction}` : undefined"
+            >
+              <nldd-list v-if="reviewSignals.length" appearance="box-tinted">
+                <nldd-list-item
+                  v-for="(signal, i) in reviewSignals"
+                  :key="`signal-${i}`"
+                  size="md"
+                >
+                  <nldd-text-cell
+                    :text="signal.text"
+                    :supporting-text="signalSource(signal)"
+                  ></nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-inline-dialog>
           </nldd-container>
 
           <!-- The engine refused the current YAML (parse or type-check error,
@@ -2518,12 +2653,33 @@ async function handleActionSave() {
                        altijd achter de ...-knop en vecht dus nooit met de
                        pane-switcher om breedte. Is de pane leeg, dan staat de
                        ingang in de lege staat zelf. -->
+                  <!-- With the scope modes on, the whole-law run goes through
+                       the sheet too (the item below), so it is never one
+                       click away. -->
                   <nldd-menu-item
-                    v-if="canEnrichLaw && isEnrichPane(view) && hasMachineReadable"
+                    v-if="!scopedEnrich && canEnrichLaw && isEnrichPane(view) && hasMachineReadable"
                     slot="overflow"
                     icon="ai"
                     text="Verrijk dit regelwerk opnieuw"
                     @select="enrichLaw"
+                  ></nldd-menu-item>
+                  <!-- Artikel- en wetmodus: vanuit het artikelpaneel dit ene
+                       artikel, of de wet met keuzes over scope en model. -->
+                  <nldd-menu-item
+                    v-if="scopedEnrich && canEnrichLaw && isEnrichPane(view) && enrichTargetArticle"
+                    slot="overflow"
+                    icon="ai"
+                    :text="`Verrijk artikel ${enrichTargetArticle}…`"
+                    data-testid="enrich-article-menu"
+                    @select="openEnrichSheet('article')"
+                  ></nldd-menu-item>
+                  <nldd-menu-item
+                    v-if="scopedEnrich && canEnrichLaw && isEnrichPane(view)"
+                    slot="overflow"
+                    icon="ai"
+                    text="Verrijk het hele regelwerk…"
+                    data-testid="enrich-options-menu"
+                    @select="openEnrichSheet('law')"
                   ></nldd-menu-item>
                 </nldd-toolbar>
               </nldd-container>
@@ -2695,6 +2851,9 @@ async function handleActionSave() {
                   :editable="canEdit"
                   :can-enrich="canEnrichLaw"
                   :enriching="isEnriching"
+                  :scoped-enrich="scopedEnrich"
+                  :enriching-scope="enrichingScope"
+                  :enrich-stopping="enrichStopping"
                   :review-ready="reviewReady"
                   :review-article="reviewArticleForPane"
                   :dirty="isMachineReadableDirty"
@@ -2708,6 +2867,9 @@ async function handleActionSave() {
                   @open-edit="activeEditItem = $event"
                   @init-mr="handleInitMr"
                   @enrich="enrichLaw"
+                  @enrich-article="openEnrichSheet('article')"
+                  @enrich-options="openEnrichSheet('law')"
+                  @stop-enrich="stopEnrichWithFeedback"
                   @view-tasks="openTasksForLaw"
                   @review="openReviewForLaw"
                   @add-action="handleAddAction"
@@ -2744,7 +2906,13 @@ async function handleActionSave() {
                   :enriching="isEnriching"
                   :can-enrich="canEnrichLaw"
                   :can-write-here="canEdit"
+                  :scoped="scopedEnrich"
+                  :enriching-scope="enrichingScope"
+                  :stopping="enrichStopping"
                   @enrich="enrichLaw"
+                  @enrich-article="openEnrichSheet('article')"
+                  @enrich-options="openEnrichSheet('law')"
+                  @stop-enrich="stopEnrichWithFeedback"
                   @write="handleInitMr"
                   @view-tasks="openTasksForLaw"
                   @review="openReviewForLaw"
@@ -2859,6 +3027,18 @@ async function handleActionSave() {
        would be slotted into the main pane and pick up its ::slotted flex-grow,
        stealing height from the pane content. -->
   <Teleport to="body">
+    <EnrichSheet
+      :mode="enrichSheetMode"
+      :law="law"
+      :law-id="lawId"
+      :traject-ref="activeTrajectRef"
+      :article="enrichSheetArticle"
+      :busy="enrichSheetBusy"
+      :stepped="hotspotsEnabled"
+      @submit="submitEnrichSheet"
+      @submitted="onEnrichPlanSubmitted"
+      @close="enrichSheetMode = null"
+    />
     <ActionSheet regelrijm :action="activeAction" :article="editedArticle" :editable="canEdit" :is-new="activeActionIsNew" :law="law" :law-id="lawId" :focus-path="activeActionPath" @close="handleActionClose" @save="handleActionSave" @navigate="handleSheetNavigate" @open-output="handleSheetOpenOutput" />
     <EditSheet :item="activeEditItem" :article="editedArticle" @save="handleSave" @close="activeEditItem = null" />
     <SearchPopover

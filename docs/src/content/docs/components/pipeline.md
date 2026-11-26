@@ -45,7 +45,7 @@ flowchart LR
 | `harvest_request.rs` | The one entry point for "request a harvest", shared by the pipeline API and the admin API |
 | `traject_harvest.rs` | Harvest of a law for one traject, delivered as a review task instead of written to the corpus |
 | `enrich.rs` | Enrichment execution: call the LLM to add `machine_readable` sections |
-| `enrich_v2/` | The model-free parts of enrichment: checks, capability plan, reference graph, closing pass |
+| `enrich_v2/` | The model-free parts of enrichment: checks, capability plan, reference graph, closure walk, per-law facts, closing pass |
 | `document_convert.rs` | Uploaded document (docx, PDF and others) to a markdown werkdocument |
 | `law_convert.rs` | Uploaded PDF or Word document to a base rulework, followed by a task-flow enrich |
 | `law_migrate.rs` | Lift a version of a rulework to schema v0.7.1 (structurally v0.7.0); a version at v0.8.0 or later is left alone |
@@ -59,6 +59,17 @@ flowchart LR
 | `config.rs` | Configuration from environment variables |
 | `db.rs` | Connection pool creation and migration runner |
 | `error.rs` | Error types (`PipelineError`) |
+
+`enrich_v2::facts` reads what one law says about itself into `LawFacts`: per
+top-level article whether it has `machine_readable` (and whether one is missing
+where the text says something), what it cites, what its model binds to, what
+it implements, its outputs and open terms, and how many dangling bindings and
+markings it has. The editor API keeps these per law to compute the chain of an
+article and the hotspots of a traject without reading YAML again. The chain is
+the closure walk of `enrich_v2::closure`, which runs over a `LawGraphs` trait:
+`enrich-once` feeds it files from a checkout, the editor API the facts it
+holds. Only the editor API's walk follows bindings and records how each
+article was reached; `enrich-once` plans as it did before.
 
 ## Binaries
 
@@ -87,6 +98,7 @@ stateDiagram-v2
     Processing --> Failed: fail_job (max attempts reached)
     Processing --> Pending: reap_orphaned_jobs (heartbeat stale)
     Processing --> Failed: reap_orphaned_jobs (no retries)
+    Processing --> Cancelled: mark_cancelled (stop requested)
 ```
 
 Workers claim jobs atomically using PostgreSQL's `FOR UPDATE SKIP LOCKED`, so multiple workers can safely process jobs concurrently without blocking each other.
@@ -112,6 +124,26 @@ the orphan timeout also costs the jobs in flight, because no heartbeat lands
 while the database is down. Before the heartbeat, the
 reaper measured from `started_at`, so a run still working past the orphan
 timeout was put back to `Pending` and its result refused when it finished.
+
+### Stopping a run
+
+A member of a traject can stop an enrichment it requested as a task (the
+route is on the [editor API](/components/editor-api#trajects)). A pending job
+is deleted outright. A processing job gets `cancel_requested_at`, and the
+next heartbeat that finds it set fires a cancellation token on the worker's
+`JobHeartbeat` and keeps beating, so the reaper leaves the job alone while the
+worker winds it down. The worker races the enrichment against that token and
+drops the run when it fires. Dropping the run kills the agent's whole process
+group, not only the direct child. The job is then marked `cancelled`, its
+input blobs go, and no review task, failure task or continuation follows.
+
+A stop can also arrive while the run is finishing. The finishing transaction
+locks the job's row and checks `cancel_requested_at` first, so a stop either
+lands before that check, and the result is discarded, or after the commit,
+when there is nothing left to stop. `fail_job`, `fail_job_terminal` and the
+reaper turn a job with a stop request into `cancelled` instead of a retry or a
+failure, so a run that fails while it stops, or loses its worker, ends the
+same way. A stop takes effect at the next heartbeat, at most 30 seconds later.
 
 ## Law Status Tracking
 
@@ -283,6 +315,23 @@ The deterministic check `definition-type` reports a definition that holds a
 number without a `type`, because nothing then says whether 0.137 is a share or
 a factor, or whether 3971900 is cents. Its findings go back to the agent as a
 feedback round.
+
+### Type check
+
+A law can be schema-valid and still fail to load. The engine type-checks every
+law when it loads it (nullability rules N1–N5 of RFC-036, typing rules of
+RFC-037), and one finding rejects the whole regulation, not only the article
+it sits in. The schema gate therefore runs the same check
+(`typecheck::check_law_alone`) once the schema is clean, limited to the window,
+and hands its findings to the agent as a repair round. A run that cannot repair
+them fails instead of delivering a proposal that would block the regulation in
+the editor.
+
+The check runs on the law alone. N5 across laws needs the laws this one reads,
+which the worker has at most as context slices, so a nullability mismatch with
+another law is still found only when the editor loads both. The translation
+prompt carries the same rules as instructions, so most runs never need the
+repair round.
 
 ### LLM Providers
 
@@ -465,7 +514,7 @@ whole platform database, so the editor API's tables (accounts, trajects, notes,
 settings, feature flags) are created here too. The two the pipeline itself runs
 on:
 
-**`jobs`** - Job queue with retry tracking, priority ordering, and JSONB payload/result/progress columns. Partial index `WHERE status = 'pending'` for efficient claiming.
+**`jobs`** - Job queue with retry tracking, priority ordering, and JSONB payload/result/progress columns. Partial index `WHERE status = 'pending'` for efficient claiming. `cancel_requested_at` records a stop request; `cancelled` is a terminal status like `completed` and `failed`.
 
 **`law_entries`** - Per-law status tracking with foreign keys to harvest/enrich jobs and a coverage score (0.0–1.0).
 

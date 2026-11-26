@@ -29,6 +29,14 @@ export const DEFAULTS = {
   // article as readable text, first, as the way into its actions. Off by
   // default while the reading is a draft.
   'panel.regelrijm': false,
+  // Article and law mode for enrichment. Off until the enrich-worker that
+  // honours the scope runs: an older worker ignores it and enriches the whole
+  // law.
+  'enrich.scoped': false,
+  // The chain of an article in the enrich sheet and the "Kan verrijking
+  // gebruiken" block in the library. Off until the facts index has been
+  // measured on a large traject.
+  'enrich.hotspots': false,
 };
 
 // DEFAULTS widened for lookups by an arbitrary key: unknown keys are allowed

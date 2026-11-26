@@ -212,6 +212,21 @@ const ROUTES: &[Route] = &[
     ),
     route(
         Method::GET,
+        "/api/trajects/{traject_ref}/corpus/laws/{law_id}/consumers",
+        RoleAndAccount(READER),
+    ),
+    route(
+        Method::GET,
+        "/api/trajects/{traject_ref}/corpus/laws/{law_id}/articles/{article}/chain",
+        RoleAndAccount(READER),
+    ),
+    route(
+        Method::GET,
+        "/api/trajects/{traject_ref}/hotspots",
+        RoleAndAccount(READER),
+    ),
+    route(
+        Method::GET,
         "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
         RoleAndAccount(READER),
     ),
@@ -333,6 +348,11 @@ const ROUTES: &[Route] = &[
     route(
         Method::POST,
         "/api/trajects/{traject_ref}/corpus/laws/{law_id}/enrich",
+        RoleAndAccount(WRITER),
+    ),
+    route(
+        Method::DELETE,
+        "/api/trajects/{traject_ref}/runs/{job_id}",
         RoleAndAccount(WRITER),
     ),
     route(

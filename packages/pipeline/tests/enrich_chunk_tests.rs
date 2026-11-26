@@ -39,6 +39,7 @@ fn payload(provider: &str) -> EnrichPayload {
         // vertaalslag, en de terugkoppelpassen ontstaan binnen de run.
         pass: Pass::Translate,
         session: None,
+        ..Default::default()
     }
 }
 
@@ -61,6 +62,7 @@ fn chunk_result(provider: &str, law_complete: bool, enrich_cursor: usize) -> Enr
         agent_calls: Vec::new(),
         models: Vec::new(),
         session_reuse: "off".into(),
+        signals: Vec::new(),
     }
 }
 

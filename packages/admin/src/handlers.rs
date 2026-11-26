@@ -98,6 +98,7 @@ fn job_sort_expression(col: &str) -> String {
             WHEN 'pending' THEN 3 \
             WHEN 'processing' THEN 2 \
             WHEN 'completed' THEN 1 \
+            WHEN 'cancelled' THEN 0 \
             ELSE 0 END"
             .to_string(),
         other => other.to_string(),
@@ -1374,6 +1375,7 @@ pub async fn create_enrich_jobs(
             skip_mvt: None,
             // Wachtrij-payload: de sessie hoort bij de run, niet bij de rij.
             session: None,
+            ..Default::default()
         };
 
         let payload_json = serde_json::to_value(&enrich_payload).map_err(|e| {

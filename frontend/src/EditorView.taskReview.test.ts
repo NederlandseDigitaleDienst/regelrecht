@@ -151,6 +151,7 @@ vi.mock('./composables/useTabRestore', () => ({
 vi.mock('./composables/useEnrichState', () => ({
   useEnrichState: () => ({
     isEnriching: ref(false),
+    runningScope: ref(null),
     reviewReady: ref(false),
     reviewArticleForPane: ref(''),
     openReviewForLaw: vi.fn(),

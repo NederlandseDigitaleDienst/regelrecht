@@ -20,8 +20,10 @@ const props = withDefaults(
     jobId?: string | null;
     /** The law the page is about, under the title. */
     lawName?: string | null;
+    /** The traject of the run, so it can be stopped from here. */
+    trajectRef?: string | null;
   }>(),
-  { jobId: null, lawName: null },
+  { jobId: null, lawName: null, trajectRef: null },
 );
 
 const emit = defineEmits<{
@@ -66,7 +68,7 @@ watch(
             <span v-if="lawName" slot="supporting-text">{{ lawName }}</span>
           </nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
-          <RunDetailPane :job-id="jobId" @open-tasks="emit('open-tasks', $event)"></RunDetailPane>
+          <RunDetailPane :job-id="jobId" :traject-ref="trajectRef" @open-tasks="emit('open-tasks', $event)"></RunDetailPane>
         </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>

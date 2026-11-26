@@ -9,6 +9,9 @@ import type { NLDDSearchField } from '@nldd/design-system/search-field';
 import type { NLDDTabBarItem } from '@nldd/design-system/tab-bar';
 import ArticleText from './components/ArticleText.vue';
 import MachineReadable from './components/MachineReadable.vue';
+import EnrichSheet from './components/EnrichSheet.vue';
+import { articleOf } from './lib/enrichScope';
+import type { EnrichOptions, PlanOutcome } from './composables/useTasks';
 import YamlView from './components/YamlView.vue';
 import ActionSheet from './components/ActionSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
@@ -24,6 +27,7 @@ import TasksListPane from './components/TasksListPane.vue';
 import RunsListPane from './components/RunsListPane.vue';
 import RunDetailSheet from './components/RunDetailSheet.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
+import { useHotspots } from './composables/useHotspots';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
 import { useAuth, ensureAuthReady } from './composables/useAuth';
 import {
@@ -1033,6 +1037,8 @@ const selectedArticleNumber = ref<string | null>(null);
 // gooit een ReferenceError in setup en dan rendert de hele view niets.
 const {
   isEnriching,
+  isStopping: enrichStopping,
+  stopEnrich,
   reviewReady,
   reviewArticleForPane,
   openReviewForLaw,
@@ -1044,6 +1050,59 @@ const {
   lawId: selectedLawId,
   articleNumber: selectedArticleNumber,
 });
+
+// Met de artikel- en wetmodus aan (flag `enrich.scoped`) opent de grote knop
+// de sheet in plaats van meteen de hele wet te verrijken, net als in de
+// editor: een verrijking die eenmaal in de rij staat, is niet meer te stoppen.
+const scopedEnrich = computed(() => featureFlags.isEnabled('enrich.scoped'));
+const enrichSheetMode = ref<'article' | 'law' | null>(null);
+const enrichSheetBusy = ref(false);
+const enrichSheetArticle = ref<string | null>(null);
+function openEnrichSheet(mode: 'article' | 'law', anchorEl: EventTarget | null = null) {
+  if (!selectedLawId.value) return;
+  if (!authenticated.value || !activeTrajectRef.value) {
+    openEditor(anchorEl);
+    return;
+  }
+  const entries = new Set((selectedLaw.value?.articles ?? []).map((a) => String(a.number)));
+  const article =
+    selectedArticleNumber.value == null ? null : articleOf(String(selectedArticleNumber.value), entries);
+  if (mode === 'article' && !article) return;
+  enrichSheetArticle.value = article;
+  enrichSheetMode.value = mode;
+}
+// The chain in the article mode's steps, and the hotspots in the sidebar
+// (flag `enrich.hotspots`, only together with the scope modes).
+const hotspotsEnabled = computed(() => scopedEnrich.value && featureFlags.isEnabled('enrich.hotspots'));
+// Stop the running enrichment; a refusal is said, not swallowed.
+async function stopEnrichWithFeedback() {
+  try {
+    await stopEnrich();
+  } catch {
+    enrichError.value = 'Stoppen is mislukt. Probeer het opnieuw.';
+  }
+}
+// The stepped flow sends its own requests; a law it could not start for is
+// named in the sheet, and the pane says that not everything started.
+function onEnrichPlanSubmitted(outcome: PlanOutcome) {
+  const refused = outcome.conflicts.length + outcome.tooMany.length + outcome.failed.length;
+  enrichError.value = refused ? 'Niet elke verrijking is gestart; de sheet zegt per wet waarom.' : '';
+}
+async function submitEnrichSheet(options: EnrichOptions) {
+  enrichSheetBusy.value = true;
+  enrichError.value = '';
+  try {
+    const { tooMany } = await requestEnrich(options);
+    if (tooMany) enrichError.value = 'Je hebt te veel verrijkingen tegelijk lopen.';
+  } catch (e) {
+    const status = (e as { status?: number }).status;
+    const body = (e as { body?: string }).body;
+    enrichError.value = status && status < 500 && body ? body : 'Verrijking aanvragen mislukt.';
+  } finally {
+    enrichSheetBusy.value = false;
+    enrichSheetMode.value = null;
+  }
+}
 
 // Recently-viewed laws (most-recent-first), persisted across sessions. Stored
 // as { law_id, name } so a law that fails to load in the active traject - and
@@ -2055,6 +2114,24 @@ const ARTICLE_FILTERS = [
   { key: 'machine', label: 'Met machine-versie' },
   { key: 'geen-machine', label: 'Zonder machine-versie' },
 ];
+// With the hotspots on, a fourth filter: the articles of this law that could
+// use enrichment, the same ones the sidebar block lists for the traject.
+const HOTSPOT_FILTER = { key: 'hotspot', label: 'Kan verrijking gebruiken' };
+const articleFilters = computed(() =>
+  hotspotsEnabled.value ? [...ARTICLE_FILTERS, HOTSPOT_FILTER] : ARTICLE_FILTERS,
+);
+
+// The hotspots of the open law, for the marks in its article list.
+const { hotspots: lawHotspots } = useHotspots({
+  trajectRef: activeTrajectRef,
+  lawId: selectedLawId,
+  enabled: hotspotsEnabled,
+  limit: 1,
+});
+function articleHotspot(number: string | number) {
+  if (!selectedLawId.value) return null;
+  return lawHotspots.value.per_article[`${selectedLawId.value}#${number}`] ?? null;
+}
 const articleTypeFilter = ref('alles');
 
 function setArticleTypeFilter(key: string) {
@@ -2081,7 +2158,7 @@ const articleEmptyText = computed(() => {
 const activeTypeFilterLabel = computed(() =>
   articleTypeFilter.value === 'alles'
     ? ''
-    : ARTICLE_FILTERS.find((f) => f.key === articleTypeFilter.value)?.label ?? ''
+    : articleFilters.value.find((f) => f.key === articleTypeFilter.value)?.label ?? ''
 );
 
 const articleFiltersActive = computed(
@@ -2100,6 +2177,7 @@ const filteredArticles = computed(() => {
   const byType = articles.value.filter((article) => {
     if (articleTypeFilter.value === 'machine') return isMachineReadable(article);
     if (articleTypeFilter.value === 'geen-machine') return !isMachineReadable(article);
+    if (articleTypeFilter.value === 'hotspot') return !!articleHotspot(article.number);
     return true;
   });
   if (!term) return byType;
@@ -2433,7 +2511,6 @@ watch(activeTrajectRef, () => {
                       </nldd-list-item>
                       <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
                     </nldd-list>
-                    <nldd-spacer size="24"></nldd-spacer>
                   </template>
                   <template
                     v-for="(section, sectionIndex) in sidebarSections"
@@ -2695,7 +2772,7 @@ watch(activeTrajectRef, () => {
                     <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
                       <nldd-menu slot="popup">
                         <nldd-menu-item
-                          v-for="option in ARTICLE_FILTERS"
+                          v-for="option in articleFilters"
                           :key="option.key"
                           type="radio"
                           :text="option.label"
@@ -2706,7 +2783,7 @@ watch(activeTrajectRef, () => {
                     </nldd-icon-button>
                     <nldd-menu-group slot="overflow" text="Artikelen filteren">
                       <nldd-menu-item
-                        v-for="option in ARTICLE_FILTERS"
+                        v-for="option in articleFilters"
                         :key="option.key"
                         type="radio"
                         :text="option.label"
@@ -2840,6 +2917,14 @@ watch(activeTrajectRef, () => {
                     <nldd-text-cell :supporting-text="articleDescription(article)">
                       Artikel {{ article.number }}
                       <nldd-tag v-if="isMachineReadable(article)" size="sm" color="accent">Machine</nldd-tag>
+                      <nldd-badge
+                        v-if="articleHotspot(article.number)"
+                        size="sm"
+                        color="warning"
+                        icon="ai"
+                        :number="articleHotspot(article.number)?.count || undefined"
+                        :accessible-label="`Kan verrijking gebruiken, score ${articleHotspot(article.number)?.score}`"
+                      ></nldd-badge>
                     </nldd-text-cell>
                     <nldd-spacer-cell size="8"></nldd-spacer-cell>
                     <nldd-icon-cell size="20">
@@ -3124,6 +3209,7 @@ watch(activeTrajectRef, () => {
                 <RunDetailSheet
                   :job-id="openRunId"
                   :law-name="lawName"
+                  :traject-ref="activeTrajectRef"
                   @close="openRunId = null"
                   @open-tasks="goToRunTasks"
                 ></RunDetailSheet>
@@ -3195,8 +3281,8 @@ watch(activeTrajectRef, () => {
                   <nldd-spacer size="24"></nldd-spacer>
                   <KeepAlive>
                     <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
-                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
+                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrichWithFeedback" />
+                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" :scoped-enrich="scopedEnrich" :enrich-stopping="enrichStopping" @enrich-article="openEnrichSheet('article')" @enrich-options="openEnrichSheet('law')" @stop-enrich="stopEnrichWithFeedback" />
                   </KeepAlive>
                 </nldd-simple-section>
               </template>
@@ -3212,6 +3298,18 @@ watch(activeTrajectRef, () => {
     <!-- LibraryApp is a read-only browser; ActionSheet is mounted without editable
          so the output field is hidden and the footer button just closes the sheet. -->
     <ActionSheet :action="activeAction" :article="selectedArticle" :editable="false" @close="activeAction = null" @save="activeAction = null" @edit="editInEditor" />
+    <EnrichSheet
+      :mode="enrichSheetMode"
+      :law="selectedLaw"
+      :law-id="selectedLawId"
+      :traject-ref="activeTrajectRef"
+      :article="enrichSheetArticle"
+      :busy="enrichSheetBusy"
+      :stepped="hotspotsEnabled"
+      @submit="submitEnrichSheet"
+      @submitted="onEnrichPlanSubmitted"
+      @close="enrichSheetMode = null"
+    />
     <SearchPopover
       ref="searchPopoverRef"
       @select-law="(lawId) => selectLaw(lawId, true)"

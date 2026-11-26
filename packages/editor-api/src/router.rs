@@ -407,6 +407,18 @@ fn traject_reader_routes() -> Router<AppState> {
             get(corpus_handlers::list_traject_law_implementors),
         )
         .route(
+            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/consumers",
+            get(corpus_handlers::list_traject_law_consumers),
+        )
+        .route(
+            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/articles/{article}/chain",
+            get(corpus_handlers::get_traject_article_chain),
+        )
+        .route(
+            "/api/trajects/{traject_ref}/hotspots",
+            get(corpus_handlers::list_traject_hotspots),
+        )
+        .route(
             "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
             get(corpus_handlers::list_traject_scenarios),
         )
@@ -517,6 +529,12 @@ fn traject_writer_routes() -> Router<AppState> {
         .route(
             "/api/trajects/{traject_ref}/corpus/laws/{law_id}/enrich",
             axum::routing::post(task_requests::request_enrich),
+        )
+        .route(
+            // Stop a task-flow enrichment of this traject. Any writer who is
+            // a member may stop it, not only the one who requested it.
+            "/api/trajects/{traject_ref}/runs/{job_id}",
+            axum::routing::delete(traject_runs::stop),
         )
         .route(
             // Promote: copy a law from the central corpus into the traject's

@@ -583,6 +583,7 @@ async fn process_next_job(
                         skip_mvt: None,
                         // Queue payload: a session never outlives its window.
                         session: None,
+                        ..Default::default()
                     };
                     let payload_json = match serde_json::to_value(&enrich_payload) {
                         Ok(json) => json,
@@ -2017,8 +2018,45 @@ pub async fn finish_enrich_task_job(
     law_complete: bool,
     result_json: Option<serde_json::Value>,
 ) -> Result<Option<crate::models::Job>> {
-    let payload: EnrichPayload = serde_json::from_value(job.payload.clone().unwrap_or_default())
-        .map_err(|e| PipelineError::Enrich(format!("invalid enrich payload: {e}")))?;
+    finish_enrich_task_job_scoped(
+        pool,
+        job,
+        workdir,
+        written_files,
+        law_complete,
+        result_json,
+        None,
+    )
+    .await
+}
+
+/// Whether an input blob is part of the stelselcontext the editor-api sent
+/// along: a slice of another law under `context/`, or the stelsel file beside
+/// the law. Those go to a continuation unchanged.
+pub(crate) fn is_context_blob(path: &str) -> bool {
+    path.starts_with("context/")
+        || Path::new(path).file_name()
+            == Some(std::ffi::OsStr::new(
+                crate::enrich_v2::stelsel::STELSEL_FILE,
+            ))
+}
+
+/// [`finish_enrich_task_job`] for a scoped run: `next_articles` is what is left
+/// of the work list, and becomes the continuation's `articles`. Without it a
+/// continuation of a scoped run would carry the whole list again, or, with no
+/// list at all, walk the whole law: exactly what the engineer narrowed away.
+pub async fn finish_enrich_task_job_scoped(
+    pool: &PgPool,
+    job: &crate::models::Job,
+    workdir: &Path,
+    written_files: &[std::path::PathBuf],
+    law_complete: bool,
+    result_json: Option<serde_json::Value>,
+    next_articles: Option<Vec<String>>,
+) -> Result<Option<crate::models::Job>> {
+    let mut payload: EnrichPayload =
+        serde_json::from_value(job.payload.clone().unwrap_or_default())
+            .map_err(|e| PipelineError::Enrich(format!("invalid enrich payload: {e}")))?;
 
     // Vóór de transactie, want delete_blobs_for_job hieronder gooit de
     // input-blobs weg: dit is de bronsnapshot waartegen we de proposal diffen.
@@ -2028,12 +2066,30 @@ pub async fn finish_enrich_task_job(
     let continuation_input = inputs
         .iter()
         .any(|b| Path::new(&b.path).file_name() == Some(std::ffi::OsStr::new(".enrichment.yaml")));
+    // The stelselcontext and the slices of other laws came from the editor-api
+    // at request time. A continuation reads the same corpus, so it gets them
+    // again rather than a brief without them.
+    let context_blobs: Vec<(String, String)> = inputs
+        .iter()
+        .filter(|b| is_context_blob(&b.path))
+        .map(|b| (b.path.clone(), b.content.clone()))
+        .collect();
     let source_yaml = inputs
         .into_iter()
         .find(|b| b.path == payload.yaml_path)
         .map(|b| b.content);
 
     let mut tx = pool.begin().await?;
+    // A stop requested while the run was finishing: lock the row, so the
+    // request lands either before this check (the result is discarded) or
+    // after the commit (the run is done and the stop finds nothing).
+    if job_queue::stop_requested_for_update(&mut *tx, job.id).await? {
+        crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+        job_queue::mark_cancelled(&mut *tx, job.id).await?;
+        tx.commit().await?;
+        tracing::info!(job_id = %job.id, law_id = %job.law_id, "stop requested before the result landed; result discarded");
+        return Ok(None);
+    }
     crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
     let mut proposal_yaml: Option<String> = None;
     let mut result_blobs: Vec<(String, String)> = Vec::new();
@@ -2076,6 +2132,9 @@ pub async fn finish_enrich_task_job(
     });
     if new_law {
         task_payload["kind"] = serde_json::json!("law_create");
+    }
+    if let Some(mode) = &payload.mode {
+        task_payload["mode"] = serde_json::json!(mode);
     }
 
     // Eén taak per gewijzigd artikel. Een verrijking raakt doorgaans een
@@ -2175,6 +2234,9 @@ pub async fn finish_enrich_task_job(
         // Na `complete_job` in dezelfde transactie, zodat
         // `idx_unique_active_enrich_job` deze job niet meer als actief ziet
         // (zelfde patroon als `complete_enrich_success_tx`).
+        if let Some(next) = next_articles {
+            payload.articles = Some(next);
+        }
         let next_json = serde_json::to_value(&payload).map_err(|e| {
             PipelineError::Enrich(format!("serialize continuation enrich payload: {e}"))
         })?;
@@ -2199,6 +2261,16 @@ pub async fn finish_enrich_task_job(
                             .is_some_and(|n| n.starts_with('.'))
                 });
                 for (rel, content) in carried {
+                    crate::tasks::insert_blob(
+                        &mut *tx,
+                        next.id,
+                        crate::tasks::BlobKind::Input,
+                        rel,
+                        content,
+                    )
+                    .await?;
+                }
+                for (rel, content) in &context_blobs {
                     crate::tasks::insert_blob(
                         &mut *tx,
                         next.id,
@@ -2326,6 +2398,44 @@ async fn finalize_failed_task_job_tx(
     Ok(())
 }
 
+/// `run` to its end, or `None` when `stop` fires first. Returning drops
+/// `run`, and with it the agent subprocess: its process group is killed on
+/// drop (see the supervisor).
+async fn unless_stopped<T>(
+    run: impl std::future::Future<Output = T>,
+    stop: &tokio_util::sync::CancellationToken,
+) -> Option<T> {
+    tokio::select! {
+        out = run => Some(out),
+        () = stop.cancelled() => None,
+    }
+}
+
+/// End a task-flow enrichment that a member stopped: its input blobs go, the
+/// job is marked cancelled, and nothing follows. No review task (there is no
+/// result), no failure task (nothing failed), no continuation.
+///
+/// # Errors
+///
+/// Returns an error when the transaction fails; the job then stays
+/// processing, keeps its `cancel_requested_at`, and the reaper ends it as
+/// cancelled once the heartbeat stops.
+pub async fn cancel_enrich_task_job(pool: &PgPool, job: &crate::models::Job) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+    match job_queue::mark_cancelled(&mut *tx, job.id).await {
+        Ok(_) => {}
+        // The reaper ended it first (as cancelled, the stop being recorded);
+        // the blobs still go.
+        Err(PipelineError::JobNotProcessing(_)) => {
+            tracing::debug!(job_id = %job.id, "stopped job was no longer processing");
+        }
+        Err(e) => return Err(e),
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
 /// Taak-flow falen (terminaal): faal de job onvoorwaardelijk en ruim
 /// taak+blobs op, atomair in één transactie — een crash of DB-fout tussen de
 /// fail-markering en de taak-aanmaak zou anders een definitief gefaalde job
@@ -2341,13 +2451,18 @@ pub async fn fail_enrich_task_job(
     // too, or the worker log shows a failure without saying why.
     tracing::warn!(job_id = %job.id, law_id = %job.law_id, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
-    job_queue::fail_job_terminal(
+    let failed_job = job_queue::fail_job_terminal(
         &mut *tx,
         job.id,
         Some(serde_json::json!({ "error": error })),
     )
     .await?;
-    finalize_failed_task_job_tx(&mut tx, job, error).await?;
+    if failed_job.status == crate::models::JobStatus::Cancelled {
+        // Stopped by a member: nothing failed from their point of view.
+        crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+    } else {
+        finalize_failed_task_job_tx(&mut tx, job, error).await?;
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -2372,8 +2487,18 @@ pub async fn fail_enrich_task_job_with_retry(
         Some(serde_json::json!({ "error": error })),
     )
     .await?;
-    if failed_job.status == crate::models::JobStatus::Failed {
-        finalize_failed_task_job_tx(&mut tx, job, error).await?;
+    match failed_job.status {
+        crate::models::JobStatus::Failed => {
+            finalize_failed_task_job_tx(&mut tx, job, error).await?;
+        }
+        // Stopped by a member while it failed: no failure task, and no retry
+        // that would need the input.
+        crate::models::JobStatus::Cancelled => {
+            crate::tasks::delete_blobs_for_job(&mut *tx, job.id).await?;
+        }
+        crate::models::JobStatus::Pending
+        | crate::models::JobStatus::Processing
+        | crate::models::JobStatus::Completed => {}
     }
     tx.commit().await?;
     Ok(())
@@ -2388,16 +2513,68 @@ fn task_walk_complete(law_complete: bool, steps: crate::enrich::RunSteps) -> boo
     law_complete || !steps.window
 }
 
+/// The config for one task-flow job, with what the payload asks for on top of
+/// the worker's defaults: a model, a number of feedback rounds, and for a
+/// scoped run the batch of articles this run enriches.
+///
+/// Returns the config and, for a scoped run, the articles left after this
+/// batch (`Some(vec![])` when this batch finishes the list). An invalid
+/// request (unknown model, unreadable rounds spec, empty work list) is an
+/// error: the API refuses those, so one arriving here is a bug, not a retry.
+pub(crate) fn scoped_task_config(
+    base: &EnrichConfig,
+    payload: &EnrichPayload,
+) -> std::result::Result<(EnrichConfig, Option<Vec<String>>), String> {
+    let mut config = base.clone();
+    if let Some(model) = &payload.model {
+        let provider = config.provider.name().to_string();
+        if !crate::enrich::ENRICH_MODELS
+            .iter()
+            .any(|(p, m)| *p == provider && *m == model)
+        {
+            return Err(format!("model {model} is niet toegestaan voor {provider}"));
+        }
+        config = config.with_model_override(model);
+    }
+    if let Some(spec) = &payload.feedback_rounds {
+        config.feedback_rounds = crate::enrich::FeedbackRounds::parse(spec)?
+            .clamped(crate::enrich::MAX_JOB_FEEDBACK_ROUNDS);
+    }
+    let Some(list) = &payload.articles else {
+        return Ok((config, None));
+    };
+    if list.is_empty() {
+        return Err("gerichte verrijking zonder artikelen".to_string());
+    }
+    // Both modes walk their list in batches of the worker's window size, so a
+    // long list does not become one session that cannot finish in time. In
+    // the article mode the start article leads the list, so it is in the
+    // first batch; each batch keeps the instruction and the neighbour rule,
+    // and a continuation carries the rest.
+    let batch = if config.max_articles_per_run == 0 {
+        list.len()
+    } else {
+        config.max_articles_per_run.min(list.len())
+    };
+    config.target_articles = list[..batch].to_vec();
+    Ok((config, Some(list[batch..].to_vec())))
+}
+
 /// Taak-flow-verwerking van een enrich-job: werkdirectory uit input-blobs,
 /// enrichment draaien, resultaat als blobs + taak terugschrijven. Raakt
 /// bewust geen law_entries, untranslatables of vervolg-harvests aan: dit is
 /// een traject-persoonlijke enrichment, geen corpus-brede.
+///
+/// `stop` fires when a member of the traject asks to stop the run (see
+/// [`job_queue::JobHeartbeat::stop_requested`]): the run is dropped at once,
+/// which kills the agent's process group, and the job ends as cancelled.
 async fn process_enrich_task_job(
     pool: &PgPool,
     job: &crate::models::Job,
     payload: &EnrichPayload,
     enrich_config: &EnrichConfig,
     job_timeout: Duration,
+    stop: tokio_util::sync::CancellationToken,
 ) -> Result<JobOutcome> {
     let effective_config = match &payload.provider {
         Some(provider_name) => enrich_config.with_provider_override(provider_name),
@@ -2434,7 +2611,14 @@ async fn process_enrich_task_job(
         tracing::warn!(error = %e, "failed to set up skill symlinks");
     }
 
-    let mut bounded_config = effective_config.clone();
+    let (mut bounded_config, remaining) = match scoped_task_config(&effective_config, payload) {
+        Ok(v) => v,
+        Err(msg) => {
+            // Een payload die de API had moeten weigeren: deterministisch kapot.
+            fail_enrich_task_job(pool, job, &msg).await?;
+            return Ok(JobOutcome::Processed);
+        }
+    };
     bound_llm_timeout(&mut bounded_config, job_timeout);
     // A fresh view of the agent per job, read by the progress poller.
     bounded_config.activity = crate::agent_activity::ActivityHandle::new();
@@ -2444,7 +2628,7 @@ async fn process_enrich_task_job(
     // artikelen). De cursor reist mee in de `.enrichment.yaml` die
     // `finish_enrich_task_job` als input-blob aan de vervolgjob doorgeeft.
 
-    let outcome = with_progress(
+    let run = with_progress(
         pool,
         job.id,
         ProgressSources::for_law(workdir.path(), &payload.yaml_path, activity.clone()),
@@ -2452,8 +2636,12 @@ async fn process_enrich_task_job(
             job_timeout,
             execute_enrich(payload, workdir.path(), &bounded_config, ""),
         ),
-    )
-    .await;
+    );
+    let Some(outcome) = unless_stopped(run, &stop).await else {
+        tracing::info!(job_id = %job.id, law_id = %job.law_id, "enrich task job stopped on request");
+        cancel_enrich_task_job(pool, job).await?;
+        return Ok(JobOutcome::Processed);
+    };
 
     match outcome {
         Err(_elapsed) => {
@@ -2505,14 +2693,28 @@ async fn process_enrich_task_job(
                     None
                 }
             };
-            let law_complete = task_walk_complete(result.law_complete, bounded_config.steps);
-            match finish_enrich_task_job(
+            // Een gerichte run is af wanneer zijn werklijst op is, niet wanneer
+            // de cursor het einde van het document haalt: die staat bij een
+            // gerichte run stil, en een vervolgjob zonder werklijst zou de hele
+            // wet aflopen.
+            let law_complete = match &remaining {
+                Some(rest) => rest.is_empty(),
+                None => task_walk_complete(result.law_complete, bounded_config.steps),
+            };
+            let result_json = result_json.map(|mut v| {
+                if remaining.is_some() {
+                    v["law_complete"] = serde_json::json!(law_complete);
+                }
+                v
+            });
+            match finish_enrich_task_job_scoped(
                 pool,
                 job,
                 workdir.path(),
                 &written_files,
                 law_complete,
                 result_json,
+                remaining.clone(),
             )
             .await
             {
@@ -2621,6 +2823,7 @@ pub async fn complete_enrich_success_tx(
             skip_mvt: None,
             // The continuation is a new window and opens its own session.
             session: None,
+            ..Default::default()
         };
         let continuation_json = serde_json::to_value(&continuation_payload).map_err(|e| {
             PipelineError::Enrich(format!("serialize continuation enrich payload: {e}"))
@@ -2762,7 +2965,15 @@ async fn process_next_enrich_job(
             .await?;
             return Ok(JobOutcome::Processed);
         }
-        return process_enrich_task_job(pool, &job, &payload, enrich_config, job_timeout).await;
+        return process_enrich_task_job(
+            pool,
+            &job,
+            &payload,
+            enrich_config,
+            job_timeout,
+            _heartbeat.stop_requested(),
+        )
+        .await;
     }
 
     // Contract-borging (worker/traject-contract, zie de crate-doc): vanaf hier
@@ -3342,6 +3553,9 @@ async fn with_progress<T>(
     };
     let sources = std::sync::Arc::new(sources);
     let cancel = tokio_util::sync::CancellationToken::new();
+    // A stopped run drops this future before `work` ends; the guard then stops
+    // the poller instead of leaving it to write progress for a dead job.
+    let _stop_poller = cancel.clone().drop_guard();
     let poller = {
         let pool = pool.clone();
         let sources = std::sync::Arc::clone(&sources);
@@ -4108,6 +4322,123 @@ articles:
         assert!(task_walk_complete(true, walking));
         assert!(task_walk_complete(false, reconcile_only));
         assert!(task_walk_complete(true, reconcile_only));
+    }
+
+    fn scoped(mode: &str, articles: &[&str]) -> EnrichPayload {
+        EnrichPayload {
+            mode: Some(mode.into()),
+            articles: Some(articles.iter().map(|a| a.to_string()).collect()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_unscoped_task_keeps_the_worker_config() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 2;
+        let (config, remaining) =
+            scoped_task_config(&base, &EnrichPayload::default()).expect("valid");
+        assert!(remaining.is_none());
+        assert!(config.target_articles.is_empty());
+    }
+
+    #[test]
+    fn the_law_mode_walks_its_selection_in_batches() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 2;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("law", &["1", "3", "5"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["1", "3"]);
+        assert_eq!(remaining, Some(vec!["5".to_string()]));
+        let (_, last) = scoped_task_config(&base, &scoped("law", &["5"])).expect("valid");
+        assert_eq!(last, Some(vec![]), "the last batch finishes the list");
+    }
+
+    #[test]
+    fn context_blobs_are_the_slices_and_the_stelsel_file() {
+        assert!(is_context_blob("context/awir/law.yaml"));
+        assert!(is_context_blob("laws/zorgtoeslag/.enrichment-stelsel.yaml"));
+        assert!(!is_context_blob("laws/zorgtoeslag/law.yaml"));
+        assert!(!is_context_blob("laws/zorgtoeslag/.enrichment.yaml"));
+    }
+
+    #[test]
+    fn without_a_window_size_the_law_mode_is_one_batch() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 0;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("law", &["1", "3", "5"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["1", "3", "5"]);
+        assert_eq!(remaining, Some(vec![]));
+    }
+
+    #[tokio::test]
+    async fn a_stop_drops_the_run_and_a_run_that_ends_first_is_kept() {
+        let stop = tokio_util::sync::CancellationToken::new();
+        assert_eq!(unless_stopped(async { 7 }, &stop).await, Some(7));
+        stop.cancel();
+        let never = std::future::pending::<u8>();
+        assert_eq!(unless_stopped(never, &stop).await, None);
+    }
+
+    #[test]
+    fn the_article_mode_walks_its_targets_in_batches_start_first() {
+        let mut base = config_with_timeouts(600);
+        base.max_articles_per_run = 2;
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("article", &["69"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["69"]);
+        assert_eq!(remaining, Some(vec![]));
+
+        // Many targets do not become one session that cannot finish: the
+        // start article leads the first batch, a continuation does the rest.
+        let (config, remaining) =
+            scoped_task_config(&base, &scoped("article", &["69", "18d", "24"])).expect("valid");
+        assert_eq!(config.target_articles, vec!["69", "18d"]);
+        assert_eq!(remaining, Some(vec!["24".to_string()]));
+    }
+
+    #[test]
+    fn model_and_rounds_come_from_the_job_within_bounds() {
+        let base = config_with_timeouts(600);
+        let payload = EnrichPayload {
+            model: Some("claude-sonnet-5-5".into()),
+            feedback_rounds: Some("9,schema=0".into()),
+            ..Default::default()
+        };
+        let (config, _) = scoped_task_config(&base, &payload).expect("valid");
+        assert_eq!(config.provider.model(), Some("claude-sonnet-5-5"));
+        assert_eq!(
+            config.feedback_rounds.checks,
+            crate::enrich::MAX_JOB_FEEDBACK_ROUNDS
+        );
+        assert_eq!(config.feedback_rounds.schema, 0);
+    }
+
+    #[test]
+    fn an_unknown_model_or_an_empty_list_is_refused() {
+        let base = config_with_timeouts(600);
+        let unknown = EnrichPayload {
+            model: Some("gpt-x".into()),
+            ..Default::default()
+        };
+        assert!(scoped_task_config(&base, &unknown).is_err());
+        assert!(scoped_task_config(&base, &scoped("law", &[])).is_err());
+    }
+
+    #[test]
+    fn a_queued_payload_from_before_the_modes_still_reads() {
+        let old = serde_json::json!({
+            "law_id": "x",
+            "yaml_path": "laws/x/law.yaml",
+            "provider": "claude",
+            "deliver": "task"
+        });
+        let payload: EnrichPayload = serde_json::from_value(old).expect("old payload");
+        assert!(!payload.is_scoped());
+        let round_trip = serde_json::to_value(&payload).unwrap();
+        assert!(round_trip.get("articles").is_none());
+        assert!(round_trip.get("mode").is_none());
     }
 
     fn config_with_timeouts(secs: u64) -> crate::enrich::EnrichConfig {

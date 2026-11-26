@@ -301,6 +301,9 @@ where
 /// `now() + 30s * 2^(attempts-1)`, capped at 15 minutes (see
 /// [`retry_backoff`] — the SQL below implements the same formula), so a
 /// transient outage doesn't burn all attempts within one poll interval.
+///
+/// A job that a member asked to stop (`cancel_requested_at` set) ends as
+/// [`JobStatus::Cancelled`] instead: retrying it would undo the stop.
 #[tracing::instrument(skip(executor, error_result))]
 pub async fn fail_job<'e, E>(
     executor: E,
@@ -314,16 +317,17 @@ where
         r#"
         UPDATE jobs
         SET status = CASE
+                WHEN cancel_requested_at IS NOT NULL THEN 'cancelled'::job_status
                 WHEN attempts < max_attempts THEN 'pending'::job_status
                 ELSE 'failed'::job_status
             END,
             result = $2,
             completed_at = CASE
-                WHEN attempts >= max_attempts THEN now()
+                WHEN cancel_requested_at IS NOT NULL OR attempts >= max_attempts THEN now()
                 ELSE NULL
             END,
             scheduled_at = CASE
-                WHEN attempts < max_attempts THEN
+                WHEN cancel_requested_at IS NULL AND attempts < max_attempts THEN
                     -- Clamp the exponent at 30 (like retry_backoff in Rust):
                     -- the product is computed BEFORE the LEAST cap, so an
                     -- unclamped exponent overflows the interval for large
@@ -359,7 +363,10 @@ where
         JobStatus::Failed => {
             tracing::warn!(job_id = %job.id, attempts = job.attempts, "job permanently failed after exhausting retries");
         }
-        _ => {}
+        JobStatus::Cancelled => {
+            tracing::info!(job_id = %job.id, "job failed after a stop was requested; marked cancelled");
+        }
+        JobStatus::Processing | JobStatus::Completed => {}
     }
     Ok(job)
 }
@@ -376,6 +383,9 @@ where
 ///   provenance and every retry would re-fail against the same base (and, on
 ///   each non-final attempt, flip-flop the law status Enriching -> Harvested
 ///   before finally landing on Failed).
+///
+/// A job that a member asked to stop ends as [`JobStatus::Cancelled`], as in
+/// [`fail_job`].
 #[tracing::instrument(skip(executor, error_result))]
 pub async fn fail_job_terminal<'e, E>(
     executor: E,
@@ -388,7 +398,10 @@ where
     let job = sqlx::query_as::<_, Job>(
         r#"
         UPDATE jobs
-        SET status = 'failed'::job_status,
+        SET status = CASE
+                WHEN cancel_requested_at IS NOT NULL THEN 'cancelled'::job_status
+                ELSE 'failed'::job_status
+            END,
             result = $2,
             completed_at = now(),
             scheduled_at = NULL
@@ -406,6 +419,55 @@ where
     Ok(job)
 }
 
+/// Mark a processing job as cancelled: the end of a run a member stopped.
+///
+/// # Errors
+///
+/// [`PipelineError::JobNotProcessing`] when the job is no longer processing
+/// (the reaper got there first), or a database error.
+pub async fn mark_cancelled<'e, E>(executor: E, job_id: Uuid) -> Result<Job>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let job = sqlx::query_as::<_, Job>(
+        r#"
+        UPDATE jobs
+        SET status = 'cancelled'::job_status,
+            completed_at = now(),
+            scheduled_at = NULL,
+            cancel_requested_at = COALESCE(cancel_requested_at, now())
+        WHERE id = $1 AND status = 'processing'
+        RETURNING *
+        "#,
+    )
+    .bind(job_id)
+    .fetch_optional(executor)
+    .await?
+    .ok_or(PipelineError::JobNotProcessing(job_id))?;
+    tracing::info!(job_id = %job.id, law_id = %job.law_id, "job cancelled");
+    Ok(job)
+}
+
+/// Lock the job's row for the rest of the transaction and report whether a
+/// member asked to stop it. A job that is gone reads as not stopped; the
+/// statements after this find that out themselves.
+///
+/// # Errors
+///
+/// Returns a database error.
+pub async fn stop_requested_for_update<'e, E>(executor: E, job_id: Uuid) -> Result<bool>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let requested: Option<bool> = sqlx::query_scalar(
+        "SELECT cancel_requested_at IS NOT NULL FROM jobs WHERE id = $1 FOR UPDATE",
+    )
+    .bind(job_id)
+    .fetch_optional(executor)
+    .await?;
+    Ok(requested.unwrap_or(false))
+}
+
 /// How often a worker records that it still holds its job. The orphan
 /// timeout must be a few multiples of this, or a single slow database round
 /// trip would let the reaper take back a job that is still running.
@@ -418,27 +480,54 @@ pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
 /// `started_at`, so a heartbeat left over from the earlier claim no longer
 /// lands and cannot keep the later claim alive after its worker died.
 ///
-/// Returns `false` when this claim no longer holds the job (it finished,
-/// failed, was reaped, or was claimed again), which tells the heartbeat to
-/// stop.
+/// Returns [`Beat::Lost`] when this claim no longer holds the job (it
+/// finished, failed, was reaped, or was claimed again), which tells the
+/// heartbeat to stop, and [`Beat::StopRequested`] when a member asked to stop
+/// the run.
+///
+/// # Errors
+///
+/// Returns a database error.
 pub async fn heartbeat<'e, E>(
     executor: E,
     job_id: Uuid,
     claimed_at: Option<chrono::DateTime<chrono::Utc>>,
-) -> Result<bool>
+) -> Result<Beat>
 where
     E: sqlx::PgExecutor<'e>,
 {
-    let updated = sqlx::query(
+    let stop_requested: Option<bool> = sqlx::query_scalar(
         "UPDATE jobs SET heartbeat_at = now() \
-         WHERE id = $1 AND status = 'processing' AND started_at IS NOT DISTINCT FROM $2",
+         WHERE id = $1 AND status = 'processing' AND started_at IS NOT DISTINCT FROM $2 \
+         RETURNING cancel_requested_at IS NOT NULL",
     )
     .bind(job_id)
     .bind(claimed_at)
-    .execute(executor)
-    .await?
-    .rows_affected();
-    Ok(updated == 1)
+    .fetch_optional(executor)
+    .await?;
+    Ok(match stop_requested {
+        None => Beat::Lost,
+        Some(true) => Beat::StopRequested,
+        Some(false) => Beat::Held,
+    })
+}
+
+/// What one heartbeat found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Beat {
+    /// The claim still holds the job.
+    Held,
+    /// The claim still holds the job, and a member asked to stop it.
+    StopRequested,
+    /// The claim no longer holds the job.
+    Lost,
+}
+
+impl Beat {
+    /// Whether the claim still holds the job, stop requested or not.
+    pub fn holds(self) -> bool {
+        matches!(self, Beat::Held | Beat::StopRequested)
+    }
 }
 
 /// How long a job keeps beating past its own job timeout. The worker's
@@ -462,8 +551,13 @@ fn heartbeat_ceiling(job_timeout: Duration) -> Duration {
 /// The heartbeat stops by itself after `job_timeout` plus [`HEARTBEAT_GRACE`].
 /// A worker that is alive but stuck (a hung `git push`) would otherwise hold
 /// its job forever; this way the reaper takes it back once the beats stop.
+///
+/// When a beat finds that a member asked to stop the run, the heartbeat fires
+/// [`JobHeartbeat::stop_requested`] and keeps beating, so the reaper leaves
+/// the job alone while the worker winds it down.
 pub struct JobHeartbeat {
     handle: tokio::task::JoinHandle<()>,
+    stop: tokio_util::sync::CancellationToken,
 }
 
 impl JobHeartbeat {
@@ -486,6 +580,8 @@ impl JobHeartbeat {
     ) -> Self {
         let job_id = job.id;
         let claimed_at = job.started_at;
+        let stop = tokio_util::sync::CancellationToken::new();
+        let fire = stop.clone();
         let handle = tokio::spawn(async move {
             let deadline = tokio::time::Instant::now() + max_age;
             let mut tick = tokio::time::interval(interval);
@@ -504,8 +600,14 @@ impl JobHeartbeat {
                     break;
                 }
                 match heartbeat(&pool, job_id, claimed_at).await {
-                    Ok(true) => {}
-                    Ok(false) => {
+                    Ok(Beat::Held) => {}
+                    Ok(Beat::StopRequested) => {
+                        if !fire.is_cancelled() {
+                            tracing::info!(job_id = %job_id, "stop requested for this job");
+                        }
+                        fire.cancel();
+                    }
+                    Ok(Beat::Lost) => {
                         tracing::debug!(job_id = %job_id, "claim no longer holds the job, heartbeat stopped");
                         break;
                     }
@@ -516,7 +618,14 @@ impl JobHeartbeat {
                 }
             }
         });
-        Self { handle }
+        Self { handle, stop }
+    }
+
+    /// Fires when a member asks to stop the job. A worker that can stop its
+    /// run races the run against this; one that cannot ignores it and the run
+    /// ends as cancelled when it fails or finishes (see [`fail_job`]).
+    pub fn stop_requested(&self) -> tokio_util::sync::CancellationToken {
+        self.stop.clone()
     }
 }
 
@@ -538,7 +647,8 @@ impl Drop for JobHeartbeat {
 /// falls back to its start. How long a job has been running does not matter
 /// otherwise: a worker that keeps beating keeps its job, up to the ceiling
 /// in [`JobHeartbeat`]. If the job still has retries left, it is reset to
-/// 'pending'; otherwise it is marked 'failed'.
+/// 'pending'; otherwise it is marked 'failed'. A job that a member asked to
+/// stop is marked 'cancelled' instead, whatever its attempts.
 ///
 /// Returns the reaped jobs (atomically claimed by THIS caller: de UPDATE …
 /// RETURNING geeft elke rij aan precies één concurrent reaper), zodat de
@@ -560,12 +670,13 @@ where
         WITH reaped AS (
             UPDATE jobs
             SET status = CASE
+                    WHEN cancel_requested_at IS NOT NULL THEN 'cancelled'::job_status
                     WHEN attempts < max_attempts THEN 'pending'::job_status
                     ELSE 'failed'::job_status
                 END,
                 result = jsonb_build_object('error', 'reaped: job stuck in processing'),
                 completed_at = CASE
-                    WHEN attempts >= max_attempts THEN now()
+                    WHEN cancel_requested_at IS NOT NULL OR attempts >= max_attempts THEN now()
                     ELSE NULL
                 END
             WHERE status = 'processing'

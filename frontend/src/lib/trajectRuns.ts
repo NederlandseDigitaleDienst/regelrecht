@@ -8,7 +8,7 @@
  * carries only the raw law_id.
  */
 
-export type RunStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type RunStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type RunJobType = 'enrich' | 'traject_harvest' | 'document_convert' | 'law_convert';
 
 /** One run (TrajectRun in packages/pipeline/src/traject_runs.rs). */
@@ -38,6 +38,8 @@ export interface TrajectRun {
   tasks_dismissed: number;
   /** The open review tasks assigned to the member asking: the ones they can pick up. */
   tasks_open_mine: number;
+  /** When a member asked to stop the run; set while it winds down and after. */
+  cancel_requested_at?: string | null;
 }
 
 /** `GET /api/trajects/{ref}/runs` (TrajectRunList in editor-api). */
@@ -91,7 +93,7 @@ export function runLawTitle(run: TrajectRun): string {
 export function runStatusText(run: TrajectRun): string {
   switch (run.status) {
     case 'processing':
-      return 'Bezig';
+      return run.cancel_requested_at ? 'Stoppen…' : 'Bezig';
     case 'pending':
       return run.attempts > 0
         ? `Nieuwe poging (${run.attempts + 1} van ${run.max_attempts})`
@@ -100,6 +102,8 @@ export function runStatusText(run: TrajectRun): string {
       return 'Klaar';
     case 'failed':
       return 'Mislukt';
+    case 'cancelled':
+      return 'Gestopt';
     default:
       return run.status;
   }
@@ -112,6 +116,7 @@ export function runStatusText(run: TrajectRun): string {
  */
 export function runOutcome(run: TrajectRun): string | null {
   if (run.status === 'failed') return 'Mislukt';
+  if (run.status === 'cancelled') return 'Gestopt';
   if (run.status !== 'completed') return null;
   const review = reviewSummary(run);
   if (run.job_type === 'enrich' && run.articles_total != null && run.articles_with_machine_readable != null) {
@@ -182,6 +187,15 @@ export function runSupportingText(run: TrajectRun): string {
   return [runOutcome(run) ?? runStatusText(run), moment, run.requested_by_name]
     .filter((part): part is string => Boolean(part))
     .join(' · ');
+}
+
+/**
+ * Whether a member can stop the run from the editor: a running enrichment
+ * that nobody asked to stop yet. Conversions have their own cancel, and a
+ * harvest is short.
+ */
+export function canStop(run: TrajectRun): boolean {
+  return run.job_type === 'enrich' && isActive(run) && !run.cancel_requested_at;
 }
 
 /** The runs split into what is still going and what is done, each newest first. */

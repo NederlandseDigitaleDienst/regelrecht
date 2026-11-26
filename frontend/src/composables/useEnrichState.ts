@@ -18,7 +18,7 @@
 import { computed, onMounted, toValue, type MaybeRefOrGetter } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from './useAuth';
-import { useTaskActions, usePollWhile } from './useTasks';
+import { useTaskActions, usePollWhile, type EnrichOptions, type RunningScope } from './useTasks';
 import { reviewTarget, sameTraject } from '../lib/taskReview';
 import type { Task } from '../lib/taskCategories';
 
@@ -32,9 +32,13 @@ export interface EnrichStateSources {
 // Structural view of a running job (`RunningTaskJob`, owned by useTasks); only
 // the fields read here.
 interface RunningJobView {
+  job_id?: string;
+  cancel_requested_at?: string | null;
   job_type?: string;
   law_id?: string | null;
   traject_ref?: string | null;
+  mode?: string | null;
+  articles?: string[] | null;
 }
 
 /**
@@ -52,6 +56,7 @@ export function useEnrichState({ trajectRef, lawId, articleNumber, reviewActive 
   const {
     refresh: refreshTasks,
     requestEnrich: requestEnrichRaw,
+    stopRun,
     running: runningJobs,
     tasks: openTasks,
   } = useTaskActions();
@@ -151,16 +156,55 @@ export function useEnrichState({ trajectRef, lawId, articleNumber, reviewActive 
   // `isEnriching` false, slaat de bezig-staat niet om en begint usePollWhile
   // nooit te pollen. Die koppeling hoort hier en niet bij elke aanroeper - daar
   // is hij één keer vergeten.
-  async function requestEnrich(provider?: string) {
+  // A provider name (as callers have always passed it) or the full options of
+  // the article/law mode.
+  async function requestEnrich(options?: string | EnrichOptions) {
     // Both callers (LibraryView, EditorView) only call this with a traject and
     // a law; nothing here checks that.
-    const result = await requestEnrichRaw(toValue(trajectRef) as string, toValue(lawId) as string, provider);
+    const result = await requestEnrichRaw(toValue(trajectRef) as string, toValue(lawId) as string, options);
     await refreshTasks();
     return result;
   }
 
+  // The running enrichment of this law in this traject, if any.
+  const runningJob = computed<RunningJobView | null>(() => {
+    const traject = toValue(trajectRef);
+    if (!traject) return null;
+    return (
+      runningJobs.value.find(
+        (j: RunningJobView) =>
+          j.job_type === 'enrich' &&
+          j.law_id === toValue(lawId) &&
+          sameTraject(j.traject_ref, traject),
+      ) ?? null
+    );
+  });
+
+  // What the running enrichment of this law covers: one article, a selection,
+  // or (null) the whole law. Lets the pane say "artikel 3 wordt verrijkt".
+  const runningScope = computed<RunningScope | null>(() => {
+    const job = runningJob.value;
+    if (!job || !job.mode) return null;
+    return { mode: job.mode, articles: job.articles ?? null };
+  });
+
+  // A stop was asked for and the worker is still winding the run down.
+  const isStopping = computed(() => !!runningJob.value?.cancel_requested_at);
+
+  // Stop the running enrichment of this law. The caller asked for
+  // confirmation; the shared list refreshes inside stopRun.
+  async function stopEnrich(): Promise<void> {
+    const traject = toValue(trajectRef);
+    const jobId = runningJob.value?.job_id;
+    if (!traject || !jobId) return;
+    await stopRun(traject, jobId);
+  }
+
   return {
     isEnriching,
+    isStopping,
+    stopEnrich,
+    runningScope,
     pendingReviewTask,
     reviewReady,
     reviewArticleForPane,

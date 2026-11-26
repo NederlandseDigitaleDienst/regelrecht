@@ -24,7 +24,7 @@
 //! in-flight saves, read-your-writes semantics and implementor lookups
 //! are unaffected.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -32,10 +32,12 @@ use std::time::{Duration, Instant};
 
 use regelrecht_corpus::GithubSettings;
 use regelrecht_corpus::backend::create_backend;
+use regelrecht_corpus::consumers_index::{Consumer, ConsumersIndex};
 use regelrecht_corpus::models::{GitHubSource, LocalSource, Source, SourceType};
 use regelrecht_corpus::source_map::collect_law_implements;
 use regelrecht_corpus::timing;
 use regelrecht_corpus::{CorpusRegistry, SourceMap};
+use regelrecht_pipeline::enrich_v2::facts::LawFacts;
 use sqlx::PgPool;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
@@ -196,6 +198,25 @@ pub struct TrajectCorpus {
     /// entries of the current snapshot, so it cannot grow beyond
     /// O(corpus) across content churn.
     implements_memo: Arc<RwLock<ImplementsMemo>>,
+    /// The facts of every law in this snapshot (see
+    /// [`regelrecht_pipeline::enrich_v2::facts`]), with the "law → articles
+    /// elsewhere that read it" index as a view on them. Built on demand by
+    /// [`Self::consumers_of`] and [`Self::facts`], or prewarmed in the
+    /// background ([`Self::prewarm_facts`]). A build that ran out of its time
+    /// budget is kept but marked partial, and the next lookup continues it:
+    /// everything already read sits in `facts_memo`. A save drops it (the
+    /// memo survives), so the saver's own change is in the next lookup.
+    facts_index: RwLock<Option<Arc<FactsSnapshot>>>,
+    /// Single-flight gate for building `facts_index`.
+    facts_build_lock: Mutex<()>,
+    /// Bumped by every save. A build stores its result only when this did not
+    /// move while it ran, so a build that read a body from before a save cannot
+    /// overwrite the `None` that save left behind.
+    facts_gen: AtomicU64,
+    /// Content-addressed memo for the facts scan, the counterpart of
+    /// `implements_memo`: `(source_id, blob sha) → the law's facts`. Shared
+    /// across refreshes, so a rebuild only reads and parses what changed.
+    facts_memo: Arc<RwLock<FactsMemo>>,
     /// Short-lived cache of the "edited in this traject" diff
     /// ([`changed_law_ids`]). Each `changed-laws` request would otherwise
     /// fire a GitHub Compare API call, and the library sidebar re-requests
@@ -438,6 +459,53 @@ fn git_blob_sha(content: &str) -> String {
 /// implementor panel (never legal calculations), and it self-heals once
 /// the law's sha changes again and a rebuild overwrites the memo wholesale.
 type ImplementsMemo = HashMap<(String, String), Vec<String>>;
+
+/// Memo behind [`TrajectCorpus::facts_memo`].
+type FactsMemo = HashMap<(String, String), Arc<LawFacts>>;
+
+/// How long one facts build may spend fetching bodies before it stops and
+/// reports itself partial. The request that triggers it is a person waiting
+/// on an enrich dialog; a cold scan of a federated corpus must not hold it
+/// for minutes.
+const FACTS_BUILD_BUDGET: Duration = Duration::from_secs(8);
+
+/// The facts of the snapshot's laws, the consumers view on them, and whether
+/// they cover the whole snapshot.
+pub struct FactsSnapshot {
+    /// Facts per law, by the law's id in the source map.
+    laws: BTreeMap<String, Arc<LawFacts>>,
+    consumers: ConsumersIndex,
+    /// Laws not read: budget spent, or the fetch failed.
+    unread: usize,
+}
+
+impl FactsSnapshot {
+    /// The facts per law, by law id.
+    #[must_use]
+    pub fn laws(&self) -> &BTreeMap<String, Arc<LawFacts>> {
+        &self.laws
+    }
+
+    /// How many laws could not be read, so a missing fact is not proof.
+    #[must_use]
+    pub fn unread(&self) -> usize {
+        self.unread
+    }
+}
+
+/// The facts of a body; an unparseable body has none, which is memoised too
+/// so it is not parsed again.
+fn facts_of(yaml: &str) -> Arc<LawFacts> {
+    Arc::new(LawFacts::from_yaml(yaml).unwrap_or_default())
+}
+
+/// Result of [`TrajectCorpus::consumers_of`].
+pub struct ConsumersResult {
+    pub consumers: Vec<Consumer>,
+    /// `true` when some laws could not be read, so a missing consumer is not
+    /// proof that there is none.
+    pub partial: bool,
+}
 
 /// Per-snapshot forward index: each law's parsed `implements` list, plus
 /// the laws whose body couldn't be fetched during the scan (throttling,
@@ -812,6 +880,10 @@ impl TrajectCorpus {
                 .await
                 .remove(&global_body_key(&law.source_id, &law.relative_path));
         }
+        // The saved body may add or drop a binding; the memo keeps the rest
+        // cheap, so dropping the index is enough.
+        self.facts_gen.fetch_add(1, Ordering::SeqCst);
+        *self.facts_index.write().await = None;
         if let Some(index) = self.implements_index.write().await.as_mut() {
             let index = Arc::make_mut(index);
             // The law's body is now known, so it can no longer count as
@@ -1007,6 +1079,216 @@ impl TrajectCorpus {
             implementors,
             skipped_count: index.failed_law_ids.len(),
         }
+    }
+
+    /// Articles elsewhere in this snapshot's corpus that read `law_id`:
+    /// `source.regulation`/`output`, a fixed `source.article`, or an
+    /// `implements` of one of its open terms.
+    pub async fn consumers_of(&self, law_id: &str) -> ConsumersResult {
+        let snapshot = self.facts_index_get_or_build().await;
+        ConsumersResult {
+            consumers: snapshot.consumers.consumers_of(law_id),
+            partial: snapshot.unread > 0,
+        }
+    }
+
+    /// The facts of every law in this snapshot, built on first use within
+    /// [`FACTS_BUILD_BUDGET`]; check [`FactsSnapshot::unread`] before reading
+    /// an absence as a fact.
+    pub async fn facts(&self) -> Arc<FactsSnapshot> {
+        self.facts_index_get_or_build().await
+    }
+
+    /// The facts index as far as it is built, without starting a build.
+    pub async fn facts_cached(&self) -> Option<Arc<FactsSnapshot>> {
+        self.facts_index.read().await.clone()
+    }
+
+    /// The facts of the named laws only, read on demand: overlay, loaded
+    /// body, memo, then a fetch until `deadline`. A walk from one article
+    /// reads the laws on its path this way instead of scanning a corpus of
+    /// thousands of laws first. Laws the snapshot does not have are left
+    /// out; the second value counts the laws that could not be read (fetch
+    /// failed or the deadline passed).
+    pub async fn facts_for_laws(
+        &self,
+        law_ids: &[String],
+        deadline: std::time::Instant,
+    ) -> (BTreeMap<String, Arc<LawFacts>>, usize) {
+        let mut out = BTreeMap::new();
+        let mut unread = 0usize;
+        for law_id in law_ids {
+            let Some(law) = self.corpus.source_map.get_law(law_id) else {
+                continue;
+            };
+            let overlay_body = self.overlay.read().await.get(law_id).cloned();
+            let facts = if let Some(body) = overlay_body {
+                facts_of(&body)
+            } else if law.is_loaded() {
+                facts_of(&law.yaml_content)
+            } else {
+                let key = law
+                    .content_sha
+                    .clone()
+                    .map(|sha| (law.source_id.clone(), sha));
+                let hit = match &key {
+                    Some(k) => self.facts_memo.read().await.get(k).cloned(),
+                    None => None,
+                };
+                if let Some(hit) = hit {
+                    hit
+                } else if std::time::Instant::now() >= deadline {
+                    unread += 1;
+                    continue;
+                } else {
+                    match self.law_yaml(law_id).await {
+                        Ok(Some(yaml)) => {
+                            let facts = facts_of(&yaml);
+                            if let Some(k) = key {
+                                self.facts_memo.write().await.insert(k, Arc::clone(&facts));
+                            }
+                            facts
+                        }
+                        Ok(None) => continue,
+                        Err(e) => {
+                            tracing::debug!(law_id = %law_id, error = %e, "chain: body fetch failed");
+                            unread += 1;
+                            continue;
+                        }
+                    }
+                }
+            };
+            out.insert(law_id.clone(), facts);
+        }
+        (out, unread)
+    }
+
+    /// Build the facts in the background, so the first person who opens a
+    /// chain does not wait for the scan. Single-flighted with every other
+    /// build; a partial result is continued by the next lookup.
+    pub fn prewarm_facts(self: &Arc<Self>) {
+        let corpus = Arc::clone(self);
+        tokio::spawn(async move {
+            let snapshot = corpus.facts_index_get_or_build().await;
+            tracing::debug!(
+                laws = snapshot.laws.len(),
+                unread = snapshot.unread,
+                "facts index prewarmed"
+            );
+        });
+    }
+
+    async fn facts_index_get_or_build(&self) -> Arc<FactsSnapshot> {
+        if let Some(snapshot) = self.facts_index.read().await.as_ref()
+            && snapshot.unread == 0
+        {
+            return Arc::clone(snapshot);
+        }
+        let _build = self.facts_build_lock.lock().await;
+        if let Some(snapshot) = self.facts_index.read().await.as_ref()
+            && snapshot.unread == 0
+        {
+            return Arc::clone(snapshot);
+        }
+        let gen_before = self.facts_gen.load(Ordering::SeqCst);
+        let snapshot = self.build_facts_index().await;
+        let mut slot = self.facts_index.write().await;
+        if self.facts_gen.load(Ordering::SeqCst) == gen_before {
+            *slot = Some(Arc::clone(&snapshot));
+        }
+        snapshot
+    }
+
+    /// One pass over the snapshot's laws collecting their facts, cheapest
+    /// source first (overlay, loaded body, memo, fetch), within
+    /// [`FACTS_BUILD_BUDGET`] for the fetches.
+    async fn build_facts_index(&self) -> Arc<FactsSnapshot> {
+        let overlay = self.overlay.read().await.clone();
+        let memo = self.facts_memo.read().await.clone();
+        let mut new_memo: FactsMemo = HashMap::new();
+        struct ScanEntry {
+            law_id: String,
+            source_id: String,
+            content_sha: Option<String>,
+            loaded_body: Option<String>,
+        }
+        let entries: Vec<ScanEntry> = self
+            .corpus
+            .source_map
+            .laws()
+            .map(|law| ScanEntry {
+                law_id: law.law_id.clone(),
+                source_id: law.source_id.clone(),
+                content_sha: law.content_sha.clone(),
+                loaded_body: law.is_loaded().then(|| law.yaml_content.clone()),
+            })
+            .collect();
+        let current_keys: HashSet<(String, String)> = entries
+            .iter()
+            .filter_map(|e| e.content_sha.clone().map(|sha| (e.source_id.clone(), sha)))
+            .collect();
+        let deadline = std::time::Instant::now() + FACTS_BUILD_BUDGET;
+        let mut laws: BTreeMap<String, Arc<LawFacts>> = BTreeMap::new();
+        let mut unread = 0usize;
+        for entry in entries {
+            let facts = if let Some(body) = overlay.get(&entry.law_id) {
+                facts_of(body)
+            } else if let Some(body) = &entry.loaded_body {
+                facts_of(body)
+            } else {
+                let key = entry.content_sha.map(|sha| (entry.source_id.clone(), sha));
+                if let Some(hit) = key.as_ref().and_then(|k| memo.get(k)) {
+                    if let Some(k) = key {
+                        new_memo.insert(k, Arc::clone(hit));
+                    }
+                    Arc::clone(hit)
+                } else if std::time::Instant::now() >= deadline {
+                    unread += 1;
+                    continue;
+                } else {
+                    match self.law_yaml(&entry.law_id).await {
+                        Ok(Some(yaml)) => {
+                            let facts = facts_of(&yaml);
+                            if let Some(k) = key {
+                                new_memo.insert(k, Arc::clone(&facts));
+                            }
+                            facts
+                        }
+                        Ok(None) => continue,
+                        Err(e) => {
+                            tracing::debug!(law_id = %entry.law_id, error = %e, "facts scan: body fetch failed");
+                            unread += 1;
+                            continue;
+                        }
+                    }
+                }
+            };
+            laws.insert(entry.law_id, facts);
+        }
+        if unread > 0 {
+            tracing::info!(unread, "facts index partial; the next lookup continues it");
+        }
+        // Keep what an earlier partial build read and this one did not reach,
+        // but only for blobs this snapshot still has: like `implements_memo`,
+        // the memo is bounded by the corpus, not by its history.
+        {
+            let mut memo_guard = self.facts_memo.write().await;
+            for (k, v) in memo {
+                if current_keys.contains(&k) {
+                    new_memo.entry(k).or_insert(v);
+                }
+            }
+            *memo_guard = new_memo;
+        }
+        let consumers = ConsumersIndex::from_bindings(
+            laws.iter()
+                .map(|(law_id, facts)| (law_id.clone(), facts.source_bindings.clone())),
+        );
+        Arc::new(FactsSnapshot {
+            laws,
+            consumers,
+            unread,
+        })
     }
 
     /// Get the snapshot's implements index, building it on first use.
@@ -1708,6 +1990,7 @@ impl TrajectCorpusCache {
             corpus: corpus.clone(),
             built_at: Instant::now(),
         });
+        prewarm_facts_if_enabled(pool, &corpus);
         Ok(corpus)
     }
 
@@ -1717,6 +2000,22 @@ impl TrajectCorpusCache {
     pub async fn invalidate(&self, traject_id: Uuid) {
         self.cells.write().await.remove(&traject_id);
     }
+}
+
+/// Start building the facts of a freshly built corpus in the background, when
+/// the chain and hotspots are on. A flag that cannot be read counts as off:
+/// a prewarm is an optimisation, and the first lookup builds anyway.
+fn prewarm_facts_if_enabled(pool: &PgPool, corpus: &Arc<TrajectCorpus>) {
+    let pool = pool.clone();
+    let corpus = Arc::clone(corpus);
+    tokio::spawn(async move {
+        match crate::feature_flags::flag_enabled(&pool, crate::feature_flags::ENRICH_HOTSPOTS).await
+        {
+            Ok(true) => corpus.prewarm_facts(),
+            Ok(false) => {}
+            Err(e) => tracing::debug!(error = %e, "hotspots flag unreadable; facts not prewarmed"),
+        }
+    });
 }
 
 /// The background leg of [`TrajectCorpusCache::get_or_build`]'s
@@ -1968,6 +2267,10 @@ async fn build_traject_corpus(
         implements_index_stale: AtomicBool::new(false),
         implements_build_lock: Mutex::new(()),
         implements_memo: Arc::new(RwLock::new(HashMap::new())),
+        facts_index: RwLock::new(None),
+        facts_build_lock: Mutex::new(()),
+        facts_gen: AtomicU64::new(0),
+        facts_memo: Arc::new(RwLock::new(HashMap::new())),
         changed_cache: Arc::new(RwLock::new(None)),
         changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
         changed_refresh_gate: Arc::new(Mutex::new(())),
@@ -2315,6 +2618,10 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
         implements_index_stale: AtomicBool::new(true),
         implements_build_lock: Mutex::new(()),
         implements_memo: old.implements_memo.clone(),
+        facts_index: RwLock::new(None),
+        facts_build_lock: Mutex::new(()),
+        facts_gen: AtomicU64::new(0),
+        facts_memo: Arc::clone(&old.facts_memo),
         changed_cache: old.changed_cache.clone(),
         changed_refresh_in_flight: old.changed_refresh_in_flight.clone(),
         changed_refresh_gate: old.changed_refresh_gate.clone(),
@@ -2694,6 +3001,10 @@ mod tests {
             implements_index_stale: AtomicBool::new(false),
             implements_build_lock: Mutex::new(()),
             implements_memo: Arc::new(RwLock::new(HashMap::new())),
+            facts_index: RwLock::new(None),
+            facts_build_lock: Mutex::new(()),
+            facts_gen: AtomicU64::new(0),
+            facts_memo: Arc::new(RwLock::new(HashMap::new())),
             changed_cache: Arc::new(RwLock::new(None)),
             changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
             changed_refresh_gate: Arc::new(Mutex::new(())),
@@ -3040,6 +3351,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn consumers_of_reverses_source_bindings_and_reuses_the_index() {
+        let mut map = SourceMap::new("2026-06-01");
+        metadata_entry(&mut map, "lezer", "seed");
+        metadata_entry(&mut map, "bron", "seed");
+        let lezer = "$id: lezer\narticles:\n  - number: \"4\"\n    machine_readable:\n      execution:\n        input:\n          - name: x\n            source:\n              regulation: bron\n              output: bedrag\n";
+        let stub = StubBackend::with_files(&[
+            ("wet/lezer/2025-01-01.yaml", lezer),
+            ("wet/bron/2025-01-01.yaml", &law_body("bron", None)),
+        ]);
+        let reads = stub.reads.clone();
+        let corpus = test_corpus(
+            map,
+            HashMap::from([("seed".to_string(), backend_entry(stub))]),
+        );
+
+        let result = corpus.consumers_of("bron").await;
+        assert!(!result.partial);
+        assert_eq!(result.consumers.len(), 1);
+        assert_eq!(result.consumers[0].law_id, "lezer");
+        assert_eq!(result.consumers[0].article, "4");
+        assert_eq!(result.consumers[0].target, "bedrag");
+        let reads_after_build = reads.load(Ordering::SeqCst);
+
+        assert!(corpus.consumers_of("lezer").await.consumers.is_empty());
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            reads_after_build,
+            "a second lookup reuses the index"
+        );
+    }
+
+    #[tokio::test]
     async fn implementors_of_reports_fetch_failures_as_skipped() {
         let mut map = SourceMap::new("2026-06-01");
         metadata_entry(&mut map, "regeling_a", "seed");
@@ -3204,6 +3547,10 @@ mod tests {
             implements_index_stale: AtomicBool::new(false),
             implements_build_lock: Mutex::new(()),
             implements_memo: Arc::new(RwLock::new(HashMap::new())),
+            facts_index: RwLock::new(None),
+            facts_build_lock: Mutex::new(()),
+            facts_gen: AtomicU64::new(0),
+            facts_memo: Arc::new(RwLock::new(HashMap::new())),
             changed_cache: Arc::new(RwLock::new(None)),
             changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
             changed_refresh_gate: Arc::new(Mutex::new(())),

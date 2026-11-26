@@ -82,6 +82,9 @@ pub struct TrajectRun {
     /// to whoever requested the run, and the task list shows a member only
     /// their own, so this is what the viewer can actually pick up.
     pub tasks_open_mine: i64,
+    /// When a member asked to stop the run. Set on a processing run that is
+    /// still winding down ("Stoppen…") and kept on the cancelled run after.
+    pub cancel_requested_at: Option<DateTime<Utc>>,
 }
 
 /// The id part of a traject's refs: the first eight hex characters of its id.
@@ -137,7 +140,8 @@ pub async fn list_traject_runs(
                 COALESCE(t.approved, 0) AS tasks_approved, \
                 COALESCE(t.rejected, 0) AS tasks_rejected, \
                 COALESCE(t.dismissed, 0) AS tasks_dismissed, \
-                COALESCE(t.open_mine, 0) AS tasks_open_mine \
+                COALESCE(t.open_mine, 0) AS tasks_open_mine, \
+                j.cancel_requested_at \
          FROM jobs j \
          LEFT JOIN accounts a ON a.id::text = j.payload->>'requested_by' \
          LEFT JOIN LATERAL ( \
@@ -165,6 +169,86 @@ pub async fn list_traject_runs(
     .fetch_all(pool)
     .await?;
     Ok(runs)
+}
+
+/// What a request to stop a run did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StopOutcome {
+    /// The run had not started: it is gone, with its input.
+    Removed,
+    /// The run is processing: the stop is recorded and the worker ends it at
+    /// its next heartbeat.
+    Stopping,
+    /// Nothing to stop: the run already ended, was stopped before, or is not
+    /// an enrichment of this traject.
+    Done,
+}
+
+/// Stop the enrichment `job_id` of the traject `traject_id`, on behalf of any
+/// member (the caller checks membership and write access).
+///
+/// Only an enrichment delivered as a task can be stopped this way: the
+/// corpus-wide runs and the conversions have their own life cycle. A pending
+/// run is deleted with its input blobs; a processing one gets
+/// `cancel_requested_at`, which the worker's heartbeat reads. Idempotent: a
+/// second request, or one for a run that ended, is [`StopOutcome::Done`]; a
+/// second request for a run that is still winding down is `Stopping` again.
+///
+/// # Errors
+///
+/// Returns an error when a query fails.
+pub async fn stop_traject_enrich_run(
+    pool: &PgPool,
+    traject_id: Uuid,
+    job_id: Uuid,
+) -> Result<StopOutcome> {
+    let mut tx = pool.begin().await?;
+    // Row lock, so a worker claiming the job at this moment either sees it
+    // gone or has claimed it first, in which case this records a stop.
+    let status: Option<JobStatus> = sqlx::query_scalar(
+        "SELECT status FROM jobs \
+         WHERE id = $1 \
+           AND traject_ref IS NOT NULL \
+           AND right(traject_ref, 9) = '-' || $2 \
+           AND job_type = 'enrich' \
+           AND payload->>'deliver' = 'task' \
+           AND payload->>'traject_id' = $3 \
+         FOR UPDATE",
+    )
+    .bind(job_id)
+    .bind(traject_key(traject_id))
+    .bind(traject_id.to_string())
+    .fetch_optional(&mut *tx)
+    .await?;
+    let outcome = match status {
+        Some(JobStatus::Pending) => {
+            sqlx::query("DELETE FROM jobs WHERE id = $1")
+                .bind(job_id)
+                .execute(&mut *tx)
+                .await?;
+            crate::tasks::delete_blobs_for_job(&mut *tx, job_id).await?;
+            StopOutcome::Removed
+        }
+        Some(JobStatus::Processing) => {
+            sqlx::query(
+                "UPDATE jobs SET cancel_requested_at = COALESCE(cancel_requested_at, now()) \
+                 WHERE id = $1",
+            )
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
+            StopOutcome::Stopping
+        }
+        Some(JobStatus::Completed | JobStatus::Failed | JobStatus::Cancelled) | None => {
+            StopOutcome::Done
+        }
+    };
+    tx.commit().await?;
+    if outcome != StopOutcome::Done {
+        tracing::info!(job_id = %job_id, outcome = ?outcome, "stop requested for enrich run");
+    }
+    Ok(outcome)
 }
 
 #[cfg(test)]

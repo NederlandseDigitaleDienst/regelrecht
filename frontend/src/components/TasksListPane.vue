@@ -48,6 +48,7 @@ import {
 import { groupTasks, listByAge } from '../lib/taskGroups';
 import { taskDetailRows } from '../lib/taskDetails';
 import { useTrajectRunsStore } from '../stores/trajectRuns';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
 import type { TaskGroup } from '../lib/taskGroups';
 import {
   filterTasks,
@@ -86,7 +87,7 @@ interface TaskWithError extends TaskRecord {
 }
 
 const router = useRouter();
-const { tasks, running, resolveTask, requestEnrich, refresh } = useTrajectTasks(() => props.trajectRef);
+const { tasks, running, resolveTask, requestEnrich, stopRun, refresh } = useTrajectTasks(() => props.trajectRef);
 const { displayName } = useCorpus();
 
 // runningTitle may pass a job without a law_id; displayName (via humanizeLawId)
@@ -125,7 +126,9 @@ function taskSupportingText(task: TaskRecord): string | undefined {
   return byAge.value ? contextName(taskContext(task), taskLawId(task), displayName) : undefined;
 }
 function jobSupportingText(job: RunningTaskJob): string | undefined {
-  return byAge.value ? contextName(jobContext(job), jobLawId(job), displayName) : undefined;
+  const context = byAge.value ? contextName(jobContext(job), jobLawId(job), displayName) : undefined;
+  if (!job.cancel_requested_at) return context;
+  return context ? `Stoppen… · ${context}` : 'Stoppen…';
 }
 
 const isEmpty = computed(() => groups.value.length === 0);
@@ -274,6 +277,38 @@ function jobDestination(job: RunningTaskJob): boolean {
   return jobContext(job) === WERKDOCUMENTEN ? Boolean(job.target_path) : Boolean(jobLawId(job));
 }
 
+// With the scope modes on, a running enrichment can be stopped from its row,
+// in the same "more" menu where a conversion is cancelled.
+const featureFlags = useFeatureFlagsStore();
+function stoppable(job: RunningTaskJob): boolean {
+  return featureFlags.isEnabled('enrich.scoped') && job.job_type === 'enrich';
+}
+// Rows with a menu: a conversion (cancel) and a stoppable enrichment.
+function hasMenu(job: RunningTaskJob): boolean {
+  return jobContext(job) === WERKDOCUMENTEN || stoppable(job);
+}
+
+// Stopping asks first, like Verwerpen: what the run did so far is lost.
+const stopConfirm = ref<NLDDModalDialog | null>(null);
+const stopTarget = ref<RunningTaskJob | null>(null);
+const stopError = ref<string | null>(null);
+function askStop(job: RunningTaskJob): void {
+  stopTarget.value = job;
+  stopError.value = null;
+  stopConfirm.value?.show();
+}
+async function confirmStop(): Promise<void> {
+  stopConfirm.value?.hide();
+  const job = stopTarget.value;
+  stopTarget.value = null;
+  if (!job || !props.trajectRef) return;
+  try {
+    await stopRun(props.trajectRef, job.job_id);
+  } catch {
+    stopError.value = 'Stoppen is mislukt. Probeer het opnieuw.';
+  }
+}
+
 function openJob(job: RunningTaskJob): void {
   if (!jobDestination(job)) return;
   if (jobContext(job) === WERKDOCUMENTEN) viewDocument(job);
@@ -282,6 +317,10 @@ function openJob(job: RunningTaskJob): void {
 </script>
 
 <template>
+  <template v-if="stopError">
+    <nldd-inline-dialog variant="alert" :text="stopError"></nldd-inline-dialog>
+    <nldd-spacer size="16"></nldd-spacer>
+  </template>
   <template v-if="!isEmpty">
     <template v-for="(group, index) in groups" :key="group.key">
       <template v-if="showHeadings">
@@ -329,7 +368,7 @@ function openJob(job: RunningTaskJob): void {
              A job with nothing to open (a law conversion, a harvest) is a
              plain row: a chevron there would promise a destination. -->
         <template v-for="job in group.running" :key="job.job_id">
-          <nldd-list-item v-if="jobContext(job) === WERKDOCUMENTEN" size="md">
+          <nldd-list-item v-if="hasMenu(job)" size="md">
             <nldd-list-item-segment
               width="full"
               button
@@ -409,6 +448,16 @@ function openJob(job: RunningTaskJob): void {
             destructive
             text="Annuleer conversie"
             @select="emit('cancel-job', job)"
+          ></nldd-menu-item>
+        </nldd-menu>
+        <nldd-menu v-else-if="stoppable(job)" :id="jobMenuId(job)">
+          <!-- Stopping ends the run without a proposal; a run that is already
+               winding down has nothing left to stop. -->
+          <nldd-menu-item
+            destructive
+            text="Stop verrijking"
+            :disabled="!!job.cancel_requested_at || undefined"
+            @select="askStop(job)"
           ></nldd-menu-item>
         </nldd-menu>
       </template>
@@ -507,6 +556,27 @@ function openJob(job: RunningTaskJob): void {
         </nldd-container>
       </nldd-page>
     </nldd-sheet>
+
+    <nldd-modal-dialog
+      ref="stopConfirm"
+      variant="alert"
+      icon="exclamation-triangle"
+      text="Verrijking stoppen?"
+      supporting-text="Wat de verrijking tot nu toe deed gaat verloren. Er komt geen voorstel."
+    >
+      <nldd-button
+        slot="actions"
+        appearance="primary"
+        text="Laat doorlopen"
+        @click="stopConfirm?.hide()"
+      ></nldd-button>
+      <nldd-button
+        slot="actions"
+        appearance="destructive"
+        text="Stop verrijking"
+        @click="confirmStop"
+      ></nldd-button>
+    </nldd-modal-dialog>
 
     <!-- Same question as Verwerp voorstel in the editor (AppShell). -->
     <nldd-modal-dialog

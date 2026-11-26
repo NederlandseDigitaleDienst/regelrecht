@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import MachineEmptyState from './MachineEmptyState.vue';
 
@@ -43,6 +43,35 @@ describe('MachineEmptyState', () => {
     expect(supporting).toContain('alle artikelen van deze versie');
   });
 
+  describe('with the scope modes on', () => {
+    function mountScoped() {
+      return mount(MachineEmptyState, { props: { canEnrich: true, needs: '', scoped: true } });
+    }
+
+    it('enriches the article you look at, after the sheet', async () => {
+      const w = mountScoped();
+      expect(enrichLabel(w)).toBe('Verrijk dit artikel');
+      await w.find('[data-testid="enrich-btn"]').trigger('action-click');
+      expect(w.emitted('enrich')).toBeUndefined();
+      expect(w.emitted('enrich-article')).toHaveLength(1);
+    });
+
+    it('puts the whole regelwerk behind the chevron, through the sheet', async () => {
+      const w = mountScoped();
+      expect(w.find('[data-testid="enrich-with-opencode"]').exists()).toBe(false);
+      await w.find('[data-testid="enrich-options"]').trigger('select');
+      expect(w.emitted('enrich-options')).toHaveLength(1);
+      expect(w.emitted('enrich')).toBeUndefined();
+    });
+
+    it('does not promise every article', () => {
+      const supporting = mountScoped()
+        .find('[data-testid="no-machine-readable"]')
+        .attributes('supporting-text');
+      expect(supporting).not.toContain('alle artikelen');
+    });
+  });
+
   describe('choice of model', () => {
     it('runs the default when the button itself is clicked', async () => {
       const w = mountEmpty('');
@@ -64,6 +93,42 @@ describe('MachineEmptyState', () => {
       const w = mountEmpty(needs);
       expect(w.find('nldd-split-button').exists()).toBe(false);
       expect(w.find('[data-testid="enrich-with-opencode"]').exists()).toBe(false);
+    });
+  });
+
+  describe('stopping a running enrichment', () => {
+    function mountBusy(props: Record<string, unknown> = {}) {
+      return mount(MachineEmptyState, {
+        props: { canEnrich: true, enriching: true, scoped: true, ...props },
+      });
+    }
+
+    it('offers a stop that asks first, and emits only after confirmation', async () => {
+      const w = mountBusy();
+      // The custom elements are not registered here: give the dialog the two
+      // methods the component calls on it.
+      const dialog = w.find('nldd-modal-dialog').element as HTMLElement & { show?: () => void; hide?: () => void };
+      dialog.show = vi.fn();
+      dialog.hide = vi.fn();
+      const stop = w.find('[data-testid="stop-enrich-btn"]');
+      expect(stop.exists()).toBe(true);
+      await stop.trigger('click');
+      expect(dialog.show).toHaveBeenCalled();
+      expect(w.emitted('stop-enrich')).toBeUndefined();
+      await w.find('[data-testid="confirm-stop-enrich"]').trigger('click');
+      expect(w.emitted('stop-enrich')).toHaveLength(1);
+    });
+
+    it('offers no stop without the scope modes', () => {
+      const w = mountBusy({ scoped: false });
+      expect(w.find('[data-testid="enriching"]').exists()).toBe(true);
+      expect(w.find('[data-testid="stop-enrich-btn"]').exists()).toBe(false);
+    });
+
+    it('says the run is stopping once a stop was asked for', () => {
+      const w = mountBusy({ stopping: true });
+      expect(w.find('[data-testid="enrich-stopping"]').attributes('text')).toBe('Stoppen…');
+      expect(w.find('[data-testid="stop-enrich-btn"]').exists()).toBe(false);
     });
   });
 });

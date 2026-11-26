@@ -251,6 +251,27 @@ exclude_re = [
     # a_timeout_kills_everything_the_agent_started; this only picks the log.
     'agent/supervisor\.rs.*replace != with == in terminate',
 
+    # --- pipeline: stopping a run ------------------------------------------
+
+    # Two guards that pick a log line and nothing else. The heartbeat logs
+    # "stop requested" on the first beat that finds the stop, not on every
+    # beat after it; `cancel()` itself is idempotent, so firing it again
+    # changes nothing. stop_traject_enrich_run logs only a stop that did
+    # something. What the stop does is killed in traject_runs_tests.rs and
+    # job_queue_tests.rs. Both are the only such operator in their function;
+    # when a second one arrives, narrow the rule.
+    'job_queue\.rs.*delete ! in JobHeartbeat::start_with',
+    'traject_runs\.rs.*replace != with == in stop_traject_enrich_run',
+
+    # --- pipeline/src/enrich_v2/closure.rs ---------------------------------
+
+    # The default of LawGraphs::implementors is `Vec::new()`; the mutant
+    # `vec![]` is the same empty vector. That no implementor is followed
+    # without an override is what the default says, and
+    # without_a_way_to_resolve_ids_a_binding_to_another_law_is_a_known_gap
+    # walks a graph that relies on it.
+    'closure\.rs.*replace LawGraphs::implementors -> Vec<Node> with vec!\[\]',
+
     # The chain plan is logged when it reports a step left out or degraded.
     # A blocked required step is an error and is killed in call_agent; this
     # only decides whether an empty report gets a log line.

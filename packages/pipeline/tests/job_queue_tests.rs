@@ -396,6 +396,7 @@ async fn test_reap_spares_long_running_job_with_fresh_heartbeat() {
         job_queue::heartbeat(&db.pool, held.id, held.started_at)
             .await
             .unwrap()
+            .holds()
     );
 
     let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
@@ -442,13 +443,19 @@ async fn test_heartbeat_reports_job_no_longer_processing() {
     let job = job_queue::create_job(&db.pool, req).await.unwrap();
 
     // Pending: nothing to beat for.
-    assert!(!job_queue::heartbeat(&db.pool, job.id, None).await.unwrap());
+    assert!(
+        !job_queue::heartbeat(&db.pool, job.id, None)
+            .await
+            .unwrap()
+            .holds()
+    );
 
     let claimed = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
     assert!(
         job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
             .await
             .unwrap()
+            .holds()
     );
 
     job_queue::complete_job(&db.pool, job.id, None)
@@ -458,6 +465,7 @@ async fn test_heartbeat_reports_job_no_longer_processing() {
         !job_queue::heartbeat(&db.pool, claimed.id, claimed.started_at)
             .await
             .unwrap()
+            .holds()
     );
 }
 
@@ -485,11 +493,13 @@ async fn test_heartbeat_from_earlier_claim_does_not_land() {
         !job_queue::heartbeat(&db.pool, first.id, first.started_at)
             .await
             .unwrap()
+            .holds()
     );
     assert!(
         job_queue::heartbeat(&db.pool, second.id, second.started_at)
             .await
             .unwrap()
+            .holds()
     );
 }
 
@@ -571,6 +581,33 @@ async fn test_job_heartbeat_stops_at_its_ceiling() {
         .await
         .unwrap();
     assert_eq!(reaped.len(), 1);
+}
+
+#[tokio::test]
+async fn test_job_heartbeat_fires_its_token_when_a_stop_is_requested() {
+    let db = TestDb::new().await;
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    let guard = job_queue::JobHeartbeat::start_with(
+        db.pool.clone(),
+        &job,
+        Duration::from_millis(50),
+        Duration::from_secs(60),
+    );
+    let stop = guard.stop_requested();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(!stop.is_cancelled(), "no stop asked, nothing fires");
+
+    sqlx::query("UPDATE jobs SET cancel_requested_at = now() WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), stop.cancelled())
+        .await
+        .expect("the token handed out fires once a beat sees the stop");
 }
 
 #[tokio::test]

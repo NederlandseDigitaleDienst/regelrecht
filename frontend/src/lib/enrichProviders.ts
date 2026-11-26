@@ -8,12 +8,30 @@ export interface EnrichProviderOption {
   id: string;
   label: string;
   model?: string;
+  /**
+   * Models a single run may ask for (ENRICH_MODELS in
+   * packages/pipeline/src/enrich.rs, which the editor-api checks against).
+   * Empty: the model comes from the deployment and is not chosen per run.
+   */
+  models?: readonly { id: string; label: string }[];
 }
 
 export const ENRICH_PROVIDER_OPTIONS: readonly EnrichProviderOption[] = [
-  { id: 'claude', label: 'Claude' },
+  {
+    id: 'claude',
+    label: 'Claude',
+    models: [
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+    ],
+  },
   { id: 'opencode', label: 'VLAM', model: 'Kimi K3' },
 ];
+
+/** The models a provider offers per run; empty when the deployment decides. */
+export function providerModels(id: string): readonly { id: string; label: string }[] {
+  return ENRICH_PROVIDER_OPTIONS.find((o) => o.id === id)?.models ?? [];
+}
 
 /** The name to show for a provider id; an unknown id is shown as it is. */
 export function providerLabel(id: string): string {

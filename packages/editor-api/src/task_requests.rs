@@ -40,13 +40,9 @@ pub struct EnrichRequestResponse {
     pub job_id: Uuid,
 }
 
-/// Optional body of the enrich request. Without it, or without `provider`,
-/// the deployment's `TASK_ENRICH_PROVIDER` decides.
-#[derive(serde::Deserialize, Default)]
-pub struct EnrichRequest {
-    #[serde(default)]
-    pub provider: Option<String>,
-}
+/// Optional body of the enrich request; see [`crate::enrich_scope`]. Without
+/// it, or without `provider`, the deployment's `TASK_ENRICH_PROVIDER` decides.
+pub use crate::enrich_scope::EnrichRequest;
 
 /// The provider for this request: the one asked for if the pipeline knows
 /// it, the deployment default if none was asked for. An unknown name is a
@@ -76,7 +72,8 @@ pub async fn request_enrich(
     Path((traject_ref, law_id)): Path<(String, String)>,
     headers: axum::http::HeaderMap,
     body: Option<Json<EnrichRequest>>,
-) -> Result<(StatusCode, Json<EnrichRequestResponse>), (StatusCode, String)> {
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    use axum::response::IntoResponse;
     let pool = state.pool.as_ref().ok_or((
         StatusCode::SERVICE_UNAVAILABLE,
         "database niet geconfigureerd".to_string(),
@@ -87,6 +84,16 @@ pub async fn request_enrich(
     let traject = require_traject_corpus_from_ref(&state, &session, &traject_ref).await?;
     let traject_id = resolve_traject_ref(pool, &traject_ref).await?;
     let request = body.map(|Json(r)| r).unwrap_or_default();
+    if request.asks_scope()
+        && !crate::feature_flags::flag_enabled(pool, crate::enrich_scope::SCOPED_FLAG)
+            .await
+            .map_err(internal("feature flag lezen"))?
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Verrijken met scope staat in deze omgeving niet aan.".to_string(),
+        ));
+    }
     let provider = resolve_provider(
         request.provider.as_deref(),
         &state.config.task_enrich_provider,
@@ -95,6 +102,7 @@ pub async fn request_enrich(
     // Snapshot de wet zoals de gebruiker hem nu ziet (traject-scope),
     // inclusief het per-request leestoken voor de writable-own source —
     // zonder service-token leest de wet-body anders via de seed of 404't.
+    let traject_corpus = std::sync::Arc::clone(&traject);
     let scope = ReadScope::for_traject(&state, account.id, &headers, traject).await;
     let yaml = read_law_yaml(&scope, &law_id).await?;
     if yaml.len() > MAX_INPUT_BYTES {
@@ -104,10 +112,47 @@ pub async fn request_enrich(
         ));
     }
     let source_etag = document_etag(&yaml);
+    // Modus, selectie, instructie en rondes, getoetst aan de wet zoals hij nu
+    // is: een artikel dat niet bestaat is een fout in de aanvraag, geen run
+    // die niets vindt.
+    let plan = crate::enrich_scope::plan_request(&request, &yaml, &provider)?;
 
     // Synthetisch repo-relatief pad: de parent-directorynaam fungeert als
     // slug voor de feature-file-detectie in execute_enrich.
     let yaml_path = format!("laws/{law_id}/law.yaml");
+
+    // De stelselcontext: wie deze wet leest, welke open termen hij heeft en
+    // wie die invult, wat hij elders leest, en plakken van die andere wetten.
+    // De worker heeft in de taak-flow geen corpus, dus wat de agent van andere
+    // wetten moet zien reist hier als input-blob mee.
+    let mut context_blobs: Vec<(String, String)> = Vec::new();
+    if plan.context {
+        let found = traject_corpus.consumers_of(&law_id).await;
+        let (consumers, partial) = (found.consumers, found.partial);
+        let builder = crate::enrich_scope::StelselBuilder::new(&law_id, &yaml, consumers, partial);
+        let mut bodies = std::collections::BTreeMap::new();
+        for other in builder
+            .laws()
+            .into_iter()
+            .take(crate::enrich_scope::MAX_CONTEXT_LAWS)
+        {
+            let body = read_law_yaml(&scope, &other).await.ok();
+            bodies.insert(other, body);
+        }
+        let (stelsel, slices) = builder.finish(&bodies);
+        let stelsel_yaml =
+            serde_yaml_ng::to_string(&stelsel).map_err(internal("stelselcontext serialiseren"))?;
+        context_blobs.push((
+            format!(
+                "laws/{law_id}/{}",
+                regelrecht_pipeline::enrich_v2::stelsel::STELSEL_FILE
+            ),
+            stelsel_yaml,
+        ));
+        for (other, slice) in slices {
+            context_blobs.push((format!("context/{other}/law.yaml"), slice));
+        }
+    }
 
     let payload = regelrecht_pipeline::enrich::EnrichPayload {
         pass: Default::default(),
@@ -125,6 +170,12 @@ pub async fn request_enrich(
         skip_mvt: None,
         // Wachtrij-payload: de sessie hoort bij de run, niet bij de rij.
         session: None,
+        mode: plan.mode.clone(),
+        articles: plan.articles.clone(),
+        instruction: plan.instruction.clone(),
+        feedback_rounds: plan.feedback_rounds.clone(),
+        model: plan.model.clone(),
+        scope: None,
     };
     let payload_json = serde_json::to_value(&payload).map_err(internal("payload serialiseren"))?;
 
@@ -146,20 +197,55 @@ pub async fn request_enrich(
         .await
         .map_err(internal("enqueue enrich"))?;
     let Some(job) = job else {
-        return Err((
+        drop(tx);
+        // Zeg welke verrijking er loopt, zodat de editor kan tonen dat het
+        // artikel 3 is en niet de hele wet (of andersom).
+        let running = active_enrich_job(pool, &law_id, &traject_ref).await;
+        return Ok((
             StatusCode::CONFLICT,
-            "Er loopt al een verrijking voor dit regelwerk.".to_string(),
-        ));
+            Json(serde_json::json!({
+                "error": "Er loopt al een verrijking voor dit regelwerk.",
+                "job_id": running.as_ref().map(|r| r.0),
+                "mode": running.as_ref().and_then(|r| r.1.clone()),
+                "articles": running.as_ref().and_then(|r| r.2.clone()),
+            })),
+        )
+            .into_response());
     };
     tasks::insert_blob(&mut *tx, job.id, BlobKind::Input, &yaml_path, &yaml)
         .await
         .map_err(internal("input-blob opslaan"))?;
+    for (path, content) in &context_blobs {
+        tasks::insert_blob(&mut *tx, job.id, BlobKind::Input, path, content)
+            .await
+            .map_err(internal("context-blob opslaan"))?;
+    }
     tx.commit().await.map_err(internal("commit"))?;
 
     Ok((
         StatusCode::ACCEPTED,
         Json(EnrichRequestResponse { job_id: job.id }),
-    ))
+    )
+        .into_response())
+}
+
+/// De actieve enrich-job van deze wet in dit traject: id, modus en artikelen.
+async fn active_enrich_job(
+    pool: &sqlx::PgPool,
+    law_id: &str,
+    traject_ref: &str,
+) -> Option<(Uuid, Option<String>, Option<serde_json::Value>)> {
+    sqlx::query_as::<_, (Uuid, Option<String>, Option<serde_json::Value>)>(
+        "SELECT id, payload->>'mode', payload->'articles' FROM jobs \
+         WHERE job_type = 'enrich' AND law_id = $1 AND traject_ref = $2 \
+         AND status IN ('pending', 'processing') ORDER BY created_at LIMIT 1",
+    )
+    .bind(law_id)
+    .bind(traject_ref)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
 }
 
 /// Bovengrens op de meegegeven weergavenaam: hij landt in taak-titels en in

@@ -167,6 +167,10 @@ pub(crate) async fn run_llm_subprocess(
     // Capture the PID before any wait reaps the child; the memory watchdog
     // and process-group kill both need it.
     let pid = child.id();
+    // When this future is dropped mid-run (a member stopped the job, or a
+    // timeout around the whole run fired), `kill_on_drop` only reaches the
+    // direct child. The guard kills the whole group, like the paths below.
+    let mut group = KillGroupOnDrop(pid);
     let activity = config.activity.clone();
     activity.enter();
     // A CLI that names no model: show the configured one.
@@ -282,12 +286,14 @@ pub(crate) async fn run_llm_subprocess(
 
     let status = tokio::select! {
         result = child.wait() => {
+            // Reaped: the pid may be reused from here on, so never signal it.
+            group.disarm();
             result.map_err(|e| {
                 PipelineError::Enrich(format!("failed to wait for {}: {e}", provider_name))
             })?
         }
         _ = tokio::time::sleep(config.timeout) => {
-            terminate(&mut child, pid).await;
+            terminate(&mut child, group.disarm()).await;
             // Abort the drain task rather than leaving it detached: if a
             // grandchild inherited fd 2 and survived terminate(), the task
             // would otherwise leak. The tail read below is already populated.
@@ -308,7 +314,7 @@ pub(crate) async fn run_llm_subprocess(
                 silent_secs = silent.as_secs(),
                 "LLM subprocess wrote nothing for too long, killing it as stalled"
             );
-            terminate(&mut child, pid).await;
+            terminate(&mut child, group.disarm()).await;
             if let Some(t) = &stderr_task {
                 t.abort();
             }
@@ -328,7 +334,7 @@ pub(crate) async fn run_llm_subprocess(
                 limit_mb = config.max_rss_mb,
                 "LLM subprocess exceeded memory limit, killing to protect the container"
             );
-            terminate(&mut child, pid).await;
+            terminate(&mut child, group.disarm()).await;
             if let Some(t) = &stderr_task {
                 t.abort();
             }
@@ -543,6 +549,26 @@ async fn wait_for_silence(
         {
             return silent;
         }
+    }
+}
+
+/// Kills the agent's process group when dropped, unless disarmed first.
+///
+/// Disarm it once the child is reaped: after that the pid can belong to an
+/// unrelated process.
+struct KillGroupOnDrop(Option<u32>);
+
+impl KillGroupOnDrop {
+    /// Stop guarding and hand back the pid, for a caller that kills and reaps
+    /// the child itself.
+    fn disarm(&mut self) -> Option<u32> {
+        self.0.take()
+    }
+}
+
+impl Drop for KillGroupOnDrop {
+    fn drop(&mut self) {
+        kill_process_group(self.0);
     }
 }
 
@@ -997,5 +1023,59 @@ mod process_tests {
                 ..AgentUsage::default()
             })
         );
+    }
+
+    /// `sleep 30` as the leader of its own process group, as the agent runs.
+    #[allow(clippy::unwrap_used)] // test setup; a failure here is the failure
+    fn group_leader() -> std::process::Child {
+        use std::os::unix::process::CommandExt;
+        std::process::Command::new("sleep")
+            .arg("30")
+            .process_group(0)
+            .spawn()
+            .unwrap()
+    }
+
+    /// How `child` ended within a few seconds, or `None` while it still runs.
+    #[allow(clippy::unwrap_used)] // test helper; a failing wait is the failure
+    fn ended_within(child: &mut std::process::Child, wait: Duration) -> Option<i32> {
+        use std::os::unix::process::ExitStatusExt;
+        let deadline = std::time::Instant::now() + wait;
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                return status.signal();
+            }
+            if std::time::Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn dropping_the_guard_kills_the_group() {
+        let mut child = group_leader();
+        drop(KillGroupOnDrop(Some(child.id())));
+        let ended = ended_within(&mut child, Duration::from_secs(5));
+        if ended.is_none() {
+            child.kill().unwrap();
+            child.wait().unwrap();
+        }
+        assert_eq!(ended, Some(libc::SIGKILL));
+    }
+
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn a_disarmed_guard_hands_back_the_pid_and_kills_nothing() {
+        let mut child = group_leader();
+        let mut guard = KillGroupOnDrop(Some(child.id()));
+        assert_eq!(guard.disarm(), Some(child.id()));
+        drop(guard);
+        let ended = ended_within(&mut child, Duration::from_millis(300));
+        // Clean up either way: on a child that already ended and was reaped,
+        // `kill` and `wait` both return `Ok`.
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(ended, None, "the group outlived the disarmed guard");
     }
 }

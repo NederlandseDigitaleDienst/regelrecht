@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
 
-use regelrecht_pipeline::traject_runs::{self, LawFilter, TrajectRun};
+use regelrecht_pipeline::traject_runs::{self, LawFilter, StopOutcome, TrajectRun};
 
 use crate::accounts::AccountRecord;
 use crate::state::AppState;
@@ -65,6 +65,57 @@ pub async fn list(
             )
         })?;
     Ok(Json(TrajectRunList { runs }))
+}
+
+/// The answer to a stop request.
+#[derive(Serialize)]
+pub struct StopResponse {
+    /// `removed` (it had not started), `stopping` (the worker ends it at its
+    /// next heartbeat) or `done` (nothing to stop).
+    pub state: StopOutcome,
+}
+
+/// DELETE /api/trajects/{traject_ref}/runs/{job_id}
+///
+/// Stop a task-flow enrichment of the traject. Writer tier (the router), and
+/// the caller must be a member; any member may stop any member's run, as the
+/// runs list shows every run to every member. Idempotent: a run that already
+/// ended, or that is not an enrichment of this traject, answers `done`.
+///
+/// # Errors
+///
+/// 503 without a database, 400 or 404 for a malformed or unknown traject
+/// ref, 403 for a non-member, 500 when the queries fail.
+pub async fn stop(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    Path((traject_ref, job_id)): Path<(String, uuid::Uuid)>,
+) -> Result<Json<StopResponse>, (StatusCode, String)> {
+    let pool = state.pool.as_ref().ok_or((
+        StatusCode::SERVICE_UNAVAILABLE,
+        "database not configured".to_string(),
+    ))?;
+    let traject_id = resolve_traject_ref(pool, &traject_ref).await?;
+    require_membership(pool, traject_id, account.id)
+        .await
+        .map_err(|status| (status, "not a member of this traject".to_string()))?;
+    let outcome = traject_runs::stop_traject_enrich_run(pool, traject_id, job_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, traject_ref = %traject_ref, job_id = %job_id, "stopping run failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "stopping the run failed".to_string(),
+            )
+        })?;
+    tracing::info!(
+        account_id = %account.id,
+        traject_ref = %traject_ref,
+        job_id = %job_id,
+        outcome = ?outcome,
+        "run stop requested"
+    );
+    Ok(Json(StopResponse { state: outcome }))
 }
 
 #[cfg(test)]

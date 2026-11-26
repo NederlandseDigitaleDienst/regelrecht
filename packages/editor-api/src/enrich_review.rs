@@ -101,6 +101,18 @@ pub struct JobTasksResponse {
     /// De wet waar deze verrijking over gaat (uit de taak-payload).
     pub law_id: Option<String>,
     pub tasks: Vec<JobTaskSummary>,
+    /// `article` of `law` bij een gerichte verrijking; leeg bij de klassieke.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    /// De instructie die de engineer meegaf (artikelmodus).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instruction: Option<String>,
+    /// Wat de beoordelaar moet weten maar geen wijziging is: teruggezette
+    /// bewerkingen buiten de scope, lezers elders die deze run brak,
+    /// problemen die de agent in andere wetten zag. Zonder oordeel; ze
+    /// informeren er een.
+    #[serde(default)]
+    pub signals: Vec<regelrecht_pipeline::enrich_v2::stelsel::Signal>,
 }
 
 /// GET /api/tasks/jobs/{job_id} — de onderdelen van één verrijking.
@@ -124,9 +136,30 @@ pub async fn job_tasks(
         ));
     }
     let law_id = tasks.iter().find_map(|t| payload_str(t, "law_id"));
+    // Pas na de eigendomscheck hierboven: de job zelf zegt niets over wie hem
+    // mag lezen, de taken van dit account wel.
+    let job = regelrecht_pipeline::job_queue::get_job(pool, job_id)
+        .await
+        .ok();
+    let payload_field = |key: &str| {
+        job.as_ref()
+            .and_then(|j| j.payload.as_ref())
+            .and_then(|p| p.get(key))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    };
+    let signals = job
+        .as_ref()
+        .and_then(|j| j.result.as_ref())
+        .and_then(|r| r.get("signals"))
+        .and_then(|s| serde_json::from_value(s.clone()).ok())
+        .unwrap_or_default();
     Ok(Json(JobTasksResponse {
         job_id,
         law_id,
+        mode: payload_field("mode"),
+        instruction: payload_field("instruction"),
+        signals,
         tasks: tasks
             .iter()
             .map(|t| JobTaskSummary {

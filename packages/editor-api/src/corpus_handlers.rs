@@ -1147,6 +1147,266 @@ pub async fn list_traject_law_implementors(
     Ok(Json(implementors_in_scope(&scope, &law_id).await))
 }
 
+/// Response of the consumers lookup: who reads a law, and whether that
+/// answer is complete.
+#[derive(serde::Serialize)]
+pub struct LawConsumersResponse {
+    pub consumers: Vec<regelrecht_corpus::consumers_index::Consumer>,
+    /// The traject index could not read every law (yet): a missing consumer
+    /// is then no proof that there is none.
+    pub partial: bool,
+}
+
+/// GET /api/trajects/{traject_ref}/corpus/laws/{law_id}/consumers — the
+/// articles elsewhere in the traject's corpus that read `{law_id}`: its
+/// outputs, a decision of one of its articles, or an open term it declares.
+/// The article enrich dialog shows this before the request is sent; the
+/// request itself puts the same answer in the stelselcontext.
+pub async fn list_traject_law_consumers(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    session: Session,
+    Path((traject_ref, law_id)): Path<(String, String)>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<LawConsumersResponse>, (StatusCode, String)> {
+    let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
+    match &scope {
+        ReadScope::Traject(ts) => {
+            let found = ts.traject.consumers_of(&law_id).await;
+            Ok(Json(LawConsumersResponse {
+                consumers: found.consumers,
+                partial: found.partial,
+            }))
+        }
+        ReadScope::Global(_) => Ok(Json(LawConsumersResponse {
+            consumers: Vec::new(),
+            partial: true,
+        })),
+    }
+}
+
+/// Whether the chain and hotspots routes are on. Off answers 404, as if the
+/// route did not exist: the flag gates the feature server-side, not only its
+/// buttons. Without a database the registered default (off) holds.
+async fn require_hotspots_flag(state: &AppState) -> Result<(), (StatusCode, String)> {
+    let enabled = match state.pool.as_ref() {
+        Some(pool) => {
+            crate::feature_flags::flag_enabled(pool, crate::feature_flags::ENRICH_HOTSPOTS)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "reading the hotspots flag failed");
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "feature flag unreadable".to_string(),
+                    )
+                })?
+        }
+        None => false,
+    };
+    if enabled {
+        Ok(())
+    } else {
+        Err((StatusCode::NOT_FOUND, "not found".to_string()))
+    }
+}
+
+/// Query of the chain route.
+#[derive(serde::Deserialize)]
+pub struct ChainQuery {
+    /// Law jumps, default [`crate::enrich_chain::DEFAULT_DEPTH`], at most
+    /// [`crate::enrich_chain::MAX_DEPTH`].
+    depth: Option<usize>,
+}
+
+/// GET /api/trajects/{traject_ref}/corpus/laws/{law_id}/articles/{article}/chain
+///
+/// What enriching one article touches: the articles it reaches in the
+/// traject's corpus by citation, binding and implementation, each with its
+/// gaps and how it was reached. Behind the `enrich.hotspots` flag.
+///
+/// # Errors
+///
+/// 404 while the flag is off, outside a traject, or for a law or article
+/// the traject does not have; the traject scope's own refusals (401, 403,
+/// 428); 500 when the flag cannot be read.
+pub async fn get_traject_article_chain(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    session: Session,
+    Path((traject_ref, law_id, article)): Path<(String, String, String)>,
+    Query(query): Query<ChainQuery>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<crate::enrich_chain::Chain>, (StatusCode, String)> {
+    require_hotspots_flag(&state).await?;
+    let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
+    let ReadScope::Traject(ts) = &scope else {
+        return Err((StatusCode::NOT_FOUND, "no traject corpus".to_string()));
+    };
+    let depth = query
+        .depth
+        .unwrap_or(crate::enrich_chain::DEFAULT_DEPTH)
+        .min(crate::enrich_chain::MAX_DEPTH);
+    let (laws, unread_laws) = read_chain_laws(&ts.traject, &law_id, &article, depth).await;
+    // What was read for this law, for a refusal that says why.
+    let indexed_articles = laws.get(&law_id).map(|f| f.articles.len());
+    let indexed_laws = laws.len();
+    let (wanted_law, wanted_article) = (law_id.clone(), article.clone());
+    // A walk over a large stelsel is CPU work; keep it off the async workers.
+    let chain = tokio::task::spawn_blocking(move || {
+        let stelsel = crate::enrich_chain::Stelsel::new(&laws);
+        stelsel.chain(&law_id, &article, depth, unread_laws)
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "chain computation panicked");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "chain failed".to_string(),
+        )
+    })?;
+    match chain {
+        Ok(chain) => Ok(Json(chain)),
+        Err(crate::enrich_chain::ChainError::UnknownLaw) => {
+            tracing::info!(
+                law_id = %wanted_law,
+                indexed_laws,
+                unread_laws,
+                "chain: law not in the facts index"
+            );
+            let reason = if unread_laws > 0 {
+                format!(
+                    "dit regelwerk staat nog niet in de index; {unread_laws} wetten zijn nog niet gelezen"
+                )
+            } else {
+                "dit regelwerk staat niet in de index van het traject".to_string()
+            };
+            Err((StatusCode::NOT_FOUND, reason))
+        }
+        Err(crate::enrich_chain::ChainError::UnknownArticle) => {
+            let read = indexed_articles.unwrap_or(0);
+            tracing::info!(
+                law_id = %wanted_law,
+                article = %wanted_article,
+                indexed_articles = read,
+                "chain: article not in the facts index"
+            );
+            let reason = if read == 0 {
+                "van dit regelwerk kon de index geen artikelen lezen".to_string()
+            } else {
+                format!(
+                    "artikel {wanted_article} staat niet tussen de {read} artikelen in de index"
+                )
+            };
+            Err((StatusCode::NOT_FOUND, reason))
+        }
+    }
+}
+
+/// How long one chain request may spend reading law bodies.
+const CHAIN_READ_BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// The laws a chain from `(law_id, article)` needs, read lazily: what the
+/// facts index already holds, then the start law, then round by round the
+/// laws that articles on the chain bind to, until nothing new is needed or
+/// the budget runs out. A traject that federates the central corpus has
+/// thousands of laws; the walk reads the few on its path rather than wait for
+/// all of them. Returns the facts and how many needed laws stayed unread.
+async fn read_chain_laws(
+    traject: &crate::traject_corpus::TrajectCorpus,
+    law_id: &str,
+    article: &str,
+    depth: usize,
+) -> (
+    std::collections::BTreeMap<
+        String,
+        std::sync::Arc<regelrecht_pipeline::enrich_v2::facts::LawFacts>,
+    >,
+    usize,
+) {
+    let deadline = std::time::Instant::now() + CHAIN_READ_BUDGET;
+    let mut laws = traject
+        .facts_cached()
+        .await
+        .map(|s| s.laws().clone())
+        .unwrap_or_default();
+    let mut wanted = vec![law_id.to_string()];
+    let mut unread = 0usize;
+    // Each round adds the laws one binding further out; depth + 1 rounds
+    // cover every law jump the walk may take.
+    for _round in 0..=depth {
+        wanted.retain(|id| !laws.contains_key(id));
+        if wanted.is_empty() {
+            break;
+        }
+        let (read, failed) = traject.facts_for_laws(&wanted, deadline).await;
+        unread = failed;
+        laws.extend(read);
+        let stelsel = crate::enrich_chain::Stelsel::new(&laws);
+        let Ok(chain) = stelsel.chain(law_id, article, depth, 0) else {
+            break;
+        };
+        wanted = stelsel.unread_bound_laws(&chain);
+    }
+    wanted.retain(|id| !laws.contains_key(id));
+    (laws, unread.max(wanted.len()))
+}
+
+/// Query of the hotspots route.
+#[derive(serde::Deserialize)]
+pub struct HotspotsQuery {
+    /// How many to list, default 5, at most 50.
+    limit: Option<usize>,
+    /// Only the hotspots of this law.
+    law_id: Option<String>,
+}
+
+/// Default and ceiling of `limit` on the hotspots route.
+const HOTSPOTS_DEFAULT_LIMIT: usize = 5;
+const HOTSPOTS_MAX_LIMIT: usize = 50;
+
+/// GET /api/trajects/{traject_ref}/hotspots?limit=5&law_id=…
+///
+/// The articles of the traject where enrichment would help most, with the
+/// signals behind each score. Behind the `enrich.hotspots` flag.
+///
+/// # Errors
+///
+/// 404 while the flag is off or outside a traject; the traject scope's own
+/// refusals (401, 403, 428); 500 when the flag cannot be read.
+pub async fn list_traject_hotspots(
+    State(state): State<AppState>,
+    Extension(account): Extension<AccountRecord>,
+    session: Session,
+    Path(traject_ref): Path<String>,
+    Query(query): Query<HotspotsQuery>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<crate::enrich_chain::Hotspots>, (StatusCode, String)> {
+    require_hotspots_flag(&state).await?;
+    let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
+    let ReadScope::Traject(ts) = &scope else {
+        return Err((StatusCode::NOT_FOUND, "no traject corpus".to_string()));
+    };
+    let snapshot = ts.traject.facts().await;
+    let limit = query
+        .limit
+        .unwrap_or(HOTSPOTS_DEFAULT_LIMIT)
+        .min(HOTSPOTS_MAX_LIMIT);
+    let law_id = query.law_id.filter(|id| !id.is_empty());
+    let hotspots = tokio::task::spawn_blocking(move || {
+        let stelsel = crate::enrich_chain::Stelsel::new(snapshot.laws());
+        stelsel.hotspots(limit, law_id.as_deref(), snapshot.unread())
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "hotspots computation panicked");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "hotspots failed".to_string(),
+        )
+    })?;
+    Ok(Json(hotspots))
+}
+
 async fn implementors_in_scope(scope: &ReadScope, law_id: &str) -> Vec<String> {
     match scope {
         // Traject: federated laws are metadata-only until first read, so

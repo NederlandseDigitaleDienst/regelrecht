@@ -20,6 +20,8 @@ pub mod capabilities;
 pub mod checks;
 pub mod closure;
 pub mod context;
+pub mod facts;
 pub mod reconcile;
 pub mod refgraph;
 pub mod source_gate;
+pub mod stelsel;

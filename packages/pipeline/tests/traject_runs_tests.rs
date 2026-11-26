@@ -10,7 +10,9 @@ use regelrecht_pipeline::job_queue::{self, CreateJobRequest};
 use regelrecht_pipeline::models::{JobStatus, JobType};
 use regelrecht_pipeline::tasks::{self, NewTask, TaskType};
 use regelrecht_pipeline::test_utils::TestDb;
-use regelrecht_pipeline::traject_runs::{LawFilter, list_traject_runs};
+use regelrecht_pipeline::traject_runs::{
+    LawFilter, StopOutcome, list_traject_runs, stop_traject_enrich_run,
+};
 
 const TRAJECT_REF: &str = "zorgtoeslag-abcd1234";
 
@@ -360,4 +362,297 @@ async fn matches_a_bwb_id_only_on_a_harvest() {
         .await
         .unwrap();
     assert!(runs.is_empty());
+}
+
+fn task_enrich_payload() -> Value {
+    json!({
+        "deliver": "task",
+        "law_id": "wet_op_de_zorgtoeslag",
+        "provider": "claude",
+        "yaml_path": "wet/wet_op_de_zorgtoeslag/2025-01-01.yaml",
+        "traject_id": traject_id().to_string(),
+        "traject_ref": TRAJECT_REF,
+    })
+}
+
+async fn insert_input_blob(db: &TestDb, job_id: Uuid) {
+    tasks::insert_blob(&db.pool, job_id, tasks::BlobKind::Input, "law.yaml", "x")
+        .await
+        .unwrap();
+}
+
+async fn blob_count(db: &TestDb, job_id: Uuid) -> i64 {
+    let (n,): (i64,) = sqlx::query_as("SELECT count(*) FROM job_blobs WHERE job_id = $1")
+        .bind(job_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    n
+}
+
+#[tokio::test]
+async fn stopping_a_pending_enrichment_removes_it_and_its_input() {
+    let db = TestDb::new().await;
+    let job = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    insert_input_blob(&db, job).await;
+
+    let outcome = stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+    assert_eq!(outcome, StopOutcome::Removed);
+    assert!(job_queue::get_job(&db.pool, job).await.is_err());
+    assert_eq!(blob_count(&db, job).await, 0);
+
+    // Idempotent: the second request finds nothing to stop.
+    let again = stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+    assert_eq!(again, StopOutcome::Done);
+}
+
+#[tokio::test]
+async fn stopping_a_processing_enrichment_records_the_request_for_the_worker() {
+    let db = TestDb::new().await;
+    let job = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    let claimed = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    assert_eq!(claimed.id, job);
+
+    let outcome = stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+    assert_eq!(outcome, StopOutcome::Stopping);
+    assert_eq!(
+        job_queue::heartbeat(&db.pool, job, claimed.started_at)
+            .await
+            .unwrap(),
+        job_queue::Beat::StopRequested
+    );
+    // Asked twice while it winds down: still stopping, the moment kept.
+    let again = stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+    assert_eq!(again, StopOutcome::Stopping);
+
+    let cancelled = job_queue::mark_cancelled(&db.pool, job).await.unwrap();
+    assert_eq!(cancelled.status, JobStatus::Cancelled);
+    let after = stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+    assert_eq!(after, StopOutcome::Done);
+}
+
+#[tokio::test]
+async fn a_stop_does_not_reach_another_trajects_or_a_corpus_run() {
+    let db = TestDb::new().await;
+    let other = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some("ander-ffff0000"),
+        task_enrich_payload(),
+    )
+    .await;
+    let corpus = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        json!({ "provider": "claude" }),
+    )
+    .await;
+    // Same eight hex characters, another traject: the full id tells them apart.
+    let mut collision = task_enrich_payload();
+    collision["traject_id"] = json!("abcd1234-ffff-4000-8000-000000000000");
+    // Another law: the corpus run above already holds the one active slot
+    // per (law, provider, traject_ref) that idx_unique_active_enrich_job allows.
+    let lookalike = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_huurtoeslag",
+        Some(TRAJECT_REF),
+        collision,
+    )
+    .await;
+
+    for job in [other, corpus, lookalike] {
+        let outcome = stop_traject_enrich_run(&db.pool, traject_id(), job)
+            .await
+            .unwrap();
+        assert_eq!(outcome, StopOutcome::Done);
+        assert_eq!(
+            job_queue::get_job(&db.pool, job).await.unwrap().status,
+            JobStatus::Pending
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_failure_after_a_stop_ends_cancelled_without_a_retry() {
+    let db = TestDb::new().await;
+    let job = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+
+    let failed = job_queue::fail_job(&db.pool, job, Some(json!({ "error": "killed" })))
+        .await
+        .unwrap();
+    assert_eq!(failed.status, JobStatus::Cancelled);
+    assert!(failed.scheduled_at.is_none());
+    assert!(failed.completed_at.is_some());
+}
+
+#[tokio::test]
+async fn the_reaper_ends_a_stopped_run_as_cancelled() {
+    let db = TestDb::new().await;
+    let job = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE jobs SET started_at = now() - interval '1 hour', \
+         heartbeat_at = now() - interval '10 minutes' WHERE id = $1",
+    )
+    .bind(job)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+
+    let reaped = job_queue::reap_orphaned_jobs(&db.pool, std::time::Duration::from_secs(300))
+        .await
+        .unwrap();
+    assert_eq!(reaped.len(), 1);
+    assert_eq!(reaped[0].status, JobStatus::Cancelled);
+}
+
+#[tokio::test]
+async fn the_runs_list_shows_a_run_that_is_stopping() {
+    let db = TestDb::new().await;
+    let viewer = seed_account(&db, "viewer", "Viewer").await;
+    let job = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job)
+        .await
+        .unwrap();
+
+    let runs = list_traject_runs(&db.pool, traject_id(), viewer, None)
+        .await
+        .unwrap();
+    let run = runs.iter().find(|r| r.job_id == job).unwrap();
+    assert_eq!(run.status, JobStatus::Processing);
+    assert!(run.cancel_requested_at.is_some());
+}
+
+#[tokio::test]
+async fn a_stop_while_the_result_is_written_discards_it() {
+    let db = TestDb::new().await;
+    let job_id = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    insert_input_blob(&db, job_id).await;
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job_id)
+        .await
+        .unwrap();
+
+    let workdir = tempfile::tempdir().unwrap();
+    let continuation = regelrecht_pipeline::worker::finish_enrich_task_job_scoped(
+        &db.pool,
+        &job,
+        workdir.path(),
+        &[],
+        false,
+        None,
+        Some(vec!["3".to_string()]),
+    )
+    .await
+    .unwrap();
+    assert!(continuation.is_none(), "no continuation after a stop");
+    assert_eq!(
+        job_queue::get_job(&db.pool, job_id).await.unwrap().status,
+        JobStatus::Cancelled
+    );
+    assert_eq!(blob_count(&db, job_id).await, 0);
+    let (tasks,): (i64,) = sqlx::query_as("SELECT count(*) FROM tasks WHERE job_id = $1")
+        .bind(job_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(tasks, 0);
+}
+
+#[tokio::test]
+async fn ending_a_stopped_run_cancels_it_and_drops_its_input() {
+    let db = TestDb::new().await;
+    let job_id = create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(TRAJECT_REF),
+        task_enrich_payload(),
+    )
+    .await;
+    insert_input_blob(&db, job_id).await;
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+    stop_traject_enrich_run(&db.pool, traject_id(), job_id)
+        .await
+        .unwrap();
+
+    regelrecht_pipeline::worker::cancel_enrich_task_job(&db.pool, &job)
+        .await
+        .unwrap();
+    assert_eq!(
+        job_queue::get_job(&db.pool, job_id).await.unwrap().status,
+        JobStatus::Cancelled
+    );
+    assert_eq!(blob_count(&db, job_id).await, 0);
+
+    // The reaper ended it first: the call still succeeds and the input goes.
+    insert_input_blob(&db, job_id).await;
+    regelrecht_pipeline::worker::cancel_enrich_task_job(&db.pool, &job)
+        .await
+        .unwrap();
+    assert_eq!(blob_count(&db, job_id).await, 0);
 }

@@ -85,6 +85,8 @@ Reader + account for reads, Writer + account for changes. Membership is checked 
 | GET | `/api/trajects/{traject_ref}/integrity` | Integrity report over the traject's corpus repo |
 | GET | `/api/trajects/{traject_ref}/sources` | |
 | GET | `/api/trajects/{traject_ref}/runs` | The traject's harvests, enrichments and conversions, running or finished, newest first (at most 200), from every member. `?law_id=` narrows them to one law, `&bwb_id=` adds the harvest that fetched it. See below |
+| DELETE | `/api/trajects/{traject_ref}/runs/{job_id}` | Writer + account, member; stop an enrichment requested as a task. See below |
+| GET | `/api/trajects/{traject_ref}/hotspots` | Reader + account, member, flag `enrich.hotspots`; see [Chain and hotspots](#chain-and-hotspots) |
 | GET | `/api/trajects/{traject_ref}/favorites` | |
 | PUT, DELETE | `/api/trajects/{traject_ref}/favorites/{law_id}` | |
 
@@ -93,6 +95,8 @@ Member roles are `owner` and `contributor`.
 A run belongs to a traject through the ref it was requested under, matched on the id part at its end, so the runs of a renamed traject stay with it. Each run carries its state, its timestamps, the name of the member who requested it, the last error, and for an enrichment the provider, the article counts from its result and how its review tasks were resolved, with a separate count of the open ones assigned to the member asking. The worker's progress note comes along only while a run is processing.
 
 With `law_id`, the list holds the runs whose `law_id` is that law's `$id` (its enrichments), plus, with `bwb_id`, the traject harvest that carries that BWB id: a harvest is requested before the law has an `$id`. The filter is applied in the query, so the cap of 200 counts that law's runs only.
+
+Any member with write access can stop an enrichment of the traject that was requested as a task, also one another member requested; the runs list shows every run to every member, so it offers the stop to every member too. A run still in the queue is deleted with its input and the answer is `{"state": "removed"}`. A processing run gets `cancel_requested_at` and the answer is `{"state": "stopping"}`: the worker's heartbeat reads it within 30 seconds, kills the agent and marks the job `cancelled` (see [Pipeline: Stopping a run](/components/pipeline#stopping-a-run)). Anything else, a run that ended, a second request, a run of another traject or a corpus-wide one, answers `{"state": "done"}`. A stopped run creates no review task and no failure task. The runs list and `/api/tasks` carry `cancel_requested_at`, so the editor shows "Stoppen…" until the worker is done and "Gestopt" after.
 
 ### Traject corpus
 
@@ -108,11 +112,13 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET | `.../corpus/laws/{law_id}/versions` | Reader |
 | GET | `.../corpus/laws/{law_id}/outputs` | Reader |
 | GET | `.../corpus/laws/{law_id}/implementors` | Reader |
+| GET | `.../corpus/laws/{law_id}/consumers` | Reader; articles elsewhere in the traject that read this law, with `partial: true` while the index has not read every law |
+| GET | `.../corpus/laws/{law_id}/articles/{article}/chain` | Reader, flag `enrich.hotspots`; `?depth=3`, at most 6. See [Chain and hotspots](#chain-and-hotspots) |
 | GET | `.../corpus/laws/{law_id}/scenarios` | Reader |
 | GET, PUT, DELETE | `.../corpus/laws/{law_id}/scenarios/{filename}` | Reader / Writer (1 MiB) |
 | GET, PUT | `.../corpus/laws/{law_id}/annotations` | Reader / Writer (1 MiB) |
 | POST | `.../corpus/laws/{law_id}/promote` | Writer; copy a law from the central corpus into the traject repo |
-| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task. An optional body `{"provider": "opencode"}` picks the provider; without it `TASK_ENRICH_PROVIDER` decides, and an unknown name returns 400 |
+| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task. Every body field is optional, see [Scoped enrichment](#scoped-enrichment); without a body `TASK_ENRICH_PROVIDER` decides and the whole law is enriched. 409 names the run already active |
 | POST | `/api/trajects/{traject_ref}/corpus/harvest` | Writer; harvest a law into the traject via a task |
 | GET | `/api/trajects/{traject_ref}/corpus/documents` | Reader |
 | POST | `.../corpus/documents/upload` | Writer; PDF or Word, converted to markdown asynchronously (25 MiB) |
@@ -121,6 +127,42 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET, PUT, DELETE | `.../corpus/documents/{*doc_path}` | Reader / Writer (1 MiB) |
 
 `...` stands for `/api/trajects/{traject_ref}`.
+
+### Scoped enrichment
+
+The enrich request has two modes, both behind the feature flag `enrich.scoped`. With the flag off the editor hides them and the API refuses any field beyond `provider` with a 400.
+
+The article mode (`"mode": "article"`, `"articles": ["3"]`) enriches one article, or several of the same law: the first is the article the engineer started from, the others were ticked along with it in the chain step. Several targets are walked in batches of `ENRICH_MAX_ARTICLES_PER_RUN`, the start article in the first, each batch with the instruction. The worker may also change the articles of the same law that the translation of article 3 directly affects: those that produce a value it reads, those that read a value it produces, and those that reference it. Each changed article becomes its own review task. Any other edit is put back after the run and reported as a signal. An optional `instruction` (at most 2000 characters) goes into the prompt as the engineer's instruction; the agent follows it only where the statutory text supports it.
+
+The law mode takes a selection (`"articles"`), `"only_missing": true` to skip articles that already have `machine_readable`, or both. The worker walks the selection in batches of `ENRICH_MAX_ARTICLES_PER_RUN`; a continuation job carries what is left of it. A body without a selection is the unscoped run it always was.
+
+Both modes accept `model` (checked against `ENRICH_MODELS` in the pipeline) and `feedback_rounds` (0 to 3 per gate). `context` sends the stelselcontext along; the editor always sets it. The editor-api then writes `.enrichment-stelsel.yaml` next to the law (who reads it, its open terms and who fills them, what it reads elsewhere) and slices of those other laws under `context/`, at most 16 laws and 2 MiB in total, readers before what the law reads. A slice carries `x-regelrecht-context-slice: true`, so the binding check reads a missing output there as not given rather than as a wrong binding. The worker has no corpus in the task flow, so this is the only way the agent sees other laws. Laws left out are named in the file.
+
+Signals come back in `GET /api/tasks/jobs/{job_id}` under `signals`, with `mode` and `instruction`. They carry no verdict and do not affect `apply`.
+
+Deploy the enrich-worker before turning on the flag: a worker from before this change ignores `articles` and enriches the whole law.
+
+### Chain and hotspots
+
+Both routes sit behind the feature flag `enrich.hotspots` and answer 404 while it is off, whatever the editor shows. They read the facts index of the traject: per law, the facts `enrich_v2::facts` extracts from its body (which articles have `machine_readable`, what each article cites and what its model binds to, what it implements, its outputs and open terms, dangling bindings and markings). The index is kept per source and git blob sha, so a rebuild after a refresh reads only the laws that changed. It is built on the first request, within 8 seconds of fetching, and reports the laws it could not read as `unread_laws`; the next request continues it. With the flag on, the first load of a traject's corpus also builds it in the background. The consumers route above is a view on the same index.
+
+The chain of an article is what enriching it touches: every article in the traject it reaches by citation (`cites`), by a value its model reads or a decision it calls (`binds`), or by an article that fills one of its open terms (`implements`). `depth` counts jumps to another law, 3 by default and at most 6; a step inside a law is free, and a begripsbepaling is a leaf. A citation into a ministerial regulation, policy rule or circular stops there as a `delegated` gap, while a binding into one is followed, because the value read there is part of the computation. The walk stops at 2000 articles. Each node carries its law, BWB id, article, depth, whether it has `machine_readable`, its gaps, the step that reached it (`via`) and its hotspot score. `partial` says whether laws were unread, whether the depth cut something off and whether the cap was hit.
+
+A hotspot is an article with a gap that other articles depend on. The score adds up these signals:
+
+| Signal | Meaning | Points |
+|--------|---------|--------|
+| M | The text says something and there is no `machine_readable` (an empty or lapsed article does not count) | 3 |
+| D | A dangling binding in the model | 2 each, at most 6 |
+| U | A binding to another law that does not resolve: the law is not in the traject, or it does not produce the output | 2 each, at most 6 |
+| O | An open term nothing in the traject implements | 1 each, at most 3 |
+| B | An article elsewhere whose model binds to this one | 2 each, at most 10 |
+| R | An article whose text cites this one | 1 each, at most 5 |
+| K | The article is on the chain of the article the engineer chose (chain only) | 3 |
+
+An article without M, D, U or O is never a hotspot, however much depends on it. Each score comes with its reasons (`signal`, `points`, a Dutch `detail`, and up to five `refs` as `law#article`), which the editor shows as sentences. `GET /api/trajects/{traject_ref}/hotspots?limit=5&law_id=…` lists the highest scores of the traject (or of one law) first, ties going to the law's id and then to document order, with `dependants` (articles that bind to or cite it) per hotspot. `per_article` maps every hotspot in scope to its score and dependants, so the article list of a law can mark them all. The weights are constants in `enrich_chain.rs`.
+
+In the editor, the flag adds suggestions to the article mode of the enrich sheet: below the start article it lists up to six articles on its chain that could use an enrichment, hotspots first, none of them ticked. Ticking one sends one request per law: the starting law in the article mode with the instruction, every other law in the law mode with its ticked articles. The editor always sends the stelselcontext; provider, model and feedback rounds sit under "Meer opties". The hotspots show as a mark and a filter in the article list of a law.
 
 The first request to a traject after a restart builds its index, and every request waits for that build. After that the index is served from memory and refreshed in the background once it is a minute old. A later request waits only when the traject's own repository could not be listed and its own GitHub token can repair the index. The list of changed laws works the same way: when only a member's own GitHub token can read the traject repository, the first member past the minute lends that token to the background refresh and gets the previous list meanwhile.
 

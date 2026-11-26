@@ -98,6 +98,10 @@ pub enum JobStatus {
     Processing,
     Completed,
     Failed,
+    /// Stopped at the request of a member of its traject: a pending run was
+    /// never started, a processing one had its agent killed. Terminal, never
+    /// retried, and no task follows.
+    Cancelled,
 }
 
 #[derive(
