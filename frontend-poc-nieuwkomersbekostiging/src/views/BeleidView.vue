@@ -4,9 +4,9 @@
     <div slot="pane-1" class="pane pane-left">
       <nldd-page landmarks="page">
         <div class="pane-inner">
-          <nldd-title heading-level="1" size="display-2">
-            <span slot="overline">Voor beleidsmakers</span>
-            <span>Nieuwkomersbekostiging: regeling en uitvoering</span>
+          <nldd-title size="display-2">
+            <p slot="overline">Voor beleidsmakers</p>
+            <h1>Nieuwkomersbekostiging: regeling en uitvoering</h1>
           </nldd-title>
 
           <nldd-banner v-if="mountError && !initError" variant="critical">
@@ -61,9 +61,9 @@
       <nldd-page background="tinted" accessible-label="Rekeningen">
         <div class="pane-inner">
           <div class="kop-rij">
-            <nldd-title heading-level="2" size="display-3">
-              <span>Twee rekeningen naast elkaar</span>
-              <span slot="supporting-text">Wat de regeling kost (bedragen aan scholen) en wat de uitvoering kost (handelingen bij scholen en DUO, plus investering).</span>
+            <nldd-title size="display-3">
+              <h2>Twee rekeningen naast elkaar</h2>
+              <p slot="supporting-text">Wat de regeling kost (bedragen aan scholen) en wat de uitvoering kost (handelingen bij scholen en DUO, plus investering).</p>
             </nldd-title>
             <doorreken-knop v-if="ready" class="kop-actie" />
           </div>

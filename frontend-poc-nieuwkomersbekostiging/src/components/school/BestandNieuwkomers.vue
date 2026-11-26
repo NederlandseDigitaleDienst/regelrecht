@@ -30,10 +30,10 @@
         <nldd-text-cell size="sm" :text="datumKort(l.record.geboortedatum)"></nldd-text-cell>
         <nldd-text-cell size="sm" :text="l.record.heeft_bsn === false ? 'geen BSN' : String(l.record.verblijfstitel_code ?? '—')"></nldd-text-cell>
         <nldd-text-cell size="sm">
-          <nldd-tag size="sm" :color="categorieColor(l.uitkomst.categorie)" :text="categorieLabel(l.uitkomst.categorie)"></nldd-tag>
-          <span v-if="l.uitkomst.categorie === 'BESTUUR_BEOORDEELT'" slot="supporting-text">
+          <p><nldd-tag size="sm" :color="categorieColor(l.uitkomst.categorie)" :text="categorieLabel(l.uitkomst.categorie)"></nldd-tag></p>
+          <p v-if="l.uitkomst.categorie === 'BESTUUR_BEOORDEELT'" slot="supporting-text">
             oordeel: {{ l.record.oordeel_bevoegd_gezag ? categorieLabel(l.record.oordeel_bevoegd_gezag) : 'nog te bepalen' }}
-          </span>
+          </p>
         </nldd-text-cell>
         <nldd-text-cell size="sm" :text="datumKort(l.record.eerste_inschrijfdatum)"></nldd-text-cell>
         <nldd-text-cell size="sm" :color="l.uitkomst.telt ? 'success' : 'secondary'" :text="l.uitkomst.telt ? `ja, jaar ${l.uitkomst.bekostigingsjaar}` : 'nee'" :supporting-text="teltUitleg(l.uitkomst)"></nldd-text-cell>

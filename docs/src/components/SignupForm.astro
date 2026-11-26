@@ -60,6 +60,8 @@ function parts(text: string) {
 const errorParts = parts(s.errorBody);
 
 const optionalLabel = lang === 'en' ? 'Optional' : 'Optioneel';
+// The badge text is a translation key of the package, not an attribute.
+const optionalTranslations = JSON.stringify({ 'components.form-field.optional-label': optionalLabel });
 // On success the form navigates to a dedicated thank-you page (a real URL,
 // shareable and refreshable) instead of toggling an in-page panel.
 const successUrl = lang === 'en' ? '/en/signup/thanks' : '/aanmelden/bedankt';
@@ -129,7 +131,7 @@ const successUrl = lang === 'en' ? '/en/signup/thanks' : '/aanmelden/bedankt';
       </nldd-validation-list>
     </nldd-form-field>
 
-    <nldd-form-field label={s.orgLabel} optional optional-label={optionalLabel}>
+    <nldd-form-field label={s.orgLabel} optional translations={optionalTranslations}>
       <nldd-form-field-help-text>{s.orgPlaceholder}</nldd-form-field-help-text>
       <nldd-text-field
         data-field="organisatie"
@@ -139,7 +141,7 @@ const successUrl = lang === 'en' ? '/en/signup/thanks' : '/aanmelden/bedankt';
       ></nldd-text-field>
     </nldd-form-field>
 
-    <nldd-form-field label={s.roleLabel} optional optional-label={optionalLabel}>
+    <nldd-form-field label={s.roleLabel} optional translations={optionalTranslations}>
       <nldd-form-field-help-text>{s.rolePlaceholder}</nldd-form-field-help-text>
       <nldd-text-field
         data-field="functie"

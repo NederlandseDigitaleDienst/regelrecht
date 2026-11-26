@@ -47,8 +47,8 @@
           horizontal-alignment="right"
           :color="cellColor(row, col)"
         >
-          <span class="kt-value" :class="{ 'kt-bold': row.total }">{{ cellValue(row, col) }}</span>
-          <span slot="supporting-text" v-if="cellDelta(row, col)" class="kt-delta">{{ cellDelta(row, col) }}</span>
+          <p><span class="kt-value" :class="{ 'kt-bold': row.total }">{{ cellValue(row, col) }}</span></p>
+          <p slot="supporting-text" v-if="cellDelta(row, col)" class="kt-delta">{{ cellDelta(row, col) }}</p>
         </nldd-text-cell>
       </nldd-table-row>
     </nldd-table>

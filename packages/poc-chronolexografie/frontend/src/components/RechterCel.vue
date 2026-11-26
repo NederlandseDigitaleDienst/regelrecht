@@ -54,13 +54,13 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
 <template>
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" :text="`Ingekomen beroepen bij ${state.casus.rechter.cel_naam}`">
-      <nldd-text slot="supporting-text">
+      <p slot="supporting-text">
         De rechtbank beslist op een beroep onder <ArtikelLink :basis="state.casus.beroep" />, in haar eigen cel. Het beroep
         draagt het afschrift van de beslissing op bezwaar dat {{ state.casus.cel_naam }} maakte.
         De rechtbank oordeelt op de grondslag van de overgelegde stukken (Awb 8:69). Voorziet zij
         zelf in de zaak (Awb 8:72, derde lid, onder b), dan neemt zij die beslissing opnieuw, met
         haar eigen bevindingen. De bevindingen hieronder zijn haar oordeel.
-      </nldd-text>
+      </p>
     </nldd-title>
     <nldd-inline-dialog
       v-if="open.length === 0"
@@ -120,10 +120,10 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
 
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Uitspraken">
-      <nldd-text slot="supporting-text">
+      <p slot="supporting-text">
         Elke uitspraak, met wat zij inhoudt. Toezenden geeft {{ state.casus.cel_naam }} een
         afschrift (Awb 8:79); zij legt de ontvangst vast in haar eigen kroniek, op de speeldatum.
-      </nldd-text>
+      </p>
     </nldd-title>
     <nldd-inline-dialog v-if="uitspraken.length === 0" icon="info" text="Nog geen uitspraken"></nldd-inline-dialog>
     <nldd-container gap="16">
@@ -149,7 +149,9 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
             </nldd-list-item>
           </nldd-list>
           <nldd-text v-if="nietGevraagd[u.id]?.length" size="sm" color="secondary">
-            Niet gevraagd, dus niet gebruikt: {{ nietGevraagd[u.id].map(leesbaar).join(', ') }}.
+            <p>
+              Niet gevraagd, dus niet gebruikt: {{ nietGevraagd[u.id].map(leesbaar).join(', ') }}.
+            </p>
           </nldd-text>
           <nldd-button
             v-if="!ontvangstVan(u.id)"

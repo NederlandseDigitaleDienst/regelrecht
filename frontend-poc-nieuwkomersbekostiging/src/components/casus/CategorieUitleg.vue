@@ -4,8 +4,10 @@
       <nldd-icon-cell :icon="stap.icon" :color="stap.color ?? 'content'"></nldd-icon-cell>
       <nldd-text-cell :text="stap.label" :supporting-text="stap.uitleg"></nldd-text-cell>
       <nldd-text-cell width="fit-content" horizontal-alignment="right">
-        <nldd-tag v-if="stap.tag" size="sm" :color="stap.tagColor ?? 'neutral'" :text="stap.tag"></nldd-tag>
-        <strong v-else>{{ stap.waarde }}</strong>
+        <p>
+          <nldd-tag v-if="stap.tag" size="sm" :color="stap.tagColor ?? 'neutral'" :text="stap.tag"></nldd-tag>
+          <strong v-else>{{ stap.waarde }}</strong>
+        </p>
       </nldd-text-cell>
     </nldd-list-item>
   </nldd-list>

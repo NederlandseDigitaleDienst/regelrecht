@@ -18,8 +18,8 @@ const id = `uitklap-${Math.random().toString(36).slice(2, 10)}`;
     <button type="button" class="kop" :aria-expanded="open ? 'true' : 'false'" :aria-controls="id" @click="open = !open">
       <nldd-icon class="pijl" :icon="open ? 'chevron-down' : 'chevron-right'" size="20"></nldd-icon>
       <span class="titels">
-        <nldd-text :size="props.soort === 'sectie' ? 'md' : 'sm'"><strong>{{ props.titel }}</strong></nldd-text>
-        <nldd-text v-if="props.sub" size="xs" color="secondary">{{ props.sub }}</nldd-text>
+        <nldd-text :size="props.soort === 'sectie' ? 'md' : 'sm'"><span><strong>{{ props.titel }}</strong></span></nldd-text>
+        <nldd-text v-if="props.sub" size="xs" color="secondary"><span>{{ props.sub }}</span></nldd-text>
       </span>
       <span class="extra"><slot name="kop" /></span>
     </button>

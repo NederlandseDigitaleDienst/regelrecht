@@ -177,7 +177,7 @@ watch(s, async () => {
     <ul class="legenda">
       <li v-for="l in soorten" :key="l.soort">
         <svg width="40" height="10" aria-hidden="true"><line x1="0" y1="5" x2="40" y2="5" :class="['lijn', l.soort]" /></svg>
-        <nldd-text size="sm">{{ l.label }} <code>{{ l.yaml }}</code></nldd-text>
+        <nldd-text size="sm"><span>{{ l.label }} <code>{{ l.yaml }}</code></span></nldd-text>
       </li>
     </ul>
     <!-- Walks through the chain; the sentence is read out as it changes. -->
@@ -188,17 +188,17 @@ watch(s, async () => {
         <nldd-button ref="allesKnop" appearance="neutral-tinted" text="Toon alles" :disabled="!stap || undefined" @click="ga(null, $event)"></nldd-button>
       </nldd-button-bar>
       <div aria-live="polite">
-        <nldd-text size="sm">{{ stapZin(s, stap) }}</nldd-text>
+        <nldd-text size="sm"><p>{{ stapZin(s, stap) }}</p></nldd-text>
       </div>
     </div>
     <!-- The overview is wider than a phone; it scrolls on its own, not the page. -->
     <div class="rol" tabindex="0" role="group" :aria-label="label">
       <div ref="vlak" class="vlak">
         <div v-for="k in kolommen" :key="k.soort" class="kolom">
-          <nldd-text size="sm" color="secondary">{{ k.label }}</nldd-text>
+          <nldd-text size="sm" color="secondary"><p>{{ k.label }}</p></nldd-text>
           <nldd-box v-for="b in k.bestanden" :key="b.pad">
             <nldd-container padding="12" gap="8">
-              <nldd-text class="titel" size="sm" weight="bold">{{ b.titel }}</nldd-text>
+              <nldd-text class="titel" size="sm" weight="bold"><p>{{ b.titel }}</p></nldd-text>
               <ul :class="['begrippen', { baan: binnen.has(b.pad) }]">
                 <li
                   v-for="g in b.begrippen"
@@ -213,10 +213,10 @@ watch(s, async () => {
                 >
                   <span class="kop">
                     <nldd-badge size="sm" color="neutral" :number="g.stap" decorative></nldd-badge>
-                    <nldd-text size="sm" color="secondary">{{ g.artikel ? `art. ${g.artikel} · ` : '' }}{{ ROL[g.rol] ?? g.rol }}</nldd-text>
+                    <nldd-text size="sm" color="secondary"><span>{{ g.artikel ? `art. ${g.artikel} · ` : '' }}{{ ROL[g.rol] ?? g.rol }}</span></nldd-text>
                   </span>
                   <code>{{ g.naam }}</code>
-                  <nldd-text v-if="g.vorm" size="sm" color="secondary">vorm uit {{ g.vorm }}</nldd-text>
+                  <nldd-text v-if="g.vorm" size="sm" color="secondary"><span>vorm uit {{ g.vorm }}</span></nldd-text>
                   <nldd-visually-hidden>{{ inWoorden(b.pad, g) }}</nldd-visually-hidden>
                 </li>
               </ul>

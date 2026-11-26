@@ -112,7 +112,7 @@ onActivated(() => {
 <template>
   <nldd-page ref="page">
     <!-- Het gekleurde vlak is het accent van het ontwerpsysteem. Het draagt
-         zijn eigen contentkleur, dus titel, tekst en de inherit-knoppen
+         zijn eigen contentkleur, dus titel, tekst en de content-knoppen
          erbinnen houden hun contrast zonder scheme-override. -->
     <nldd-hero main-width="full" padding-bottom="0">
       <!-- Twee kolommen over de volle hoogte van de hero: het verhaal links, de
@@ -121,13 +121,13 @@ onActivated(() => {
            afstand te lezen. Op een smal scherm zakt hij onder de tekst. -->
       <div class="hero-row">
         <div class="hero-text">
-          <nldd-title size="display-1" color="inherit">
-            <span slot="overline">{{ t('app.demo.label') }}</span>
+          <nldd-title size="display-1">
+            <p slot="overline">{{ t('app.demo.label') }}</p>
             <h1>RegelRecht</h1>
-            <span slot="supporting-text">{{ t('home.hero.subtitle') }}</span>
+            <p slot="supporting-text">{{ t('home.hero.subtitle') }}</p>
           </nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
-          <nldd-rich-text color="inherit">
+          <nldd-rich-text>
             <p>{{ t('home.hero.lead') }}</p>
           </nldd-rich-text>
           <nldd-spacer size="24"></nldd-spacer>
@@ -164,7 +164,7 @@ onActivated(() => {
     <nldd-simple-section>
       <nldd-title slot="header" size="display-3">
         <h2>{{ t('home.links.title') }}</h2>
-        <span slot="supporting-text">{{ t('home.links.subtitle') }}</span>
+        <p slot="supporting-text">{{ t('home.links.subtitle') }}</p>
       </nldd-title>
       <nldd-collection layout="grid" item-min-width="240px">
         <nldd-card v-for="l in links" :key="l.href" :href="l.href" target="_blank">
@@ -187,7 +187,7 @@ onActivated(() => {
              gegenereerde tekst; de sectie is een lijst van onderdelen, dus zij
              heet naar wat zij toont. -->
         <h2>{{ t('home.parts.title') }}</h2>
-        <span slot="supporting-text">{{ t('home.parts.subtitle') }}</span>
+        <p slot="supporting-text">{{ t('home.parts.subtitle') }}</p>
       </nldd-title>
       <nldd-collection layout="grid" item-min-width="240px">
         <nldd-card v-for="o in onderdelen" :key="o.to" button :accessible-label="o.title" @click="router.push(o.to)">

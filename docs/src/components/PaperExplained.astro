@@ -86,9 +86,9 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 ---
 
 <nldd-simple-section {...padding}>
-  <nldd-title size="1">
+  <nldd-title size="display-1">
     <h1>{t.header.title}</h1>
-    <p slot="subtitle">{t.header.subtitle}</p>
+    <p slot="supporting-text">{t.header.subtitle}</p>
   </nldd-title>
   <nldd-spacer size="16" />
   <nldd-text size="lg">{t.header.lede}</nldd-text>
@@ -99,7 +99,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
     <nldd-link href="/research/rules-as-executed" size="md" text={t.header.paper} />
   </nldd-container>
   <nldd-spacer size="24" />
-  <nldd-title size="5"><h2 id="px-toc">{t.header.tocLabel}</h2></nldd-title>
+  <nldd-title size="display-5"><h2 id="px-toc">{t.header.tocLabel}</h2></nldd-title>
   <nldd-spacer size="8" />
   <nldd-list type="navigation" aria-labelledby="px-toc" appearance="box-tinted">
     {chapters.map((c) => (
@@ -114,7 +114,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* The problem ---------------------------------------------------------- */}
 <nldd-simple-section id={ch.probleem.id} background="tinted" {...padding}>
-  <nldd-title size="2"><h2>{t.problem.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.problem.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   {/* The problem itself comes first and large: everything below follows from it. */}
   <nldd-text size="lg" weight="medium">{t.problem.core}</nldd-text>
@@ -123,7 +123,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
   <nldd-spacer size="24" />
   <nldd-card background="base">
     <nldd-container padding="20" sm-padding="16" data-px-switch={t.problem.options[0].id}>
-      <nldd-title size="5"><h3 id="px-case-label">{t.problem.caseLabel}</h3></nldd-title>
+      <nldd-title size="display-5"><h3 id="px-case-label">{t.problem.caseLabel}</h3></nldd-title>
       <nldd-spacer size="4" />
       <nldd-text size="sm" color="secondary">{t.problem.caseIntro}</nldd-text>
       <nldd-spacer size="12" />
@@ -149,7 +149,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
     </nldd-container>
   </nldd-card>
   <nldd-spacer size="24" />
-  <nldd-title size="4"><h3>{t.problem.demandLabel}</h3></nldd-title>
+  <nldd-title size="display-4"><h3>{t.problem.demandLabel}</h3></nldd-title>
   <nldd-spacer size="8" />
   <nldd-text size="lg" weight="medium">{t.problem.demand}</nldd-text>
   <nldd-spacer size="24" />
@@ -160,18 +160,18 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* The constitutional argument ------------------------------------------ */}
 <nldd-simple-section id={ch.macht.id} {...padding}>
-  <nldd-title size="2"><h2>{t.power.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.power.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text>{t.power.intro.map((p) => <p>{p}</p>)}</nldd-rich-text>
   <nldd-spacer size="24" />
   <nldd-card background="tinted">
     <nldd-container padding="20" sm-padding="16" gap="8">
-      <nldd-title size="5"><h3>{t.power.case.label}</h3></nldd-title>
+      <nldd-title size="display-5"><h3>{t.power.case.label}</h3></nldd-title>
       <nldd-text>{t.power.case.text}</nldd-text>
     </nldd-container>
   </nldd-card>
   <nldd-spacer size="24" />
-  <nldd-title size="4"><h3>{t.power.demandsLabel}</h3></nldd-title>
+  <nldd-title size="display-4"><h3>{t.power.demandsLabel}</h3></nldd-title>
   <nldd-spacer size="8" />
   <nldd-rich-text>
     <dl>
@@ -181,7 +181,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
   </nldd-rich-text>
   <nldd-spacer size="24" />
   <nldd-container data-px-switch="now">
-    <nldd-title size="5"><h3 id="px-matrix-now">{t.power.matrixLabel}</h3></nldd-title>
+    <nldd-title size="display-5"><h3 id="px-matrix-now">{t.power.matrixLabel}</h3></nldd-title>
     <nldd-spacer size="12" />
     <nldd-segmented-control accessible-labeled-by="px-matrix-now" width="full" data-control hidden>
       <nldd-segmented-control-item value="now" text={t.now} />
@@ -209,19 +209,19 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* The proposal --------------------------------------------------------- */}
 <nldd-simple-section id={ch.voorstel.id} background="tinted" {...padding}>
-  <nldd-title size="2"><h2>{t.binding.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.binding.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text>{t.binding.intro.map((p) => <p>{p}</p>)}</nldd-rich-text>
   <nldd-spacer size="24" />
   <nldd-card background="base">
     <nldd-container padding="20" sm-padding="16" gap="8">
-      <nldd-title size="5"><h3>{t.binding.case.label}</h3></nldd-title>
+      <nldd-title size="display-5"><h3>{t.binding.case.label}</h3></nldd-title>
       <nldd-text>{t.binding.case.text}</nldd-text>
     </nldd-container>
   </nldd-card>
   <nldd-spacer size="24" />
   {/* Why the binding asks for a format of its own, with the article-by-article example right under it. */}
-  <nldd-title size="4"><h3>{t.binding.formLabel}</h3></nldd-title>
+  <nldd-title size="display-4"><h3>{t.binding.formLabel}</h3></nldd-title>
   <nldd-spacer size="8" />
   <nldd-rich-text>
     <dl>
@@ -234,7 +234,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
   <nldd-card background="base">
     <nldd-container padding="20" sm-padding="16" gap="16">
       <nldd-container gap="4">
-        <nldd-title size="5"><h4>{t.binding.exampleLabel}</h4></nldd-title>
+        <nldd-title size="display-5"><h4>{t.binding.exampleLabel}</h4></nldd-title>
         <nldd-text size="sm" color="secondary">{t.binding.exampleIntro}</nldd-text>
       </nldd-container>
       <nldd-blockquote>
@@ -257,7 +257,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
   <nldd-rich-text><p>{t.binding.reuse}</p></nldd-rich-text>
   <nldd-spacer size="24" />
   <nldd-container data-px-switch="now">
-    <nldd-title size="5"><h3 id="px-flow">{t.binding.flowLabel}</h3></nldd-title>
+    <nldd-title size="display-5"><h3 id="px-flow">{t.binding.flowLabel}</h3></nldd-title>
     <nldd-spacer size="12" />
     <nldd-segmented-control accessible-labeled-by="px-flow" width="full" data-control hidden>
       <nldd-segmented-control-item value="now" text={t.now} />
@@ -297,7 +297,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* The receipt ---------------------------------------------------------- */}
 <nldd-simple-section id={ch.bonnetje.id} {...padding}>
-  <nldd-title size="2"><h2>{t.receipt.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.receipt.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text><p>{t.receipt.p1}</p><p>{t.receipt.p2}</p></nldd-rich-text>
   <nldd-spacer size="24" />
@@ -342,14 +342,14 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
           {(['a', 'b'] as const).map((id) => (
             <nldd-card background="base" data-receipt={id}>
               <nldd-container padding="20" sm-padding="16" gap="12">
-                <nldd-title size="4"><h3>{t.receipt.decision} {id.toUpperCase()}</h3></nldd-title>
+                <nldd-title size="display-4"><h3>{t.receipt.decision} {id.toUpperCase()}</h3></nldd-title>
                 <nldd-container gap="2">
                   <nldd-text size="sm" color="secondary">{t.receipt.fields.amount}</nldd-text>
-                  <nldd-text size="lg" weight="bold" data-f="amount"></nldd-text>
+                  <nldd-text size="lg" weight="bold"><p data-f="amount"></p></nldd-text>
                 </nldd-container>
                 <nldd-container gap="2">
                   <nldd-text size="sm" color="secondary">{t.receipt.fields.digest}</nldd-text>
-                  <nldd-text size="sm" data-f="digest"></nldd-text>
+                  <nldd-text size="sm"><p data-f="digest"></p></nldd-text>
                 </nldd-container>
                 <nldd-container aria-live="polite" gap="12">
                   <nldd-container data-checks gap="8" hidden>
@@ -360,7 +360,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
                       </nldd-container>
                     ))}
                   </nldd-container>
-                  <nldd-text size="sm" data-reveal tabindex="-1" hidden></nldd-text>
+                  <nldd-text size="sm" data-reveal tabindex="-1" hidden><p></p></nldd-text>
                 </nldd-container>
                 <nldd-button appearance="primary" size="sm" text={t.receipt.check} data-check-button />
               </nldd-container>
@@ -371,7 +371,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
     </nldd-container>
   </nldd-card>
   <nldd-spacer size="24" />
-  <nldd-title size="4"><h3>{t.receipt.limitsLabel}</h3></nldd-title>
+  <nldd-title size="display-4"><h3>{t.receipt.limitsLabel}</h3></nldd-title>
   <nldd-spacer size="8" />
   <nldd-rich-text>
     <ul>{t.receipt.limits.map((l) => <li>{l}</li>)}</ul>
@@ -380,7 +380,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
   <PaperMore title={t.receipt.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.bonnetje.refs}>
     <nldd-rich-text>{t.receipt.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
     <nldd-container data-facts gap="8" hidden>
-      <nldd-title size="5"><h3>{t.receipt.fields.inputs}</h3></nldd-title>
+      <nldd-title size="display-5"><h3>{t.receipt.fields.inputs}</h3></nldd-title>
       <nldd-rich-text><ul data-facts-list></ul></nldd-rich-text>
     </nldd-container>
   </PaperMore>
@@ -388,13 +388,13 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* Back in time --------------------------------------------------------- */}
 <nldd-simple-section id={ch.tijd.id} background="tinted" {...padding}>
-  <nldd-title size="2"><h2>{t.time.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.time.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text>{t.time.intro.map((p) => <p>{p}</p>)}</nldd-rich-text>
   <nldd-spacer size="24" />
   <nldd-card background="base">
     <nldd-container padding="20" sm-padding="16" gap="8">
-      <nldd-title size="5"><h3>{t.time.caseLabel}</h3></nldd-title>
+      <nldd-title size="display-5"><h3>{t.time.caseLabel}</h3></nldd-title>
       <nldd-text size="sm" color="secondary">{t.time.caseIntro}</nldd-text>
       <nldd-rich-text>
         <dl>
@@ -414,13 +414,13 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* Departing from the outcome ------------------------------------------- */}
 <nldd-simple-section id={ch.afwijken.id} {...padding}>
-  <nldd-title size="2"><h2>{t.default.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.default.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text><p>{t.default.p1}</p></nldd-rich-text>
   <nldd-spacer size="24" />
   <nldd-card background="tinted">
     <nldd-container padding="20" sm-padding="16" data-px-switch={t.default.variants[1].id}>
-      <nldd-title size="5"><h3 id="px-override">{t.default.variantsLabel}</h3></nldd-title>
+      <nldd-title size="display-5"><h3 id="px-override">{t.default.variantsLabel}</h3></nldd-title>
       <nldd-spacer size="12" />
       <nldd-segmented-control accessible-labeled-by="px-override" width="full" size="sm" data-control hidden>
         {t.default.variants.map((v) => <nldd-segmented-control-item value={v.id} text={v.short} />)}
@@ -447,7 +447,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* What this does not fix ----------------------------------------------- */}
 <nldd-simple-section id={ch.grenzen.id} background="tinted" {...padding}>
-  <nldd-title size="2"><h2>{t.limits.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.limits.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text>
     {t.limits.intro.map((p) => <p>{p}</p>)}
@@ -459,7 +459,7 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
     <p>{t.limits.p2}</p>
   </nldd-rich-text>
   <nldd-spacer size="24" />
-  <nldd-title size="4"><h3>{t.limits.openLabel}</h3></nldd-title>
+  <nldd-title size="display-4"><h3>{t.limits.openLabel}</h3></nldd-title>
   <nldd-spacer size="8" />
   <nldd-rich-text><ul>{t.limits.open.map((q) => <li>{q}</li>)}</ul></nldd-rich-text>
   <nldd-spacer size="24" />
@@ -470,11 +470,11 @@ const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-paddin
 
 {/* For people who already work on rules as code ------------------------- */}
 <nldd-simple-section id={ch['rules-as-code'].id} {...padding}>
-  <nldd-title size="2"><h2>{t.veterans.title}</h2></nldd-title>
+  <nldd-title size="display-2"><h2>{t.veterans.title}</h2></nldd-title>
   <nldd-spacer size="16" />
   <nldd-rich-text><p>{t.veterans.p1}</p><p>{t.veterans.p2}</p></nldd-rich-text>
   <nldd-spacer size="24" />
-  <nldd-title size="4"><h3>{t.veterans.tableLabel}</h3></nldd-title>
+  <nldd-title size="display-4"><h3>{t.veterans.tableLabel}</h3></nldd-title>
   <nldd-spacer size="8" />
   {/* What the columns mean comes first: without it the values below answer no question. */}
   <nldd-rich-text>

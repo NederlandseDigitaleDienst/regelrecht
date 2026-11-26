@@ -255,7 +255,7 @@ function statusIcon(index: number) {
 // quarter as the scenario opens. Only the chevron is meant to turn.
 function statusColor(index: number) {
   const r = runs[index];
-  return r?.status === 'pass' ? 'success' : r?.status === 'fail' ? (r.wip ? 'warning' : 'critical') : 'secondary-content';
+  return r?.status === 'pass' ? 'success' : r?.status === 'fail' ? (r.wip ? 'warning' : 'critical') : 'secondary';
 }
 
 function evaluateWithTrace(ctx: ExecutionContext, e: DemoEngine, lawId: string, outputs: string[], state: ScenarioRun) {
@@ -341,135 +341,131 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
 
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('app.tabs.scenarios')">
-    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
-      <nldd-page sticky-header background="inherit" :accessible-label="t('app.tabs.scenarios')">
-        <nldd-container slot="header" padding="12" gap="8">
-          <nldd-top-title-bar :text="t('app.tabs.scenarios')" :supporting-text="t.plural(features.length, 'scenario.files')"></nldd-top-title-bar>
-          <nldd-search-field :placeholder="t('scenario.search')" size="sm" :value="query" @input="query = $event.detail?.value ?? $event.target.value"></nldd-search-field>
-        </nldd-container>
-        <nldd-simple-section padding-top="0">
-          <nldd-list type="navigation" :accessible-label="t('scenario.files.label')">
-            <!-- A law found for `f` means the corpus is loaded, and `lawFor(f)` is checked just before. -->
-            <nldd-list-item v-for="f in filtered" :key="f.path" size="sm" button :selected="f.path === selectedPath || undefined" @click="select(f.path)">
-              <nldd-text-cell size="sm" :text="scenarioTitle(f.title)" :supporting-text="lawFor(f) ? serviceInfo(corpus!, lawFor(f)!.service).name : f.law_path"></nldd-text-cell>
-            </nldd-list-item>
-            <nldd-inline-dialog slot="empty" :text="t('scenario.none_found')" :supporting-text="t('scenario.none_found.hint')"></nldd-inline-dialog>
-          </nldd-list>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+    <nldd-page slot="primary-sidebar" sticky-header background="tinted" :accessible-label="t('app.tabs.scenarios')">
+      <nldd-container slot="header" padding="12" gap="8">
+        <nldd-top-title-bar :text="t('app.tabs.scenarios')" :supporting-text="t.plural(features.length, 'scenario.files')"></nldd-top-title-bar>
+        <nldd-search-field :placeholder="t('scenario.search')" size="sm" :value="query" @input="query = $event.detail?.value ?? $event.target.value"></nldd-search-field>
+      </nldd-container>
+      <nldd-simple-section padding-top="0">
+        <nldd-list type="navigation" :accessible-label="t('scenario.files.label')">
+          <!-- A law found for `f` means the corpus is loaded, and `lawFor(f)` is checked just before. -->
+          <nldd-list-item v-for="f in filtered" :key="f.path" size="sm" button :selected="f.path === selectedPath || undefined" @click="select(f.path)">
+            <nldd-text-cell size="sm" :text="scenarioTitle(f.title)" :supporting-text="lawFor(f) ? serviceInfo(corpus!, lawFor(f)!.service).name : f.law_path"></nldd-text-cell>
+          </nldd-list-item>
+          <nldd-inline-dialog slot="empty" :text="t('scenario.none_found')" :supporting-text="t('scenario.none_found.hint')"></nldd-inline-dialog>
+        </nldd-list>
+      </nldd-simple-section>
+    </nldd-page>
 
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
-        <nldd-container slot="header" padding="8">
-          <nldd-toolbar size="sm">
-            <nldd-toolbar-item slot="start">
-              <nldd-button size="sm" appearance="neutral-tinted" start-icon="checklist" :text="t('app.tabs.scenarios')" :supporting-text="`${features.length}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
-              <nldd-menu-item slot="overflow" icon="checklist" :text="t('app.tabs.scenarios')" :details="`${features.length}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-title v-if="parsed" slot="start" :text="scenarioTitle(parsed.feature)" :supporting-text="fileName"></nldd-toolbar-title>
-            <nldd-toolbar-item slot="end" v-if="parsed">
-              <nldd-segmented-control size="sm" width="fit-content" :value="showText ? 'text' : 'steps'" @change="showText = $event.detail?.value === 'text'">
-                <nldd-segmented-control-item value="steps" :text="t('app.tabs.scenarios')"></nldd-segmented-control-item>
-                <nldd-segmented-control-item value="text" :text="t('scenario.view.file')"></nldd-segmented-control-item>
-              </nldd-segmented-control>
-              <nldd-menu-item slot="overflow" type="radio" :text="t('app.tabs.scenarios')" :selected="!showText || undefined" @select="showText = false"></nldd-menu-item>
-              <nldd-menu-item slot="overflow" type="radio" :text="t('scenario.view.file')" :selected="showText || undefined" @select="showText = true"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end" v-if="parsed" :priority="1">
-              <nldd-button size="sm" appearance="primary" start-icon="play" :text="t('scenario.run_all')" :loading="runningAll || undefined" :disabled="(anyRunning && !runningAll) || undefined" @click="runAll"></nldd-button>
-              <nldd-menu-item slot="overflow" icon="play" :text="t('scenario.run_all')" :disabled="anyRunning || undefined" @select="runAll"></nldd-menu-item>
-            </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end" v-if="parsed && selectedLaw">
-              <nldd-button size="sm" appearance="neutral-tinted" start-icon="book" :text="t('wet.tile.action.law_text')" @click="goTo('wetten', { lawId: selectedLaw.id })"></nldd-button>
-              <nldd-menu-item slot="overflow" icon="book" :text="t('wet.tile.action.law_text')" @select="goTo('wetten', { lawId: selectedLaw.id })"></nldd-menu-item>
-            </nldd-toolbar-item>
-          </nldd-toolbar>
-        </nldd-container>
+    <nldd-page slot="main" landmarks="page" sticky-header>
+      <nldd-container slot="header" padding="8">
+        <nldd-toolbar size="sm">
+          <nldd-toolbar-item slot="start">
+            <nldd-button size="sm" appearance="neutral-tinted" start-icon="checklist" :text="t('app.tabs.scenarios')" :supporting-text="`${features.length}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="checklist" :text="t('app.tabs.scenarios')" :details="`${features.length}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-title v-if="parsed" slot="start" :text="scenarioTitle(parsed.feature)" :supporting-text="fileName"></nldd-toolbar-title>
+          <nldd-toolbar-item slot="end" v-if="parsed">
+            <nldd-segmented-control size="sm" width="fit-content" :value="showText ? 'text' : 'steps'" @change="showText = $event.detail?.value === 'text'">
+              <nldd-segmented-control-item value="steps" :text="t('app.tabs.scenarios')"></nldd-segmented-control-item>
+              <nldd-segmented-control-item value="text" :text="t('scenario.view.file')"></nldd-segmented-control-item>
+            </nldd-segmented-control>
+            <nldd-menu-item slot="overflow" type="radio" :text="t('app.tabs.scenarios')" :selected="!showText || undefined" @select="showText = false"></nldd-menu-item>
+            <nldd-menu-item slot="overflow" type="radio" :text="t('scenario.view.file')" :selected="showText || undefined" @select="showText = true"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end" v-if="parsed" :priority="1">
+            <nldd-button size="sm" appearance="primary" start-icon="play" :text="t('scenario.run_all')" :loading="runningAll || undefined" :disabled="(anyRunning && !runningAll) || undefined" @click="runAll"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="play" :text="t('scenario.run_all')" :disabled="anyRunning || undefined" @select="runAll"></nldd-menu-item>
+          </nldd-toolbar-item>
+          <nldd-toolbar-item slot="end" v-if="parsed && selectedLaw">
+            <nldd-button size="sm" appearance="neutral-tinted" start-icon="book" :text="t('wet.tile.action.law_text')" @click="goTo('wetten', { lawId: selectedLaw.id })"></nldd-button>
+            <nldd-menu-item slot="overflow" icon="book" :text="t('wet.tile.action.law_text')" @select="goTo('wetten', { lawId: selectedLaw.id })"></nldd-menu-item>
+          </nldd-toolbar-item>
+        </nldd-toolbar>
+      </nldd-container>
 
-        <nldd-simple-section v-if="loadFailures.length" width="full">
-          <nldd-banner
-            variant="critical"
-            :text="selectedLoadFailure ? t('scenario.law_not_loaded', { id: selectedLoadFailure.id }) : t.plural(new Set(loadFailures.map((f) => f.id)).size, 'scenario.laws_not_loaded')"
-            :supporting-text="t('scenario.engine_refused', { details: loadFailures.map((f) => `${f.id} (${f.path}): ${f.message}`).join('; ') })"
-          ></nldd-banner>
-        </nldd-simple-section>
-        <nldd-simple-section v-if="loadError" width="full">
-          <nldd-banner variant="critical" :text="t('scenario.load_failed')" :supporting-text="String(loadError)"></nldd-banner>
-        </nldd-simple-section>
-        <nldd-simple-section v-else-if="!parsed" height="60vh">
-          <nldd-inline-dialog icon="checklist" :text="t('scenario.pick')" :supporting-text="t('scenario.pick.hint')">
-            <nldd-button slot="actions" appearance="primary" size="sm" :text="t('app.tabs.scenarios')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
-          </nldd-inline-dialog>
-        </nldd-simple-section>
-        <nldd-simple-section v-else-if="showText" width="full">
-          <nldd-code-viewer language="gherkin" wrap>{{ rawText }}</nldd-code-viewer>
-        </nldd-simple-section>
-        <nldd-simple-section v-else width="full">
-          <nldd-container gap="16">
-          <nldd-box>
-            <nldd-container padding="12" layout="row" gap="12" vertical-alignment="center">
-              <nldd-icon-cell icon="checklist" color="secondary"></nldd-icon-cell>
-              <nldd-title-cell size="display-5" :text="scenarioTitle(parsed.feature)" :overline="featureKeywords().Feature" :supporting-text="parsed.background?.length ? `${featureKeywords().Background}: ${t.plural(parsed.background.length, 'scenario.steps')}` : undefined"></nldd-title-cell>
-              <!-- The run summary sits with the feature, next to its title, as the result
-                   tag does on each scenario card. In the toolbar it stood between 32px
-                   controls; no tag or badge size reaches that height. -->
-              <nldd-tag v-if="summary.pass + summary.fail > 0" :color="summary.fail ? 'critical' : 'success'" :text="summary.fail ? `${t('scenario.summary.pass', { n: summary.pass })}, ${t('scenario.summary.fail', { n: summary.fail })}` : t('scenario.summary.pass', { n: summary.pass })"></nldd-tag>
-            </nldd-container>
-            <!-- The background is the shared premise of every scenario below, so it
-                 stays in view; only the scenario cards collapse. -->
-            <nldd-container v-if="parsed.background?.length" padding-inline="16" padding-bottom="12" gap="8">
-              <nldd-text-cell color="accent" :text="`**${featureKeywords().Background}:**`"></nldd-text-cell>
-              <ScenarioSteps :steps="parsed.background" />
-            </nldd-container>
-          </nldd-box>
-          <nldd-card v-for="(scenario, index) in parsed.scenarios" :key="index" :accessible-label="scenarioTitle(scenario.name)">
-            <!-- The whole header opens the scenario, except its buttons. The row is
-                 cut in two: a disclosure segment (status, title, result, chevron)
-                 that toggles and carries aria-expanded, and plain cells holding the
-                 buttons. A row that is a button itself cannot hold "Uitvoeren":
-                 a button inside a button is invalid and a screen reader would
-                 announce only the outer one. -->
-            <nldd-container slot="header" padding-inline="12" padding-block="4">
-              <nldd-list dividers="never">
-                <nldd-list-item :expanded="!!open[index]">
-                  <nldd-list-item-segment button disclosure width="full" @click="open[index] = !open[index]">
-                    <nldd-icon-cell icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <!-- nldd-icon in a cell, not an nldd-icon-cell: the segment turns
-                         every icon cell in it, and only the chevron should turn. -->
-                    <nldd-cell><nldd-icon :icon="statusIcon(index)" :color="statusColor(index)" size="24"></nldd-icon></nldd-cell>
-                    <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                    <nldd-title-cell size="display-5" :text="scenarioTitle(scenario.name)" :supporting-text="scenario.tags.join(' ') || undefined"></nldd-title-cell>
-                    <!-- One height across the action row: an md tag and xs buttons are both
-                         24px; no tag size matches an sm button. -->
-                    <!-- `?.` only for the type checker: the v-if guarantees the tag. -->
-                    <nldd-cell v-if="resultTag(index)"><nldd-tag :color="resultTag(index)?.color" :text="resultTag(index)?.text"></nldd-tag></nldd-cell>
-                  </nldd-list-item-segment>
-                  <!-- Spacer cells, as the other list rows in the demo space their
-                       cells: the segment stops at the result tag, and without
-                       them the tag and both buttons touch. -->
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-cell>
-                    <nldd-button size="xs" appearance="secondary" start-icon="play" :text="t('scenario.run')" :loading="runs[index]?.status === 'running' || undefined" :disabled="(anyRunning && runs[index]?.status !== 'running') || undefined" @click="runAndShow(index)"></nldd-button>
-                  </nldd-cell>
-                  <nldd-spacer-cell v-if="runs[index]?.traceText" size="8"></nldd-spacer-cell>
-                  <nldd-cell v-if="runs[index]?.traceText">
-                    <nldd-button size="xs" appearance="neutral-tinted" start-icon="list" :text="t('scenario.trace')" @click="activeTrace = index"></nldd-button>
-                  </nldd-cell>
-                </nldd-list-item>
-              </nldd-list>
-            </nldd-container>
-            <nldd-container v-if="open[index]" padding-inline="16" padding-bottom="16" gap="12">
-              <nldd-banner v-if="runs[index]?.error && !runs[index]?.steps?.length" variant="critical" :text="t('scenario.run_failed')" :supporting-text="runs[index].error"></nldd-banner>
-              <nldd-banner v-if="backgroundError(index)" variant="critical" :text="t('scenario.failed.background')" :supporting-text="backgroundError(index)"></nldd-banner>
-              <ScenarioSteps :steps="scenario.steps" :results="scenarioResults(index)" />
-            </nldd-container>
-          </nldd-card>
+      <nldd-simple-section v-if="loadFailures.length" width="full">
+        <nldd-banner
+          variant="critical"
+          :text="selectedLoadFailure ? t('scenario.law_not_loaded', { id: selectedLoadFailure.id }) : t.plural(new Set(loadFailures.map((f) => f.id)).size, 'scenario.laws_not_loaded')"
+          :supporting-text="t('scenario.engine_refused', { details: loadFailures.map((f) => `${f.id} (${f.path}): ${f.message}`).join('; ') })"
+        ></nldd-banner>
+      </nldd-simple-section>
+      <nldd-simple-section v-if="loadError" width="full">
+        <nldd-banner variant="critical" :text="t('scenario.load_failed')" :supporting-text="String(loadError)"></nldd-banner>
+      </nldd-simple-section>
+      <nldd-simple-section v-else-if="!parsed" height="60vh">
+        <nldd-inline-dialog icon="checklist" :text="t('scenario.pick')" :supporting-text="t('scenario.pick.hint')">
+          <nldd-button slot="actions" appearance="primary" size="sm" :text="t('app.tabs.scenarios')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+        </nldd-inline-dialog>
+      </nldd-simple-section>
+      <nldd-simple-section v-else-if="showText" width="full">
+        <nldd-code-viewer language="gherkin" wrap>{{ rawText }}</nldd-code-viewer>
+      </nldd-simple-section>
+      <nldd-simple-section v-else width="full">
+        <nldd-container gap="16">
+        <nldd-box>
+          <nldd-container padding="12" layout="row" gap="12" vertical-alignment="center">
+            <nldd-icon-cell icon="checklist" color="secondary"></nldd-icon-cell>
+            <nldd-title-cell size="display-5" :text="scenarioTitle(parsed.feature)" :overline="featureKeywords().Feature" :supporting-text="parsed.background?.length ? `${featureKeywords().Background}: ${t.plural(parsed.background.length, 'scenario.steps')}` : undefined"></nldd-title-cell>
+            <!-- The run summary sits with the feature, next to its title, as the result
+                 tag does on each scenario card. In the toolbar it stood between 32px
+                 controls; no tag or badge size reaches that height. -->
+            <nldd-tag v-if="summary.pass + summary.fail > 0" :color="summary.fail ? 'critical' : 'success'" :text="summary.fail ? `${t('scenario.summary.pass', { n: summary.pass })}, ${t('scenario.summary.fail', { n: summary.fail })}` : t('scenario.summary.pass', { n: summary.pass })"></nldd-tag>
           </nldd-container>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+          <!-- The background is the shared premise of every scenario below, so it
+               stays in view; only the scenario cards collapse. -->
+          <nldd-container v-if="parsed.background?.length" padding-inline="16" padding-bottom="12" gap="8">
+            <nldd-text-cell color="accent" :text="`**${featureKeywords().Background}:**`"></nldd-text-cell>
+            <ScenarioSteps :steps="parsed.background" />
+          </nldd-container>
+        </nldd-box>
+        <nldd-card v-for="(scenario, index) in parsed.scenarios" :key="index" :accessible-label="scenarioTitle(scenario.name)">
+          <!-- The whole header opens the scenario, except its buttons. The row is
+               cut in two: a disclosure segment (status, title, result, chevron)
+               that toggles and carries aria-expanded, and plain cells holding the
+               buttons. A row that is a button itself cannot hold "Uitvoeren":
+               a button inside a button is invalid and a screen reader would
+               announce only the outer one. -->
+          <nldd-container slot="header" padding-inline="12" padding-block="4">
+            <nldd-list dividers="never">
+              <nldd-list-item :expanded="!!open[index]">
+                <nldd-list-item-segment button disclosure width="full" @click="open[index] = !open[index]">
+                  <nldd-icon-cell icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <!-- nldd-icon in a cell, not an nldd-icon-cell: the segment turns
+                       every icon cell in it, and only the chevron should turn. -->
+                  <nldd-cell><nldd-icon :icon="statusIcon(index)" :color="statusColor(index)" size="24"></nldd-icon></nldd-cell>
+                  <nldd-spacer-cell size="12"></nldd-spacer-cell>
+                  <nldd-title-cell size="display-5" :text="scenarioTitle(scenario.name)" :supporting-text="scenario.tags.join(' ') || undefined"></nldd-title-cell>
+                  <!-- One height across the action row: an md tag and xs buttons are both
+                       24px; no tag size matches an sm button. -->
+                  <!-- `?.` only for the type checker: the v-if guarantees the tag. -->
+                  <nldd-cell v-if="resultTag(index)"><nldd-tag :color="resultTag(index)?.color" :text="resultTag(index)?.text"></nldd-tag></nldd-cell>
+                </nldd-list-item-segment>
+                <!-- Spacer cells, as the other list rows in the demo space their
+                     cells: the segment stops at the result tag, and without
+                     them the tag and both buttons touch. -->
+                <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                <nldd-cell>
+                  <nldd-button size="xs" appearance="secondary" start-icon="play" :text="t('scenario.run')" :loading="runs[index]?.status === 'running' || undefined" :disabled="(anyRunning && runs[index]?.status !== 'running') || undefined" @click="runAndShow(index)"></nldd-button>
+                </nldd-cell>
+                <nldd-spacer-cell v-if="runs[index]?.traceText" size="8"></nldd-spacer-cell>
+                <nldd-cell v-if="runs[index]?.traceText">
+                  <nldd-button size="xs" appearance="neutral-tinted" start-icon="list" :text="t('scenario.trace')" @click="activeTrace = index"></nldd-button>
+                </nldd-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </nldd-container>
+          <nldd-container v-if="open[index]" padding-inline="16" padding-bottom="16" gap="12">
+            <nldd-banner v-if="runs[index]?.error && !runs[index]?.steps?.length" variant="critical" :text="t('scenario.run_failed')" :supporting-text="runs[index].error"></nldd-banner>
+            <nldd-banner v-if="backgroundError(index)" variant="critical" :text="t('scenario.failed.background')" :supporting-text="backgroundError(index)"></nldd-banner>
+            <ScenarioSteps :steps="scenario.steps" :results="scenarioResults(index)" />
+          </nldd-container>
+        </nldd-card>
+        </nldd-container>
+      </nldd-simple-section>
+    </nldd-page>
 
     <!-- The engine's trace is wide; a 320px inspector column cuts every line,
          so it opens in a broad sheet, as the tile's "Berekening" does. As wide

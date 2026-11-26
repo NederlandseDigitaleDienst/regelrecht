@@ -63,7 +63,7 @@ watch(
         <nldd-simple-section v-if="jobId">
           <nldd-title size="display-3">
             <h3>{{ title }}</h3>
-            <span v-if="lawName" slot="supporting-text">{{ lawName }}</span>
+            <p v-if="lawName" slot="supporting-text">{{ lawName }}</p>
           </nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
           <RunDetailPane :job-id="jobId" @open-tasks="emit('open-tasks', $event)"></RunDetailPane>

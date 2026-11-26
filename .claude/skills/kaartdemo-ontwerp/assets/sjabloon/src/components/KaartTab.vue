@@ -185,29 +185,29 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', opToets); kaart?.r
       <!-- %%GRAAF%%: <GraafTab v-if="weergave === 'graaf'" :rd="rd" class="graaflaag" /> (vue-flow, over de hele kaart) -->
 
       <div v-show="weergave === 'kaart'" class="legenda" aria-label="Kaartlagen en legenda">
-        <nldd-text size="sm"><strong>Kaartlagen</strong></nldd-text>
+        <nldd-text size="sm"><p><strong>Kaartlagen</strong></p></nldd-text>
         <nldd-segmented-control :value="thema" size="sm" accessible-label="Thema op de kaart" class="thema" @change="kiesThema($event.target.value)">
           <nldd-segmented-control-item v-for="t in THEMA" :key="t.id" :value="t.id" :text="t.kort" :selected="thema === t.id || undefined"></nldd-segmented-control-item>
         </nldd-segmented-control>
-        <nldd-text size="xs"><strong>{{ themaNu.tekst }}</strong></nldd-text>
+        <nldd-text size="xs"><p><strong>{{ themaNu.tekst }}</strong></p></nldd-text>
         <div class="legenda-groep">
-          <nldd-text size="xs" color="secondary">{{ themaNu.uitleg }}</nldd-text>
+          <nldd-text size="xs" color="secondary"><p>{{ themaNu.uitleg }}</p></nldd-text>
           <span v-for="l in themaNu.items" :key="l.tekst" class="legenda-item">
             <i class="lg-vlak" :style="{ borderColor: l.kleur, background: `color-mix(in srgb, ${l.kleur} 72%, transparent)` }"></i>
-            <nldd-text size="xs">{{ l.tekst }}<template v-if="telling && l.klasse"> ({{ telling[l.klasse] ?? 0 }})</template></nldd-text>
+            <nldd-text size="xs"><span>{{ l.tekst }}<template v-if="telling && l.klasse"> ({{ telling[l.klasse] ?? 0 }})</template></span></nldd-text>
           </span>
         </div>
         <nldd-checkbox-field label="Bouwvlakken (waar een hoofdgebouw mag)" :checked="toonBouwvlak || undefined" @change="toonBouwvlak = $event.target.checked"></nldd-checkbox-field>
         <details class="overig">
-          <summary><nldd-text size="xs"><strong>Overige tekens</strong></nldd-text></summary>
+          <summary><nldd-text size="xs"><p><strong>Overige tekens</strong></p></nldd-text></summary>
           <div v-for="g in LEGENDA" :key="g.kop" class="legenda-groep">
-            <nldd-text size="xs" color="secondary">{{ g.kop }}</nldd-text>
+            <nldd-text size="xs" color="secondary"><p>{{ g.kop }}</p></nldd-text>
             <span v-for="l in g.items" :key="l.tekst" class="legenda-item">
               <i v-if="l.vorm === 'lijn'" class="lg-lijn" :style="{ borderTopColor: l.kleur, borderTopStyle: l.stippel ? 'dashed' : 'solid' }"></i>
               <i v-else-if="l.vorm === 'vlak'" class="lg-vlak" :style="{ borderColor: l.kleur, borderStyle: l.stippel ? 'dashed' : 'solid', background: `color-mix(in srgb, ${l.kleur} 14%, transparent)` }"></i>
               <i v-else-if="l.vorm === 'punt'" class="lg-punt"></i>
               <i v-else class="lg-nummer">P1</i>
-              <nldd-text size="xs">{{ l.tekst }}</nldd-text>
+              <nldd-text size="xs"><span>{{ l.tekst }}</span></nldd-text>
             </span>
           </div>
         </details>
@@ -222,7 +222,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', opToets); kaart?.r
               :appearance="t.id === tab ? 'accent-filled' : 'neutral-transparent'" @click="openPaneel(t.id)"
             ></nldd-icon-button>
           </div>
-          <nldd-text v-if="rd" size="xs" color="secondary" class="klein-punt">{{ tabNu?.tekst }} · RD {{ rdTekst(rd) }}</nldd-text>
+          <nldd-text v-if="rd" size="xs" color="secondary" class="klein-punt"><p>{{ tabNu?.tekst }} · RD {{ rdTekst(rd) }}</p></nldd-text>
         </div>
         <div v-show="!paneelKlein" class="paneel-kop">
           <nldd-tab-bar accessible-label="Paneel">
@@ -242,8 +242,8 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', opToets); kaart?.r
             </nldd-container>
             <nldd-container v-else layout="stack" gap="12">
               <nldd-title size="display-3" :heading-level="2" text="Klik op een plek in %%GEBIED%%"></nldd-title>
-              <nldd-text>%%LEGE_STAAT_UITLEG%%</nldd-text>
-              <nldd-text size="sm" color="secondary">Of kies een plek onder Testpunten. Verkenning, geen besluit.</nldd-text>
+              <nldd-text><p>%%LEGE_STAAT_UITLEG%%</p></nldd-text>
+              <nldd-text size="sm" color="secondary"><p>Of kies een plek onder Testpunten. Verkenning, geen besluit.</p></nldd-text>
             </nldd-container>
           </div>
 

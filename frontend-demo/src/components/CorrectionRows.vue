@@ -46,11 +46,11 @@ function formatSize(bytes: number) {
   <template v-for="cl in props.claims" :key="cl.id">
     <nldd-list-item size="sm">
       <nldd-text-cell size="sm" min-width="120px" :text="text(cl)">
-        <span slot="supporting-text">
+        <p slot="supporting-text">
           <template v-if="props.origin">{{ props.origin(cl) }} · </template>{{ cl.reason }}
           <template v-if="cl.hardship?.clause"><br />{{ t('sheet.corrections.hardship', { clause: cl.hardship.clause }) }}</template>
           <template v-if="cl.evidence"><br />{{ t('sheet.corrections.evidence', { name: cl.evidence.name, size: formatSize(cl.evidence.size) }) }}</template>
-        </span>
+        </p>
       </nldd-text-cell>
       <!-- A caseworker's correction is approved by definition: one tag says both. -->
       <nldd-cell v-if="cl.claimant === 'BEHANDELAAR'"><nldd-tag size="sm" color="success" :text="t('sheet.corrections.by_officer')"></nldd-tag></nldd-cell>

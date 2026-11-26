@@ -87,9 +87,9 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
         <nldd-button ref="terugKnop" appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
       </nldd-button-bar>
       <nldd-title size="display-2" heading-level="1" :overline="intro.overline" :text="intro.title">
-        <nldd-text slot="supporting-text">
+        <p slot="supporting-text">
           <template v-for="(s, i) in stukken(intro.lead)" :key="i"><code v-if="s.code">{{ s.code }}</code><template v-else>{{ s.tekst }}</template></template>
-        </nldd-text>
+        </p>
       </nldd-title>
     </nldd-container>
   </nldd-simple-section>
@@ -97,11 +97,13 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
     <nldd-title slot="header" size="display-3" heading-level="2" :overline="keten.overline" :text="keten.title"></nldd-title>
     <nldd-container gap="12">
       <nldd-text v-for="(t, j) in keten.text" :key="j">
-        <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
+        <p>
+          <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
+        </p>
       </nldd-text>
       <SchemaOverzicht v-if="opbouw.plaatje" :schema="opbouw.plaatje" :label="keten.title" />
-      <nldd-text v-else-if="opbouw.kapot" size="sm" color="secondary">Uit deze YAML kan de pagina geen schema maken. De bestanden hieronder kun je wel bekijken.</nldd-text>
-      <nldd-text v-else size="sm" color="secondary">{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</nldd-text>
+      <nldd-text v-else-if="opbouw.kapot" size="sm" color="secondary"><p>Uit deze YAML kan de pagina geen schema maken. De bestanden hieronder kun je wel bekijken.</p></nldd-text>
+      <nldd-text v-else size="sm" color="secondary"><p>{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</p></nldd-text>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section v-for="(s, i) in steps" :key="s.title">
@@ -114,20 +116,22 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
         <nldd-blockquote lang="nl">
           <p v-for="(lid, j) in [].concat(s.quote.tekst)" :key="j">{{ lid }}</p>
         </nldd-blockquote>
-        <nldd-text size="sm" color="secondary">{{ s.quote.label }}</nldd-text>
+        <nldd-text size="sm" color="secondary"><p>{{ s.quote.label }}</p></nldd-text>
       </nldd-container>
       <nldd-text v-for="(t, j) in s.text" :key="j">
-        <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
+        <p>
+          <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
+        </p>
       </nldd-text>
       <nldd-container v-for="p in s.panels" :key="p.label" gap="4">
         <!-- The caption comes first, so it is read before the code. A file
              name has no place to break, hence overflow-wrap. -->
-        <nldd-text size="sm" color="secondary" style="overflow-wrap: anywhere">{{ p.label }} · {{ kortPad(p.source) }}</nldd-text>
+        <nldd-text size="sm" color="secondary" style="overflow-wrap: anywhere"><p>{{ p.label }} · {{ kortPad(p.source) }}</p></nldd-text>
         <nldd-box>
           <nldd-container padding="12">
             <div class="yaml-tree" lang="nl" style="font-size: 0.875rem">
               <YamlNode v-if="docs" :value="docs[p.source]" :expanded="stand(p)" />
-              <nldd-text v-else size="sm" color="secondary">{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</nldd-text>
+              <nldd-text v-else size="sm" color="secondary"><p>{{ fout ? 'De YAML kwam niet binnen. Herlaad de pagina om het opnieuw te proberen.' : 'De YAML wordt geladen.' }}</p></nldd-text>
             </div>
           </nldd-container>
         </nldd-box>

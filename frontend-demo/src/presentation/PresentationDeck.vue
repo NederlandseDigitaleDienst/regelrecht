@@ -105,8 +105,8 @@ function saveName(e: Event) {
           <span class="counter" :aria-label="t('deck.slide_of', { n: p.index.value + 1, total: p.total.value })">{{ counter }}</span>
           <!-- De toetsen als echte toetsen: nldd-keyboard-shortcut rendert een
                <kbd> per toets, met de OS-detectie en de semantiek erbij. Dit
-               waren drie <span>'s met een eigen tekstkleur. `color="inherit"`
-               is er voor een gevuld vlak zoals dit dek. -->
+               waren drie <span>'s met een eigen tekstkleur. `color="content"`
+               neemt de inkt die het dek als --context-content-color zet. -->
           <div class="hints">
             <!-- Elke pijl apart, niet `←+→`: dat zet er een plusteken tussen en
                  leest als 'allebei tegelijk', terwijl het hier om de een of de
@@ -115,7 +115,7 @@ function saveName(e: Event) {
                  tekst, dan bleven ze Nederlands in elke taal. -->
             <span v-for="hint in hints" :key="hint.id" class="hint">
               <template v-for="(seg, j) in hint.segments" :key="j">
-                <nldd-keyboard-shortcut v-if="seg.key" size="sm" color="inherit" :keys="seg.key" always-visible></nldd-keyboard-shortcut>
+                <nldd-keyboard-shortcut v-if="seg.key" size="sm" color="content" :keys="seg.key" always-visible></nldd-keyboard-shortcut>
                 <template v-else>{{ seg.text }}</template>
               </template>
             </span>
@@ -127,7 +127,7 @@ function saveName(e: Event) {
              op het donkerblauwe vlak zonder eigen kleurregels. -->
         <nldd-button-bar>
           <nldd-icon-button
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             icon="back"
             :text="t('deck.previous')"
             tooltip-timing="never"
@@ -136,13 +136,13 @@ function saveName(e: Event) {
           ></nldd-icon-button>
           <nldd-button
             v-if="isLast"
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             :text="t('deck.close')"
             @click="p.stop()"
           ></nldd-button>
           <nldd-icon-button
             v-else
-            appearance="inherit-tinted"
+            appearance="content-tinted"
             icon="forward"
             :text="t('deck.next')"
             tooltip-timing="never"
@@ -216,6 +216,12 @@ function saveName(e: Event) {
   --ink-35: color-mix(in srgb, var(--ink) 35%, transparent);
   --ink-18: color-mix(in srgb, var(--ink) 18%, transparent);
   color: var(--ink);
+  /* The same ink and background for the components on this surface of our
+     own: since design system 0.23 text, icons, keycaps and the content buttons
+     read the context, not `color`. A filled button labels itself in the
+     background colour. */
+  --context-content-color: var(--ink);
+  --context-background-color: var(--primitives-color-lintblauw-750);
   background: linear-gradient(
     160deg,
     var(--primitives-color-lintblauw-750) 0%,

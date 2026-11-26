@@ -176,7 +176,7 @@ watch(() => session.beoordelaar, alles);
     <template v-else-if="session.beoordelaar">
       <nldd-simple-section>
         <nldd-title size="display-2">
-          <span slot="overline">Beoordelingsomgeving</span>
+          <p slot="overline">Beoordelingsomgeving</p>
           <h2>Partijregister</h2>
         </nldd-title>
         <nldd-spacer size="12"></nldd-spacer>
@@ -215,7 +215,7 @@ watch(() => session.beoordelaar, alles);
             <nldd-card :accessible-label="`Claim op ${claim.aanduiding}`">
               <nldd-container padding="24" gap="12">
                 <nldd-title size="display-4">
-                  <span slot="overline">Geclaimd door KvK {{ claim.kvk_nummer }} op {{ datum(claim.created_at) }}</span>
+                  <p slot="overline">Geclaimd door KvK {{ claim.kvk_nummer }} op {{ datum(claim.created_at) }}</p>
                   <h4>{{ claim.aanduiding }}</h4>
                 </nldd-title>
                 <HrToetsRegels :toets="claim.hr_toets" />
@@ -330,7 +330,7 @@ watch(() => session.beoordelaar, alles);
       >
         <nldd-container padding="24" gap="16">
           <nldd-title size="display-3">
-            <span slot="overline">{{ afwijsClaim?.aanduiding }} · KvK {{ afwijsClaim?.kvk_nummer }}</span>
+            <p slot="overline">{{ afwijsClaim?.aanduiding }} · KvK {{ afwijsClaim?.kvk_nummer }}</p>
             <h3>Claim afwijzen</h3>
           </nldd-title>
           <nldd-rich-text>

@@ -151,10 +151,12 @@ function errorMessage(e: unknown): string | undefined {
           <nldd-icon-cell size="24"><nldd-icon icon="user"></nldd-icon></nldd-icon-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-text-cell :supporting-text="m.name ? m.email : null">
-            <span class="member-name">
-              <span>{{ m.name || m.email }}</span>
-              <nldd-tag size="sm" :color="m.role === 'owner' ? 'accent' : 'neutral'" :text="roleLabel(m.role)"></nldd-tag>
-            </span>
+            <p>
+              <span class="member-name">
+                <span>{{ m.name || m.email }}</span>
+                <nldd-tag size="sm" :color="m.role === 'owner' ? 'accent' : 'neutral'" :text="roleLabel(m.role)"></nldd-tag>
+              </span>
+            </p>
           </nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-cell v-if="canManageMember(m)">
@@ -180,7 +182,7 @@ function errorMessage(e: unknown): string | undefined {
           </nldd-cell>
         </nldd-list-item>
         <nldd-container v-if="rowError.get(m.account_id)" padding-top="8">
-          <nldd-text size="sm" color="critical">{{ rowError.get(m.account_id) }}</nldd-text>
+          <nldd-text size="sm" color="critical"><p>{{ rowError.get(m.account_id) }}</p></nldd-text>
         </nldd-container>
       </template>
       <!-- Pending invites live in the same list so a long roster stays filterable
@@ -190,10 +192,12 @@ function errorMessage(e: unknown): string | undefined {
           <nldd-icon-cell size="24"><nldd-icon icon="user"></nldd-icon></nldd-icon-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-text-cell supporting-text="Openstaande uitnodiging. Wacht op eerste login voor activatie.">
-            <span class="member-name">
-              <span>{{ inv.email }}</span>
-              <nldd-tag size="sm" :color="inv.role === 'owner' ? 'accent' : 'neutral'" :text="roleLabel(inv.role)"></nldd-tag>
-            </span>
+            <p>
+              <span class="member-name">
+                <span>{{ inv.email }}</span>
+                <nldd-tag size="sm" :color="inv.role === 'owner' ? 'accent' : 'neutral'" :text="roleLabel(inv.role)"></nldd-tag>
+              </span>
+            </p>
           </nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-cell v-if="isOwner">
@@ -207,7 +211,7 @@ function errorMessage(e: unknown): string | undefined {
           </nldd-cell>
         </nldd-list-item>
         <nldd-container v-if="rowError.get(inv.email)" padding-top="8">
-          <nldd-text size="sm" color="critical">{{ rowError.get(inv.email) }}</nldd-text>
+          <nldd-text size="sm" color="critical"><p>{{ rowError.get(inv.email) }}</p></nldd-text>
         </nldd-container>
       </template>
     </nldd-list>

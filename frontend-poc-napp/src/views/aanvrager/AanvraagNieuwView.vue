@@ -270,7 +270,7 @@ watch(() => session.aanvrager, laadRegistratie);
     <template v-else>
       <nldd-simple-section width="820px">
         <nldd-title size="display-2">
-          <span slot="overline">{{ overline }}</span>
+          <p slot="overline">{{ overline }}</p>
           <h2>Subsidie aanvragen voor {{ registratie?.subsidiejaar ?? '…' }}</h2>
         </nldd-title>
         <nldd-spacer size="12"></nldd-spacer>
@@ -542,7 +542,7 @@ watch(() => session.aanvrager, laadRegistratie);
           <nldd-box>
             <nldd-container padding="16" gap="8">
               <nldd-title size="display-4">
-                <span slot="overline">Indicatieve uitkomst volgens de wet</span>
+                <p slot="overline">Indicatieve uitkomst volgens de wet</p>
                 <h4>Vul het formulier in</h4>
               </nldd-title>
               <nldd-rich-text>
@@ -560,7 +560,7 @@ watch(() => session.aanvrager, laadRegistratie);
           <nldd-box>
             <nldd-container padding="16" gap="8">
               <nldd-title size="display-4">
-                <span slot="overline">Indicatieve uitkomst volgens de wet</span>
+                <p slot="overline">Indicatieve uitkomst volgens de wet</p>
                 <h4>{{ proef.subsidie_toegekend ? euro(proef.subsidiebedrag) : 'Nog geen toekenning' }}</h4>
               </nldd-title>
               <nldd-rich-text>

@@ -24,9 +24,9 @@ const soort = (s) => (s.besluit?.match(/\((verleend|BOPA|geweigerd)/)?.[1]) ?? n
     <nldd-title size="display-5" :heading-level="2" :text="r.titel" :supporting-text="r.uitleg"></nldd-title>
 
     <div class="cijfers">
-      <div><nldd-text size="xs" color="secondary">Vóór DSO goed</nldd-text><nldd-text size="display-3">{{ tel('oud') }} van {{ lijst.length }}</nldd-text></div>
-      <div><nldd-text size="xs" color="secondary">Met DSO goed</nldd-text><nldd-text size="display-3">{{ tel('dso') }} van {{ lijst.length }}</nldd-text></div>
-      <div v-if="buiten"><nldd-text size="xs" color="secondary">Buiten bereik van beide</nldd-text><nldd-text size="display-3">{{ buiten }}</nldd-text></div>
+      <div><nldd-text size="xs" color="secondary"><p>Vóór DSO goed</p></nldd-text><nldd-text size="display-3"><p>{{ tel('oud') }} van {{ lijst.length }}</p></nldd-text></div>
+      <div><nldd-text size="xs" color="secondary"><p>Met DSO goed</p></nldd-text><nldd-text size="display-3"><p>{{ tel('dso') }} van {{ lijst.length }}</p></nldd-text></div>
+      <div v-if="buiten"><nldd-text size="xs" color="secondary"><p>Buiten bereik van beide</p></nldd-text><nldd-text size="display-3"><p>{{ buiten }}</p></nldd-text></div>
     </div>
 
     <nldd-list appearance="simple" accessible-label="Scenario's">
@@ -35,18 +35,20 @@ const soort = (s) => (s.besluit?.match(/\((verleend|BOPA|geweigerd)/)?.[1]) ?? n
         <nldd-title-cell size="display-6" :text="s.naam" :supporting-text="`Verwacht: ${s.verwacht.uitkomst}${soort(s) ? ` · besluit: ${SOORT[soort(s)]}` : ''}`"></nldd-title-cell>
         <nldd-cell width="fit-content">
           <div class="sporen">
-            <span class="spoor"><nldd-text size="xs" color="secondary">vóór</nldd-text>
+            <span class="spoor"><nldd-text size="xs" color="secondary"><p>vóór</p></nldd-text>
               <nldd-tag :color="s.oud.uitkomst_klopt ? 'success' : (TAG[k(s.oud.uitkomst)] === 'critical' ? 'critical' : 'warning')" :text="TEKST[k(s.oud.uitkomst)] ?? s.oud.uitkomst ?? s.oud.status ?? 'geen'"></nldd-tag></span>
-            <span class="spoor"><nldd-text size="xs" color="secondary">met DSO</nldd-text>
+            <span class="spoor"><nldd-text size="xs" color="secondary"><p>met DSO</p></nldd-text>
               <nldd-tag :color="s.dso.uitkomst_klopt ? 'success' : (TAG[k(s.dso.uitkomst)] === 'critical' ? 'critical' : 'warning')" :text="TEKST[k(s.dso.uitkomst)] ?? s.dso.uitkomst ?? s.dso.status ?? 'geen'"></nldd-tag></span>
           </div>
         </nldd-cell>
       </nldd-list-item>
     </nldd-list>
     <nldd-text size="sm" color="secondary">
-      Groen: zoals verwacht. Anders oranje of rood. Klik op een scenario om naar de plek te gaan; het nummer staat ook op de kaart.
-      <template v-if="reeks === 'woontoren'"> Het verbod van de provincie (3.51) telde in de eerste run niet mee door een fout; na de reparatie geeft "alle overheden" bij een diepe fundering nee.</template>
-      <template v-else> Een BOPA betekent: buiten het plan afgeweken, dus volgens het plan niet toegestaan. Omzetten naar wonen kent geen van beide sporen.</template>
+      <p>
+        Groen: zoals verwacht. Anders oranje of rood. Klik op een scenario om naar de plek te gaan; het nummer staat ook op de kaart.
+        <template v-if="reeks === 'woontoren'"> Het verbod van de provincie (3.51) telde in de eerste run niet mee door een fout; na de reparatie geeft "alle overheden" bij een diepe fundering nee.</template>
+        <template v-else> Een BOPA betekent: buiten het plan afgeweken, dus volgens het plan niet toegestaan. Omzetten naar wonen kent geen van beide sporen.</template>
+      </p>
     </nldd-text>
   </nldd-container>
 </template>

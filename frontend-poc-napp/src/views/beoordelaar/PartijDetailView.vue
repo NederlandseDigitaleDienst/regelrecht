@@ -159,7 +159,7 @@ watch(kvk, laad);
 
         <template v-if="partij">
           <nldd-title size="display-2">
-            <span slot="overline">KvK-nummer {{ partij.kvk_nummer }}</span>
+            <p slot="overline">KvK-nummer {{ partij.kvk_nummer }}</p>
             <h2>{{ partij.naam }}</h2>
             <div slot="actions">
               <nldd-button
@@ -283,7 +283,7 @@ watch(kvk, laad);
       >
         <nldd-container padding="24" gap="16">
           <nldd-title size="display-3">
-            <span slot="overline">KvK-nummer {{ kvk }}</span>
+            <p slot="overline">KvK-nummer {{ kvk }}</p>
             <h3>Koppeling bewerken</h3>
           </nldd-title>
           <nldd-form novalidate @submit.prevent="bewaarGegevens">

@@ -27,19 +27,21 @@ const DELEN = [
     </nldd-segmented-control>
 
     <nldd-banner v-if="fout" variant="critical" text="Gegevens van het DSO-spoor niet geladen" :supporting-text="fout"></nldd-banner>
-    <nldd-text v-else-if="!data" size="sm" color="secondary">Gegevens van het DSO-spoor laden…</nldd-text>
+    <nldd-text v-else-if="!data" size="sm" color="secondary"><p>Gegevens van het DSO-spoor laden…</p></nldd-text>
     <template v-else>
       <template v-if="deel === 'punt'">
         <PuntPaneel v-if="cel" :cel="cel" :index="index" :scenario="scenario" :weergave="weergave" :data="data" @artikel="emit('artikel', $event)" />
         <nldd-container v-else layout="stack" gap="12">
           <nldd-title size="display-3" :heading-level="2" text="Klik op een plek in de Spoorzone"></nldd-title>
           <nldd-text>
-            Je ziet dan beide sporen naast elkaar. Links zonder DSO: de eerste PoC, met eigen downloads, lagen en regels met de
-            hand, alleen de gemeente. Rechts met DSO: plannen, regels en teksten uit het DSO, voor gemeente, provincie,
-            waterschap en rijk.
+            <p>
+              Je ziet dan beide sporen naast elkaar. Links zonder DSO: de eerste PoC, met eigen downloads, lagen en regels met de
+              hand, alleen de gemeente. Rechts met DSO: plannen, regels en teksten uit het DSO, voor gemeente, provincie,
+              waterschap en rijk.
+            </p>
           </nldd-text>
           <nldd-text size="sm" color="secondary">
-            Of kies een plek onder Scenario's. De kaartlaag DSO kleurt waar de sporen verschillen. Verkenning, geen besluit.
+            <p>Of kies een plek onder Scenario's. De kaartlaag DSO kleurt waar de sporen verschillen. Verkenning, geen besluit.</p>
           </nldd-text>
         </nldd-container>
       </template>

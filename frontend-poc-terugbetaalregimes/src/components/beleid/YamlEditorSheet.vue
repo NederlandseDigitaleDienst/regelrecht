@@ -8,9 +8,9 @@
   >
     <nldd-page>
       <div class="ye-content">
-        <nldd-title heading-level="2" size="display-3">
-          <span slot="overline">Structuur bewerken</span>
-          <span>{{ docName }}</span>
+        <nldd-title size="display-3">
+          <p slot="overline">Structuur bewerken</p>
+          <h2>{{ docName }}</h2>
         </nldd-title>
         <p class="ye-hint">
           Bewerk de wet rechtstreeks als YAML; de wijziging komt als bewerking in de werkversie. Bij een fout blijft de laatst

@@ -102,12 +102,12 @@ function getal(e, veld, obj = bouwplan) {
       :supporting-text="cel ? `Vak bij RD ${Math.round(cel.rd[0])}, ${Math.round(cel.rd[1])}. Het DSO-spoor rekent opnieuw, hier in je browser. Verkenning, geen besluit.` : 'Het DSO-spoor rekent opnieuw, hier in je browser. Verkenning, geen besluit.'"
     ></nldd-title>
     <nldd-banner v-if="fout" variant="critical" text="De simulatie kon niet rekenen" :supporting-text="fout" :heading-level="3"></nldd-banner>
-    <nldd-text v-else-if="!motor" size="sm" color="secondary">Engine en regels laden…</nldd-text>
+    <nldd-text v-else-if="!motor" size="sm" color="secondary"><p>Engine en regels laden…</p></nldd-text>
 
     <!-- 1. Het bouwplan. -->
     <section class="situatie" aria-label="Situatie">
-      <nldd-text size="sm"><strong>Situatie: het bouwplan</strong></nldd-text>
-      <nldd-text size="sm" color="secondary">{{ bouwplan.lagen }} lagen van {{ String(bouwplan.meterPerLaag).replace('.', ',') }} m is {{ meter(hoogte()) }}, {{ bouwplan.aantalWoningen }} woningen.</nldd-text>
+      <nldd-text size="sm"><p><strong>Situatie: het bouwplan</strong></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><p>{{ bouwplan.lagen }} lagen van {{ String(bouwplan.meterPerLaag).replace('.', ',') }} m is {{ meter(hoogte()) }}, {{ bouwplan.aantalWoningen }} woningen.</p></nldd-text>
       <div class="velden">
         <nldd-form-field label="Lagen">
           <nldd-number-field :value="bouwplan.lagen" min="1" max="15" step="1" size="sm" @change="getal($event, 'lagen')"></nldd-number-field>
@@ -122,9 +122,9 @@ function getal(e, veld, obj = bouwplan) {
       <nldd-segmented-control :value="bouwplan.woningtype" size="sm" width="full" accessible-label="Woningtype" @change="bouwplan.woningtype = $event.target.value">
         <nldd-segmented-control-item v-for="t in WONINGTYPES" :key="t.waarde" :value="t.waarde" :text="t.tekst" :selected="bouwplan.woningtype === t.waarde || undefined"></nldd-segmented-control-item>
       </nldd-segmented-control>
-      <nldd-text size="xs" color="secondary">Het aantal woningen telt in het DSO-spoor niet mee: de bouwregels zoals gegenereerd lezen het niet (zie scenario W3).</nldd-text>
+      <nldd-text size="xs" color="secondary"><p>Het aantal woningen telt in het DSO-spoor niet mee: de bouwregels zoals gegenereerd lezen het niet (zie scenario W3).</p></nldd-text>
       <div class="situatie-voet">
-        <nldd-text size="xs" color="secondary">{{ isStandaard() ? 'Standaard: 5 lagen gestapeld, alle open gegevens gunstig.' : 'Aangepast ten opzichte van de standaard.' }}</nldd-text>
+        <nldd-text size="xs" color="secondary"><p>{{ isStandaard() ? 'Standaard: 5 lagen gestapeld, alle open gegevens gunstig.' : 'Aangepast ten opzichte van de standaard.' }}</p></nldd-text>
         <div class="knoppen">
           <nldd-button v-if="!isStandaard()" size="sm" appearance="neutral-transparent" start-icon="reset" text="Standaard" @click="standaard()"></nldd-button>
           <nldd-button size="sm" appearance="neutral-tinted" start-icon="map" text="Toon de uitkomst op de kaart" @click="emit('kaart')"></nldd-button>
@@ -139,7 +139,7 @@ function getal(e, veld, obj = bouwplan) {
           <nldd-segmented-control-item v-for="k in KEUZE" :key="k.waarde" :value="k.waarde" :text="k.tekst" :selected="aannames.gegeven === k.waarde || undefined"></nldd-segmented-control-item>
         </nldd-segmented-control>
       </nldd-form-field>
-      <nldd-text size="xs" color="secondary">Artikelen die het DSO-spoor niet rekent maar als voldaan aanneemt: archeologie, parkeren, geluid en de meeste regels van provincie, waterschap en rijk. Zet dit op onbekend om te zien hoeveel van de uitkomst op die aanname rust.</nldd-text>
+      <nldd-text size="xs" color="secondary"><p>Artikelen die het DSO-spoor niet rekent maar als voldaan aanneemt: archeologie, parkeren, geluid en de meeste regels van provincie, waterschap en rijk. Zet dit op onbekend om te zien hoeveel van de uitkomst op die aanname rust.</p></nldd-text>
       <nldd-form-field label="Welstand (omgevingsplan 22.29)">
         <nldd-segmented-control :value="aannames.welstand" size="sm" width="full" accessible-label="Welstand" @change="aannames.welstand = $event.target.value">
           <nldd-segmented-control-item v-for="k in KEUZE" :key="k.waarde" :value="k.waarde" :text="k.tekst" :selected="aannames.welstand === k.waarde || undefined"></nldd-segmented-control-item>
@@ -153,22 +153,22 @@ function getal(e, veld, obj = bouwplan) {
       <nldd-form-field label="Diepte van de fundering (m)">
         <nldd-number-field :value="aannames.funderingsdiepte_m" min="0" max="80" step="1" size="sm" @change="getal($event, 'funderingsdiepte_m', aannames)"></nldd-number-field>
       </nldd-form-field>
-      <nldd-text size="xs" color="secondary">In de boringsvrije zone verbiedt de provincie funderen vanaf 30 m (omgevingsverordening 3.51). Dat telt bij "alle overheden".</nldd-text>
+      <nldd-text size="xs" color="secondary"><p>In de boringsvrije zone verbiedt de provincie funderen vanaf 30 m (omgevingsverordening 3.51). Dat telt bij "alle overheden".</p></nldd-text>
     </Uitklap>
 
     <!-- 3. De uitkomst op dit vak. -->
-    <nldd-text v-if="!cel" size="sm">Klik op een plek op de kaart om de uitkomst daar te zien.</nldd-text>
+    <nldd-text v-if="!cel" size="sm"><p>Klik op een plek op de kaart om de uitkomst daar te zien.</p></nldd-text>
     <template v-else-if="res">
       <div class="kolommen">
         <nldd-container layout="stack" gap="8">
           <nldd-banner :variant="banner(klasseVan(res)).variant" size="sm" :heading-level="3"
             :text="`Gemeente: ${banner(klasseVan(res)).tekst.toLowerCase()}`"
             :supporting-text="kol?.reden ?? (kol?.deel ? `Bouwregels ${kol.deel.bouwregels}, gebruik ${kol.deel.gebruiksregels}, overige regels ${kol.deel.aanvullend}.` : '')"></nldd-banner>
-          <nldd-text size="xs" color="secondary">Vooraf gerekend (standaard): {{ TEKST[standaardKlasse] ?? 'geen' }}.</nldd-text>
+          <nldd-text size="xs" color="secondary"><p>Vooraf gerekend (standaard): {{ TEKST[standaardKlasse] ?? 'geen' }}.</p></nldd-text>
         </nldd-container>
         <nldd-container layout="stack" gap="8">
-          <div v-if="!beoogd" class="rij"><nldd-text size="sm">Alle overheden samen</nldd-text><nldd-tag :color="TAG[totaal] ?? 'neutral'" :text="TEKST[totaal] ?? totaal"></nldd-tag></div>
-          <div v-for="(v, o) in res.andere" :key="o" class="rij"><nldd-text size="sm">{{ OVERHEID[o] }}</nldd-text><nldd-tag :color="TAG[v.uitkomst] ?? 'neutral'" :text="TEKST[v.uitkomst] ?? v.uitkomst ?? 'geen'"></nldd-tag></div>
+          <div v-if="!beoogd" class="rij"><nldd-text size="sm"><p>Alle overheden samen</p></nldd-text><nldd-tag :color="TAG[totaal] ?? 'neutral'" :text="TEKST[totaal] ?? totaal"></nldd-tag></div>
+          <div v-for="(v, o) in res.andere" :key="o" class="rij"><nldd-text size="sm"><p>{{ OVERHEID[o] }}</p></nldd-text><nldd-tag :color="TAG[v.uitkomst] ?? 'neutral'" :text="TEKST[v.uitkomst] ?? v.uitkomst ?? 'geen'"></nldd-tag></div>
         </nldd-container>
       </div>
       <nldd-list v-if="res.plichten.length" appearance="simple" accessible-label="Plichten">
@@ -180,15 +180,15 @@ function getal(e, veld, obj = bouwplan) {
 
     <!-- 4. Per aantal lagen. -->
     <Uitklap v-if="cel" v-model:open="lagenOpen" titel="Uitkomst per aantal lagen" sub="De toets voor 1 tot en met 15 lagen: bij hoeveel lagen slaat een regel om?">
-      <nldd-text v-if="!tabel" size="sm" color="secondary">Rekenen…</nldd-text>
-      <nldd-text v-else-if="tabel.status !== 'gerekend'" size="sm" color="secondary">{{ tabel.reden ?? 'Hier rekent de toets niet.' }}</nldd-text>
+      <nldd-text v-if="!tabel" size="sm" color="secondary"><p>Rekenen…</p></nldd-text>
+      <nldd-text v-else-if="tabel.status !== 'gerekend'" size="sm" color="secondary"><p>{{ tabel.reden ?? 'Hier rekent de toets niet.' }}</p></nldd-text>
       <template v-else>
         <div class="legenda" aria-label="Legenda">
           <span v-for="s in ['toegestaan', 'onthouding', 'niet toegestaan']" :key="s" class="leg-item">
-            <span class="cel" :class="staat(s).klasse">{{ staat(s).kort }}</span><nldd-text size="xs">{{ staat(s).tekst }}</nldd-text>
+            <span class="cel" :class="staat(s).klasse">{{ staat(s).kort }}</span><nldd-text size="xs"><span>{{ staat(s).tekst }}</span></nldd-text>
           </span>
-          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs">regel slaat om</nldd-text></span>
-          <span class="leg-item"><span class="cel leeg vraag-voorbeeld"></span><nldd-text size="xs">{{ bouwplan.lagen }} lagen, de vraag</nldd-text></span>
+          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs"><p>regel slaat om</p></nldd-text></span>
+          <span class="leg-item"><span class="cel leeg vraag-voorbeeld"></span><nldd-text size="xs"><span>{{ bouwplan.lagen }} lagen, de vraag</span></nldd-text></span>
         </div>
         <nldd-segmented-control :value="toon" size="sm" accessible-label="Welke regels" @change="toon = $event.target.value">
           <nldd-segmented-control-item value="omslaan" text="Regels die omslaan" :selected="toon === 'omslaan' || undefined"></nldd-segmented-control-item>
@@ -215,13 +215,13 @@ function getal(e, veld, obj = bouwplan) {
             </tbody>
           </table>
         </div>
-        <nldd-text v-if="toon === 'omslaan' && tabel.verborgen" size="xs" color="secondary">{{ tabel.verborgen }} regels slaan niet om en staan onder "Alle regels".</nldd-text>
+        <nldd-text v-if="toon === 'omslaan' && tabel.verborgen" size="xs" color="secondary"><p>{{ tabel.verborgen }} regels slaan niet om en staan onder "Alle regels".</p></nldd-text>
         <nldd-list v-if="tabel.kantel.length" appearance="simple" accessible-label="Kantelpunten">
           <nldd-list-item v-for="(p, i) in tabel.kantel" :key="i" size="sm">
             <nldd-text-cell :overline="p.eind ? 'Eindoordeel' : 'Kantelpunt'" :text="p.tekst" :supporting-text="p.regel"></nldd-text-cell>
           </nldd-list-item>
         </nldd-list>
-        <nldd-text v-else size="sm" color="secondary">Geen regel slaat om tussen 1 en 15 lagen.</nldd-text>
+        <nldd-text v-else size="sm" color="secondary"><p>Geen regel slaat om tussen 1 en 15 lagen.</p></nldd-text>
       </template>
     </Uitklap>
   </nldd-container>

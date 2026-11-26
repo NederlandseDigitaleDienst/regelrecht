@@ -22,12 +22,12 @@ const weergave = ref('tekst');
           <nldd-segmented-control-item value="tekst" text="Tekst" :selected="weergave === 'tekst' || undefined"></nldd-segmented-control-item>
           <nldd-segmented-control-item value="yaml" text="YAML" :selected="weergave === 'yaml' || undefined"></nldd-segmented-control-item>
         </nldd-segmented-control>
-        <nldd-text v-if="weergave === 'tekst'" size="sm" class="tekst">{{ artikel.tekst || 'Tekst laden…' }}</nldd-text>
+        <nldd-text v-if="weergave === 'tekst'" size="sm" class="tekst"><p>{{ artikel.tekst || 'Tekst laden…' }}</p></nldd-text>
         <template v-else>
-          <nldd-text v-if="!artikel.yaml" size="sm" color="secondary">YAML laden…</nldd-text>
-          <nldd-text v-else-if="artikel.yaml.reden" size="sm" color="secondary">{{ artikel.yaml.reden }}</nldd-text>
+          <nldd-text v-if="!artikel.yaml" size="sm" color="secondary"><p>YAML laden…</p></nldd-text>
+          <nldd-text v-else-if="artikel.yaml.reden" size="sm" color="secondary"><p>{{ artikel.yaml.reden }}</p></nldd-text>
           <template v-else>
-            <nldd-text size="xs" color="secondary">Uit {{ artikel.yaml.bestand }}: zo rekent de toets dit artikel.</nldd-text>
+            <nldd-text size="xs" color="secondary"><p>Uit {{ artikel.yaml.bestand }}: zo rekent de toets dit artikel.</p></nldd-text>
             <nldd-code-viewer wrap language="yaml">{{ artikel.yaml.yaml }}</nldd-code-viewer>
           </template>
         </template>

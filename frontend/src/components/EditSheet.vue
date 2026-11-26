@@ -551,7 +551,7 @@ const sectionLabels: Record<string, string> = {
                       :step="defKind === 'amount' ? '0.01' : '0.000001'"
                       :accessible-label="defLabel"
                       width="full"
-                      hide-spin-buttons
+                      spin-buttons="none"
                       data-testid="def-number"
                       @input="onDefNumber"
                       @change="onDefNumber"

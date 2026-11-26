@@ -170,7 +170,7 @@ function confirmDisconnect(): void {
             <nldd-spacer size="24"></nldd-spacer>
             <nldd-title size="display-5">
               <h2>Beheer</h2>
-              <span slot="supporting-text">Geldt voor alle gebruikers en trajecten in deze installatie.</span>
+              <p slot="supporting-text">Geldt voor alle gebruikers en trajecten in deze installatie.</p>
             </nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-list appearance="box-tinted">

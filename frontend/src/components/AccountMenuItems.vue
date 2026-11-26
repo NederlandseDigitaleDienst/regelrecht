@@ -72,11 +72,11 @@ const { hasContent: settingsHasContent } = useSettingsSections();
 <template>
   <nldd-container v-if="!authLoading && authenticated" slot="header" padding-inline="16" padding-block="12">
     <nldd-identity :text="person?.name || person?.email">
-      <span v-if="person?.name || showGithubLine" slot="supporting-text">
+      <p v-if="person?.name || showGithubLine" slot="supporting-text">
         <template v-if="person?.name">{{ person?.email }}</template>
         <br v-if="person?.name && showGithubLine">
         <template v-if="showGithubLine">GitHub: {{ githubStatus?.github_login }}</template>
-      </span>
+      </p>
     </nldd-identity>
   </nldd-container>
   <template v-if="!authLoading && oidcConfigured && !authenticated">

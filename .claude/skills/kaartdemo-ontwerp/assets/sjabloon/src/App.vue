@@ -35,12 +35,14 @@ const melding = ref(null);
 
       <footer class="app-footer">
         <nldd-container padding-inline="16" padding-block="8">
-          <nldd-text v-if="status.fout" size="xs" color="critical">Engine niet geladen: {{ status.fout }}</nldd-text>
+          <nldd-text v-if="status.fout" size="xs" color="critical"><p>Engine niet geladen: {{ status.fout }}</p></nldd-text>
           <nldd-text v-else-if="status.geladen" size="xs" color="secondary">
-            RegelRecht-engine {{ status.engine }}<template v-if="status.commit">, commit {{ status.commit }}</template><template v-if="status.schema">, schema t/m {{ status.schema }}</template>,
-            {{ status.regelingen }} regelingen geladen. Verkenning, geen besluit.
+            <p>
+              RegelRecht-engine {{ status.engine }}<template v-if="status.commit">, commit {{ status.commit }}</template><template v-if="status.schema">, schema t/m {{ status.schema }}</template>,
+              {{ status.regelingen }} regelingen geladen. Verkenning, geen besluit.
+            </p>
           </nldd-text>
-          <nldd-text v-else size="xs" color="secondary">Verkenning, geen besluit.</nldd-text>
+          <nldd-text v-else size="xs" color="secondary"><p>Verkenning, geen besluit.</p></nldd-text>
         </nldd-container>
       </footer>
     </div>

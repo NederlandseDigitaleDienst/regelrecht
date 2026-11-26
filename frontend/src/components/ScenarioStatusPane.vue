@@ -50,7 +50,7 @@ function toggle(key: string) {
       <nldd-title size="display-5">
         <h2>{{ status.file.featureName.value || status.file.file.filename }}</h2>
       </nldd-title>
-      <nldd-text v-if="status.file.featureName.value" size="sm" color="secondary">{{ status.file.file.filename }}</nldd-text>
+      <nldd-text v-if="status.file.featureName.value" size="sm" color="secondary"><p>{{ status.file.file.filename }}</p></nldd-text>
       <nldd-spacer size="8"></nldd-spacer>
       <template v-if="status.file.dirty.value">
         <nldd-banner

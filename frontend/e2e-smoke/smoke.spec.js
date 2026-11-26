@@ -134,7 +134,7 @@ test('5) lichte edit -> opslaan -> reload -> persisteert', async ({ page }) => {
   await initBtn.first().click();
   await expect(machineReadablePane(page).first()).toBeVisible();
 
-  const changesBar = page.locator('nldd-split-view-pane[slot="changes-bar"]');
+  const changesBar = page.locator('[slot="changes-bar"]');
   const saveBtn = changesBar.locator('nldd-button[text="Opslaan"]').first();
   await expect(saveBtn).toBeVisible();
 

@@ -2253,8 +2253,8 @@ async function shareLaw() {
  * Pane back-button handlers - URL-driven so browser back works the same
  * way as clicking the in-pane back button. Pushing the URL one level up
  * lets `onBeforeRouteUpdate` reactively pull the right local state into
- * sync. On sm the navigation-split-view shows the deepest pane with
- * has-content based on those state values.
+ * sync. On sm the navigation-split-view shows the deepest pane that is
+ * not marked `empty`, based on those state values.
  *
  * Listening at the nldd-navigation-split-view level (rather than per pane)
  * is more reliable: bubbling always reaches there. We use composedPath
@@ -2265,7 +2265,8 @@ async function shareLaw() {
  */
 function onPaneBack(e: Event) {
   const path = e.composedPath();
-  const pane = path.find((el): el is Element => (el as Element).tagName === 'NLDD-SPLIT-VIEW-PANE');
+  // The pane is the element slotted straight into the split view.
+  const pane = path.find((el): el is Element => (el as Element).parentElement === e.currentTarget);
   if (!pane) return;
   const slot = pane.getAttribute('slot');
   // On any error state - corpus load failed (indexError) or this
@@ -2514,369 +2515,349 @@ watch(activeTrajectRef, () => {
 
         <nldd-navigation-split-view v-else @back="onPaneBack">
 
-          <nldd-split-view-pane slot="sidebar" has-content>
-            <nldd-page sticky-header :accessible-label="sidebarTitle">
-              <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" heading-level="3" collapse-anchor="home-titel"></nldd-top-title-bar>
+          <nldd-page slot="primary-sidebar" sticky-header :accessible-label="sidebarTitle">
+            <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" heading-level="3" collapse-anchor="home-titel"></nldd-top-title-bar>
 
-              <nldd-simple-section width="full">
-                <nldd-title v-if="!loading" id="home-titel" size="display-3"><h3>{{ sidebarTitle }}</h3></nldd-title>
-                <nldd-spacer v-if="!loading" size="16"></nldd-spacer>
-                <nldd-activity-indicator v-if="loading" :text="sidebarLoadingText" show-text></nldd-activity-indicator>
-                <template v-else>
-                  <!-- Werkdocumenten (in a traject): a single entry that opens
-                       the document list in the secondary sidebar + editor in
-                       main, mirroring how a law drills into its articles. -->
-                  <template v-if="activeTrajectRef">
-                    <nldd-list appearance="simple">
-                      <nldd-list-item size="md" button :current="isInstellingenMode || undefined" @click="goToInstellingen()">
-                        <nldd-icon-cell size="20"><nldd-icon icon="gear"></nldd-icon></nldd-icon-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-text-cell text="Instellingen"></nldd-text-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                      </nldd-list-item>
-                      <nldd-list-item size="md" button :current="isWerkdocMode || undefined" @click="goToWerkdocumenten">
-                        <nldd-icon-cell size="20"><nldd-icon icon="documents"></nldd-icon></nldd-icon-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-text-cell text="Werkdocumenten"></nldd-text-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                      </nldd-list-item>
-                      <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
-                    </nldd-list>
-                    <nldd-spacer size="24"></nldd-spacer>
-                  </template>
-                  <template
-                    v-for="(section, sectionIndex) in sidebarSections"
-                    :key="section.key"
-                  >
-                    <!-- Gap above every section after the first, so the
-                         curated groups read as distinct blocks. -->
-                    <nldd-spacer v-if="sectionIndex > 0" size="24"></nldd-spacer>
-                    <template v-if="section.title">
-                      <nldd-title size="display-5">
-                        <h4>{{ section.title }}</h4>
-                        <!-- In a traject the section has a choice to make, so
-                             its one action becomes a menu of two. -->
-                        <nldd-icon-button
-                          v-if="section.key === 'recent' && activeTrajectRef"
-                          slot="end"
-                          size="xs"
-                          icon="more"
-                          text="Opties voor Recent bekeken"
-                          data-testid="recent-options"
-                        >
-                          <nldd-menu slot="popup">
-                            <nldd-menu-item
-                              type="checkbox"
-                              text="Toon ook regelwerken uit dit traject"
-                              :selected="recentIncludesTraject || undefined"
-                              data-testid="recent-includes-traject"
-                              @select="toggleRecentIncludesTraject"
-                            ></nldd-menu-item>
-                            <nldd-menu-item text="Wis de lijst" data-testid="recent-clear" @select="clearRecent"></nldd-menu-item>
-                          </nldd-menu>
-                        </nldd-icon-button>
-                        <nldd-button
-                          v-else-if="section.key === 'recent'"
-                          slot="end"
-                          size="xs"
-                          appearance="accent-transparent"
-                          text="Wis"
-                          @click="clearRecent"
-                        ></nldd-button>
-                      </nldd-title>
-                      <nldd-spacer size="8"></nldd-spacer>
-                    </template>
-                    <!-- Favorites without an account: say where they live and
-                         how they get lost, and what keeps them. -->
-                    <template v-if="section.key === 'favorites' && localFavorites">
-                      <nldd-banner
-                        data-testid="local-favorites-notice"
-                        size="sm"
-                        variant="warning"
-                        text="Alleen in deze browser"
-                        supporting-text="Wis je je browsergegevens of gebruik je een andere browser, dan zijn ze weg. Met een account bewaar je ze blijvend; ze gaan mee zodra je inlogt."
+            <nldd-simple-section width="full">
+              <nldd-title v-if="!loading" id="home-titel" size="display-3"><h3>{{ sidebarTitle }}</h3></nldd-title>
+              <nldd-spacer v-if="!loading" size="16"></nldd-spacer>
+              <nldd-activity-indicator v-if="loading" :text="sidebarLoadingText" show-text></nldd-activity-indicator>
+              <template v-else>
+                <!-- Werkdocumenten (in a traject): a single entry that opens
+                     the document list in the secondary sidebar + editor in
+                     main, mirroring how a law drills into its articles. -->
+                <template v-if="activeTrajectRef">
+                  <nldd-list appearance="simple">
+                    <nldd-list-item size="md" button :current="isInstellingenMode || undefined" @click="goToInstellingen()">
+                      <nldd-icon-cell size="20"><nldd-icon icon="gear"></nldd-icon></nldd-icon-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-text-cell text="Instellingen"></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                    </nldd-list-item>
+                    <nldd-list-item size="md" button :current="isWerkdocMode || undefined" @click="goToWerkdocumenten">
+                      <nldd-icon-cell size="20"><nldd-icon icon="documents"></nldd-icon></nldd-icon-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-text-cell text="Werkdocumenten"></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                    </nldd-list-item>
+                    <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
+                  </nldd-list>
+                  <nldd-spacer size="24"></nldd-spacer>
+                </template>
+                <template
+                  v-for="(section, sectionIndex) in sidebarSections"
+                  :key="section.key"
+                >
+                  <!-- Gap above every section after the first, so the
+                       curated groups read as distinct blocks. -->
+                  <nldd-spacer v-if="sectionIndex > 0" size="24"></nldd-spacer>
+                  <template v-if="section.title">
+                    <nldd-title size="display-5">
+                      <h4>{{ section.title }}</h4>
+                      <!-- In a traject the section has a choice to make, so
+                           its one action becomes a menu of two. -->
+                      <nldd-icon-button
+                        v-if="section.key === 'recent' && activeTrajectRef"
+                        slot="end"
+                        size="xs"
+                        icon="more"
+                        text="Opties voor Recent bekeken"
+                        data-testid="recent-options"
                       >
-                        <nldd-button
-                          slot="actions"
-                          size="sm"
-                          appearance="secondary"
-                          text="Account aanvragen"
-                          :href="accountRequestHref"
-                          @click="goToAccountRequest"
-                        ></nldd-button>
-                      </nldd-banner>
-                      <nldd-spacer size="8"></nldd-spacer>
-                    </template>
-                    <!-- Nog niets aangeraakt: de kop staat er al, hieronder
-                         alleen de mededeling. Uitleg over hóe je hem vult lees
-                         je één keer en daarna voor altijd, op de plek waar je
-                         werk hoort te staan. -->
-                    <nldd-rich-text v-if="section.empty" :data-testid="section.key === 'traject' ? 'traject-no-laws' : `${section.key}-empty`">
-                      <p>{{ section.emptyText ?? 'Nog niets bewerkt.' }}</p>
-                    </nldd-rich-text>
-                    <!-- Snel zoeken in "In dit traject", vanaf het aantal
-                         waarbij de lijst inklapt. Het aantal eronder maakt de
-                         uitkomst hoorbaar: de lijst zelf meldt een filter niet.
-                         Het staat er ook leeg, zolang het veld er staat: een
-                         live region die gevuld verschijnt wordt niet
-                         voorgelezen. -->
-                    <template v-if="section.key === 'traject' && trajectFilterShown">
-                      <nldd-search-field
-                        data-testid="traject-laws-filter"
-                        size="sm"
-                        :value="trajectLawFilter"
-                        placeholder="Zoek in dit traject"
-                        @input="trajectLawFilter = $event.detail?.value ?? ''"
-                      ></nldd-search-field>
-                      <nldd-spacer size="8"></nldd-spacer>
-                      <nldd-text data-testid="traject-laws-filter-count" size="sm" color="secondary" aria-live="polite">{{ section.filtered ? lawCountText(section.laws.length) : '' }}</nldd-text>
-                      <nldd-spacer v-if="section.filtered" size="4"></nldd-spacer>
-                    </template>
-                    <nldd-list v-if="!section.empty" appearance="simple" :accessible-label="section.title">
-                      <nldd-inline-dialog
-                        v-if="section.filtered"
-                        slot="empty"
-                        data-testid="traject-laws-filter-empty"
-                        icon="search"
-                        text="Geen regelwerken gevonden"
-                        supporting-text="Pas je zoekopdracht aan."
-                      ></nldd-inline-dialog>
-                      <nldd-list-item
-                        v-for="law in section.laws"
-                        :key="`${section.key}-${law.law_id}`"
-                        size="md"
-                        button
-                        :data-law-id="law.law_id"
-                        :data-section="section.key"
-                        :current="(law.law_id === selectedLawId && section.key === highlightSection) || undefined"
-                        @click="selectLawFromSection(law.law_id, section.key)"
-                      >
-                        <nldd-text-cell :text="displayName(law)" :supporting-text="law.source_name">
-                        </nldd-text-cell>
-                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                        <nldd-icon-cell size="20">
-                          <nldd-icon icon="chevron-right"></nldd-icon>
-                        </nldd-icon-cell>
-                      </nldd-list-item>
-                    </nldd-list>
-                    <!-- Uitklapknop onder "In dit traject": die is de enige
-                         die lang genoeg wordt om in te vouwen. -->
-                    <template v-if="section.key === 'traject' && trajectExpanderText">
-                      <nldd-spacer size="8"></nldd-spacer>
+                        <nldd-menu slot="popup">
+                          <nldd-menu-item
+                            type="checkbox"
+                            text="Toon ook regelwerken uit dit traject"
+                            :selected="recentIncludesTraject || undefined"
+                            data-testid="recent-includes-traject"
+                            @select="toggleRecentIncludesTraject"
+                          ></nldd-menu-item>
+                          <nldd-menu-item text="Wis de lijst" data-testid="recent-clear" @select="clearRecent"></nldd-menu-item>
+                        </nldd-menu>
+                      </nldd-icon-button>
                       <nldd-button
-                        data-testid="traject-laws-expander"
+                        v-else-if="section.key === 'recent'"
+                        slot="end"
                         size="xs"
                         appearance="accent-transparent"
-                        :text="trajectExpanderText"
-                        @click="trajectLawsExpanded = !trajectLawsExpanded"
+                        text="Wis"
+                        @click="clearRecent"
                       ></nldd-button>
-                    </template>
+                    </nldd-title>
+                    <nldd-spacer size="8"></nldd-spacer>
                   </template>
-                  <!-- "Regelwerk toevoegen" is verhuisd naar de universele "+" in de
-                       header (AppShell); die opent de AddLawSheet via
-                       useAddActions. De file-picker voor de upload-route blijft
-                       hier, want de upload zelf (onLawFileChange) leeft in deze
-                       view. -->
-                  <template v-if="activeTrajectRef">
-                    <input ref="lawFileInput" type="file" accept=".pdf,.doc,.docx" hidden @change="onLawFileChange" />
-                    <template v-if="lawUploadStarted">
-                      <nldd-spacer size="8"></nldd-spacer>
-                      <nldd-banner
-                        variant="success"
-                        text="Conversie gestart"
-                        supporting-text="Je krijgt een taak zodra het regelwerk klaarstaat voor beoordeling."
-                        dismissible
-                        @dismiss="dismissLawUploadStarted"
-                      ></nldd-banner>
-                    </template>
-                    <template v-if="lawHarvestStarted">
-                      <nldd-spacer size="8"></nldd-spacer>
-                      <nldd-banner
-                        variant="success"
-                        text="Ophalen gestart"
-                        supporting-text="De aanvraag staat bij Taken; je krijgt een taak zodra het regelwerk klaarstaat voor beoordeling."
-                        dismissible
-                        @dismiss="dismissLawHarvestStarted"
-                      ></nldd-banner>
-                    </template>
+                  <!-- Favorites without an account: say where they live and
+                       how they get lost, and what keeps them. -->
+                  <template v-if="section.key === 'favorites' && localFavorites">
+                    <nldd-banner
+                      data-testid="local-favorites-notice"
+                      size="sm"
+                      variant="warning"
+                      text="Alleen in deze browser"
+                      supporting-text="Wis je je browsergegevens of gebruik je een andere browser, dan zijn ze weg. Met een account bewaar je ze blijvend; ze gaan mee zodra je inlogt."
+                    >
+                      <nldd-button
+                        slot="actions"
+                        size="sm"
+                        appearance="secondary"
+                        text="Account aanvragen"
+                        :href="accountRequestHref"
+                        @click="goToAccountRequest"
+                      ></nldd-button>
+                    </nldd-banner>
+                    <nldd-spacer size="8"></nldd-spacer>
+                  </template>
+                  <!-- Nog niets aangeraakt: de kop staat er al, hieronder
+                       alleen de mededeling. Uitleg over hóe je hem vult lees
+                       je één keer en daarna voor altijd, op de plek waar je
+                       werk hoort te staan. -->
+                  <nldd-rich-text v-if="section.empty" :data-testid="section.key === 'traject' ? 'traject-no-laws' : `${section.key}-empty`">
+                    <p>{{ section.emptyText ?? 'Nog niets bewerkt.' }}</p>
+                  </nldd-rich-text>
+                  <!-- Snel zoeken in "In dit traject", vanaf het aantal
+                       waarbij de lijst inklapt. Het aantal eronder maakt de
+                       uitkomst hoorbaar: de lijst zelf meldt een filter niet.
+                       Het staat er ook leeg, zolang het veld er staat: een
+                       live region die gevuld verschijnt wordt niet
+                       voorgelezen. -->
+                  <template v-if="section.key === 'traject' && trajectFilterShown">
+                    <nldd-search-field
+                      data-testid="traject-laws-filter"
+                      size="sm"
+                      :value="trajectLawFilter"
+                      placeholder="Zoek in dit traject"
+                      @input="trajectLawFilter = $event.detail?.value ?? ''"
+                    ></nldd-search-field>
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-text data-testid="traject-laws-filter-count" size="sm" color="secondary" aria-live="polite"><p>{{ section.filtered ? lawCountText(section.laws.length) : '' }}</p></nldd-text>
+                    <nldd-spacer v-if="section.filtered" size="4"></nldd-spacer>
+                  </template>
+                  <nldd-list v-if="!section.empty" appearance="simple" :accessible-label="section.title">
+                    <nldd-inline-dialog
+                      v-if="section.filtered"
+                      slot="empty"
+                      data-testid="traject-laws-filter-empty"
+                      icon="search"
+                      text="Geen regelwerken gevonden"
+                      supporting-text="Pas je zoekopdracht aan."
+                    ></nldd-inline-dialog>
+                    <nldd-list-item
+                      v-for="law in section.laws"
+                      :key="`${section.key}-${law.law_id}`"
+                      size="md"
+                      button
+                      :data-law-id="law.law_id"
+                      :data-section="section.key"
+                      :current="(law.law_id === selectedLawId && section.key === highlightSection) || undefined"
+                      @click="selectLawFromSection(law.law_id, section.key)"
+                    >
+                      <nldd-text-cell :text="displayName(law)" :supporting-text="law.source_name">
+                      </nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="chevron-right"></nldd-icon>
+                      </nldd-icon-cell>
+                    </nldd-list-item>
+                  </nldd-list>
+                  <!-- Uitklapknop onder "In dit traject": die is de enige
+                       die lang genoeg wordt om in te vouwen. -->
+                  <template v-if="section.key === 'traject' && trajectExpanderText">
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-button
+                      data-testid="traject-laws-expander"
+                      size="xs"
+                      appearance="accent-transparent"
+                      :text="trajectExpanderText"
+                      @click="trajectLawsExpanded = !trajectLawsExpanded"
+                    ></nldd-button>
                   </template>
                 </template>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+                <!-- "Regelwerk toevoegen" is verhuisd naar de universele "+" in de
+                     header (AppShell); die opent de AddLawSheet via
+                     useAddActions. De file-picker voor de upload-route blijft
+                     hier, want de upload zelf (onLawFileChange) leeft in deze
+                     view. -->
+                <template v-if="activeTrajectRef">
+                  <input ref="lawFileInput" type="file" accept=".pdf,.doc,.docx" hidden @change="onLawFileChange" />
+                  <template v-if="lawUploadStarted">
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-banner
+                      variant="success"
+                      text="Conversie gestart"
+                      supporting-text="Je krijgt een taak zodra het regelwerk klaarstaat voor beoordeling."
+                      dismissible
+                      @dismiss="dismissLawUploadStarted"
+                    ></nldd-banner>
+                  </template>
+                  <template v-if="lawHarvestStarted">
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-banner
+                      variant="success"
+                      text="Ophalen gestart"
+                      supporting-text="De aanvraag staat bij Taken; je krijgt een taak zodra het regelwerk klaarstaat voor beoordeling."
+                      dismissible
+                      @dismiss="dismissLawHarvestStarted"
+                    ></nldd-banner>
+                  </template>
+                </template>
+              </template>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar (instellingen mode): the settings tabs. -->
-          <nldd-split-view-pane v-if="isInstellingenMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header accessible-label="Instellingen">
-              <nldd-top-title-bar slot="header" text="Instellingen" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
-              <nldd-simple-section width="full">
-                <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <nldd-list appearance="simple">
-                  <!-- Zelfde iconen als in TrajectMenu/MobileTrajectSheet: deze
-                       twee openen dezelfde bestemmingen, dus ze horen er niet
-                       anders uit te zien afhankelijk van waar je ze aanklikt. -->
-                  <nldd-list-item size="md" button :current="instellingenTab === 'details' || undefined" @click="goToInstellingen('details')">
-                    <nldd-icon-cell size="20"><nldd-icon icon="traject"></nldd-icon></nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="Algemeen"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </nldd-list-item>
-                  <nldd-list-item size="md" button :current="instellingenTab === 'leden' || undefined" @click="goToInstellingen('leden')">
-                    <nldd-icon-cell size="20"><nldd-icon icon="person-2"></nldd-icon></nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="Leden"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                  </nldd-list-item>
-                </nldd-list>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-if="isInstellingenMode" slot="secondary-sidebar" sticky-header accessible-label="Instellingen">
+            <nldd-top-title-bar slot="header" text="Instellingen" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
+            <nldd-simple-section width="full">
+              <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-list appearance="simple">
+                <!-- Zelfde iconen als in TrajectMenu/MobileTrajectSheet: deze
+                     twee openen dezelfde bestemmingen, dus ze horen er niet
+                     anders uit te zien afhankelijk van waar je ze aanklikt. -->
+                <nldd-list-item size="md" button :current="instellingenTab === 'details' || undefined" @click="goToInstellingen('details')">
+                  <nldd-icon-cell size="20"><nldd-icon icon="traject"></nldd-icon></nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="Algemeen"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                </nldd-list-item>
+                <nldd-list-item size="md" button :current="instellingenTab === 'leden' || undefined" @click="goToInstellingen('leden')">
+                  <nldd-icon-cell size="20"><nldd-icon icon="person-2"></nldd-icon></nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="Leden"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar (taken mode): the categories, mirroring the
                Instellingen panel - the list itself lives in main. -->
-          <nldd-split-view-pane v-else-if="isTakenMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header accessible-label="Taken">
-              <nldd-top-title-bar slot="header" text="Taken" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
-              <nldd-simple-section width="full">
-                <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <TasksCategoriesPane
-                  :traject-ref="activeTrajectRef"
-                  :categorie="takenCategorie"
-                  :law-id="takenLawId"
-                  @select="goToTakenCategorie"
-                ></TasksCategoriesPane>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-else-if="isTakenMode" slot="secondary-sidebar" sticky-header accessible-label="Taken">
+            <nldd-top-title-bar slot="header" text="Taken" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
+            <nldd-simple-section width="full">
+              <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <TasksCategoriesPane
+                :traject-ref="activeTrajectRef"
+                :categorie="takenCategorie"
+                :law-id="takenLawId"
+                @select="goToTakenCategorie"
+              ></TasksCategoriesPane>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar (werkdoc mode): the document list. -->
-          <nldd-split-view-pane v-else-if="isWerkdocMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header accessible-label="Werkdocumenten">
-              <nldd-top-title-bar slot="header" text="Werkdocumenten" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
-              <nldd-simple-section width="full">
-                <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <!-- In a row: an icon button directly in the section stretches
-                     its host over the full width. -->
-                <nldd-container layout="row">
-                  <nldd-icon-button
-                    icon="plus-small"
-                    text="Document toevoegen"
-                    expandable
-                    tooltip-timing="never"
-                  >
-                    <nldd-menu slot="popup">
-                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
-                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-icon-button>
-                </nldd-container>
-                <nldd-spacer size="16"></nldd-spacer>
-                <nldd-activity-indicator v-if="docsLoading && !docList.length && !conversionJobs.length" text="Documenten laden" show-text></nldd-activity-indicator>
-                <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="(docsError as Error).message"></nldd-inline-dialog>
-                <DocumentList v-else-if="docList.length || conversionJobs.length" :documents="docList" :jobs="conversionJobs" :selected-path="docSelectedPath" @select="onDocSelect"></DocumentList>
-                <nldd-inline-dialog v-else text="Geen werkdocumenten"></nldd-inline-dialog>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-else-if="isWerkdocMode" slot="secondary-sidebar" sticky-header accessible-label="Werkdocumenten">
+            <nldd-top-title-bar slot="header" text="Werkdocumenten" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
+            <nldd-simple-section width="full">
+              <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <!-- In a row: an icon button directly in the section stretches
+                   its host over the full width. -->
+              <nldd-container layout="row">
+                <nldd-icon-button
+                  icon="plus-small"
+                  text="Document toevoegen"
+                  expandable
+                  tooltip-timing="never"
+                >
+                  <nldd-menu slot="popup">
+                    <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
+                    <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
+                  </nldd-menu>
+                </nldd-icon-button>
+              </nldd-container>
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-activity-indicator v-if="docsLoading && !docList.length && !conversionJobs.length" text="Documenten laden" show-text></nldd-activity-indicator>
+              <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="(docsError as Error).message"></nldd-inline-dialog>
+              <DocumentList v-else-if="docList.length || conversionJobs.length" :documents="docList" :jobs="conversionJobs" :selected-path="docSelectedPath" @select="onDocSelect"></DocumentList>
+              <nldd-inline-dialog v-else text="Geen werkdocumenten"></nldd-inline-dialog>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Secondary Sidebar: Artikelen Lijst - only when a law is
                selected. When deselected the pane is removed from the DOM
                so the navigation-split-view reflows to spatial mode and
                shows the sidebar (Wetten Browser) alongside main. -->
-          <nldd-split-view-pane v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" has-content>
-            <nldd-page ref="lawPage" sticky-header :accessible-label="lawTitle || 'Regelwerk'">
-              <nldd-top-title-bar
-                slot="header"
-                heading-level="3"
-                :text="paneChromeVisible(selectedLawLoading) ? lawTitle : undefined"
-                :back-text="LIBRARY_HOME_BACK_TEXT"
-                collapse-anchor="wet-titel"
-              ></nldd-top-title-bar>
+          <nldd-page v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" ref="lawPage" sticky-header :accessible-label="lawTitle || 'Regelwerk'">
+            <nldd-top-title-bar
+              slot="header"
+              heading-level="3"
+              :text="paneChromeVisible(selectedLawLoading) ? lawTitle : undefined"
+              :back-text="LIBRARY_HOME_BACK_TEXT"
+              collapse-anchor="wet-titel"
+            ></nldd-top-title-bar>
 
-              <nldd-simple-section width="full">
-                <nldd-title v-if="paneChromeVisible(selectedLawLoading)" id="wet-titel" size="display-3"><h3>{{ lawTitle }}</h3></nldd-title>
-                <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
-                <!-- Keyed on the chrome flag only, like the title above: the
-                     favourite button runs entirely off `selectedLawId` (route)
-                     + `favorites`, never the loaded law, so waiting for
-                     `selectedLaw` only hid the toolbar during the load. -->
-                <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" accessible-label="Regelwerkacties">
-                  <!-- priority: hoger blijft langer staan, lager verdwijnt als
-                       eerste in het overflow-menu. -->
-                  <!-- In een traject, bij een regelwerk uit een bron waar het
-                       traject alleen in meeleest: haal het naar het traject. -->
-                  <nldd-toolbar-item v-if="canAddOpenLawToTraject" slot="start" :priority="5">
-                    <nldd-icon-button
-                      data-testid="add-open-law-to-traject"
-                      appearance="neutral-base"
-                      icon="plus"
-                      text="Toevoegen aan traject"
-                      loading-text="Aan het toevoegen"
-                      :loading="addingOpenLawToTraject || undefined"
-                      @click="addOpenLawToTraject"
-                    ></nldd-icon-button>
-                    <nldd-menu-item slot="overflow" icon="plus" text="Toevoegen aan traject" @select="addOpenLawToTraject"></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <nldd-toolbar-item v-if="authenticated || localFavorites" slot="start" :priority="2">
-                    <nldd-icon-button
-                      appearance="neutral-base"
-                      :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
-                      :text="favorites?.has(selectedLawId)
-                        ? 'Verwijder uit favorieten'
-                        : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
-                      @click="onFavoriteClick"
-                    ></nldd-icon-button>
-                    <nldd-menu-item
-                      slot="overflow"
-                      :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
-                      :text="favorites?.has(selectedLawId)
-                        ? 'Verwijder uit favorieten'
-                        : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
-                      @select="onFavoriteClick"
-                    ></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
-                    <nldd-icon-button appearance="neutral-base" icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
-                    <nldd-menu-item slot="overflow" icon="share" text="Delen" @select="shareLaw"></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <nldd-toolbar-item slot="end" :priority="4">
-                    <nldd-icon-button
-                      appearance="neutral-base"
-                      icon="search"
-                      text="Artikelen zoeken"
-                      :expanded="articleFilterOpen || undefined"
-                      @click="toggleArticleFilter"
-                    ></nldd-icon-button>
-                    <nldd-menu-item
-                      slot="overflow"
-                      type="checkbox"
-                      icon="search"
-                      text="Artikelen zoeken"
-                      :selected="articleFilterOpen || undefined"
-                      @select="toggleArticleFilter"
-                    ></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <nldd-toolbar-item slot="end" :priority="3">
-                    <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
-                      <nldd-menu slot="popup">
-                        <nldd-menu-item
-                          v-for="option in ARTICLE_FILTERS"
-                          :key="option.key"
-                          type="radio"
-                          :text="option.label"
-                          :selected="articleTypeFilter === option.key || undefined"
-                          @select="setArticleTypeFilter(option.key)"
-                        ></nldd-menu-item>
-                      </nldd-menu>
-                    </nldd-icon-button>
-                    <nldd-menu-group slot="overflow" text="Artikelen filteren">
+            <nldd-simple-section width="full">
+              <nldd-title v-if="paneChromeVisible(selectedLawLoading)" id="wet-titel" size="display-3"><h3>{{ lawTitle }}</h3></nldd-title>
+              <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
+              <!-- Keyed on the chrome flag only, like the title above: the
+                   favourite button runs entirely off `selectedLawId` (route)
+                   + `favorites`, never the loaded law, so waiting for
+                   `selectedLaw` only hid the toolbar during the load. -->
+              <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" accessible-label="Regelwerkacties">
+                <!-- priority: hoger blijft langer staan, lager verdwijnt als
+                     eerste in het overflow-menu. -->
+                <!-- In een traject, bij een regelwerk uit een bron waar het
+                     traject alleen in meeleest: haal het naar het traject. -->
+                <nldd-toolbar-item v-if="canAddOpenLawToTraject" slot="start" :priority="5">
+                  <nldd-icon-button
+                    data-testid="add-open-law-to-traject"
+                    appearance="neutral-base"
+                    icon="plus"
+                    text="Toevoegen aan traject"
+                    loading-text="Aan het toevoegen"
+                    :loading="addingOpenLawToTraject || undefined"
+                    @click="addOpenLawToTraject"
+                  ></nldd-icon-button>
+                  <nldd-menu-item slot="overflow" icon="plus" text="Toevoegen aan traject" @select="addOpenLawToTraject"></nldd-menu-item>
+                </nldd-toolbar-item>
+                <nldd-toolbar-item v-if="authenticated || localFavorites" slot="start" :priority="2">
+                  <nldd-icon-button
+                    appearance="neutral-base"
+                    :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
+                    :text="favorites?.has(selectedLawId)
+                      ? 'Verwijder uit favorieten'
+                      : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
+                    @click="onFavoriteClick"
+                  ></nldd-icon-button>
+                  <nldd-menu-item
+                    slot="overflow"
+                    :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
+                    :text="favorites?.has(selectedLawId)
+                      ? 'Verwijder uit favorieten'
+                      : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
+                    @select="onFavoriteClick"
+                  ></nldd-menu-item>
+                </nldd-toolbar-item>
+                <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
+                  <nldd-icon-button appearance="neutral-base" icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
+                  <nldd-menu-item slot="overflow" icon="share" text="Delen" @select="shareLaw"></nldd-menu-item>
+                </nldd-toolbar-item>
+                <nldd-toolbar-item slot="end" :priority="4">
+                  <nldd-icon-button
+                    appearance="neutral-base"
+                    icon="search"
+                    text="Artikelen zoeken"
+                    :expanded="articleFilterOpen || undefined"
+                    @click="toggleArticleFilter"
+                  ></nldd-icon-button>
+                  <nldd-menu-item
+                    slot="overflow"
+                    type="checkbox"
+                    icon="search"
+                    text="Artikelen zoeken"
+                    :selected="articleFilterOpen || undefined"
+                    @select="toggleArticleFilter"
+                  ></nldd-menu-item>
+                </nldd-toolbar-item>
+                <nldd-toolbar-item slot="end" :priority="3">
+                  <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
+                    <nldd-menu slot="popup">
                       <nldd-menu-item
                         v-for="option in ARTICLE_FILTERS"
                         :key="option.key"
@@ -2885,210 +2866,219 @@ watch(activeTrajectRef, () => {
                         :selected="articleTypeFilter === option.key || undefined"
                         @select="setArticleTypeFilter(option.key)"
                       ></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                </nldd-toolbar>
-                <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
-                <template v-if="paneChromeVisible(selectedLawLoading) && promoteError">
-                  <nldd-inline-dialog data-testid="add-open-law-error" variant="alert" :text="promoteError"></nldd-inline-dialog>
-                  <nldd-spacer size="16"></nldd-spacer>
-                </template>
-                <template v-if="paneChromeVisible(selectedLawLoading) && articleFilterOpen">
-                  <nldd-search-field
-                    ref="articleFilterField"
-                    :value="articleFilter"
-                    placeholder="Artikelen zoeken"
-                    accessible-label="Artikelen zoeken"
-                    @input="articleFilter = $event.detail?.value ?? ''"
-                  ></nldd-search-field>
-                  <nldd-spacer size="16"></nldd-spacer>
-                </template>
-                <nldd-activity-indicator v-if="selectedLawLoading" text="Regelwerk laden" show-text></nldd-activity-indicator>
-                <nldd-inline-dialog v-else-if="!selectedLaw" text="Selecteer een regelwerk"></nldd-inline-dialog>
-                <template v-else>
-                <nldd-list appearance="simple">
-                  <nldd-list-item size="md" button :current="isAlgemeen || undefined" @click="selectAlgemeen()">
-                    <nldd-icon-cell size="20">
-                      <nldd-icon icon="information"></nldd-icon>
-                    </nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="Algemeen"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20">
-                      <nldd-icon icon="chevron-right"></nldd-icon>
-                    </nldd-icon-cell>
-                  </nldd-list-item>
-                  <nldd-list-item data-testid="law-entry-yaml" size="md" button :current="isYaml || undefined" @click="selectYaml()">
-                    <nldd-icon-cell size="20">
-                      <nldd-icon icon="code-block"></nldd-icon>
-                    </nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="YAML"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20">
-                      <nldd-icon icon="chevron-right"></nldd-icon>
-                    </nldd-icon-cell>
-                  </nldd-list-item>
-                  <!-- Runs belong to a traject; the corpus juris has none. -->
-                  <nldd-list-item
-                    v-if="activeTrajectRef"
-                    data-testid="law-entry-verwerkingen"
-                    size="md"
-                    button
-                    :current="isVerwerkingen || undefined"
-                    @click="selectVerwerkingen()"
-                  >
-                    <nldd-icon-cell size="20">
-                      <nldd-icon icon="history"></nldd-icon>
-                    </nldd-icon-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-text-cell text="Verwerkingen"></nldd-text-cell>
-                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                    <nldd-icon-cell size="20">
-                      <nldd-icon icon="chevron-right"></nldd-icon>
-                    </nldd-icon-cell>
-                  </nldd-list-item>
-                </nldd-list>
-                <template v-if="scenariosShown && scenarioFiles.length">
-                  <nldd-spacer size="24"></nldd-spacer>
-                  <nldd-title size="display-5">
-                    <h4>Scenario's</h4>
-                  </nldd-title>
-                  <nldd-spacer size="8"></nldd-spacer>
-                  <nldd-list appearance="simple" accessible-label="Scenario's van dit regelwerk">
-                    <nldd-list-item
-                      v-for="file in scenarioFiles"
-                      :key="file.filename"
-                      size="md"
-                      button
-                      :data-testid="`law-scenario-${file.filename}`"
-                      @click="openScenarioFile(file.filename)"
-                    >
-                      <nldd-icon-cell size="20">
-                        <nldd-icon icon="checklist"></nldd-icon>
-                      </nldd-icon-cell>
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-text-cell :text="file.filename" supporting-text="Openen in de editor"></nldd-text-cell>
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-icon-cell size="20">
-                        <nldd-icon icon="chevron-right"></nldd-icon>
-                      </nldd-icon-cell>
-                    </nldd-list-item>
-                  </nldd-list>
-                </template>
+                    </nldd-menu>
+                  </nldd-icon-button>
+                  <nldd-menu-group slot="overflow" text="Artikelen filteren">
+                    <nldd-menu-item
+                      v-for="option in ARTICLE_FILTERS"
+                      :key="option.key"
+                      type="radio"
+                      :text="option.label"
+                      :selected="articleTypeFilter === option.key || undefined"
+                      @select="setArticleTypeFilter(option.key)"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                </nldd-toolbar-item>
+              </nldd-toolbar>
+              <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
+              <template v-if="paneChromeVisible(selectedLawLoading) && promoteError">
+                <nldd-inline-dialog data-testid="add-open-law-error" variant="alert" :text="promoteError"></nldd-inline-dialog>
+                <nldd-spacer size="16"></nldd-spacer>
+              </template>
+              <template v-if="paneChromeVisible(selectedLawLoading) && articleFilterOpen">
+                <nldd-search-field
+                  ref="articleFilterField"
+                  :value="articleFilter"
+                  placeholder="Artikelen zoeken"
+                  accessible-label="Artikelen zoeken"
+                  @input="articleFilter = $event.detail?.value ?? ''"
+                ></nldd-search-field>
+                <nldd-spacer size="16"></nldd-spacer>
+              </template>
+              <nldd-activity-indicator v-if="selectedLawLoading" text="Regelwerk laden" show-text></nldd-activity-indicator>
+              <nldd-inline-dialog v-else-if="!selectedLaw" text="Selecteer een regelwerk"></nldd-inline-dialog>
+              <template v-else>
+              <nldd-list appearance="simple">
+                <nldd-list-item size="md" button :current="isAlgemeen || undefined" @click="selectAlgemeen()">
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="information"></nldd-icon>
+                  </nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="Algemeen"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="chevron-right"></nldd-icon>
+                  </nldd-icon-cell>
+                </nldd-list-item>
+                <nldd-list-item data-testid="law-entry-yaml" size="md" button :current="isYaml || undefined" @click="selectYaml()">
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="code-block"></nldd-icon>
+                  </nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="YAML"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="chevron-right"></nldd-icon>
+                  </nldd-icon-cell>
+                </nldd-list-item>
+                <!-- Runs belong to a traject; the corpus juris has none. -->
+                <nldd-list-item
+                  v-if="activeTrajectRef"
+                  data-testid="law-entry-verwerkingen"
+                  size="md"
+                  button
+                  :current="isVerwerkingen || undefined"
+                  @click="selectVerwerkingen()"
+                >
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="history"></nldd-icon>
+                  </nldd-icon-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell text="Verwerkingen"></nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="chevron-right"></nldd-icon>
+                  </nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+              <template v-if="scenariosShown && scenarioFiles.length">
                 <nldd-spacer size="24"></nldd-spacer>
                 <nldd-title size="display-5">
-                  <h4>Artikelen</h4>
+                  <h4>Scenario's</h4>
                 </nldd-title>
                 <nldd-spacer size="8"></nldd-spacer>
-                <template v-if="activeTypeFilterLabel">
-                  <nldd-token
-                    control="dismiss"
-                    :text="activeTypeFilterLabel"
-                    dismiss-text="Filter wissen"
-                    @dismiss="setArticleTypeFilter('alles')"
-                  ></nldd-token>
-                  <nldd-spacer size="8"></nldd-spacer>
-                </template>
-                <!-- Geen lijst maar een losse dialog zodra er niets te tonen is:
-                     die vult de resterende hoogte en zet de boodschap in het
-                     midden, in plaats van als blokje bovenin te blijven hangen. -->
-                <nldd-inline-dialog v-if="!filteredArticles.length" :text="articleEmptyText">
-                  <nldd-button
-                    v-if="articleFiltersActive"
-                    slot="actions"
-                    text="Toon alles"
-                    @click="resetArticleFilters"
-                  ></nldd-button>
-                </nldd-inline-dialog>
-                <nldd-list v-else ref="articleList" appearance="simple" :style="articleListStyle">
+                <nldd-list appearance="simple" accessible-label="Scenario's van dit regelwerk">
                   <nldd-list-item
-                    v-for="{ item: article, index } in articleRows"
-                    :key="article.number"
-                    :data-row-key="article.number"
-                    :aria-setsize="articleListWindowed ? filteredArticles.length : undefined"
-                    :aria-posinset="articleListWindowed ? index + 1 : undefined"
+                    v-for="file in scenarioFiles"
+                    :key="file.filename"
                     size="md"
                     button
-                    :current="String(article.number) === String(selectedArticleNumber) || undefined"
-                    @click="selectArticle(article.number)"
+                    :data-testid="`law-scenario-${file.filename}`"
+                    @click="openScenarioFile(file.filename)"
                   >
-                    <nldd-text-cell :supporting-text="articleDescription(article)">
-                      Artikel {{ article.number }}
-                      <nldd-tag v-if="isMachineReadable(article)" size="sm" color="accent">Machine</nldd-tag>
-                    </nldd-text-cell>
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="checklist"></nldd-icon>
+                    </nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell :text="file.filename" supporting-text="Openen in de editor"></nldd-text-cell>
                     <nldd-spacer-cell size="8"></nldd-spacer-cell>
                     <nldd-icon-cell size="20">
                       <nldd-icon icon="chevron-right"></nldd-icon>
                     </nldd-icon-cell>
                   </nldd-list-item>
                 </nldd-list>
-                </template>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+              </template>
+              <nldd-spacer size="24"></nldd-spacer>
+              <nldd-title size="display-5">
+                <h4>Artikelen</h4>
+              </nldd-title>
+              <nldd-spacer size="8"></nldd-spacer>
+              <template v-if="activeTypeFilterLabel">
+                <nldd-token
+                  control="dismiss"
+                  :text="activeTypeFilterLabel"
+                  dismiss-text="Filter wissen"
+                  @dismiss="setArticleTypeFilter('alles')"
+                ></nldd-token>
+                <nldd-spacer size="8"></nldd-spacer>
+              </template>
+              <!-- Geen lijst maar een losse dialog zodra er niets te tonen is:
+                   die vult de resterende hoogte en zet de boodschap in het
+                   midden, in plaats van als blokje bovenin te blijven hangen. -->
+              <nldd-inline-dialog v-if="!filteredArticles.length" :text="articleEmptyText">
+                <nldd-button
+                  v-if="articleFiltersActive"
+                  slot="actions"
+                  text="Toon alles"
+                  @click="resetArticleFilters"
+                ></nldd-button>
+              </nldd-inline-dialog>
+              <nldd-list v-else ref="articleList" appearance="simple" :style="articleListStyle">
+                <nldd-list-item
+                  v-for="{ item: article, index } in articleRows"
+                  :key="article.number"
+                  :data-row-key="article.number"
+                  :aria-setsize="articleListWindowed ? filteredArticles.length : undefined"
+                  :aria-posinset="articleListWindowed ? index + 1 : undefined"
+                  size="md"
+                  button
+                  :current="String(article.number) === String(selectedArticleNumber) || undefined"
+                  @click="selectArticle(article.number)"
+                >
+                  <nldd-text-cell :supporting-text="articleDescription(article)">
+                    <p>
+                      Artikel {{ article.number }}
+                      <nldd-tag v-if="isMachineReadable(article)" size="sm" color="accent">Machine</nldd-tag>
+                    </p>
+                  </nldd-text-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-icon-cell size="20">
+                    <nldd-icon icon="chevron-right"></nldd-icon>
+                  </nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+              </template>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Main (instellingen mode): the selected settings pane. -->
-          <nldd-split-view-pane v-if="isInstellingenMode" slot="main" :has-content="instellingenTab || undefined">
-            <nldd-page landmarks="page" sticky-header>
-              <nldd-top-title-bar
-                slot="header"
-                :text="instellingenTab === 'leden' ? 'Leden' : (instellingenTab === 'details' ? 'Algemeen' : undefined)"
-                back-text="Instellingen"
-                :collapse-anchor="instellingenTab ? 'instellingen-pane-titel' : undefined"
-              ></nldd-top-title-bar>
-              <TrajectDetailsPane
-                v-if="instellingenTab === 'details'"
-                :traject-id="activeTraject?.id"
-                @deleted="onTrajectGone"
-                @left="onTrajectGone"
-              ></TrajectDetailsPane>
-              <TrajectMembersPane
-                v-else-if="instellingenTab === 'leden'"
-                :traject-id="activeTraject?.id"
-              ></TrajectMembersPane>
-              <nldd-simple-section v-else width="full">
-                <nldd-inline-dialog text="Kies een instelling"></nldd-inline-dialog>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-if="isInstellingenMode" slot="main" :empty="instellingenTab ? undefined : true" landmarks="page" sticky-header>
+            <nldd-top-title-bar
+              slot="header"
+              :text="instellingenTab === 'leden' ? 'Leden' : (instellingenTab === 'details' ? 'Algemeen' : undefined)"
+              back-text="Instellingen"
+              :collapse-anchor="instellingenTab ? 'instellingen-pane-titel' : undefined"
+            ></nldd-top-title-bar>
+            <TrajectDetailsPane
+              v-if="instellingenTab === 'details'"
+              :traject-id="activeTraject?.id"
+              @deleted="onTrajectGone"
+              @left="onTrajectGone"
+            ></TrajectDetailsPane>
+            <TrajectMembersPane
+              v-else-if="instellingenTab === 'leden'"
+              :traject-id="activeTraject?.id"
+            ></TrajectMembersPane>
+            <nldd-simple-section v-else width="full">
+              <nldd-inline-dialog text="Kies een instelling"></nldd-inline-dialog>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Main (taken-modus): de takenlijst van de gekozen categorie. Een
                taak zelf opent nog steeds niet hier - "Beoordelen" navigeert naar
                de editor of het werkdocument. -->
-          <nldd-split-view-pane v-else-if="isTakenMode" slot="main" :has-content="takenCategorie || undefined">
-            <nldd-page landmarks="page" sticky-header>
-              <nldd-top-title-bar
-                slot="header"
-                :text="takenTitle"
-                back-text="Taken"
-                :collapse-anchor="takenCategorie ? 'taken-pane-titel' : undefined"
-              ></nldd-top-title-bar>
-              <nldd-simple-section v-if="takenCategorie">
-                <nldd-title id="taken-pane-titel" size="display-3"><h3>{{ takenTitle }}</h3></nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <TasksListPane
-                  :traject-ref="activeTrajectRef"
-                  :categorie="takenCategorie"
-                  :law-id="takenLawId"
-                  @upload="onDocUpload"
-                  @cancel-job="onCancelTaskJob"
-                  @view-job="onViewTaskJob"
-                ></TasksListPane>
-              </nldd-simple-section>
-              <nldd-simple-section v-else width="full">
-                <nldd-inline-dialog text="Kies een categorie"></nldd-inline-dialog>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+          <nldd-page v-else-if="isTakenMode" slot="main" :empty="takenCategorie ? undefined : true" landmarks="page" sticky-header>
+            <nldd-top-title-bar
+              slot="header"
+              :text="takenTitle"
+              back-text="Taken"
+              :collapse-anchor="takenCategorie ? 'taken-pane-titel' : undefined"
+            ></nldd-top-title-bar>
+            <nldd-simple-section v-if="takenCategorie">
+              <nldd-title id="taken-pane-titel" size="display-3"><h3>{{ takenTitle }}</h3></nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <TasksListPane
+                :traject-ref="activeTrajectRef"
+                :categorie="takenCategorie"
+                :law-id="takenLawId"
+                @upload="onDocUpload"
+                @cancel-job="onCancelTaskJob"
+                @view-job="onViewTaskJob"
+              ></TasksListPane>
+            </nldd-simple-section>
+            <nldd-simple-section v-else width="full">
+              <nldd-inline-dialog text="Kies een categorie"></nldd-inline-dialog>
+            </nldd-simple-section>
+          </nldd-page>
 
           <!-- Main (werkdoc mode): the document editor, or a placeholder. -->
-          <nldd-split-view-pane v-else-if="isWerkdocMode" slot="main" :has-content="hasOpenDoc || !!viewingJobPath || undefined">
-            <nldd-page landmarks="page" v-if="viewingJobPath">
+          <!-- One page at a time in `main`; the template only carries the branch. -->
+          <template v-else-if="isWerkdocMode">
+            <nldd-page v-if="viewingJobPath" slot="main" landmarks="page">
               <!-- Back to the document list, shown only while the sidebar is
                    stacked away - the job view is the whole screen then, with no
                    other way out. Mirrors DocumentEditor's own back item: the
-                   split-view pane drives --context-back-button-display ('none'
+                   split view drives --context-back-button-display ('none'
                    while the sidebar is visible). -->
               <nldd-container slot="header" padding-inline="12" padding-top="12" sm-padding-inline="8" sm-padding-top="8">
                 <nldd-toolbar size="md">
@@ -3117,7 +3107,7 @@ watch(activeTrajectRef, () => {
                  hasOpenDoc is true) - zonder deze voorrang zou de editor met een
                  lege body renderen. Een echte centrale melding met een uitweg,
                  in de stijl van de artikel-404 verderop. -->
-            <nldd-page landmarks="page" v-else-if="docNotFoundActive">
+            <nldd-page v-else-if="docNotFoundActive" slot="main" landmarks="page">
               <nldd-simple-section width="full">
                 <nldd-inline-dialog
                   variant="alert"
@@ -3128,7 +3118,7 @@ watch(activeTrajectRef, () => {
                 </nldd-inline-dialog>
               </nldd-simple-section>
             </nldd-page>
-            <nldd-page landmarks="page" v-else-if="hasOpenDoc" sticky-header sticky-footer>
+            <nldd-page v-else-if="hasOpenDoc" slot="main" landmarks="page" sticky-header sticky-footer>
               <!-- Review-modus (job_review-taak, payload.kind === 'document'):
                    a full-width, low bar above the document editor, same
                    pattern/variants as EditorView's law-review banner (PR
@@ -3153,231 +3143,229 @@ watch(activeTrajectRef, () => {
               </nldd-simple-section>
               <DocumentEditor ref="docEditorEl" :manager="docsMgr" @back="onDocBack" @saved="onDocSaved"></DocumentEditor>
             </nldd-page>
-            <nldd-page landmarks="page" v-else>
+            <nldd-page v-else slot="main" empty landmarks="page">
               <nldd-simple-section width="full">
                 <nldd-inline-dialog text="Geen document open"></nldd-inline-dialog>
               </nldd-simple-section>
             </nldd-page>
-          </nldd-split-view-pane>
+          </template>
 
           <!-- Main: Artikel Detail -->
-          <nldd-split-view-pane v-else slot="main" :has-content="selectedArticle || isLawPage || lawError || articleNotFound ? true : undefined">
-            <nldd-page landmarks="page" sticky-header>
-              <nldd-top-title-bar
-                slot="header"
-                :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : isVerwerkingen ? 'Verwerkingen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
-                :supporting-text="isLawPage || selectedArticle ? lawName : undefined"
-                :back-text="lawError ? LIBRARY_HOME_BACK_TEXT : (lawName || 'Terug')"
-                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : isYaml ? 'yaml-titel' : isVerwerkingen ? 'verwerkingen-titel' : (selectedArticle ? 'article-titel' : undefined)"
-              ></nldd-top-title-bar>
+          <nldd-page v-else slot="main" :empty="selectedArticle || isLawPage || lawError || articleNotFound ? undefined : true" landmarks="page" sticky-header>
+            <nldd-top-title-bar
+              slot="header"
+              :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : isVerwerkingen ? 'Verwerkingen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
+              :supporting-text="isLawPage || selectedArticle ? lawName : undefined"
+              :back-text="lawError ? LIBRARY_HOME_BACK_TEXT : (lawName || 'Terug')"
+              :collapse-anchor="isAlgemeen ? 'algemeen-titel' : isYaml ? 'yaml-titel' : isVerwerkingen ? 'verwerkingen-titel' : (selectedArticle ? 'article-titel' : undefined)"
+            ></nldd-top-title-bar>
 
-              <nldd-simple-section width="full" v-if="!selectedLawId">
-                <!-- Generic: from Home you can also open a werkdocument, not just a law. -->
-                <nldd-inline-dialog text="Geen selectie"></nldd-inline-dialog>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="selectedLawLoading">
-                <!-- Loading takes precedence over `lawError` to avoid flashing a stale error during a refetch. -->
-                <nldd-activity-indicator text="Artikel laden" show-text></nldd-activity-indicator>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="lawError">
-                <!-- 404 = law not in active traject; give the user an exit instead of a generic error. -->
-                <nldd-inline-dialog
-                  v-if="lawErrorIs404"
-                  variant="alert"
-                  :text="`${indexedLawName} is niet beschikbaar in dit traject`"
-                  supporting-text="Wissel van traject via het menu rechtsboven of ga terug naar het overzicht."
-                >
-                  <nldd-button slot="actions" appearance="primary" text="Naar overzicht" @click="goToLibraryRoot"></nldd-button>
-                  <nldd-button slot="actions" appearance="secondary" text="Probeer opnieuw" @click="retryLoadLaw"></nldd-button>
-                </nldd-inline-dialog>
-                <nldd-inline-dialog
-                  v-else
-                  variant="alert"
-                  :text="`${indexedLawName} is niet geladen`"
-                  supporting-text="De gegevens konden niet worden opgehaald."
-                >
-                  <nldd-button slot="actions" appearance="primary" text="Probeer opnieuw" @click="retryLoadLaw"></nldd-button>
-                  <nldd-button slot="actions" appearance="secondary" text="Neem contact op via e-mail" :href="`mailto:${SUPPORT_EMAIL}`"></nldd-button>
-                </nldd-inline-dialog>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="articleNotFound">
-                <nldd-inline-dialog
-                  variant="alert"
-                  :text="`Artikel ${selectedArticleNumber} van ${lawName || indexedLawName} bestaat niet`"
-                  supporting-text="Mogelijk klopt de URL niet. Neem contact op als je verwacht dat dit artikel wel bestaat."
-                >
-                  <nldd-button slot="actions" class="article-not-found__back-button" appearance="primary" text="Bekijk artikelen" @click="goToLawRoot"></nldd-button>
-                  <nldd-button slot="actions" appearance="secondary" text="Neem contact op via e-mail" :href="`mailto:${SUPPORT_EMAIL}`"></nldd-button>
-                </nldd-inline-dialog>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="isAlgemeen">
-                <nldd-title id="algemeen-titel" size="display-3">
-                  <h3>Algemeen</h3>
-                  <span slot="supporting-text">{{ lawName }}</span>
-                </nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <!-- As wide as the article text, which nldd-rich-text centers
-                     at 720px (--primitives-area-720). The title stays left,
-                     as on an article. -->
-                <nldd-container horizontal-alignment="center">
-                  <nldd-container max-width="720px">
-                    <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
-                      <nldd-list-item v-for="row in algemeenRows" :key="row.label">
-                        <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
-                        <nldd-spacer-cell size="16"></nldd-spacer-cell>
-                        <nldd-text-cell :text="row.value" horizontal-alignment="right"></nldd-text-cell>
+            <nldd-simple-section width="full" v-if="!selectedLawId">
+              <!-- Generic: from Home you can also open a werkdocument, not just a law. -->
+              <nldd-inline-dialog text="Geen selectie"></nldd-inline-dialog>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="selectedLawLoading">
+              <!-- Loading takes precedence over `lawError` to avoid flashing a stale error during a refetch. -->
+              <nldd-activity-indicator text="Artikel laden" show-text></nldd-activity-indicator>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="lawError">
+              <!-- 404 = law not in active traject; give the user an exit instead of a generic error. -->
+              <nldd-inline-dialog
+                v-if="lawErrorIs404"
+                variant="alert"
+                :text="`${indexedLawName} is niet beschikbaar in dit traject`"
+                supporting-text="Wissel van traject via het menu rechtsboven of ga terug naar het overzicht."
+              >
+                <nldd-button slot="actions" appearance="primary" text="Naar overzicht" @click="goToLibraryRoot"></nldd-button>
+                <nldd-button slot="actions" appearance="secondary" text="Probeer opnieuw" @click="retryLoadLaw"></nldd-button>
+              </nldd-inline-dialog>
+              <nldd-inline-dialog
+                v-else
+                variant="alert"
+                :text="`${indexedLawName} is niet geladen`"
+                supporting-text="De gegevens konden niet worden opgehaald."
+              >
+                <nldd-button slot="actions" appearance="primary" text="Probeer opnieuw" @click="retryLoadLaw"></nldd-button>
+                <nldd-button slot="actions" appearance="secondary" text="Neem contact op via e-mail" :href="`mailto:${SUPPORT_EMAIL}`"></nldd-button>
+              </nldd-inline-dialog>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="articleNotFound">
+              <nldd-inline-dialog
+                variant="alert"
+                :text="`Artikel ${selectedArticleNumber} van ${lawName || indexedLawName} bestaat niet`"
+                supporting-text="Mogelijk klopt de URL niet. Neem contact op als je verwacht dat dit artikel wel bestaat."
+              >
+                <nldd-button slot="actions" class="article-not-found__back-button" appearance="primary" text="Bekijk artikelen" @click="goToLawRoot"></nldd-button>
+                <nldd-button slot="actions" appearance="secondary" text="Neem contact op via e-mail" :href="`mailto:${SUPPORT_EMAIL}`"></nldd-button>
+              </nldd-inline-dialog>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="isAlgemeen">
+              <nldd-title id="algemeen-titel" size="display-3">
+                <h3>Algemeen</h3>
+                <p slot="supporting-text">{{ lawName }}</p>
+              </nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <!-- As wide as the article text, which nldd-rich-text centers
+                   at 720px (--primitives-area-720). The title stays left,
+                   as on an article. -->
+              <nldd-container horizontal-alignment="center">
+                <nldd-container max-width="720px">
+                  <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
+                    <nldd-list-item v-for="row in algemeenRows" :key="row.label">
+                      <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+                      <nldd-spacer-cell size="16"></nldd-spacer-cell>
+                      <nldd-text-cell :text="row.value" horizontal-alignment="right"></nldd-text-cell>
+                    </nldd-list-item>
+                  </nldd-list>
+                  <template v-if="algemeenLinks.length">
+                    <nldd-spacer size="24"></nldd-spacer>
+                    <nldd-title size="display-4">
+                      <h4>Bronnen</h4>
+                    </nldd-title>
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-list appearance="simple" accessible-label="Bronnen">
+                      <nldd-list-item
+                        v-for="link in algemeenLinks"
+                        :key="link.key"
+                        :data-testid="`algemeen-link-${link.key}`"
+                        size="md"
+                        :href="link.href"
+                        target="_blank"
+                      >
+                        <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-icon-cell size="20">
+                          <nldd-icon icon="external-link"></nldd-icon>
+                        </nldd-icon-cell>
                       </nldd-list-item>
                     </nldd-list>
-                    <template v-if="algemeenLinks.length">
-                      <nldd-spacer size="24"></nldd-spacer>
-                      <nldd-title size="display-4">
-                        <h4>Bronnen</h4>
-                      </nldd-title>
-                      <nldd-spacer size="8"></nldd-spacer>
-                      <nldd-list appearance="simple" accessible-label="Bronnen">
-                        <nldd-list-item
-                          v-for="link in algemeenLinks"
-                          :key="link.key"
-                          :data-testid="`algemeen-link-${link.key}`"
-                          size="md"
-                          :href="link.href"
-                          target="_blank"
-                        >
-                          <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
-                          <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                          <nldd-icon-cell size="20">
-                            <nldd-icon icon="external-link"></nldd-icon>
-                          </nldd-icon-cell>
-                        </nldd-list-item>
-                      </nldd-list>
-                    </template>
-                    <template v-if="algemeenLegalBasis.length">
-                      <nldd-spacer size="24"></nldd-spacer>
-                      <nldd-title size="display-4">
-                        <h4>Grondslag</h4>
-                      </nldd-title>
-                      <nldd-spacer size="8"></nldd-spacer>
-                      <nldd-list appearance="simple">
-                        <nldd-list-item
-                          v-for="basis in algemeenLegalBasis"
-                          :key="`${basis.law_id}-${basis.article}`"
-                          size="md"
-                          button
-                          @click="selectLawArticle(basis.law_id, basis.article)"
-                        >
-                          <nldd-text-cell
-                            :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
-                            :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
-                          ></nldd-text-cell>
-                          <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                          <nldd-icon-cell size="20">
-                            <nldd-icon icon="chevron-right"></nldd-icon>
-                          </nldd-icon-cell>
-                        </nldd-list-item>
-                      </nldd-list>
-                    </template>
-                  </nldd-container>
+                  </template>
+                  <template v-if="algemeenLegalBasis.length">
+                    <nldd-spacer size="24"></nldd-spacer>
+                    <nldd-title size="display-4">
+                      <h4>Grondslag</h4>
+                    </nldd-title>
+                    <nldd-spacer size="8"></nldd-spacer>
+                    <nldd-list appearance="simple">
+                      <nldd-list-item
+                        v-for="basis in algemeenLegalBasis"
+                        :key="`${basis.law_id}-${basis.article}`"
+                        size="md"
+                        button
+                        @click="selectLawArticle(basis.law_id, basis.article)"
+                      >
+                        <nldd-text-cell
+                          :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
+                          :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
+                        ></nldd-text-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-icon-cell size="20">
+                          <nldd-icon icon="chevron-right"></nldd-icon>
+                        </nldd-icon-cell>
+                      </nldd-list-item>
+                    </nldd-list>
+                  </template>
                 </nldd-container>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="isVerwerkingen">
-                <nldd-title id="verwerkingen-titel" size="display-3">
-                  <h3>Verwerkingen</h3>
-                  <span slot="supporting-text">{{ lawName }}</span>
+              </nldd-container>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="isVerwerkingen">
+              <nldd-title id="verwerkingen-titel" size="display-3">
+                <h3>Verwerkingen</h3>
+                <p slot="supporting-text">{{ lawName }}</p>
+              </nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <!-- As wide as Algemeen: centered at the 720px of the article
+                   text, with the title left. -->
+              <nldd-container horizontal-alignment="center">
+                <nldd-container max-width="720px">
+                  <RunsListPane
+                    :traject-ref="activeTrajectRef"
+                    :law-id="selectedLawId"
+                    :bwb-id="selectedLawBwbId"
+                    @select="openRunId = $event"
+                  ></RunsListPane>
+                </nldd-container>
+              </nldd-container>
+              <RunDetailSheet
+                :job-id="openRunId"
+                :law-name="lawName"
+                @close="openRunId = null"
+                @open-tasks="goToRunTasks"
+              ></RunDetailSheet>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="isYaml">
+              <nldd-title id="yaml-titel" size="display-3">
+                <h3>YAML</h3>
+                <p slot="supporting-text">{{ lawName }}</p>
+              </nldd-title>
+              <nldd-spacer size="16"></nldd-spacer>
+              <nldd-code-viewer data-testid="law-yaml" language="yaml">{{ selectedLawText }}</nldd-code-viewer>
+            </nldd-simple-section>
+            <nldd-simple-section width="full" v-else-if="!selectedArticle">
+              <nldd-inline-dialog text="Selecteer een artikel"></nldd-inline-dialog>
+            </nldd-simple-section>
+            <template v-else>
+              <nldd-simple-section width="full">
+                <nldd-title id="article-titel" size="display-3">
+                  <h3>Artikel {{ selectedArticle.number }}</h3>
+                  <p slot="supporting-text">{{ lawName }}</p>
                 </nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <!-- As wide as Algemeen: centered at the 720px of the article
-                     text, with the title left. -->
-                <nldd-container horizontal-alignment="center">
-                  <nldd-container max-width="720px">
-                    <RunsListPane
-                      :traject-ref="activeTrajectRef"
-                      :law-id="selectedLawId"
-                      :bwb-id="selectedLawBwbId"
-                      @select="openRunId = $event"
-                    ></RunsListPane>
-                  </nldd-container>
-                </nldd-container>
-                <RunDetailSheet
-                  :job-id="openRunId"
-                  :law-name="lawName"
-                  @close="openRunId = null"
-                  @open-tasks="goToRunTasks"
-                ></RunDetailSheet>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="isYaml">
-                <nldd-title id="yaml-titel" size="display-3">
-                  <h3>YAML</h3>
-                  <span slot="supporting-text">{{ lawName }}</span>
-                </nldd-title>
-                <nldd-spacer size="16"></nldd-spacer>
-                <nldd-code-viewer data-testid="law-yaml" language="yaml">{{ selectedLawText }}</nldd-code-viewer>
-              </nldd-simple-section>
-              <nldd-simple-section width="full" v-else-if="!selectedArticle">
-                <nldd-inline-dialog text="Selecteer een artikel"></nldd-inline-dialog>
-              </nldd-simple-section>
-              <template v-else>
-                <nldd-simple-section width="full">
-                  <nldd-title id="article-titel" size="display-3">
-                    <h3>Artikel {{ selectedArticle.number }}</h3>
-                    <span slot="supporting-text">{{ lawName }}</span>
-                  </nldd-title>
+                <template v-if="!activeTrajectRef && lawEntry?.enriched">
+                  <nldd-banner
+                    data-testid="example-banner"
+                    variant="accent"
+                    size="sm"
+                    text="Voorbeeld, niet vastgesteld"
+                    :supporting-text="exampleSupportingText"
+                  ></nldd-banner>
                   <nldd-spacer size="16"></nldd-spacer>
-                  <template v-if="!activeTrajectRef && lawEntry?.enriched">
-                    <nldd-banner
-                      data-testid="example-banner"
-                      variant="accent"
-                      size="sm"
-                      text="Voorbeeld, niet vastgesteld"
-                      :supporting-text="exampleSupportingText"
-                    ></nldd-banner>
-                    <nldd-spacer size="16"></nldd-spacer>
-                  </template>
-                  <template v-else-if="otherEnrichedVersion">
-                    <nldd-banner
-                      data-testid="other-version-banner"
-                      size="sm"
-                      text="Een andere versie heeft een machineversie"
-                      :supporting-text="`Deze versie heeft alleen de wettekst. De versie van ${otherEnrichedVersion} heeft ook een machineversie.`"
-                    ></nldd-banner>
-                    <nldd-spacer size="16"></nldd-spacer>
-                  </template>
-                  <nldd-toolbar>
-                    <nldd-toolbar-item v-if="showMachineViews" slot="start" :priority="1">
-                      <nldd-tab-bar size="md" accessible-label="Weergave" @tab-change="onDetailTabChange">
-                        <nldd-tab-bar-item
-                          v-for="v in DETAIL_VIEWS"
-                          :key="v.key"
-                          :data-view="v.key"
-                          :current="detailView === v.key || undefined"
-                          :text="v.label"
-                        ></nldd-tab-bar-item>
-                      </nldd-tab-bar>
-                      <nldd-menu-group slot="overflow" text="Weergave">
-                        <nldd-menu-item
-                          v-for="v in DETAIL_VIEWS"
-                          :key="`overflow-${v.key}`"
-                          type="radio"
-                          :text="v.label"
-                          :selected="detailView === v.key || undefined"
-                          @select="detailView = v.key"
-                        ></nldd-menu-item>
-                      </nldd-menu-group>
-                    </nldd-toolbar-item>
-                    <nldd-toolbar-item slot="end">
-                      <nldd-button ref="editButton" v-if="selectedLawId" appearance="secondary" text="Bewerken" :href="authenticated ? editLawHref : undefined" @click.prevent="onEditClick" @pointerdown.capture="onLoginTriggerPointerdown"></nldd-button>
-                      <nldd-menu-item v-if="selectedLawId" slot="overflow" icon="edit" text="Bewerken" @select="onEditOverflow"></nldd-menu-item>
-                    </nldd-toolbar-item>
-                  </nldd-toolbar>
-                  <nldd-spacer size="24"></nldd-spacer>
-                  <KeepAlive>
-                    <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
-                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
-                  </KeepAlive>
-                </nldd-simple-section>
-              </template>
-            </nldd-page>
-          </nldd-split-view-pane>
+                </template>
+                <template v-else-if="otherEnrichedVersion">
+                  <nldd-banner
+                    data-testid="other-version-banner"
+                    size="sm"
+                    text="Een andere versie heeft een machineversie"
+                    :supporting-text="`Deze versie heeft alleen de wettekst. De versie van ${otherEnrichedVersion} heeft ook een machineversie.`"
+                  ></nldd-banner>
+                  <nldd-spacer size="16"></nldd-spacer>
+                </template>
+                <nldd-toolbar>
+                  <nldd-toolbar-item v-if="showMachineViews" slot="start" :priority="1">
+                    <nldd-tab-bar size="md" accessible-label="Weergave" @tab-change="onDetailTabChange">
+                      <nldd-tab-bar-item
+                        v-for="v in DETAIL_VIEWS"
+                        :key="v.key"
+                        :data-view="v.key"
+                        :current="detailView === v.key || undefined"
+                        :text="v.label"
+                      ></nldd-tab-bar-item>
+                    </nldd-tab-bar>
+                    <nldd-menu-group slot="overflow" text="Weergave">
+                      <nldd-menu-item
+                        v-for="v in DETAIL_VIEWS"
+                        :key="`overflow-${v.key}`"
+                        type="radio"
+                        :text="v.label"
+                        :selected="detailView === v.key || undefined"
+                        @select="detailView = v.key"
+                      ></nldd-menu-item>
+                    </nldd-menu-group>
+                  </nldd-toolbar-item>
+                  <nldd-toolbar-item slot="end">
+                    <nldd-button ref="editButton" v-if="selectedLawId" appearance="secondary" text="Bewerken" :href="authenticated ? editLawHref : undefined" @click.prevent="onEditClick" @pointerdown.capture="onLoginTriggerPointerdown"></nldd-button>
+                    <nldd-menu-item v-if="selectedLawId" slot="overflow" icon="edit" text="Bewerken" @select="onEditOverflow"></nldd-menu-item>
+                  </nldd-toolbar-item>
+                </nldd-toolbar>
+                <nldd-spacer size="24"></nldd-spacer>
+                <KeepAlive>
+                  <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
+                  <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
+                  <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
+                </KeepAlive>
+              </nldd-simple-section>
+            </template>
+          </nldd-page>
 
         </nldd-navigation-split-view>
   <!-- Overlays teleported to body: as light-DOM siblings of the split view they

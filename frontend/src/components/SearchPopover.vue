@@ -567,8 +567,10 @@ defineExpose({ show });
           @click="selectLaw(law.law_id)"
         >
           <nldd-text-cell>
-            {{ displayName(law) }}
-            <nldd-tag v-if="law.enriched" size="sm" color="accent">Machine</nldd-tag>
+            <p>
+              {{ displayName(law) }}
+              <nldd-tag v-if="law.enriched" size="sm" color="accent">Machine</nldd-tag>
+            </p>
           </nldd-text-cell>
         </nldd-list-item>
 

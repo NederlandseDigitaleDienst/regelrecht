@@ -18,12 +18,14 @@ const kroniek = (cel) => state.andere.find((a) => a.cel === cel)?.grammen ?? [];
     <RechterCel v-if="c.cel === state.casus.rechter?.cel" />
     <nldd-simple-section v-else>
       <nldd-title heading-level="2" slot="header" size="display-3" :text="c.cel_naam">
-        <nldd-text slot="supporting-text">Een andere cel van de casus, met een eigen kroniek.</nldd-text>
+        <p slot="supporting-text">Een andere cel van de casus, met een eigen kroniek.</p>
       </nldd-title>
       <nldd-container gap="16" max-width="560px">
         <FeitVastleggen :cel="c.cel" :handelingen="c.handelingen" />
         <nldd-text size="sm" color="secondary">
-          {{ kroniek(c.cel).length }} chronolexogram(men) in haar kroniek; ze staan onder Kroniek.
+          <p>
+            {{ kroniek(c.cel).length }} chronolexogram(men) in haar kroniek; ze staan onder Kroniek.
+          </p>
         </nldd-text>
       </nldd-container>
     </nldd-simple-section>

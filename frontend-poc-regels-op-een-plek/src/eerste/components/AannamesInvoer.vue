@@ -52,30 +52,36 @@ function getal(v, e) {
 
     <Uitklap v-model:open="uitlegOpen.v" soort="groep" titel="Hoe werkt dit?">
       <nldd-text size="xs" color="secondary">
-        Leeg is onbekend; dan geeft de toets een
-        <a href="#" @click.prevent="emit('uitleg', 'onthouding')">onthouding</a>.
-        Wat je invult is een aanname, geen feit. Toets, Graaf en de kaartlaag Uitkomst rekenen er ook mee.
+        <p>
+          Leeg is onbekend; dan geeft de toets een
+          <a href="#" @click.prevent="emit('uitleg', 'onthouding')">onthouding</a>.
+          Wat je invult is een aanname, geen feit. Toets, Graaf en de kaartlaag Uitkomst rekenen er ook mee.
+        </p>
       </nldd-text>
       <nldd-text size="xs" color="secondary">
-        "Alles gunstig" vult ja, nee en getallen in met de waarde die de regel laat slagen; de grens staat bij elk getal.
-        Getallen die van het bouwplan afhangen (bestaande woningen, bestaande hoogte, sociale woningen) volgen het bouwplan
-        van dit moment. Een paar blijven leeg: daar volstaat een andere route al.
+        <p>
+          "Alles gunstig" vult ja, nee en getallen in met de waarde die de regel laat slagen; de grens staat bij elk getal.
+          Getallen die van het bouwplan afhangen (bestaande woningen, bestaande hoogte, sociale woningen) volgen het bouwplan
+          van dit moment. Een paar blijven leeg: daar volstaat een andere route al.
+        </p>
       </nldd-text>
       <nldd-text size="xs" color="secondary">
-        "Speelt hier": daar vroeg de engine op dit punt om. Sommige vragen komen pas na een antwoord:
-        bodemkwaliteit telt alleen bij een bodemgevoelige locatie.
+        <p>
+          "Speelt hier": daar vroeg de engine op dit punt om. Sommige vragen komen pas na een antwoord:
+          bodemkwaliteit telt alleen bij een bodemgevoelige locatie.
+        </p>
       </nldd-text>
     </Uitklap>
 
     <Uitklap v-for="g in groepen" :key="g.id" v-model:open="open[g.id]" soort="groep" :titel="g.kop" :sub="g.bron">
       <template #kop>
         <nldd-tag v-if="g.hier" size="sm" color="accent" text="speelt hier"></nldd-tag>
-        <nldd-text size="xs" color="secondary">{{ g.ingevuld }}/{{ g.velden.length }}</nldd-text>
+        <nldd-text size="xs" color="secondary"><p>{{ g.ingevuld }}/{{ g.velden.length }}</p></nldd-text>
       </template>
       <div v-for="v in g.velden" :key="v.id" class="veld" :class="{ hier: speelt(v) }">
         <div class="label">
-          <nldd-text size="sm">{{ v.tekst }}</nldd-text>
-          <nldd-text v-if="v.uitleg" size="xs" color="secondary">{{ v.uitleg }}</nldd-text>
+          <nldd-text size="sm"><p>{{ v.tekst }}</p></nldd-text>
+          <nldd-text v-if="v.uitleg" size="xs" color="secondary"><p>{{ v.uitleg }}</p></nldd-text>
         </div>
         <nldd-segmented-control
           v-if="v.soort === 'ja-nee'"
@@ -89,7 +95,7 @@ function getal(v, e) {
         <div v-else class="getal">
           <template v-if="aannames[v.id] !== undefined">
             <nldd-number-field :value="aannames[v.id]" min="0" max="100000" step="1" size="sm" width="96px" :accessible-label="v.tekst" @change="getal(v, $event)"></nldd-number-field>
-            <nldd-text size="xs" color="secondary">{{ v.eenheid }}</nldd-text>
+            <nldd-text size="xs" color="secondary"><p>{{ v.eenheid }}</p></nldd-text>
             <nldd-icon-button size="sm" appearance="neutral-transparent" icon="close-small" text="Wissen, terug naar onbekend" @click="wis(v)"></nldd-icon-button>
           </template>
           <nldd-button v-else size="sm" appearance="neutral-transparent" start-icon="plus-small" text="Invullen" @click="aannames[v.id] = 0"></nldd-button>

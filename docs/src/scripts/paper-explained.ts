@@ -208,7 +208,8 @@ class ReceiptsPanel {
 
       const reveal = card.querySelector<HTMLElement>('[data-reveal]');
       if (reveal) {
-        reveal.textContent =
+        // nldd-text takes its text in a paragraph of its own.
+        reveal.querySelector('p')!.textContent =
           id === 'a'
             ? t.revealA
             : (this.el.dataset.revealB ?? '')
@@ -224,7 +225,7 @@ class ReceiptsPanel {
       console.error('paper-explained:', err);
       const reveal = card.querySelector<HTMLElement>('[data-reveal]');
       if (reveal) {
-        reveal.textContent = t.failed;
+        reveal.querySelector('p')!.textContent = t.failed;
         reveal.hidden = false;
       }
     } finally {

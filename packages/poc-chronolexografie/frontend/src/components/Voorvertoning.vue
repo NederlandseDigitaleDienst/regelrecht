@@ -139,13 +139,13 @@ const regels = (g) =>
           size="display-6"
           :text="opBezwaarSoort ? 'Nieuw besluit' : 'Besluit'"
         >
-          <nldd-text slot="supporting-text" size="sm" color="secondary">
+          <p slot="supporting-text">
             <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
-          </nldd-text>
+          </p>
           <nldd-badge slot="end" size="sm" :color="badge(besluit).kleur" :text="badge(besluit).tekst"></nldd-badge>
         </nldd-title>
         <nldd-text v-else-if="opBezwaarSoort" size="sm" color="secondary">
-          Er komt geen nieuw besluit: het bestreden besluit blijft.
+          <p>Er komt geen nieuw besluit: het bestreden besluit blijft.</p>
         </nldd-text>
         <nldd-list
           v-if="keten.length"

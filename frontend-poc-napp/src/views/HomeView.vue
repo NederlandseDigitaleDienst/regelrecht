@@ -47,7 +47,7 @@ const stappen = [
 
     <nldd-simple-section>
       <nldd-title size="display-1">
-        <span slot="overline">Nederlandse autoriteit politieke partijen</span>
+        <p slot="overline">Nederlandse autoriteit politieke partijen</p>
         <h1>Subsidie voor politieke partijen</h1>
       </nldd-title>
       <nldd-spacer size="16"></nldd-spacer>
@@ -144,7 +144,7 @@ const stappen = [
 
     <nldd-page-footer slot="footer">
       <nldd-container padding="24" gap="8">
-        <nldd-text size="display-5">Nederlandse autoriteit politieke partijen</nldd-text>
+        <nldd-text size="display-5"><p>Nederlandse autoriteit politieke partijen</p></nldd-text>
         <nldd-rich-text>
           <p>
             De Napp is een onafhankelijke autoriteit, ingesteld bij de Wet op de

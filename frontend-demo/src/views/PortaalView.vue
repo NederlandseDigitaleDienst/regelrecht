@@ -145,7 +145,7 @@ const loadFailureText = computed(() => loadFailures.value.map((f) => `${f.id} ($
            van hem aan te kondigen. -->
       <nldd-title slot="header" size="display-2">
         <h1>{{ heading }}</h1>
-        <span v-if="!narrow" slot="supporting-text">{{ subtitle }}</span>
+        <p v-if="!narrow" slot="supporting-text">{{ subtitle }}</p>
       </nldd-title>
       <!-- Naam, voorbehoud en beschrijving horen bij elkaar: het zijn drie
            dingen over dezelfde persoon. Ze staan in één blok onder de kop, met

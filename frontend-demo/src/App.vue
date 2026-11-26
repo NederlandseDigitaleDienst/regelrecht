@@ -549,25 +549,27 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
         </nldd-toolbar>
       </nldd-container>
 
-      <nldd-split-view-pane slot="main" has-content>
-        <nldd-page v-if="loadError">
-          <nldd-simple-section>
-            <nldd-banner variant="critical" :text="t('app.error.title')" :supporting-text="String(loadError)"></nldd-banner>
-          </nldd-simple-section>
-        </nldd-page>
-        <nldd-page v-else-if="!ready">
-          <nldd-simple-section height="60vh">
-            <nldd-activity-indicator show-text :text="t('app.loading')" timing="instant" size="48"></nldd-activity-indicator>
-          </nldd-simple-section>
-        </nldd-page>
-        <router-view v-else v-slot="{ Component }">
+      <nldd-page v-if="loadError" slot="main">
+        <nldd-simple-section>
+          <nldd-banner variant="critical" :text="t('app.error.title')" :supporting-text="String(loadError)"></nldd-banner>
+        </nldd-simple-section>
+      </nldd-page>
+      <nldd-page v-else-if="!ready" slot="main">
+        <nldd-simple-section height="60vh">
+          <nldd-activity-indicator show-text :text="t('app.loading')" timing="instant" size="48"></nldd-activity-indicator>
+        </nldd-simple-section>
+      </nldd-page>
+      <!-- A routed view is not always a single element, so the slot sits on
+           an element of its own: a fragment does not inherit attributes. -->
+      <div v-else slot="main">
+        <router-view v-slot="{ Component }">
           <!-- Keyed so the walkthrough can drop every cached tab when it
                jumps (walkthrough/viewEpoch.ts). -->
           <keep-alive :key="viewEpoch">
             <component :is="Component" />
           </keep-alive>
         </router-view>
-      </nldd-split-view-pane>
+      </div>
     </nldd-bar-split-view>
 
     <!-- nldd-lint-disable-next-line modal-dialog-no-form -- a single password prompt that blocks until answered, not work that needs the page behind it -->

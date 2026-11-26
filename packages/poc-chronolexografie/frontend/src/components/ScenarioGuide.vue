@@ -132,8 +132,8 @@ const where = computed(() =>
 
     <nldd-simple-section v-if="p.finished">
       <nldd-container gap="16">
-        <nldd-text v-for="(n, i) in guide.after" :key="i">{{ n }}</nldd-text>
-        <nldd-text>{{ scenario.eind }}</nldd-text>
+        <nldd-text v-for="(n, i) in guide.after" :key="i"><p>{{ n }}</p></nldd-text>
+        <nldd-text><p>{{ scenario.eind }}</p></nldd-text>
         <nldd-button-group size="sm">
           <nldd-button appearance="secondary" text="Opnieuw spelen" @click="emit('restart')"></nldd-button>
           <nldd-button appearance="neutral-transparent" text="Ander scenario" @click="emit('choose')"></nldd-button>
@@ -143,12 +143,12 @@ const where = computed(() =>
 
     <nldd-simple-section v-else padding-block="8">
       <nldd-container gap="8">
-        <nldd-text v-if="seen" size="sm" color="secondary">{{ seen }}</nldd-text>
+        <nldd-text v-if="seen" size="sm" color="secondary"><p>{{ seen }}</p></nldd-text>
         <nldd-title size="display-4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
-        <nldd-text v-if="current.story">{{ current.story }}</nldd-text>
-        <nldd-text v-for="(n, i) in current.notes" :key="i">{{ n }}</nldd-text>
-        <nldd-text v-if="login">{{ login }}</nldd-text>
-        <nldd-text>{{ current.todo }}</nldd-text>
+        <nldd-text v-if="current.story"><p>{{ current.story }}</p></nldd-text>
+        <nldd-text v-for="(n, i) in current.notes" :key="i"><p>{{ n }}</p></nldd-text>
+        <nldd-text v-if="login"><p>{{ login }}</p></nldd-text>
+        <nldd-text><p>{{ current.todo }}</p></nldd-text>
         <nldd-list v-if="current.values.length" dividers="never" accessible-label="Waarden uit het scenario">
           <nldd-list-item v-for="v in current.values" :key="v" size="sm">
             <nldd-icon-cell icon="circle-filled-extra-small" color="secondary" size="16"></nldd-icon-cell>

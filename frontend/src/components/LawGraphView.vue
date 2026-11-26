@@ -409,7 +409,7 @@ const currentStep = computed(() =>
   flex: 0 0 40vh;
   min-height: 220px;
   border-top: 2px solid var(--primitives-color-donkergeel-500);
-  background: var(--semantics-surfaces-background-color);
+  background: var(--semantics-surfaces-base-background-color);
   color: var(--semantics-content-color);
   font-size: 13px;
 }

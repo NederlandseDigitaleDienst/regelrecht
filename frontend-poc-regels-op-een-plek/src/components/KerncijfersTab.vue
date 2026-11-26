@@ -35,8 +35,8 @@ const CIJFERS = computed(() => [
     <nldd-title size="display-5" :heading-level="2" text="Kerncijfers" supporting-text="Vóór DSO is de eerste PoC; met DSO is het DSO-spoor. Zelfde bouwplan, zelfde engine."></nldd-title>
     <div class="cijfers">
       <div v-for="c in CIJFERS" :key="c.tekst">
-        <nldd-text size="display-3">{{ c.waarde }}</nldd-text>
-        <nldd-text size="xs" color="secondary">{{ c.tekst }}</nldd-text>
+        <nldd-text size="display-3"><p>{{ c.waarde }}</p></nldd-text>
+        <nldd-text size="xs" color="secondary"><p>{{ c.tekst }}</p></nldd-text>
       </div>
     </div>
 
@@ -44,7 +44,7 @@ const CIJFERS = computed(() => [
     <nldd-list appearance="simple" accessible-label="Overgang per vak">
       <nldd-list-item v-for="[k, n] in overgang" :key="k" size="sm">
         <nldd-text-cell :text="k"></nldd-text-cell>
-        <nldd-cell width="fit-content"><nldd-text size="sm">{{ n }}</nldd-text></nldd-cell>
+        <nldd-cell width="fit-content"><nldd-text size="sm"><p>{{ n }}</p></nldd-text></nldd-cell>
       </nldd-list-item>
     </nldd-list>
 

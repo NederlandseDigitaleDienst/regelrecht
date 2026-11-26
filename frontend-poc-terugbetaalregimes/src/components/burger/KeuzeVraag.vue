@@ -8,8 +8,8 @@
 
   <nldd-card v-else class="keuze">
     <nldd-container padding="20" gap="12">
-      <nldd-title heading-level="3" size="display-4">
-        <span>{{ meta.vraag }}</span>
+      <nldd-title size="display-4">
+        <h3>{{ meta.vraag }}</h3>
       </nldd-title>
       <p class="keuze-uitleg">{{ meta.uitleg }}</p>
 

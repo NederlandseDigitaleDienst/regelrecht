@@ -33,11 +33,11 @@ const { fields, label } = Astro.props;
   sm-columns="minmax(140px, 1fr) minmax(200px, 1.6fr)"
 >
   <nldd-table-row slot="header">
-    <nldd-cell width="full"><nldd-text weight="bold">Field</nldd-text></nldd-cell>
+    <nldd-cell width="full"><nldd-text weight="bold"><p>Field</p></nldd-text></nldd-cell>
     <nldd-cell width="full" hide-below="md">
-      <nldd-text weight="bold">Type</nldd-text>
+      <nldd-text weight="bold"><p>Type</p></nldd-text>
     </nldd-cell>
-    <nldd-cell width="full"><nldd-text weight="bold">Description</nldd-text></nldd-cell>
+    <nldd-cell width="full"><nldd-text weight="bold"><p>Description</p></nldd-text></nldd-cell>
   </nldd-table-row>
 
   {
@@ -88,7 +88,7 @@ const { fields, label } = Astro.props;
 
             {field.default !== undefined && (
               <nldd-text size="sm" color="secondary">
-                Defaults to <code>{JSON.stringify(field.default)}</code>.
+                <p>Defaults to <code>{JSON.stringify(field.default)}</code>.</p>
               </nldd-text>
             )}
 
@@ -98,7 +98,7 @@ const { fields, label } = Astro.props;
                 here. */}
             {field.pattern && (
               <nldd-text size="sm" color="secondary">
-                Must match <code>{field.pattern}</code>.
+                <p>Must match <code>{field.pattern}</code>.</p>
               </nldd-text>
             )}
 

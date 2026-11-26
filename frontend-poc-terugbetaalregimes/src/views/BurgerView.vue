@@ -2,9 +2,9 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title heading-level="1" size="display-1">
-          <span slot="overline">Voor burgers</span>
-          <span>Jouw studieschuld</span>
+        <nldd-title size="display-1">
+          <p slot="overline">Voor burgers</p>
+          <h1>Jouw studieschuld</h1>
         </nldd-title>
         <persona-switcher
           v-if="ready && personas.length"
@@ -61,12 +61,12 @@
 
       <!-- Wat je zou kunnen aanpassen; niets doen is er altijd één van -->
       <nldd-simple-section background="tinted">
-        <nldd-title heading-level="2" size="display-3">
-          <span>Dit zou je kunnen aanpassen</span>
-          <span slot="supporting-text">
+        <nldd-title size="display-3">
+          <h2>Dit zou je kunnen aanpassen</h2>
+          <p slot="supporting-text">
             Je hoeft niets te doen. Laat je alles staan, dan blijft het bedrag hierboven gelden. Zet hieronder iets
             aan om te zien wat er dan verandert.
-          </span>
+          </p>
         </nldd-title>
         <div class="keuze-grid">
           <keuze-vraag
@@ -156,9 +156,9 @@
 
       <!-- De uitkomst staat niet op zichzelf -->
       <nldd-simple-section>
-        <nldd-title heading-level="2" size="display-3">
-          <span>Wat dit nog meer raakt</span>
-          <span slot="supporting-text">Andere regelingen kijken naar hetzelfde inkomen.</span>
+        <nldd-title size="display-3">
+          <h2>Wat dit nog meer raakt</h2>
+          <p slot="supporting-text">Andere regelingen kijken naar hetzelfde inkomen.</p>
         </nldd-title>
         <toeslagen-signaal class="sectie-inhoud" :persona="selected" :choices="choices" />
       </nldd-simple-section>

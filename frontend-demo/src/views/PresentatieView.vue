@@ -60,9 +60,9 @@ function kindLabel(s: SlideConfig) {
   <nldd-page>
     <nldd-simple-section width="720px">
       <nldd-title slot="header" size="display-2">
-        <span slot="overline">{{ t('home.presentation.overline') }}</span>
+        <p slot="overline">{{ t('home.presentation.overline') }}</p>
         <h1>{{ t('home.presentation.title') }}</h1>
-        <span slot="supporting-text">{{ t('home.presentation.subtitle') }}</span>
+        <p slot="supporting-text">{{ t('home.presentation.subtitle') }}</p>
         <!-- `end`, niet `actions`: nldd-title heeft geen actions-slot, en de
              knop viel daardoor buiten de shadow-DOM (0x0, onzichtbaar). Zonder
              container ertussen, want die krijgt in `.title__end` geen breedte. -->
@@ -115,7 +115,7 @@ function kindLabel(s: SlideConfig) {
       <nldd-spacer size="16"></nldd-spacer>
       <nldd-title size="display-4">
         <h2>{{ t('home.presentation.slides.label') }}</h2>
-        <span slot="supporting-text">{{ t('home.presentation.slides.hint') }}</span>
+        <p slot="supporting-text">{{ t('home.presentation.slides.hint') }}</p>
       </nldd-title>
       <nldd-list appearance="box-base" :accessible-label="t('home.presentation.slides.label')">
         <nldd-list-item v-for="(s, i) in slides" :key="i" size="sm" button @click="p.start(i)">

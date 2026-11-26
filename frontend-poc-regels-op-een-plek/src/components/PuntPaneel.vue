@@ -114,33 +114,33 @@ watch([traceOpen, () => props.index], rekenTrace);
           :supporting-text="scenario && verwachtKlasse ? (oordeelOud === verwachtKlasse ? 'Zoals verwacht.' : 'Anders dan verwacht.') : ''"></nldd-banner>
 
         <template v-if="cel.oud">
-          <nldd-text size="sm"><strong>Plannen</strong></nldd-text>
+          <nldd-text size="sm"><p><strong>Plannen</strong></p></nldd-text>
           <nldd-list appearance="simple" accessible-label="Plannen vóór DSO">
             <nldd-list-item v-for="([rol, id], i) in plannenOud" :key="i" size="sm">
               <nldd-text-cell :text="kortId(id)" :supporting-text="rol"></nldd-text-cell>
             </nldd-list-item>
           </nldd-list>
-          <nldd-text size="sm"><strong>Gerekende artikelen ({{ kOud?.stappen?.length ?? 0 }})</strong></nldd-text>
+          <nldd-text size="sm"><p><strong>Gerekende artikelen ({{ kOud?.stappen?.length ?? 0 }})</strong></p></nldd-text>
           <nldd-list v-if="kOud?.stappen?.length" appearance="simple" accessible-label="Stappen vóór DSO">
             <nldd-list-item v-for="(s, i) in kOud.stappen" :key="i" size="sm">
               <nldd-text-cell :text="`${kortRegeling(s.regeling)}, artikel ${s.artikel}`"></nldd-text-cell>
               <nldd-cell width="fit-content"><nldd-tag :color="TAG[s.uitkomst] ?? 'neutral'" :text="TEKST[s.uitkomst] ?? s.uitkomst"></nldd-tag></nldd-cell>
             </nldd-list-item>
           </nldd-list>
-          <nldd-text v-else size="sm" color="secondary">{{ kOud?.status === 'geen-regels' ? 'Geen regels over bouwen in dit deel.' : 'Niets gerekend.' }}</nldd-text>
+          <nldd-text v-else size="sm" color="secondary"><p>{{ kOud?.status === 'geen-regels' ? 'Geen regels over bouwen in dit deel.' : 'Niets gerekend.' }}</p></nldd-text>
         </template>
         <template v-else-if="scenario?.oud?.gerekend">
-          <nldd-text size="sm"><strong>Gerekende artikelen ({{ scenario.oud.gerekend.length }})</strong></nldd-text>
+          <nldd-text size="sm"><p><strong>Gerekende artikelen ({{ scenario.oud.gerekend.length }})</strong></p></nldd-text>
           <nldd-list appearance="simple" accessible-label="Stappen vóór DSO">
             <nldd-list-item v-for="(g, i) in scenario.oud.gerekend" :key="i" size="sm">
               <nldd-text-cell :text="kortId(g)"></nldd-text-cell>
               <nldd-cell v-if="scenario.oud.weigering.includes(g)" width="fit-content"><nldd-tag color="critical" text="weigering"></nldd-tag></nldd-cell>
             </nldd-list-item>
           </nldd-list>
-          <nldd-text v-if="scenario.oud.open?.length" size="xs" color="secondary">Nog open: {{ scenario.oud.open.join('; ') }}</nldd-text>
+          <nldd-text v-if="scenario.oud.open?.length" size="xs" color="secondary"><p>Nog open: {{ scenario.oud.open.join('; ') }}</p></nldd-text>
         </template>
-        <nldd-text v-else size="sm" color="secondary">Geen vak van de eerste PoC op deze plek.</nldd-text>
-        <nldd-text size="xs" color="secondary">Provincie, waterschap en rijk: niet gerekend.</nldd-text>
+        <nldd-text v-else size="sm" color="secondary"><p>Geen vak van de eerste PoC op deze plek.</p></nldd-text>
+        <nldd-text size="xs" color="secondary"><p>Provincie, waterschap en rijk: niet gerekend.</p></nldd-text>
       </nldd-container>
 
       <!-- Met DSO -->
@@ -149,20 +149,20 @@ watch([traceOpen, () => props.index], rekenTrace);
         <nldd-banner :variant="banner(klasseDso(cel, weergave)).variant" :text="`Gemeente: ${banner(klasseDso(cel, weergave)).tekst.toLowerCase()}`" size="sm" :heading-level="4"
           :supporting-text="kDso.reden ?? (kDso.deel ? deelTekst(kDso.deel) : '')"></nldd-banner>
         <div v-if="!beoogd" class="rij">
-          <nldd-text size="sm">Alle overheden samen</nldd-text>
+          <nldd-text size="sm"><p>Alle overheden samen</p></nldd-text>
           <nldd-tag :color="TAG[totaal] ?? 'neutral'" :text="TEKST[totaal] ?? totaal"></nldd-tag>
         </div>
 
-        <nldd-text size="sm"><strong>Plannen, gelaagdheid afgeleid uit de gegevens</strong></nldd-text>
+        <nldd-text size="sm"><p><strong>Plannen, gelaagdheid afgeleid uit de gegevens</strong></p></nldd-text>
         <nldd-list appearance="simple" accessible-label="Plannen met DSO">
           <nldd-list-item v-for="p in plannenDso" :key="p.id + p.laag" size="sm">
             <nldd-text-cell :text="p.naam || kortId(p.id)" :supporting-text="LAAG[p.laag] ?? p.laag"></nldd-text-cell>
           </nldd-list-item>
         </nldd-list>
-        <nldd-text v-if="genegeerd.length" size="xs" color="secondary">Wel in het DSO, telt niet mee: {{ genegeerd.map((p) => `${p.naam || kortId(p.id)} (${LAAG[p.laag] ?? p.laag})`).join(', ') }}.</nldd-text>
+        <nldd-text v-if="genegeerd.length" size="xs" color="secondary"><p>Wel in het DSO, telt niet mee: {{ genegeerd.map((p) => `${p.naam || kortId(p.id)} (${LAAG[p.laag] ?? p.laag})`).join(', ') }}.</p></nldd-text>
         <nldd-banner v-for="(o, i) in cel.open" :key="'o' + i" variant="warning" size="sm" :text="o"></nldd-banner>
 
-        <nldd-text size="sm"><strong>Andere overheden</strong></nldd-text>
+        <nldd-text size="sm"><p><strong>Andere overheden</strong></p></nldd-text>
         <nldd-list appearance="simple" accessible-label="Andere overheden">
           <nldd-list-item v-for="a in andere" :key="a.o" size="sm">
             <nldd-text-cell :text="a.o" :supporting-text="`${a.gerekend} artikelen gerekend`"></nldd-text-cell>
@@ -170,22 +170,22 @@ watch([traceOpen, () => props.index], rekenTrace);
           </nldd-list-item>
         </nldd-list>
 
-        <nldd-text size="sm"><strong>Wat je moet aanvragen of melden</strong></nldd-text>
+        <nldd-text size="sm"><p><strong>Wat je moet aanvragen of melden</strong></p></nldd-text>
         <nldd-list v-if="d.plichten.length" appearance="simple" accessible-label="Plichten">
           <nldd-list-item v-for="(p, i) in d.plichten" :key="i" size="sm">
             <nldd-text-cell :overline="OVERHEID[p.overheid]" :text="p.tekst" :supporting-text="p.grond"></nldd-text-cell>
           </nldd-list-item>
         </nldd-list>
-        <nldd-text v-else size="sm" color="secondary">Geen.</nldd-text>
+        <nldd-text v-else size="sm" color="secondary"><p>Geen.</p></nldd-text>
       </nldd-container>
     </div>
 
     <nldd-container layout="stack" gap="8">
       <nldd-title size="display-5" :heading-level="3" text="Artikelen uit het DSO op deze plek" supporting-text="Bij dit bouwplan, per overheid. Klik op een artikel voor de tekst."></nldd-title>
       <details v-for="g in perOverheid" :key="g.o" class="overheid" :open="g.o === 'gemeente' || undefined">
-        <summary><nldd-text size="sm"><strong>{{ g.naam }}</strong> ({{ g.aantal }})</nldd-text></summary>
+        <summary><nldd-text size="sm"><span><strong>{{ g.naam }}</strong> ({{ g.aantal }})</span></nldd-text></summary>
         <template v-for="grp in g.groepen" :key="grp.r">
-          <nldd-text size="xs" color="secondary" class="regeling">{{ grp.r }}</nldd-text>
+          <nldd-text size="xs" color="secondary" class="regeling"><p>{{ grp.r }}</p></nldd-text>
           <nldd-list appearance="simple" :accessible-label="grp.r">
             <nldd-list-item v-for="x in grp.xs" :key="x.k" size="sm" button @click="emit('artikel', x.k)">
               <nldd-text-cell :text="x.m.t || `Artikel ${x.m.a}`" :supporting-text="kenmerk(x.m)"></nldd-text-cell>
@@ -194,18 +194,18 @@ watch([traceOpen, () => props.index], rekenTrace);
           </nldd-list>
         </template>
       </details>
-      <nldd-text size="xs" color="secondary">Rijk: alleen artikelen die op deze plek bijzonder zijn; {{ landelijk }} landelijke artikelen horen bij het bouwplan en gelden overal.</nldd-text>
+      <nldd-text size="xs" color="secondary"><p>Rijk: alleen artikelen die op deze plek bijzonder zijn; {{ landelijk }} landelijke artikelen horen bij het bouwplan en gelden overal.</p></nldd-text>
     </nldd-container>
 
     <Uitklap v-model:open="traceOpen" titel="Trace van het DSO-spoor" sub="Wat de engine per artikel deed: invoer, stappen en uitkomst. Opnieuw gerekend in je browser, met 5 lagen van 3,2 m en open gegevens gunstig.">
-      <nldd-text v-if="traceBezig" size="sm" color="secondary">Engine en regels laden, en rekenen…</nldd-text>
+      <nldd-text v-if="traceBezig" size="sm" color="secondary"><p>Engine en regels laden, en rekenen…</p></nldd-text>
       <nldd-banner v-else-if="traceFout" variant="critical" size="sm" text="De trace kon niet worden gerekend" :supporting-text="traceFout" :heading-level="4"></nldd-banner>
       <template v-else-if="trace">
         <details v-for="t in trace" :key="t.o" class="overheid" :open="t.o === 'gemeente' || undefined">
-          <summary><nldd-text size="sm"><strong>{{ t.naam }}</strong> ({{ t.aantal }} {{ t.aantal === 1 ? 'aanroep' : 'aanroepen' }})</nldd-text></summary>
+          <summary><nldd-text size="sm"><span><strong>{{ t.naam }}</strong> ({{ t.aantal }} {{ t.aantal === 1 ? 'aanroep' : 'aanroepen' }})</span></nldd-text></summary>
           <nldd-code-viewer wrap max-height="420px" language="text">{{ t.tekst }}</nldd-code-viewer>
         </details>
-        <nldd-text v-if="!trace.length" size="sm" color="secondary">Hier rekent het DSO-spoor geen artikelen.</nldd-text>
+        <nldd-text v-if="!trace.length" size="sm" color="secondary"><p>Hier rekent het DSO-spoor geen artikelen.</p></nldd-text>
       </template>
     </Uitklap>
   </nldd-container>

@@ -8,12 +8,12 @@
   >
     <nldd-page>
       <nldd-container padding="24" gap="24">
-        <nldd-title heading-level="2" size="display-3">
-          <span slot="overline">Voor beleidsmakers</span>
-          <span>{{ bewerken ? 'Scenario aanpassen' : 'Scenario toevoegen' }}</span>
-          <span slot="supporting-text">
+        <nldd-title size="display-3">
+          <p slot="overline">Voor beleidsmakers</p>
+          <h2>{{ bewerken ? 'Scenario aanpassen' : 'Scenario toevoegen' }}</h2>
+          <p slot="supporting-text">
             Stel een situatie samen en reken hem door naast de andere scenario's.
-          </span>
+          </p>
         </nldd-title>
 
         <div class="sf-velden">

@@ -108,15 +108,17 @@ const titel = (rij, i) => `${res.value.lagen[i]} lagen (${meter(res.value.hoogte
       text="Wat als het bouwplan anders is?"
       :supporting-text="rd ? `Punt RD ${Math.round(rd[0])}, ${Math.round(rd[1])}. Verkenning, geen besluit.` : ''"
     ></nldd-title>
-    <nldd-text v-if="!stapel" size="sm">Klik op een plek op de kaart, of kies een testpunt.</nldd-text>
+    <nldd-text v-if="!stapel" size="sm"><p>Klik op een plek op de kaart, of kies een testpunt.</p></nldd-text>
 
     <!-- 1. De situatie: het bouwplan. Altijd zichtbaar; de rest rekent ermee. -->
     <section class="situatie" aria-label="Situatie">
-      <nldd-text size="sm"><strong>Situatie: het bouwplan</strong></nldd-text>
+      <nldd-text size="sm"><p><strong>Situatie: het bouwplan</strong></p></nldd-text>
       <BouwplanInvoer alles />
       <div class="situatie-voet">
         <nldd-text size="xs" color="secondary">
-          {{ ingevuld ? `Met ${ingevuld} aannames uit "Gegevens invullen".` : 'Nog geen aannames: wat de kaart niet weet, is onbekend.' }}
+          <p>
+            {{ ingevuld ? `Met ${ingevuld} aannames uit "Gegevens invullen".` : 'Nog geen aannames: wat de kaart niet weet, is onbekend.' }}
+          </p>
         </nldd-text>
         <nldd-button size="sm" appearance="neutral-tinted" start-icon="map" text="Toon de uitkomst op de kaart" @click="emit('kaart')"></nldd-button>
       </div>
@@ -126,16 +128,16 @@ const titel = (rij, i) => `${res.value.lagen[i]} lagen (${meter(res.value.hoogte
 
     <!-- 2. Uitkomst per aantal lagen. -->
     <Uitklap v-model:open="lagenOpen" titel="Uitkomst per aantal lagen" sub="De toets voor 1 tot en met 15 lagen: bij hoeveel lagen slaat een regel om?">
-      <nldd-text v-if="!stapel || !res" size="sm" color="secondary">{{ stapel ? 'Rekenen…' : 'Kies eerst een plek.' }}</nldd-text>
+      <nldd-text v-if="!stapel || !res" size="sm" color="secondary"><p>{{ stapel ? 'Rekenen…' : 'Kies eerst een plek.' }}</p></nldd-text>
       <template v-else>
         <div class="legenda" aria-label="Legenda">
           <span v-for="s in ['toegestaan', 'onthouding', 'niet toegestaan']" :key="s" class="leg-item">
             <span class="cel" :class="staat(s).klasse">{{ staat(s).kort }}</span>
-            <nldd-text size="xs">{{ staat(s).tekst }}</nldd-text>
+            <nldd-text size="xs"><span>{{ staat(s).tekst }}</span></nldd-text>
           </span>
-          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs">regel slaat om</nldd-text></span>
-          <span class="leg-item"><span class="cel leeg vraag-voorbeeld"></span><nldd-text size="xs">{{ bouwplan.lagen }} lagen, de vraag</nldd-text></span>
-          <a href="#" class="uitleg-link" @click.prevent="emit('uitleg', 'onthouding')"><nldd-text size="xs">Wat betekenen deze termen?</nldd-text></a>
+          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs"><p>regel slaat om</p></nldd-text></span>
+          <span class="leg-item"><span class="cel leeg vraag-voorbeeld"></span><nldd-text size="xs"><span>{{ bouwplan.lagen }} lagen, de vraag</span></nldd-text></span>
+          <a href="#" class="uitleg-link" @click.prevent="emit('uitleg', 'onthouding')"><nldd-text size="xs"><p>Wat betekenen deze termen?</p></nldd-text></a>
         </div>
 
         <nldd-segmented-control :value="toon" size="sm" accessible-label="Welke regels" @change="toon = $event.target.value">
@@ -151,7 +153,7 @@ const titel = (rij, i) => `${res.value.lagen[i]} lagen (${meter(res.value.hoogte
             :overline="k.label === 'beoogd' ? 'Beoogd: ontwerp, geen geldend recht' : (k.label ? 'Geldend' : '')"
             :supporting-text="k.plan ? k.plan.naam : ''"
           ></nldd-title>
-          <nldd-text v-if="k.status !== 'gerekend'" size="sm" color="secondary">{{ STATUS[k.status] ?? k.toelichting }}</nldd-text>
+          <nldd-text v-if="k.status !== 'gerekend'" size="sm" color="secondary"><p>{{ STATUS[k.status] ?? k.toelichting }}</p></nldd-text>
 
           <template v-else>
             <div class="tabel-wrap">
@@ -181,14 +183,14 @@ const titel = (rij, i) => `${res.value.lagen[i]} lagen (${meter(res.value.hoogte
                 </tbody>
               </table>
             </div>
-            <nldd-text v-if="toon === 'omslaan' && k.verborgen" size="xs" color="secondary">{{ k.verborgen }} regels slaan niet om en staan onder "Alle regels".</nldd-text>
+            <nldd-text v-if="toon === 'omslaan' && k.verborgen" size="xs" color="secondary"><p>{{ k.verborgen }} regels slaan niet om en staan onder "Alle regels".</p></nldd-text>
 
             <nldd-list v-if="k.kantel.length" appearance="simple" accessible-label="Kantelpunten">
               <nldd-list-item v-for="(p, i) in k.kantel" :key="i" size="sm">
                 <nldd-text-cell :overline="p.eind ? 'Eindoordeel' : 'Kantelpunt'" :text="p.tekst" :supporting-text="p.regel"></nldd-text-cell>
               </nldd-list-item>
             </nldd-list>
-            <nldd-text v-else size="sm" color="secondary">Geen regel slaat om tussen 1 en 15 lagen.</nldd-text>
+            <nldd-text v-else size="sm" color="secondary"><p>Geen regel slaat om tussen 1 en 15 lagen.</p></nldd-text>
           </template>
         </nldd-container>
       </template>

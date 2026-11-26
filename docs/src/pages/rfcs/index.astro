@@ -94,20 +94,18 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
               {group.rfcs.map((r) => (
                 <nldd-list-item href={r.link}>
                   <nldd-text-cell overline={r.id} text={r.title} width="full">
-                    <nldd-container
-                      slot="supporting-text"
-                      layout="wrap"
-                      gap="4"
-                    >
+                    {/* The slot takes a paragraph; the tags sit in it as
+                        inline elements, a space apart. */}
+                    <p slot="supporting-text">
                       <nldd-tag color={rfcStatusColor(r.status)} size="md">
                         {r.status}
-                      </nldd-tag>
+                      </nldd-tag>{' '}
                       {r.implementation && (
                         <nldd-tag color="neutral" size="md">
                           {r.implementation}
                         </nldd-tag>
                       )}
-                    </nldd-container>
+                    </p>
                   </nldd-text-cell>
                   <nldd-spacer-cell />
                   <nldd-icon-cell size="20" icon="chevron-right" />
@@ -127,8 +125,10 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
             </nldd-title>
             <nldd-spacer size="4" />
             <nldd-text size="sm" color="secondary">
-              Kept as the record of what was decided at the time. They do not
-              describe the current design.
+              <p>
+                Kept as the record of what was decided at the time. They do not
+                describe the current design.
+              </p>
             </nldd-text>
             <nldd-spacer size="8" />
             <nldd-list type="navigation" appearance="simple">
@@ -158,8 +158,10 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
             </nldd-title>
             <nldd-spacer size="4" />
             <nldd-text size="sm" color="secondary">
-              Numbers held for a pull request that has not landed an RFC under
-              them. They hold no design.
+              <p>
+                Numbers held for a pull request that has not landed an RFC under
+                them. They hold no design.
+              </p>
             </nldd-text>
             <nldd-spacer size="8" />
             <nldd-list type="navigation" appearance="simple">

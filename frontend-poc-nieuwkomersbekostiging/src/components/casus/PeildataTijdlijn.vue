@@ -15,42 +15,48 @@
       <nldd-table-row v-for="i in zichtbaar" :key="peildata[i]" :selected="peildata[i] === geselecteerd ? true : undefined">
         <nldd-text-cell size="sm" :text="datumLabel(peildata[i])" :supporting-text="kwartaalLabel(peildata[i])" :color="ist[i]?.in_bestand ? 'content' : 'secondary'"></nldd-text-cell>
         <nldd-text-cell size="sm" :color="kleur(ist[i])">
-          <span class="tl-cel">
-            <nldd-icon :icon="ist[i]?.telt ? 'check-mark-circle' : 'dismiss-circle'" size="16"></nldd-icon>
-            <nldd-tag v-if="ist[i]?.telt" size="sm" :color="categorieColor(ist[i].categorie_effectief)" :text="categorieLabel(ist[i].categorie_effectief)"></nldd-tag>
-            <span v-if="ist[i]?.telt" class="tl-jaar">jaar {{ ist[i].bekostigingsjaar }}</span>
-            <span class="tl-bedrag">{{ ist[i]?.telt ? euro(ist[i].bedrag) : uitlegNietTellend(ist[i]) }}</span>
-          </span>
+          <p>
+            <span class="tl-cel">
+              <nldd-icon :icon="ist[i]?.telt ? 'check-mark-circle' : 'dismiss-circle'" size="16"></nldd-icon>
+              <nldd-tag v-if="ist[i]?.telt" size="sm" :color="categorieColor(ist[i].categorie_effectief)" :text="categorieLabel(ist[i].categorie_effectief)"></nldd-tag>
+              <span v-if="ist[i]?.telt" class="tl-jaar">jaar {{ ist[i].bekostigingsjaar }}</span>
+              <span class="tl-bedrag">{{ ist[i]?.telt ? euro(ist[i].bedrag) : uitlegNietTellend(ist[i]) }}</span>
+            </span>
+          </p>
         </nldd-text-cell>
         <nldd-text-cell v-for="k in kolommen" :key="k.id" size="sm" :color="kleur(k.timeline?.[i])">
-          <span class="tl-cel">
-            <nldd-icon :icon="k.timeline?.[i]?.telt ? 'check-mark-circle' : 'dismiss-circle'" size="16"></nldd-icon>
-            <nldd-tag v-if="k.timeline?.[i]?.telt" size="sm" :color="categorieColor(k.timeline[i].categorie_effectief)" :text="categorieLabel(k.timeline[i].categorie_effectief)"></nldd-tag>
-            <span v-if="k.timeline?.[i]?.telt" class="tl-jaar">jaar {{ k.timeline[i].bekostigingsjaar }}</span>
-            <span class="tl-bedrag">{{ k.timeline?.[i]?.telt ? euro(k.timeline[i].bedrag) : uitlegNietTellend(k.timeline?.[i]) }}</span>
-            <span v-if="verschil(k, i)" class="tl-delta" :class="verschil(k, i) > 0 ? 'tl-plus' : 'tl-min'">{{ euroDelta(verschil(k, i)) }}</span>
-          </span>
+          <p>
+            <span class="tl-cel">
+              <nldd-icon :icon="k.timeline?.[i]?.telt ? 'check-mark-circle' : 'dismiss-circle'" size="16"></nldd-icon>
+              <nldd-tag v-if="k.timeline?.[i]?.telt" size="sm" :color="categorieColor(k.timeline[i].categorie_effectief)" :text="categorieLabel(k.timeline[i].categorie_effectief)"></nldd-tag>
+              <span v-if="k.timeline?.[i]?.telt" class="tl-jaar">jaar {{ k.timeline[i].bekostigingsjaar }}</span>
+              <span class="tl-bedrag">{{ k.timeline?.[i]?.telt ? euro(k.timeline[i].bedrag) : uitlegNietTellend(k.timeline?.[i]) }}</span>
+              <span v-if="verschil(k, i)" class="tl-delta" :class="verschil(k, i) > 0 ? 'tl-plus' : 'tl-min'">{{ euroDelta(verschil(k, i)) }}</span>
+            </span>
+          </p>
         </nldd-text-cell>
         <nldd-text-cell size="sm" horizontal-alignment="right">
-          <nldd-button
-            text="Trace"
-            size="xs"
-            appearance="neutral-transparent"
-            start-icon="text-document"
-            @click="emit('trace', peildata[i])"
-          ></nldd-button>
+          <p>
+            <nldd-button
+              text="Trace"
+              size="xs"
+              appearance="neutral-transparent"
+              start-icon="text-document"
+              @click="emit('trace', peildata[i])"
+            ></nldd-button>
+          </p>
         </nldd-text-cell>
       </nldd-table-row>
 
       <nldd-table-row class="tl-totaal">
         <nldd-text-cell size="sm" text="Totaal over de tijdlijn"></nldd-text-cell>
         <nldd-text-cell size="sm">
-          <strong>{{ euro(totaal(ist)) }}</strong>
-          <span slot="supporting-text">{{ kwartalen(ist) }} tellende peildata</span>
+          <p><strong>{{ euro(totaal(ist)) }}</strong></p>
+          <p slot="supporting-text">{{ kwartalen(ist) }} tellende peildata</p>
         </nldd-text-cell>
         <nldd-text-cell v-for="k in kolommen" :key="k.id" size="sm">
-          <strong>{{ euro(totaal(k.timeline)) }}</strong>
-          <span slot="supporting-text">{{ kwartalen(k.timeline) }} tellende peildata · {{ euroDelta(totaal(k.timeline) - totaal(ist)) }}</span>
+          <p><strong>{{ euro(totaal(k.timeline)) }}</strong></p>
+          <p slot="supporting-text">{{ kwartalen(k.timeline) }} tellende peildata · {{ euroDelta(totaal(k.timeline) - totaal(ist)) }}</p>
         </nldd-text-cell>
         <nldd-text-cell size="sm" text=""></nldd-text-cell>
       </nldd-table-row>

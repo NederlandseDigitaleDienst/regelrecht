@@ -64,7 +64,7 @@ const HOOGTE = 64;
  * scrolls sideways in its own box. */
 .schema {
   overflow-x: auto;
-  border: var(--semantics-surfaces-border-width, 1px) solid var(--semantics-surfaces-base-border-color);
+  border: var(--semantics-surfaces-border-width, 1px) solid var(--semantics-surfaces-base-highlight-border-color);
   border-radius: var(--semantics-surfaces-corner-radius, 6px);
   background: var(--semantics-surfaces-base-background-color);
 }

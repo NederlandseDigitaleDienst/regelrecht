@@ -230,73 +230,71 @@ function claimLawName(cl: DemoClaim) {
 
 <template>
   <nldd-navigation-split-view>
-    <nldd-split-view-pane slot="main" has-content>
-      <nldd-page landmarks="page" sticky-header>
-        <nldd-container slot="header" padding="12">
-          <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- main is the only pane of this view, so there is no previous pane to go back to -->
-          <nldd-top-title-bar :text="t('zaak.title')" :supporting-text="serviceName(service) ?? ''">
-            <nldd-dropdown slot="toolbar" size="sm" :accessible-label="t('zaak.organisation')">
-              <select :value="service" @change="onServiceChange">
-                <option v-for="s in services" :key="s" :value="s">{{ serviceName(s) }}</option>
-              </select>
-            </nldd-dropdown>
-          </nldd-top-title-bar>
-        </nldd-container>
+    <nldd-page slot="main" landmarks="page" sticky-header>
+      <nldd-container slot="header" padding="12">
+        <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- main is the only pane of this view, so there is no previous pane to go back to -->
+        <nldd-top-title-bar :text="t('zaak.title')" :supporting-text="serviceName(service) ?? ''">
+          <nldd-dropdown slot="toolbar" size="sm" :accessible-label="t('zaak.organisation')">
+            <select :value="service" @change="onServiceChange">
+              <option v-for="s in services" :key="s" :value="s">{{ serviceName(s) }}</option>
+            </select>
+          </nldd-dropdown>
+        </nldd-top-title-bar>
+      </nldd-container>
 
-        <nldd-simple-section width="full">
-          <nldd-container layout="grid" column-count="3" sm-column-count="1" gap="16">
-            <nldd-box v-for="lane in lanes" :key="lane.key" background="tinted">
-              <nldd-container padding="12" gap="8">
-                <nldd-container layout="row" gap="8" vertical-alignment="center" padding-inline="4">
-                  <nldd-title-cell size="display-6" :text="lane.title" heading-level="2"></nldd-title-cell>
-                  <nldd-badge color="neutral" :number="lane.items.length" :accessible-label="t('zaak.lane.count', { n: lane.items.length })"></nldd-badge>
-                </nldd-container>
-                <nldd-container v-if="lane.items.length === 0" padding-inline="4" padding-block="8">
-                  <nldd-text-cell size="sm" color="secondary" :text="t('zaak.lane.empty')"></nldd-text-cell>
-                </nldd-container>
-                <nldd-list v-for="c in lane.items" :key="c.id" appearance="box-base" :accessible-label="c.lawName">
-                  <nldd-list-item size="md" button :selected="selected?.id === c.id || undefined" @click="open(c)">
-                    <!-- The status tag sits in the overline, not in an end cell: a lane is narrow
-                         and an end cell never shrinks, so beside the tag the title would break
-                         per letter. In the overline the title keeps the whole card width. -->
-                    <nldd-text-cell :text="c.lawName" :supporting-text="`${subjectName(c)} · ${formatDateTime(c.submittedAt)}`">
-                      <nldd-tag slot="overline" size="sm" :color="laneTag(c).color" :text="laneTag(c).text"></nldd-tag>
-                      <!-- Er is een gegeven gewijzigd waarmee deze wet nu op iets
-                           anders uitkomt dan waarop besloten is. Het besluit staat
-                           nog; dit zegt alleen dat ernaar gekeken moet worden. -->
-                      <nldd-tag v-if="driftedIds.has(c.id)" slot="overline" size="sm" color="warning" icon="warning" :text="t('zaak.tag.changed')"></nldd-tag>
-                    </nldd-text-cell>
-                  </nldd-list-item>
-                </nldd-list>
+      <nldd-simple-section width="full">
+        <nldd-container layout="grid" column-count="3" sm-column-count="1" gap="16">
+          <nldd-box v-for="lane in lanes" :key="lane.key" background="tinted">
+            <nldd-container padding="12" gap="8">
+              <nldd-container layout="row" gap="8" vertical-alignment="center" padding-inline="4">
+                <nldd-title-cell size="display-6" :text="lane.title" heading-level="2"></nldd-title-cell>
+                <nldd-badge color="neutral" :number="lane.items.length" :accessible-label="t('zaak.lane.count', { n: lane.items.length })"></nldd-badge>
               </nldd-container>
-            </nldd-box>
-          </nldd-container>
-        </nldd-simple-section>
+              <nldd-container v-if="lane.items.length === 0" padding-inline="4" padding-block="8">
+                <nldd-text-cell size="sm" color="secondary" :text="t('zaak.lane.empty')"></nldd-text-cell>
+              </nldd-container>
+              <nldd-list v-for="c in lane.items" :key="c.id" appearance="box-base" :accessible-label="c.lawName">
+                <nldd-list-item size="md" button :selected="selected?.id === c.id || undefined" @click="open(c)">
+                  <!-- The status tag sits in the overline, not in an end cell: a lane is narrow
+                       and an end cell never shrinks, so beside the tag the title would break
+                       per letter. In the overline the title keeps the whole card width. -->
+                  <nldd-text-cell :text="c.lawName" :supporting-text="`${subjectName(c)} · ${formatDateTime(c.submittedAt)}`">
+                    <p slot="overline"><nldd-tag size="sm" :color="laneTag(c).color" :text="laneTag(c).text"></nldd-tag></p>
+                    <!-- Er is een gegeven gewijzigd waarmee deze wet nu op iets
+                         anders uitkomt dan waarop besloten is. Het besluit staat
+                         nog; dit zegt alleen dat ernaar gekeken moet worden. -->
+                    <p slot="overline"><nldd-tag v-if="driftedIds.has(c.id)" size="sm" color="warning" icon="warning" :text="t('zaak.tag.changed')"></nldd-tag></p>
+                  </nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-container>
+          </nldd-box>
+        </nldd-container>
+      </nldd-simple-section>
 
-        <nldd-simple-section width="full" padding-top="0">
-          <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.laws.heading', { service: serviceName(service) }) }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-tinted" :accessible-label="t('zaak.laws.label')">
-              <nldd-list-item v-if="orgLaws.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('zaak.laws.empty')"></nldd-text-cell></nldd-list-item>
-              <nldd-list-item v-for="{ law, count } in orgLaws" :key="law.id" size="sm" button @click="goTo('wetten', { lawId: law.id })">
-                <nldd-text-cell size="sm" :text="law.name" :supporting-text="lawAudience(law)"></nldd-text-cell>
-                <nldd-cell><nldd-tag size="sm" :color="count ? 'accent' : 'neutral'" :text="t.plural(count, 'zaak.laws.cases')"></nldd-tag></nldd-cell>
-                <nldd-icon-cell icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
-              </nldd-list-item>
-            </nldd-list>
-          </nldd-container>
-        </nldd-simple-section>
+      <nldd-simple-section width="full" padding-top="0">
+        <nldd-container gap="4">
+          <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('zaak.laws.heading', { service: serviceName(service) }) }}</p></nldd-text></nldd-container>
+          <nldd-list appearance="box-tinted" :accessible-label="t('zaak.laws.label')">
+            <nldd-list-item v-if="orgLaws.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('zaak.laws.empty')"></nldd-text-cell></nldd-list-item>
+            <nldd-list-item v-for="{ law, count } in orgLaws" :key="law.id" size="sm" button @click="goTo('wetten', { lawId: law.id })">
+              <nldd-text-cell size="sm" :text="law.name" :supporting-text="lawAudience(law)"></nldd-text-cell>
+              <nldd-cell><nldd-tag size="sm" :color="count ? 'accent' : 'neutral'" :text="t.plural(count, 'zaak.laws.cases')"></nldd-tag></nldd-cell>
+              <nldd-icon-cell icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
+            </nldd-list-item>
+          </nldd-list>
+        </nldd-container>
+      </nldd-simple-section>
 
-        <nldd-simple-section v-if="serviceClaims.length" width="full" padding-top="0">
-          <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.claims.heading') }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-tinted" :accessible-label="t('zaak.claims.label')">
-              <CorrectionRows :claims="serviceClaims" :origin="(cl) => `${personaName(cl.bsn)} · ${claimLawName(cl)}`" />
-            </nldd-list>
-          </nldd-container>
-        </nldd-simple-section>
-      </nldd-page>
-    </nldd-split-view-pane>
+      <nldd-simple-section v-if="serviceClaims.length" width="full" padding-top="0">
+        <nldd-container gap="4">
+          <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('zaak.claims.heading') }}</p></nldd-text></nldd-container>
+          <nldd-list appearance="box-tinted" :accessible-label="t('zaak.claims.label')">
+            <CorrectionRows :claims="serviceClaims" :origin="(cl) => `${personaName(cl.bsn)} · ${claimLawName(cl)}`" />
+          </nldd-list>
+        </nldd-container>
+      </nldd-simple-section>
+    </nldd-page>
 
   </nldd-navigation-split-view>
 
@@ -316,14 +314,16 @@ function claimLawName(cl: DemoClaim) {
 
             <nldd-container gap="4">
 
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.outcome') }}</nldd-text><nldd-text size="xs" color="secondary">{{ verified?.ok ? t('zaak.outcome.recomputed') : t('zaak.outcome.claimed') }}</nldd-text></nldd-container>
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('zaak.outcome') }}</p></nldd-text><nldd-text size="xs" color="secondary"><p>{{ verified?.ok ? t('zaak.outcome.recomputed') : t('zaak.outcome.claimed') }}</p></nldd-text></nldd-container>
 
               <nldd-list appearance="box-tinted" :accessible-label="t('zaak.outcome')">
                 <nldd-list-item v-for="row in outputRows(selected)" :key="row.name" size="sm">
                   <nldd-text-cell size="sm" :text="humanize(row.name)"></nldd-text-cell>
                   <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :color="row.differs ? 'warning' : 'content'">
-                    <template v-if="row.differs"><s>{{ formatValue(row.claimed, row.spec) }}</s> → {{ formatValue(row.now, row.spec) }}</template>
-                    <template v-else>{{ formatValue(row.now, row.spec) }}</template>
+                    <p>
+                      <template v-if="row.differs"><s>{{ formatValue(row.claimed, row.spec) }}</s> → {{ formatValue(row.now, row.spec) }}</template>
+                      <template v-else>{{ formatValue(row.now, row.spec) }}</template>
+                    </p>
                   </nldd-text-cell>
                 </nldd-list-item>
               </nldd-list>
@@ -336,7 +336,7 @@ function claimLawName(cl: DemoClaim) {
             <nldd-banner v-if="selected.lifecycleError" variant="warning" :text="t('zaak.lifecycle_failed')" :supporting-text="selected.lifecycleError"></nldd-banner>
 
             <nldd-container v-if="lineage.length" gap="4">
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.data') }}</nldd-text><nldd-text size="xs" color="secondary">{{ t('zaak.data.hint') }}</nldd-text></nldd-container>
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('zaak.data') }}</p></nldd-text><nldd-text size="xs" color="secondary"><p>{{ t('zaak.data.hint') }}</p></nldd-text></nldd-container>
               <nldd-list type="tree" appearance="box-tinted" :accessible-label="t('zaak.data')">
                 <DataLineage :nodes="lineage" @edit="editing = $event" />
               </nldd-list>
@@ -394,7 +394,7 @@ function claimLawName(cl: DemoClaim) {
 
             <nldd-container gap="4">
 
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.events') }}</nldd-text></nldd-container>
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('zaak.events') }}</p></nldd-text></nldd-container>
 
               <nldd-list appearance="box-tinted" :accessible-label="t('zaak.events')">
                 <nldd-list-item v-for="(ev, i) in selected.events" :key="i" size="sm">

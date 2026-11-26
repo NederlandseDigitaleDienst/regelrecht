@@ -92,7 +92,7 @@ watch(() => session.beoordelaar, laad);
     <template v-if="session.loaded && !session.beoordelaar">
       <nldd-simple-section width="560px">
         <nldd-title size="display-2">
-          <span slot="overline">Voor medewerkers van de Napp</span>
+          <p slot="overline">Voor medewerkers van de Napp</p>
           <h2>Inloggen met SSO Rijk</h2>
         </nldd-title>
         <nldd-spacer size="12"></nldd-spacer>
@@ -143,7 +143,7 @@ watch(() => session.beoordelaar, laad);
     <template v-else-if="session.beoordelaar">
       <nldd-simple-section>
         <nldd-title size="display-2">
-          <span slot="overline">Beoordelingsomgeving</span>
+          <p slot="overline">Beoordelingsomgeving</p>
           <h2>Subsidieaanvragen</h2>
         </nldd-title>
         <nldd-spacer size="16"></nldd-spacer>

@@ -35,19 +35,19 @@ const m = (k) => props.data?.artikelen[k];
           <nldd-tag v-for="b in m(sleutel).b" :key="b" color="neutral" :text="BUNDEL[b] ?? b"></nldd-tag>
           <nldd-tag v-if="m(sleutel).v" color="neutral" :text="m(sleutel).v === 'GEGEVEN' ? 'als gegeven' : m(sleutel).v.toLowerCase()"></nldd-tag>
         </div>
-        <nldd-text v-if="m(sleutel).act.length" size="sm"><strong>Activiteit in het DSO:</strong> {{ m(sleutel).act.join('; ') }}</nldd-text>
-        <nldd-text v-if="m(sleutel).kw.length" size="sm"><strong>Kwalificatie:</strong> {{ m(sleutel).kw.join(', ') }}</nldd-text>
-        <nldd-text v-if="m(sleutel).g" size="sm" color="secondary">{{ m(sleutel).g }}</nldd-text>
+        <nldd-text v-if="m(sleutel).act.length" size="sm"><p><strong>Activiteit in het DSO:</strong> {{ m(sleutel).act.join('; ') }}</p></nldd-text>
+        <nldd-text v-if="m(sleutel).kw.length" size="sm"><p><strong>Kwalificatie:</strong> {{ m(sleutel).kw.join(', ') }}</p></nldd-text>
+        <nldd-text v-if="m(sleutel).g" size="sm" color="secondary"><p>{{ m(sleutel).g }}</p></nldd-text>
         <nldd-segmented-control :value="weergave" size="sm" accessible-label="Tekst of YAML" @change="weergave = $event.target.value">
           <nldd-segmented-control-item value="tekst" text="Tekst" :selected="weergave === 'tekst' || undefined"></nldd-segmented-control-item>
           <nldd-segmented-control-item value="yaml" text="YAML" :selected="weergave === 'yaml' || undefined"></nldd-segmented-control-item>
         </nldd-segmented-control>
-        <nldd-text v-if="weergave === 'tekst'" size="sm" class="tekst">{{ tekst || 'Tekst laden…' }}</nldd-text>
+        <nldd-text v-if="weergave === 'tekst'" size="sm" class="tekst"><p>{{ tekst || 'Tekst laden…' }}</p></nldd-text>
         <template v-else>
-          <nldd-text v-if="!yaml" size="sm" color="secondary">YAML laden…</nldd-text>
-          <nldd-text v-else-if="yaml.reden" size="sm" color="secondary">{{ yaml.reden }}</nldd-text>
+          <nldd-text v-if="!yaml" size="sm" color="secondary"><p>YAML laden…</p></nldd-text>
+          <nldd-text v-else-if="yaml.reden" size="sm" color="secondary"><p>{{ yaml.reden }}</p></nldd-text>
           <template v-else>
-            <nldd-text size="xs" color="secondary">Uit {{ yaml.bestand }}: zo rekent het DSO-spoor dit artikel.</nldd-text>
+            <nldd-text size="xs" color="secondary"><p>Uit {{ yaml.bestand }}: zo rekent het DSO-spoor dit artikel.</p></nldd-text>
             <nldd-code-viewer wrap language="yaml">{{ yaml.yaml }}</nldd-code-viewer>
           </template>
         </template>

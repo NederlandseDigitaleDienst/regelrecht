@@ -2247,65 +2247,27 @@ async function handleActionSave() {
           <!-- data-testid names the view, not the index: the empty states and
                their buttons live in more than one pane, so an e2e locator has to
                be able to say which pane it means. -->
-          <nldd-split-view-pane
+          <!-- A page in a pane renders no main landmark of its own; the
+               first pane holds the primary content, so it carries it. -->
+          <nldd-page
             v-for="(view, idx) in paneViews"
             :key="`${view}-${idx}`"
             :slot="`pane-${idx + 1}`"
             :data-testid="`pane-${view}`"
+            sticky-header
+            :landmarks="idx === 0 ? 'page' : 'auto'"
+            :background="view === 'scenario' ? 'base' : undefined"
           >
-            <!-- A page in a pane renders no main landmark of its own; the
-                 first pane holds the primary content, so it carries it. -->
-            <nldd-page
-              sticky-header
-              :landmarks="idx === 0 ? 'page' : 'auto'"
-              :background="view === 'scenario' ? 'base' : undefined"
-            >
-              <nldd-container slot="header" padding="8" padding-bottom="0">
-                <nldd-toolbar size="md" accessible-label="Paneelacties">
-                  <!-- Weergave-keuze (alle panes). Hoogste prioriteit zodat
-                       deze als laatste naar het overflow-menu verhuist. -->
-                  <nldd-toolbar-item slot="start" label="Weergave" :priority="4">
-                    <nldd-button size="md" expandable :text="viewLabel(view)">
-                      <nldd-menu slot="popup">
-                        <nldd-menu-item
-                          v-for="opt in availableViews"
-                          :key="opt.id"
-                          type="radio"
-                          :selected="view === opt.id || undefined"
-                          :text="opt.label"
-                          @select="setPaneView(idx, opt.id)"
-                        ></nldd-menu-item>
-                        <nldd-menu-divider></nldd-menu-divider>
-                        <nldd-menu-item
-                          text="Verplaats naar links"
-                          icon="arrow-left"
-                          :disabled="idx === 0 || undefined"
-                          @select="movePane(idx, 'left')"
-                        ></nldd-menu-item>
-                        <nldd-menu-item
-                          text="Verplaats naar rechts"
-                          icon="arrow-right"
-                          :disabled="idx === paneViews.length - 1 || undefined"
-                          @select="movePane(idx, 'right')"
-                        ></nldd-menu-item>
-                        <nldd-menu-item
-                          text="Verplaats uiterst links"
-                          icon="arrow-left-to-line"
-                          :disabled="idx === 0 || undefined"
-                          @select="movePane(idx, 'start')"
-                        ></nldd-menu-item>
-                        <nldd-menu-item
-                          text="Verplaats uiterst rechts"
-                          icon="arrow-right-to-line"
-                          :disabled="idx === paneViews.length - 1 || undefined"
-                          @select="movePane(idx, 'end')"
-                        ></nldd-menu-item>
-                      </nldd-menu>
-                    </nldd-button>
-                    <nldd-menu-group slot="overflow" text="Weergave">
+            <nldd-container slot="header" padding="8" padding-bottom="0">
+              <nldd-toolbar size="md" accessible-label="Paneelacties">
+                <!-- Weergave-keuze (alle panes). Hoogste prioriteit zodat
+                     deze als laatste naar het overflow-menu verhuist. -->
+                <nldd-toolbar-item slot="start" label="Weergave" :priority="4">
+                  <nldd-button size="md" expandable :text="viewLabel(view)">
+                    <nldd-menu slot="popup">
                       <nldd-menu-item
                         v-for="opt in availableViews"
-                        :key="`ovf-view-${opt.id}`"
+                        :key="opt.id"
                         type="radio"
                         :selected="view === opt.id || undefined"
                         :text="opt.label"
@@ -2336,577 +2298,612 @@ async function handleActionSave() {
                         :disabled="idx === paneViews.length - 1 || undefined"
                         @select="movePane(idx, 'end')"
                       ></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                  <!-- Vet/Schuin - checkbox segmented control (beide kunnen
-                       tegelijk actief zijn). Bron van waarheid: de Tiptap-
-                       editor; de control reflecteert de selectie. -->
-                  <nldd-toolbar-item
-                    v-if="view === 'text' && selectedArticle && textEditorRefs[idx]"
-                    slot="end"
-                    label="Tekststijl"
-                    :priority="2"
-                  >
-                    <nldd-segmented-control
-                      type="checkbox"
-                      variant="icon"
-                      size="md"
-                      accessible-label="Tekststijl"
-                      :disabled="!canEditArticleText || undefined"
-                      :values.prop="boldItalicValues(idx)"
-                      @item-change="onInlineFormatChange(idx, $event)"
-                    >
-                      <nldd-segmented-control-item value="bold" icon="bold" text="Vet"></nldd-segmented-control-item>
-                      <nldd-segmented-control-item value="italic" icon="italic" text="Schuin"></nldd-segmented-control-item>
-                    </nldd-segmented-control>
-                    <nldd-menu-group slot="overflow" text="Tekststijl">
-                      <nldd-menu-item
-                        type="checkbox"
-                        icon="bold"
-                        text="Vet"
-                        :selected="textEditorRefs[idx].activeFormats.bold || undefined"
-                        :disabled="!canEditArticleText || undefined"
-                        @select="textEditorRefs[idx].toggleBold()"
-                      ></nldd-menu-item>
-                      <nldd-menu-item
-                        type="checkbox"
-                        icon="italic"
-                        text="Schuin"
-                        :selected="textEditorRefs[idx].activeFormats.italic || undefined"
-                        :disabled="!canEditArticleText || undefined"
-                        @select="textEditorRefs[idx].toggleItalic()"
-                      ></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                  <!-- Lijsttype - radio segmented control: geen / opsomming /
-                       genummerd. "Geen" (minus-small) heft de actieve lijst op. -->
-                  <nldd-toolbar-item
-                    v-if="view === 'text' && selectedArticle && textEditorRefs[idx]"
-                    slot="end"
-                    label="Lijst"
-                    :priority="1"
-                  >
-                    <nldd-segmented-control
-                      type="radio"
-                      variant="icon"
-                      size="md"
-                      accessible-label="Lijst"
-                      :disabled="!canEditArticleText || undefined"
-                      :value="listValue(idx)"
-                      @change="onListChange(idx, $event)"
-                    >
-                      <nldd-segmented-control-item value="none" icon="minus-small" text="Geen lijst"></nldd-segmented-control-item>
-                      <nldd-segmented-control-item value="bullet" icon="bullet-list" text="Opsomming"></nldd-segmented-control-item>
-                      <nldd-segmented-control-item value="ordered" icon="numbered-list" text="Genummerde lijst"></nldd-segmented-control-item>
-                    </nldd-segmented-control>
-                    <nldd-menu-group slot="overflow" text="Lijst">
-                      <nldd-menu-item
-                        type="radio"
-                        icon="minus-small"
-                        text="Geen lijst"
-                        :selected="listValue(idx) === 'none' || undefined"
-                        :disabled="!canEditArticleText || undefined"
-                        @select="setList(idx, 'none')"
-                      ></nldd-menu-item>
-                      <nldd-menu-item
-                        type="radio"
-                        icon="bullet-list"
-                        text="Opsomming"
-                        :selected="listValue(idx) === 'bullet' || undefined"
-                        :disabled="!canEditArticleText || undefined"
-                        @select="setList(idx, 'bullet')"
-                      ></nldd-menu-item>
-                      <nldd-menu-item
-                        type="radio"
-                        icon="numbered-list"
-                        text="Genummerde lijst"
-                        :selected="listValue(idx) === 'ordered' || undefined"
-                        :disabled="!canEditArticleText || undefined"
-                        @select="setList(idx, 'ordered')"
-                      ></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                  <!-- Inspringen - vergroot/verklein de inspringing van de
-                       geselecteerde regels. Laagste prioriteit (0), dus deze
-                       verdwijnt als eerste naar de overflow. -->
-                  <nldd-toolbar-item
-                    v-if="view === 'text' && selectedArticle && textEditorRefs[idx]"
-                    slot="end"
-                    label="Inspringen"
-                    :priority="0"
-                  >
-                    <!-- Grouped as a button-bar: the bar draws the divider and
-                         propagates size/variant to its children. Individual
-                         disabled stays per-button (canIndent vs canOutdent) since
-                         the bar itself is never disabled. -->
-                    <nldd-button-bar size="md">
-                      <nldd-icon-button
-                        icon="indent-increase"
-                        text="Inspringen vergroten"
-                        :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canIndent || undefined"
-                        @mousedown.prevent
-                        @click="textEditorRefs[idx].indent()"
-                      ></nldd-icon-button>
-                      <nldd-button-bar-divider></nldd-button-bar-divider>
-                      <nldd-icon-button
-                        icon="indent-decrease"
-                        text="Inspringen verkleinen"
-                        :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canOutdent || undefined"
-                        @mousedown.prevent
-                        @click="textEditorRefs[idx].outdent()"
-                      ></nldd-icon-button>
-                    </nldd-button-bar>
-                    <nldd-menu-group slot="overflow" text="Inspringen">
-                      <nldd-menu-item
-                        icon="indent-increase"
-                        text="Inspringen vergroten"
-                        :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canIndent || undefined"
-                        @select="textEditorRefs[idx].indent()"
-                      ></nldd-menu-item>
-                      <nldd-menu-item
-                        icon="indent-decrease"
-                        text="Inspringen verkleinen"
-                        :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canOutdent || undefined"
-                        @select="textEditorRefs[idx].outdent()"
-                      ></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                  <!-- Notitie toevoegen - annotatie op de huidige selectie.
-                       Prioriteit tussen de mode-switcher (4) en de opmaak-
-                       controls (Tekststijl 2, Lijst 1) in, zodat deze primaire
-                       actie pas na de opmaak naar de overflow verdwijnt. -->
-                  <nldd-toolbar-item
-                    v-if="view === 'text' && selectedArticle && textEditorRefs[idx] && canCreateNotes"
-                    slot="end"
-                    label="Notitie"
-                    :priority="3"
-                  >
-                    <nldd-icon-button
-                      icon="comment"
-                      text="Notitie toevoegen"
-                      appearance="secondary"
-                      size="md"
-                      :disabled="textEditorRefs[idx].selectionEmpty || undefined"
-                      @mousedown.prevent
-                      @click="startNoteFromSelection(idx)"
-                    ></nldd-icon-button>
-                    <!-- No :disabled here: the toolbar clones overflow items, so
-                         a live-changing disabled (selectionEmpty) would freeze at
-                         clone time and stick. startNoteFromSelection no-ops on an
-                         empty selection instead. -->
+                    </nldd-menu>
+                  </nldd-button>
+                  <nldd-menu-group slot="overflow" text="Weergave">
                     <nldd-menu-item
-                      slot="overflow"
-                      icon="comment"
-                      text="Notitie toevoegen"
-                      @select="startNoteFromSelection(idx)"
+                      v-for="opt in availableViews"
+                      :key="`ovf-view-${opt.id}`"
+                      type="radio"
+                      :selected="view === opt.id || undefined"
+                      :text="opt.label"
+                      @select="setPaneView(idx, opt.id)"
                     ></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <!-- Notities downloaden - expandable icon-button (area end) met
-                       een menu: dit artikel, of de hele wet, als YAML. -->
-                  <nldd-toolbar-item
-                    v-if="view === 'notes' && selectedArticle && notesForArticle.length > 0"
-                    slot="end"
-                    label="Notities downloaden"
-                    :priority="3"
+                    <nldd-menu-divider></nldd-menu-divider>
+                    <nldd-menu-item
+                      text="Verplaats naar links"
+                      icon="arrow-left"
+                      :disabled="idx === 0 || undefined"
+                      @select="movePane(idx, 'left')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      text="Verplaats naar rechts"
+                      icon="arrow-right"
+                      :disabled="idx === paneViews.length - 1 || undefined"
+                      @select="movePane(idx, 'right')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      text="Verplaats uiterst links"
+                      icon="arrow-left-to-line"
+                      :disabled="idx === 0 || undefined"
+                      @select="movePane(idx, 'start')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      text="Verplaats uiterst rechts"
+                      icon="arrow-right-to-line"
+                      :disabled="idx === paneViews.length - 1 || undefined"
+                      @select="movePane(idx, 'end')"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                </nldd-toolbar-item>
+                <!-- Vet/Schuin - checkbox segmented control (beide kunnen
+                     tegelijk actief zijn). Bron van waarheid: de Tiptap-
+                     editor; de control reflecteert de selectie. -->
+                <nldd-toolbar-item
+                  v-if="view === 'text' && selectedArticle && textEditorRefs[idx]"
+                  slot="end"
+                  label="Tekststijl"
+                  :priority="2"
+                >
+                  <nldd-segmented-control
+                    type="checkbox"
+                    variant="icon"
+                    size="md"
+                    accessible-label="Tekststijl"
+                    :disabled="!canEditArticleText || undefined"
+                    :values.prop="boldItalicValues(idx)"
+                    @item-change="onInlineFormatChange(idx, $event)"
                   >
+                    <nldd-segmented-control-item value="bold" icon="bold" text="Vet"></nldd-segmented-control-item>
+                    <nldd-segmented-control-item value="italic" icon="italic" text="Schuin"></nldd-segmented-control-item>
+                  </nldd-segmented-control>
+                  <nldd-menu-group slot="overflow" text="Tekststijl">
+                    <nldd-menu-item
+                      type="checkbox"
+                      icon="bold"
+                      text="Vet"
+                      :selected="textEditorRefs[idx].activeFormats.bold || undefined"
+                      :disabled="!canEditArticleText || undefined"
+                      @select="textEditorRefs[idx].toggleBold()"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      type="checkbox"
+                      icon="italic"
+                      text="Schuin"
+                      :selected="textEditorRefs[idx].activeFormats.italic || undefined"
+                      :disabled="!canEditArticleText || undefined"
+                      @select="textEditorRefs[idx].toggleItalic()"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                </nldd-toolbar-item>
+                <!-- Lijsttype - radio segmented control: geen / opsomming /
+                     genummerd. "Geen" (minus-small) heft de actieve lijst op. -->
+                <nldd-toolbar-item
+                  v-if="view === 'text' && selectedArticle && textEditorRefs[idx]"
+                  slot="end"
+                  label="Lijst"
+                  :priority="1"
+                >
+                  <nldd-segmented-control
+                    type="radio"
+                    variant="icon"
+                    size="md"
+                    accessible-label="Lijst"
+                    :disabled="!canEditArticleText || undefined"
+                    :value="listValue(idx)"
+                    @change="onListChange(idx, $event)"
+                  >
+                    <nldd-segmented-control-item value="none" icon="minus-small" text="Geen lijst"></nldd-segmented-control-item>
+                    <nldd-segmented-control-item value="bullet" icon="bullet-list" text="Opsomming"></nldd-segmented-control-item>
+                    <nldd-segmented-control-item value="ordered" icon="numbered-list" text="Genummerde lijst"></nldd-segmented-control-item>
+                  </nldd-segmented-control>
+                  <nldd-menu-group slot="overflow" text="Lijst">
+                    <nldd-menu-item
+                      type="radio"
+                      icon="minus-small"
+                      text="Geen lijst"
+                      :selected="listValue(idx) === 'none' || undefined"
+                      :disabled="!canEditArticleText || undefined"
+                      @select="setList(idx, 'none')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      type="radio"
+                      icon="bullet-list"
+                      text="Opsomming"
+                      :selected="listValue(idx) === 'bullet' || undefined"
+                      :disabled="!canEditArticleText || undefined"
+                      @select="setList(idx, 'bullet')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      type="radio"
+                      icon="numbered-list"
+                      text="Genummerde lijst"
+                      :selected="listValue(idx) === 'ordered' || undefined"
+                      :disabled="!canEditArticleText || undefined"
+                      @select="setList(idx, 'ordered')"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                </nldd-toolbar-item>
+                <!-- Inspringen - vergroot/verklein de inspringing van de
+                     geselecteerde regels. Laagste prioriteit (0), dus deze
+                     verdwijnt als eerste naar de overflow. -->
+                <nldd-toolbar-item
+                  v-if="view === 'text' && selectedArticle && textEditorRefs[idx]"
+                  slot="end"
+                  label="Inspringen"
+                  :priority="0"
+                >
+                  <!-- Grouped as a button-bar: the bar draws the divider and
+                       propagates size/variant to its children. Individual
+                       disabled stays per-button (canIndent vs canOutdent) since
+                       the bar itself is never disabled. -->
+                  <nldd-button-bar size="md">
                     <nldd-icon-button
-                      icon="download"
-                      text="Notities downloaden"
-                      appearance="secondary"
-                      size="md"
-                      expandable
-                    >
-                      <nldd-menu slot="popup">
-                        <nldd-menu-item icon="document" text="Artikel-notities als YAML" @select="exportArticleNotes"></nldd-menu-item>
-                        <nldd-menu-item icon="document" text="Regelwerk-notities als YAML" @select="exportNotes"></nldd-menu-item>
-                      </nldd-menu>
-                    </nldd-icon-button>
-                    <nldd-menu-group slot="overflow" text="Notities downloaden">
+                      icon="indent-increase"
+                      text="Inspringen vergroten"
+                      :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canIndent || undefined"
+                      @mousedown.prevent
+                      @click="textEditorRefs[idx].indent()"
+                    ></nldd-icon-button>
+                    <nldd-button-bar-divider></nldd-button-bar-divider>
+                    <nldd-icon-button
+                      icon="indent-decrease"
+                      text="Inspringen verkleinen"
+                      :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canOutdent || undefined"
+                      @mousedown.prevent
+                      @click="textEditorRefs[idx].outdent()"
+                    ></nldd-icon-button>
+                  </nldd-button-bar>
+                  <nldd-menu-group slot="overflow" text="Inspringen">
+                    <nldd-menu-item
+                      icon="indent-increase"
+                      text="Inspringen vergroten"
+                      :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canIndent || undefined"
+                      @select="textEditorRefs[idx].indent()"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      icon="indent-decrease"
+                      text="Inspringen verkleinen"
+                      :disabled="!canEditArticleText || !textEditorRefs[idx].activeFormats.canOutdent || undefined"
+                      @select="textEditorRefs[idx].outdent()"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                </nldd-toolbar-item>
+                <!-- Notitie toevoegen - annotatie op de huidige selectie.
+                     Prioriteit tussen de mode-switcher (4) en de opmaak-
+                     controls (Tekststijl 2, Lijst 1) in, zodat deze primaire
+                     actie pas na de opmaak naar de overflow verdwijnt. -->
+                <nldd-toolbar-item
+                  v-if="view === 'text' && selectedArticle && textEditorRefs[idx] && canCreateNotes"
+                  slot="end"
+                  label="Notitie"
+                  :priority="3"
+                >
+                  <nldd-icon-button
+                    icon="comment"
+                    text="Notitie toevoegen"
+                    appearance="secondary"
+                    size="md"
+                    :disabled="textEditorRefs[idx].selectionEmpty || undefined"
+                    @mousedown.prevent
+                    @click="startNoteFromSelection(idx)"
+                  ></nldd-icon-button>
+                  <!-- No :disabled here: the toolbar clones overflow items, so
+                       a live-changing disabled (selectionEmpty) would freeze at
+                       clone time and stick. startNoteFromSelection no-ops on an
+                       empty selection instead. -->
+                  <nldd-menu-item
+                    slot="overflow"
+                    icon="comment"
+                    text="Notitie toevoegen"
+                    @select="startNoteFromSelection(idx)"
+                  ></nldd-menu-item>
+                </nldd-toolbar-item>
+                <!-- Notities downloaden - expandable icon-button (area end) met
+                     een menu: dit artikel, of de hele wet, als YAML. -->
+                <nldd-toolbar-item
+                  v-if="view === 'notes' && selectedArticle && notesForArticle.length > 0"
+                  slot="end"
+                  label="Notities downloaden"
+                  :priority="3"
+                >
+                  <nldd-icon-button
+                    icon="download"
+                    text="Notities downloaden"
+                    appearance="secondary"
+                    size="md"
+                    expandable
+                  >
+                    <nldd-menu slot="popup">
                       <nldd-menu-item icon="document" text="Artikel-notities als YAML" @select="exportArticleNotes"></nldd-menu-item>
                       <nldd-menu-item icon="document" text="Regelwerk-notities als YAML" @select="exportNotes"></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                  <!-- The open regelwerk's scenarios: their status, which opens
-                       a sheet with the ones that need attention. Scenarios
-                       test what this pane edits, so the outcome sits next to
-                       the edit. -->
-                  <nldd-toolbar-item
-                    v-if="view === 'machine' && showScenarioStatus"
-                    slot="end"
-                    label="Scenario's"
-                    :priority="3"
-                    data-testid="scenario-status-toolbar"
-                  >
-                    <nldd-button
-                      size="md"
-                      :appearance="scenarioBadge.critical ? 'critical-tinted' : 'neutral-tinted'"
-                      :start-icon="scenarioBadge.icon"
-                      :text="scenarioBadge.text"
-                      :accessible-label="scenarioBadge.label"
-                      :loading="scenarioStatusBusy || undefined"
-                      :loading-text="lawScenarios.loadingText.value"
-                      data-testid="scenario-status-btn"
-                      @click="scenarioSheetOpen = true"
-                    ></nldd-button>
-                    <nldd-menu-item
-                      slot="overflow"
-                      :text="scenarioBadge.label"
-                      :icon="scenarioBadge.icon"
-                      @select="scenarioSheetOpen = true"
-                    ></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <!-- YAML parse-status (Machine-readable pane). -->
-                  <nldd-toolbar-item v-if="view === 'yaml' && parseError" slot="end" label="YAML">
-                    <nldd-badge color="critical" text="YAML parse error"></nldd-badge>
-                    <nldd-menu-item
-                      slot="overflow"
-                      text="YAML parse error"
-                      disabled
-                    ></nldd-menu-item>
-                  </nldd-toolbar-item>
-                  <!-- Verrijken hoort bij de panes die het resultaat tonen, maar
-                       het is geen actie die je vaak aanraakt en de pane-toolbar
-                       is smal. Als directe child van nldd-toolbar met
-                       slot="overflow" is dit een pinned overflow item: hij staat
-                       altijd achter de ...-knop en vecht dus nooit met de
-                       pane-switcher om breedte. Is de pane leeg, dan staat de
-                       ingang in de lege staat zelf. -->
+                    </nldd-menu>
+                  </nldd-icon-button>
+                  <nldd-menu-group slot="overflow" text="Notities downloaden">
+                    <nldd-menu-item icon="document" text="Artikel-notities als YAML" @select="exportArticleNotes"></nldd-menu-item>
+                    <nldd-menu-item icon="document" text="Regelwerk-notities als YAML" @select="exportNotes"></nldd-menu-item>
+                  </nldd-menu-group>
+                </nldd-toolbar-item>
+                <!-- The open regelwerk's scenarios: their status, which opens
+                     a sheet with the ones that need attention. Scenarios
+                     test what this pane edits, so the outcome sits next to
+                     the edit. -->
+                <nldd-toolbar-item
+                  v-if="view === 'machine' && showScenarioStatus"
+                  slot="end"
+                  label="Scenario's"
+                  :priority="3"
+                  data-testid="scenario-status-toolbar"
+                >
+                  <nldd-button
+                    size="md"
+                    :appearance="scenarioBadge.critical ? 'critical-tinted' : 'neutral-tinted'"
+                    :start-icon="scenarioBadge.icon"
+                    :text="scenarioBadge.text"
+                    :accessible-label="scenarioBadge.label"
+                    :loading="scenarioStatusBusy || undefined"
+                    :loading-text="lawScenarios.loadingText.value"
+                    data-testid="scenario-status-btn"
+                    @click="scenarioSheetOpen = true"
+                  ></nldd-button>
                   <nldd-menu-item
-                    v-if="canEnrichLaw && isEnrichPane(view) && hasMachineReadable"
                     slot="overflow"
-                    icon="ai"
-                    text="Verrijk dit regelwerk opnieuw"
-                    @select="enrichLaw"
+                    :text="scenarioBadge.label"
+                    :icon="scenarioBadge.icon"
+                    @select="scenarioSheetOpen = true"
                   ></nldd-menu-item>
-                </nldd-toolbar>
-              </nldd-container>
+                </nldd-toolbar-item>
+                <!-- YAML parse-status (Machine-readable pane). -->
+                <nldd-toolbar-item v-if="view === 'yaml' && parseError" slot="end" label="YAML">
+                  <nldd-badge color="critical" text="YAML parse error"></nldd-badge>
+                  <nldd-menu-item
+                    slot="overflow"
+                    text="YAML parse error"
+                    disabled
+                  ></nldd-menu-item>
+                </nldd-toolbar-item>
+                <!-- Verrijken hoort bij de panes die het resultaat tonen, maar
+                     het is geen actie die je vaak aanraakt en de pane-toolbar
+                     is smal. Als directe child van nldd-toolbar met
+                     slot="overflow" is dit een pinned overflow item: hij staat
+                     altijd achter de ...-knop en vecht dus nooit met de
+                     pane-switcher om breedte. Is de pane leeg, dan staat de
+                     ingang in de lege staat zelf. -->
+                <nldd-menu-item
+                  v-if="canEnrichLaw && isEnrichPane(view) && hasMachineReadable"
+                  slot="overflow"
+                  icon="ai"
+                  text="Verrijk dit regelwerk opnieuw"
+                  @select="enrichLaw"
+                ></nldd-menu-item>
+              </nldd-toolbar>
+            </nldd-container>
 
-              <!-- While the shared article/law load is in flight - or before an
-                   article is picked at all - each pane shows its own type-named
-                   indicator ("Tekst laden", …) so the chrome (the Weergave
-                   toolbar above) is up immediately and the content fills in per
-                   pane. `!selectedArticle` matters as much as `loading`: on an
-                   explicit article URL the panes render before the article
-                   resolves, and the view content below would otherwise get a
-                   null article.
-                   The scenario pane is EXCLUDED: it has a second phase (scenario
-                   files + dependency laws) after this one, and two indicators
-                   handing off would each restart the DS anti-flash timer
-                   (spinner -> 1s blank -> spinner). It therefore renders during
-                   the load too and owns both phases in one mounted indicator -
-                   see its `article-loading` prop below. -->
-              <nldd-simple-section v-if="(loading || !selectedArticle) && !(view === 'scenario' && lawId)" width="full">
-                <nldd-activity-indicator :text="`${viewLabel(view)} laden`" show-text></nldd-activity-indicator>
-              </nldd-simple-section>
+            <!-- While the shared article/law load is in flight - or before an
+                 article is picked at all - each pane shows its own type-named
+                 indicator ("Tekst laden", …) so the chrome (the Weergave
+                 toolbar above) is up immediately and the content fills in per
+                 pane. `!selectedArticle` matters as much as `loading`: on an
+                 explicit article URL the panes render before the article
+                 resolves, and the view content below would otherwise get a
+                 null article.
+                 The scenario pane is EXCLUDED: it has a second phase (scenario
+                 files + dependency laws) after this one, and two indicators
+                 handing off would each restart the DS anti-flash timer
+                 (spinner -> 1s blank -> spinner). It therefore renders during
+                 the load too and owns both phases in one mounted indicator -
+                 see its `article-loading` prop below. -->
+            <nldd-simple-section v-if="(loading || !selectedArticle) && !(view === 'scenario' && lawId)" width="full">
+              <nldd-activity-indicator :text="`${viewLabel(view)} laden`" show-text></nldd-activity-indicator>
+            </nldd-simple-section>
 
-              <!-- Tekst - WYSIWYG editor when the user can edit, otherwise the
-                   read-only ArticleText display. The format controls in the
-                   header toolbar guard on `textEditorRefs[idx]`, which only the
-                   WYSIWYG component populates, so they auto-hide when read-only. -->
-              <nldd-simple-section v-else-if="view === 'text'" width="full">
-                <ArticleTextEditor
-                  v-if="canEditArticleText"
-                  :ref="setTextEditorRef(idx)"
-                  :article="selectedArticle"
-                  :editable="canEditArticleText"
-                  :model-value="editedText"
-                  :annotations="editorAnnotations"
-                  @update:model-value="editedText = $event"
-                  @focus="onTextEditorFocus(idx)"
-                  @annotation-click="onEditorAnnotationClick"
-                />
-                <ArticleText v-else :article="selectedArticle" />
+            <!-- Tekst - WYSIWYG editor when the user can edit, otherwise the
+                 read-only ArticleText display. The format controls in the
+                 header toolbar guard on `textEditorRefs[idx]`, which only the
+                 WYSIWYG component populates, so they auto-hide when read-only. -->
+            <nldd-simple-section v-else-if="view === 'text'" width="full">
+              <ArticleTextEditor
+                v-if="canEditArticleText"
+                :ref="setTextEditorRef(idx)"
+                :article="selectedArticle"
+                :editable="canEditArticleText"
+                :model-value="editedText"
+                :annotations="editorAnnotations"
+                @update:model-value="editedText = $event"
+                @focus="onTextEditorFocus(idx)"
+                @annotation-click="onEditorAnnotationClick"
+              />
+              <ArticleText v-else :article="selectedArticle" />
 
-                <!-- The note editor and list live in one right sheet (the badge
-                     look-ahead popover, below, is the lightweight step before it).
-                     The badge list is the root view; editing/adding pushes an
-                     editor view (with a back button) or, from the notities pane,
-                     opens it as the root (with a close button). -->
-                <nldd-sheet
-                  :ref="(el: Element | ComponentPublicInstance | null) => (noteSheetEl = el as NLDDSheet | null)"
-                  placement="right"
-                  width="480px"
-                  accessible-label="Notities"
-                  @close="onNoteSheetClose"
-                >
-                  <!-- List view: the referenced text, a card per note, then add.
-                       A sheet always hosts an nldd-page; the title bar is its
-                       header (sticky) and carries the close button. -->
-                  <template v-if="noteSheetView === 'list'">
-                    <nldd-page sticky-header>
-                      <nldd-top-title-bar
-                        slot="header"
-                        text="Notities"
-                        dismiss-text="Sluit"
-                        @dismiss="noteSheetEl?.hide?.()"
-                      ></nldd-top-title-bar>
-                      <nldd-simple-section data-testid="note-detail">
-                        <QuotedFragment :fragment="activeGroup" />
-                        <nldd-spacer v-if="activeGroup && activeGroup.quote" size="12"></nldd-spacer>
-                        <nldd-collection layout="stack" gap="12">
-                          <nldd-card v-for="(note, i) in activeNotes" :key="i">
-                            <nldd-container padding="10">
-                              <NoteCard
-                                :note="note"
-                                :can-edit="canEdit"
-                                :saving="savingNotes"
-                                @edit="startEditNote(groupForNote(note), note, true)"
-                                @share="askPublishNote(note)"
-                                @delete="askDeleteNote(note)"
-                              />
-                            </nldd-container>
-                          </nldd-card>
-                        </nldd-collection>
-                        <template v-if="canCreateNotes && activeGroup && activeGroup.quote">
-                          <nldd-spacer size="12"></nldd-spacer>
-                          <nldd-button
-                            appearance="secondary"
-                            size="md"
-                            width="full"
-                            start-icon="add"
-                            text="Notitie toevoegen"
-                            @click="startNoteForGroup(activeGroup, true)"
-                          ></nldd-button>
-                        </template>
-                      </nldd-simple-section>
-                    </nldd-page>
-                  </template>
-
-                  <!-- Editor view: back button when it came from the list, plus
-                       the close button on the right in every case. -->
-                  <template v-else>
-                    <nldd-page sticky-header>
-                      <nldd-top-title-bar
-                        slot="header"
-                        text="Notitie"
-                        :back-text="noteEditFromList ? 'Notities' : ''"
-                        dismiss-text="Annuleer"
-                        @back="noteEditorBack"
-                        @dismiss="noteSheetEl?.hide?.()"
-                      ></nldd-top-title-bar>
-                      <!-- Only in the Tekst pane, which renders once an article
-                           (and so a law) is loaded: lawId is a string here. -->
-                      <NoteCreator
-                        v-if="noteCreator.open"
-                        :range="noteCreator.range"
-                        :raw-text="editedText"
-                        :law-id="(lawId as string)"
-                        :article="selectedArticle"
-                        :engine="noteEngine"
-                        :valid-from="lawValidFrom || ''"
-                        :traject-ref="activeTrajectRef || ''"
-                        :initial-note="noteCreator.initialNote"
-                        @create="onNoteCreated"
-                        @cancel="noteEditCancel"
-                      />
-                    </nldd-page>
-                  </template>
-                </nldd-sheet>
-
-                <!-- Look-ahead popover on a badge click: a flat preview of the
-                     comments (no referenced text) with a CTA into the sheet. -->
-                <nldd-popover
-                  :ref="(el: Element | ComponentPublicInstance | null) => (annotationPopEl = el as NLDDPopover | null)"
-                  accessible-label="Notities"
-                  placement="bottom-start"
-                >
-                  <nldd-container padding="16">
-                    <template v-for="(note, i) in activeNotes" :key="i">
-                      <nldd-spacer v-if="i > 0" size="16"></nldd-spacer>
-                      <nldd-rich-text>
-                        <p v-if="!linkedAction(note)">{{ noteText(note) || '-' }}</p>
-                        <p v-else-if="noteComment(note)">{{ noteComment(note) }}</p>
-                        <p v-if="linkedAction(note)">Gekoppeld aan de rekenregel {{ humanize(linkedAction(note)?.output ?? '') }}</p>
-                      </nldd-rich-text>
-                      <template v-if="noteAuthor(note)">
-                        <nldd-spacer size="4"></nldd-spacer>
-                        <nldd-identity :text="noteAuthor(note)"></nldd-identity>
+              <!-- The note editor and list live in one right sheet (the badge
+                   look-ahead popover, below, is the lightweight step before it).
+                   The badge list is the root view; editing/adding pushes an
+                   editor view (with a back button) or, from the notities pane,
+                   opens it as the root (with a close button). -->
+              <nldd-sheet
+                :ref="(el: Element | ComponentPublicInstance | null) => (noteSheetEl = el as NLDDSheet | null)"
+                placement="right"
+                width="480px"
+                accessible-label="Notities"
+                @close="onNoteSheetClose"
+              >
+                <!-- List view: the referenced text, a card per note, then add.
+                     A sheet always hosts an nldd-page; the title bar is its
+                     header (sticky) and carries the close button. -->
+                <template v-if="noteSheetView === 'list'">
+                  <nldd-page sticky-header>
+                    <nldd-top-title-bar
+                      slot="header"
+                      text="Notities"
+                      dismiss-text="Sluit"
+                      @dismiss="noteSheetEl?.hide?.()"
+                    ></nldd-top-title-bar>
+                    <nldd-simple-section data-testid="note-detail">
+                      <QuotedFragment :fragment="activeGroup" />
+                      <nldd-spacer v-if="activeGroup && activeGroup.quote" size="12"></nldd-spacer>
+                      <nldd-collection layout="stack" gap="12">
+                        <nldd-card v-for="(note, i) in activeNotes" :key="i">
+                          <nldd-container padding="10">
+                            <NoteCard
+                              :note="note"
+                              :can-edit="canEdit"
+                              :saving="savingNotes"
+                              @edit="startEditNote(groupForNote(note), note, true)"
+                              @share="askPublishNote(note)"
+                              @delete="askDeleteNote(note)"
+                            />
+                          </nldd-container>
+                        </nldd-card>
+                      </nldd-collection>
+                      <template v-if="canCreateNotes && activeGroup && activeGroup.quote">
+                        <nldd-spacer size="12"></nldd-spacer>
+                        <nldd-button
+                          appearance="secondary"
+                          size="md"
+                          width="full"
+                          start-icon="add"
+                          text="Notitie toevoegen"
+                          @click="startNoteForGroup(activeGroup, true)"
+                        ></nldd-button>
                       </template>
-                      <!-- RegelRijm: a linking note leads to its rule. -->
-                      <template v-if="linkedAction(note)">
-                        <nldd-spacer size="8"></nldd-spacer>
-                        <nldd-button size="sm" text="Actie openen" data-testid="note-open-linked-action" @click="openLinkedAction(note)"></nldd-button>
-                      </template>
+                    </nldd-simple-section>
+                  </nldd-page>
+                </template>
+
+                <!-- Editor view: back button when it came from the list, plus
+                     the close button on the right in every case. -->
+                <template v-else>
+                  <nldd-page sticky-header>
+                    <nldd-top-title-bar
+                      slot="header"
+                      text="Notitie"
+                      :back-text="noteEditFromList ? 'Notities' : ''"
+                      dismiss-text="Annuleer"
+                      @back="noteEditorBack"
+                      @dismiss="noteSheetEl?.hide?.()"
+                    ></nldd-top-title-bar>
+                    <!-- Only in the Tekst pane, which renders once an article
+                         (and so a law) is loaded: lawId is a string here. -->
+                    <NoteCreator
+                      v-if="noteCreator.open"
+                      :range="noteCreator.range"
+                      :raw-text="editedText"
+                      :law-id="(lawId as string)"
+                      :article="selectedArticle"
+                      :engine="noteEngine"
+                      :valid-from="lawValidFrom || ''"
+                      :traject-ref="activeTrajectRef || ''"
+                      :initial-note="noteCreator.initialNote"
+                      @create="onNoteCreated"
+                      @cancel="noteEditCancel"
+                    />
+                  </nldd-page>
+                </template>
+              </nldd-sheet>
+
+              <!-- Look-ahead popover on a badge click: a flat preview of the
+                   comments (no referenced text) with a CTA into the sheet. -->
+              <nldd-popover
+                :ref="(el: Element | ComponentPublicInstance | null) => (annotationPopEl = el as NLDDPopover | null)"
+                accessible-label="Notities"
+                placement="bottom-start"
+              >
+                <nldd-container padding="16">
+                  <template v-for="(note, i) in activeNotes" :key="i">
+                    <nldd-spacer v-if="i > 0" size="16"></nldd-spacer>
+                    <nldd-rich-text>
+                      <p v-if="!linkedAction(note)">{{ noteText(note) || '-' }}</p>
+                      <p v-else-if="noteComment(note)">{{ noteComment(note) }}</p>
+                      <p v-if="linkedAction(note)">Gekoppeld aan de rekenregel {{ humanize(linkedAction(note)?.output ?? '') }}</p>
+                    </nldd-rich-text>
+                    <template v-if="noteAuthor(note)">
+                      <nldd-spacer size="4"></nldd-spacer>
+                      <nldd-identity :text="noteAuthor(note)"></nldd-identity>
                     </template>
-                    <nldd-spacer size="16"></nldd-spacer>
-                    <nldd-button
-                      appearance="secondary"
-                      width="full"
-                      text="Bijdragen of bewerken"
-                      @click="openSheetFromAnnotation"
-                    ></nldd-button>
-                  </nldd-container>
-                </nldd-popover>
+                    <!-- RegelRijm: a linking note leads to its rule. -->
+                    <template v-if="linkedAction(note)">
+                      <nldd-spacer size="8"></nldd-spacer>
+                      <nldd-button size="sm" text="Actie openen" data-testid="note-open-linked-action" @click="openLinkedAction(note)"></nldd-button>
+                    </template>
+                  </template>
+                  <nldd-spacer size="16"></nldd-spacer>
+                  <nldd-button
+                    appearance="secondary"
+                    width="full"
+                    text="Bijdragen of bewerken"
+                    @click="openSheetFromAnnotation"
+                  ></nldd-button>
+                </nldd-container>
+              </nldd-popover>
 
-                <!-- Note management + the note list live in the Notities pane. -->
+              <!-- Note management + the note list live in the Notities pane. -->
+            </nldd-simple-section>
+
+            <!-- Machine readable -->
+            <nldd-simple-section v-else-if="view === 'machine'" width="full">
+              <MachineReadable
+                :article="editedArticle"
+                :editable="canEdit"
+                :can-enrich="canEnrichLaw"
+                :enriching="isEnriching"
+                :review-ready="reviewReady"
+                :review-article="reviewArticleForPane"
+                :dirty="isMachineReadableDirty"
+                :saving="lawSaving"
+                regelrijm
+                :law="law"
+                :law-id="lawId"
+                :links="regelrijmLinks"
+                :findings="articleFindings"
+                @open-action="handleOpenAction"
+                @navigate="handleRegelRijmNavigate"
+                @open-edit="activeEditItem = $event"
+                @init-mr="handleInitMr"
+                @enrich="enrichLaw"
+                @view-tasks="openTasksForLaw"
+                @review="openReviewForLaw"
+                @add-action="handleAddAction"
+                @save="handleMachineReadableSave"
+                @patch="handleSave"
+                @delete="handleDelete"
+              />
+            </nldd-simple-section>
+
+            <!-- Scenario builder -->
+            <template v-else-if="view === 'scenario'">
+              <nldd-simple-section v-if="engineInitError" width="full">
+                <nldd-inline-dialog
+                  variant="alert"
+                  text="WASM engine niet geladen"
+                  :supporting-text="`${engineInitError.message} - voer 'just wasm-build' uit om de WASM module te bouwen.`"
+                ></nldd-inline-dialog>
               </nldd-simple-section>
+              <!-- Reads the runs the editor keeps for the open regelwerk,
+                   the ones the Machine pane's status shows too. -->
+              <ScenarioStatusPane
+                v-else
+                :scenarios="lawScenarios"
+                @open="openScenarioTab"
+              />
+            </template>
 
-              <!-- Machine readable -->
-              <nldd-simple-section v-else-if="view === 'machine'" width="full">
-                <MachineReadable
-                  :article="editedArticle"
-                  :editable="canEdit"
-                  :can-enrich="canEnrichLaw"
-                  :enriching="isEnriching"
-                  :review-ready="reviewReady"
-                  :review-article="reviewArticleForPane"
-                  :dirty="isMachineReadableDirty"
-                  :saving="lawSaving"
-                  regelrijm
-                  :law="law"
-                  :law-id="lawId"
-                  :links="regelrijmLinks"
-                  :findings="articleFindings"
-                  @open-action="handleOpenAction"
-                  @navigate="handleRegelRijmNavigate"
-                  @open-edit="activeEditItem = $event"
-                  @init-mr="handleInitMr"
-                  @enrich="enrichLaw"
-                  @view-tasks="openTasksForLaw"
-                  @review="openReviewForLaw"
-                  @add-action="handleAddAction"
-                  @save="handleMachineReadableSave"
-                  @patch="handleSave"
-                  @delete="handleDelete"
-                />
-              </nldd-simple-section>
+            <!-- YAML -->
+            <nldd-simple-section v-else-if="view === 'yaml'" width="full">
+              <MachineEmptyState
+                v-if="!hasMachineReadable"
+                :review-ready="reviewReady"
+                :review-article="reviewArticleForPane"
+                :enriching="isEnriching"
+                :can-enrich="canEnrichLaw"
+                :can-write-here="canEdit"
+                @enrich="enrichLaw"
+                @write="handleInitMr"
+                @view-tasks="openTasksForLaw"
+                @review="openReviewForLaw"
+              ></MachineEmptyState>
+              <template v-else>
+                <nldd-code-editor
+                  embedded
+                  resize="auto"
+                  language="yaml"
+                  accessible-label="YAML"
+                  :value="yamlSource"
+                  @input="onYamlInput"
+                ></nldd-code-editor>
+                <nldd-banner v-if="parseError" variant="critical" :text="parseError"></nldd-banner>
+              </template>
+            </nldd-simple-section>
 
-              <!-- Scenario builder -->
-              <template v-else-if="view === 'scenario'">
-                <nldd-simple-section v-if="engineInitError" width="full">
-                  <nldd-inline-dialog
-                    variant="alert"
-                    text="WASM engine niet geladen"
-                    :supporting-text="`${engineInitError.message} - voer 'just wasm-build' uit om de WASM module te bouwen.`"
-                  ></nldd-inline-dialog>
-                </nldd-simple-section>
-                <!-- Reads the runs the editor keeps for the open regelwerk,
-                     the ones the Machine pane's status shows too. -->
-                <ScenarioStatusPane
-                  v-else
-                  :scenarios="lawScenarios"
-                  @open="openScenarioTab"
-                />
+            <!-- Notities - every note for this article, one under the other,
+                 plus the draft-management actions moved from the Tekst pane.
+                 Deliberately minimal for now; to be fine-tuned later. -->
+            <nldd-simple-section v-else-if="view === 'notes'" width="full">
+              <!-- Pane-level resolve failure (fetch/engine/resolver threw).
+                   Shown to every viewer, not only note authors: without it
+                   the pane falls through to "Geen notities", which reads as
+                   an empty sidecar instead of a failure. -->
+              <!-- useNotes keeps whatever it caught (`unknown`): an Error or the
+                   bare string a WASM call throws, which is what this prop takes. -->
+              <NotesLoadError :error="notesLoadError as { message?: string } | string | null" />
+              <template v-if="canCreateNotes">
+                <nldd-inline-dialog
+                  v-if="noteIssues.length"
+                  icon="exclamation-triangle"
+                  icon-color="warning"
+                  :text="`${noteIssues.length} notitie(s) niet verankerd`"
+                  :supporting-text="noteIssues.map(i => i.reason).join('; ')"
+                ></nldd-inline-dialog>
+                <nldd-inline-dialog
+                  v-if="draftCount > 0 && !canEdit"
+                  icon="exclamation-triangle"
+                  icon-color="warning"
+                  data-testid="notes-no-traject"
+                  text="Selecteer eerst een traject"
+                  supporting-text="Delen werkt pas als er een actief traject is. Notities downloaden als YAML werkt wel."
+                ></nldd-inline-dialog>
+                <nldd-inline-dialog
+                  v-if="notesSaveError"
+                  variant="alert"
+                  data-testid="notes-save-error"
+                  text="Notities opslaan mislukt"
+                  :supporting-text="notesSaveError"
+                ></nldd-inline-dialog>
+                <nldd-inline-dialog
+                  v-if="notesSaveStatus && !notesSaveError"
+                  variant="success"
+                  data-testid="notes-save-status"
+                  text="Opslaan gelukt"
+                  :supporting-text="notesSaveStatus"
+                ></nldd-inline-dialog>
               </template>
 
-              <!-- YAML -->
-              <nldd-simple-section v-else-if="view === 'yaml'" width="full">
-                <MachineEmptyState
-                  v-if="!hasMachineReadable"
-                  :review-ready="reviewReady"
-                  :review-article="reviewArticleForPane"
-                  :enriching="isEnriching"
-                  :can-enrich="canEnrichLaw"
-                  :can-write-here="canEdit"
-                  @enrich="enrichLaw"
-                  @write="handleInitMr"
-                  @view-tasks="openTasksForLaw"
-                  @review="openReviewForLaw"
-                ></MachineEmptyState>
-                <template v-else>
-                  <nldd-code-editor
-                    embedded
-                    resize="auto"
-                    language="yaml"
-                    accessible-label="YAML"
-                    :value="yamlSource"
-                    @input="onYamlInput"
-                  ></nldd-code-editor>
-                  <nldd-banner v-if="parseError" variant="critical" :text="parseError"></nldd-banner>
-                </template>
-              </nldd-simple-section>
-
-              <!-- Notities - every note for this article, one under the other,
-                   plus the draft-management actions moved from the Tekst pane.
-                   Deliberately minimal for now; to be fine-tuned later. -->
-              <nldd-simple-section v-else-if="view === 'notes'" width="full">
-                <!-- Pane-level resolve failure (fetch/engine/resolver threw).
-                     Shown to every viewer, not only note authors: without it
-                     the pane falls through to "Geen notities", which reads as
-                     an empty sidecar instead of a failure. -->
-                <!-- useNotes keeps whatever it caught (`unknown`): an Error or the
-                     bare string a WASM call throws, which is what this prop takes. -->
-                <NotesLoadError :error="notesLoadError as { message?: string } | string | null" />
-                <template v-if="canCreateNotes">
-                  <nldd-inline-dialog
-                    v-if="noteIssues.length"
-                    icon="exclamation-triangle"
-                    icon-color="warning"
-                    :text="`${noteIssues.length} notitie(s) niet verankerd`"
-                    :supporting-text="noteIssues.map(i => i.reason).join('; ')"
-                  ></nldd-inline-dialog>
-                  <nldd-inline-dialog
-                    v-if="draftCount > 0 && !canEdit"
-                    icon="exclamation-triangle"
-                    icon-color="warning"
-                    data-testid="notes-no-traject"
-                    text="Selecteer eerst een traject"
-                    supporting-text="Delen werkt pas als er een actief traject is. Notities downloaden als YAML werkt wel."
-                  ></nldd-inline-dialog>
-                  <nldd-inline-dialog
-                    v-if="notesSaveError"
-                    variant="alert"
-                    data-testid="notes-save-error"
-                    text="Notities opslaan mislukt"
-                    :supporting-text="notesSaveError"
-                  ></nldd-inline-dialog>
-                  <nldd-inline-dialog
-                    v-if="notesSaveStatus && !notesSaveError"
-                    variant="success"
-                    data-testid="notes-save-status"
-                    text="Opslaan gelukt"
-                    :supporting-text="notesSaveStatus"
-                  ></nldd-inline-dialog>
-                </template>
-
-                <nldd-inline-dialog
-                  v-if="notesForArticle.length === 0 && !notesLoadError"
-                  text="Geen notities voor dit artikel"
-                ></nldd-inline-dialog>
-                <template v-else>
-                  <template v-for="(group, gi) in noteGroups" :key="gi">
-                    <!-- Gap between groups only; the list must not open with a
-                         spacer (no leading whitespace at the top of the pane). -->
-                    <nldd-spacer v-if="gi > 0" size="24"></nldd-spacer>
-                    <!-- Quoted fragment (group header) as rich-text, then a
-                         spacer before the cards. -->
-                    <QuotedFragment v-if="group.quote" :fragment="group" />
-                    <nldd-rich-text v-else>
-                      <p><i>Zonder verankering</i></p>
-                    </nldd-rich-text>
-                    <nldd-spacer size="10"></nldd-spacer>
-                    <nldd-collection layout="stack" gap="12">
-                      <nldd-card v-for="(note, ni) in group.notes" :key="ni">
-                        <nldd-container padding="10">
-                          <NoteCard
-                            :note="note"
-                            :can-edit="canEdit"
-                            :saving="savingNotes"
-                            @edit="startEditNote(group, note)"
-                            @share="askPublishNote(note)"
-                            @delete="askDeleteNote(note)"
-                          />
-                        </nldd-container>
-                      </nldd-card>
-                    </nldd-collection>
-                    <!-- Add another note anchored to this same fragment, without
-                         re-selecting the text in the editor. -->
-                    <template v-if="canCreateNotes && group.quote">
-                      <nldd-spacer size="12"></nldd-spacer>
-                      <nldd-button
-                        appearance="secondary"
-                        size="md"
-                        width="full"
-                        start-icon="add"
-                        text="Notitie toevoegen"
-                        @click="startNoteForGroup(group)"
-                      ></nldd-button>
-                    </template>
+              <nldd-inline-dialog
+                v-if="notesForArticle.length === 0 && !notesLoadError"
+                text="Geen notities voor dit artikel"
+              ></nldd-inline-dialog>
+              <template v-else>
+                <template v-for="(group, gi) in noteGroups" :key="gi">
+                  <!-- Gap between groups only; the list must not open with a
+                       spacer (no leading whitespace at the top of the pane). -->
+                  <nldd-spacer v-if="gi > 0" size="24"></nldd-spacer>
+                  <!-- Quoted fragment (group header) as rich-text, then a
+                       spacer before the cards. -->
+                  <QuotedFragment v-if="group.quote" :fragment="group" />
+                  <nldd-rich-text v-else>
+                    <p><i>Zonder verankering</i></p>
+                  </nldd-rich-text>
+                  <nldd-spacer size="10"></nldd-spacer>
+                  <nldd-collection layout="stack" gap="12">
+                    <nldd-card v-for="(note, ni) in group.notes" :key="ni">
+                      <nldd-container padding="10">
+                        <NoteCard
+                          :note="note"
+                          :can-edit="canEdit"
+                          :saving="savingNotes"
+                          @edit="startEditNote(group, note)"
+                          @share="askPublishNote(note)"
+                          @delete="askDeleteNote(note)"
+                        />
+                      </nldd-container>
+                    </nldd-card>
+                  </nldd-collection>
+                  <!-- Add another note anchored to this same fragment, without
+                       re-selecting the text in the editor. -->
+                  <template v-if="canCreateNotes && group.quote">
+                    <nldd-spacer size="12"></nldd-spacer>
+                    <nldd-button
+                      appearance="secondary"
+                      size="md"
+                      width="full"
+                      start-icon="add"
+                      text="Notitie toevoegen"
+                      @click="startNoteForGroup(group)"
+                    ></nldd-button>
                   </template>
                 </template>
-              </nldd-simple-section>
-            </nldd-page>
-          </nldd-split-view-pane>
+              </template>
+            </nldd-simple-section>
+          </nldd-page>
         </nldd-side-by-side-split-view>
         </template>
   <!-- Overlays teleported to body: as light-DOM siblings of the split view they

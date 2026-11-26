@@ -147,7 +147,7 @@ watch(item, (i) => {
         <nldd-spacer size="16"></nldd-spacer>
 
         <nldd-title size="display-2">
-          <span slot="overline">{{ item.aanvraag.partij_naam }}</span>
+          <p slot="overline">{{ item.aanvraag.partij_naam }}</p>
           <h2>Jaaraanvraag {{ item.aanvraag.subsidiejaar }} · {{ onderdelen(item.aanvraag.componenten.length) }}</h2>
         </nldd-title>
         <nldd-spacer size="24"></nldd-spacer>
