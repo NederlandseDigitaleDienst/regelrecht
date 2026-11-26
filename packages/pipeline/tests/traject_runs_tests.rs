@@ -477,10 +477,12 @@ async fn a_stop_does_not_reach_another_trajects_or_a_corpus_run() {
     // Same eight hex characters, another traject: the full id tells them apart.
     let mut collision = task_enrich_payload();
     collision["traject_id"] = json!("abcd1234-ffff-4000-8000-000000000000");
+    // Another law: the corpus run above already holds the one active slot
+    // per (law, provider, traject_ref) that idx_unique_active_enrich_job allows.
     let lookalike = create_run(
         &db,
         JobType::Enrich,
-        "wet_op_de_zorgtoeslag",
+        "wet_op_de_huurtoeslag",
         Some(TRAJECT_REF),
         collision,
     )
