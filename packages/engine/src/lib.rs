@@ -78,6 +78,7 @@ pub use engine::{
     Unanswered,
 };
 pub use error::{EngineError, ExternalError, Result};
+pub use load_check::{HookCouplingWarning, hook_coupling_warnings};
 pub use operations::{ValueResolver, evaluate_value, execute_operation};
 pub use projection::{
     Aggregate, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome, StateChange,

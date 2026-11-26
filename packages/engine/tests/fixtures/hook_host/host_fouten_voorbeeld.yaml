@@ -1,0 +1,85 @@
+---
+# Fictional. One host per article: two cannot be right, one names a law that
+# is not loaded, and one is right.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: host_fouten_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-06-01'
+url: https://example.invalid/host-fouten
+articles:
+  - number: '1'
+    url: https://example.invalid/host-fouten/1
+    text: De termijn voor nadere regels is tien weken.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '2'}
+      execution:
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 10}
+  - number: '2'
+    url: https://example.invalid/host-fouten/2
+    text: Op een verslag wordt binnen twaalf weken beslist, voor een subsidiejaar vóór 2026 binnen zesentwintig.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '3'}
+      execution:
+        parameters:
+          - {name: subsidiejaar, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: IF
+              cases:
+                - when: {operation: LESS_THAN, subject: $subsidiejaar, value: 2026}
+                  then: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 26}
+              default: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 12}
+  - number: '3'
+    url: https://example.invalid/host-fouten/3
+    text: Op een aanvraag op grond van een wet buiten dit corpus wordt binnen tien weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: onbekende_wet_voorbeeld, article: '1'}
+      execution:
+        parameters:
+          - {name: subsidiejaar, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 10}
+  - number: '4'
+    url: https://example.invalid/host-fouten/4
+    text: Op een aanvraag tot verlening wordt binnen elf weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '1'}
+      execution:
+        parameters:
+          - {name: subsidiejaar, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 11}

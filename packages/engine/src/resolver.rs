@@ -683,7 +683,44 @@ impl RuleResolver {
             )));
         }
 
-        self.insert_law(law)
+        // RFC-007, RFC-058: a coupling between a hook and its host that
+        // cannot work as written is no refusal (a caller may still pass the
+        // value, a host may load later), so it is logged here and listed by
+        // [`Self::hook_coupling_warnings`].
+        let law_id = law.id.clone();
+        self.insert_law(law)?;
+        for warning in self.hook_coupling_warnings_touching(Some(&law_id)) {
+            tracing::warn!(law_id = %law_id, "{warning}");
+        }
+        Ok(())
+    }
+
+    /// The couplings between the hooks and their hosts in the loaded set
+    /// that cannot work as written: a `pre_actions` hook that reads an
+    /// output of its host, an input of a hook that reads an output its own
+    /// law lacks, and a filling of an open term of a hook for a host
+    /// (`implements.host`) the hook never reaches, or that asks for a
+    /// required parameter the host does not hand the hook. The newest
+    /// version of each law counts, as for the hooks index. A warning does not
+    /// stop a law from loading.
+    pub fn hook_coupling_warnings(&self) -> Vec<crate::HookCouplingWarning> {
+        self.hook_coupling_warnings_touching(None)
+    }
+
+    fn hook_coupling_warnings_touching(
+        &self,
+        touching: Option<&str>,
+    ) -> Vec<crate::HookCouplingWarning> {
+        let mut laws: Vec<&ArticleBasedLaw> = self
+            .law_versions
+            .values()
+            .filter_map(|versions| versions.first())
+            .collect();
+        // The order matters only for the listing; a load logs what it finds.
+        if touching.is_none() {
+            laws.sort_by(|a, b| a.id.cmp(&b.id));
+        }
+        crate::load_check::hook_coupling_warnings_touching(&laws, touching)
     }
 
     /// [`Self::load_law`] without the type check: the run-time boundary checks
@@ -5344,5 +5381,90 @@ articles:
                 )
             );
         }
+    }
+
+    /// The coupling warnings the loader logs, law by law as each loads, add
+    /// up to those of the whole set, whatever the order. The fixture rulework
+    /// of `tests/hook_host_checks.rs`, with 4:13 firing before the actions
+    /// and one more filling that reads an output of its host: that one is a
+    /// warning only once the hook article is known.
+    #[test]
+    fn the_coupling_warnings_on_load_add_up_to_those_of_the_set() {
+        let general = include_str!("../tests/fixtures/hook_host/algemene_wet_voorbeeld.yaml")
+            .replace("post_actions", "pre_actions");
+        let reads_output =
+            include_str!("../tests/fixtures/hook_coupling/invulling_uitvoer_voorbeeld.yaml");
+        // A law whose hook looks for its host's output in its own law, with a
+        // filling that asks for a parameter nothing hands the hook, and a law
+        // with a pre_actions hook that reads an output of a decision of its
+        // own law and whose output a filling reads.
+        let by_input = include_str!("../tests/fixtures/hook_coupling/meldwet_voorbeeld.yaml");
+        let pre_hook =
+            include_str!("../tests/fixtures/hook_coupling/voorbereidingswet_voorbeeld.yaml");
+        let laws = [
+            general.as_str(),
+            include_str!("../tests/fixtures/hook_host/subsidiewet_voorbeeld.yaml"),
+            include_str!("../tests/fixtures/hook_host/beleidsregel_subsidie_voorbeeld.yaml"),
+            include_str!("../tests/fixtures/hook_host/host_fouten_voorbeeld.yaml"),
+            include_str!("../tests/fixtures/hook_host/vergunningwet_voorbeeld.yaml"),
+            reads_output,
+            by_input,
+            pre_hook,
+        ];
+        let mut whole = None;
+        for order in [
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [7, 6, 5, 4, 3, 2, 1, 0],
+            [1, 5, 3, 0, 2, 4, 6, 7],
+            [0, 2, 3, 4, 5, 6, 7, 1],
+            [0, 1, 7, 3, 4, 5, 6, 2],
+        ] {
+            let mut resolver = RuleResolver::new();
+            let mut on_load = BTreeSet::new();
+            for i in order {
+                let id = resolver.load_from_yaml(laws[i]).unwrap();
+                let warnings = resolver.hook_coupling_warnings_touching(Some(&id));
+                // Only a law with a pre_actions hook is checked against the
+                // whole set; any other gives only the warnings it takes part
+                // in, as the hook, the host or the filling.
+                for w in warnings.iter().filter(|_| {
+                    id != "voorbereidingswet_voorbeeld" && id != "algemene_wet_voorbeeld"
+                }) {
+                    let takes_part = w.hook_law == id
+                        || w.host.as_ref().is_some_and(|(law, _)| *law == id)
+                        || w.message.contains(&format!("law '{id}'"));
+                    assert!(takes_part, "loading {id} gives {w:?}");
+                }
+                on_load.extend(warnings);
+            }
+            let set: BTreeSet<_> = resolver.hook_coupling_warnings().into_iter().collect();
+            assert_eq!(on_load, set, "order {order:?}");
+            assert_eq!(whole.get_or_insert_with(|| set.clone()), &set);
+        }
+        // Per warning, the hook and the host it is about: the fillings of
+        // the fixtures, the input that looks for its host in its own law and
+        // the host that offers it, and the pre_actions hook that reads an
+        // output of a decision of its own law.
+        let about: Vec<String> = whole
+            .iter()
+            .flatten()
+            .map(|w| match &w.host {
+                Some((law, article)) => format!("{} {law}:{article}", w.hook_law),
+                None => w.hook_law.clone(),
+            })
+            .collect();
+        let general = |host: &str| format!("algemene_wet_voorbeeld subsidiewet_voorbeeld:{host}");
+        let expected = [
+            general("1"),
+            general("11"),
+            general("2"),
+            general("3"),
+            general("3"),
+            general("3"),
+            "meldwet_voorbeeld".to_string(),
+            "meldwet_voorbeeld subsidiewet_voorbeeld:1".to_string(),
+            "voorbereidingswet_voorbeeld voorbereidingswet_voorbeeld:3".to_string(),
+        ];
+        assert_eq!(about, expected, "{whole:#?}");
     }
 }

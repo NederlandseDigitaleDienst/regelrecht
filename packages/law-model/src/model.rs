@@ -1346,6 +1346,7 @@ impl ArticleRequirement {
 /// Declares that this article fills an open term from a higher-level law.
 /// Maps to the "Gelet op" clause in Dutch legislation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ImplementsDeclaration {
     /// The $id of the higher-level law being implemented
     pub law: String,
@@ -1368,6 +1369,7 @@ pub struct ImplementsDeclaration {
 /// RFC-058): the article that establishes the application or gives the
 /// decision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HookHostReference {
     /// The $id of the law of that article.
     pub law: String,
@@ -1397,6 +1399,7 @@ impl HookPoint {
 
 /// Filter that determines when a hook fires
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HookFilter {
     /// Match articles that produce this legal character (e.g., "BESCHIKKING")
     #[serde(default)]

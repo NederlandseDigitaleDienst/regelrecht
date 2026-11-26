@@ -1,0 +1,53 @@
+---
+# Fictional. Two grants, each with a parameter of its own: the grant
+# (article 1) and the settlement (article 3), and a refusal (article 4).
+# Article 2 gives no decision.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: subsidiewet_voorbeeld
+regulatory_layer: WET
+bwb_id: BWBR9999951
+publication_date: '2025-01-01'
+url: https://example.invalid/subsidiewet
+articles:
+  - number: '1'
+    url: https://example.invalid/subsidiewet/1
+    text: Onze Minister verleent op aanvraag een subsidie voor het subsidiejaar.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+        parameters:
+          - {name: subsidiejaar, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: subsidie_verleend, type: boolean}
+        actions:
+          - {output: subsidie_verleend, value: true}
+  - number: '2'
+    url: https://example.invalid/subsidiewet/2
+    text: Bij ministeriële regeling kunnen nadere regels worden gesteld over de verlening.
+  - number: '3'
+    url: https://example.invalid/subsidiewet/3
+    text: Onze Minister stelt de subsidie vast na ontvangst van het verslag over de projecten.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+        parameters:
+          - {name: aantal_projecten, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: subsidie_vastgesteld, type: boolean}
+        actions:
+          - {output: subsidie_vastgesteld, value: true}
+  - number: '4'
+    url: https://example.invalid/subsidiewet/4
+    text: Onze Minister weigert de subsidie als de aanvraag na het subsidiejaar is ontvangen.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: AFWIJZING}
+        parameters:
+          - {name: subsidiejaar, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: subsidie_geweigerd, type: boolean}
+        actions:
+          - {output: subsidie_geweigerd, value: true}
