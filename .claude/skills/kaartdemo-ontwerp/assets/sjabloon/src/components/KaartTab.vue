@@ -199,7 +199,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', opToets); kaart?.r
         </div>
         <nldd-checkbox-field label="Bouwvlakken (waar een hoofdgebouw mag)" :checked="toonBouwvlak || undefined" @change="toonBouwvlak = $event.target.checked"></nldd-checkbox-field>
         <details class="overig">
-          <summary><nldd-text size="xs"><p><strong>Overige tekens</strong></p></nldd-text></summary>
+          <summary><nldd-text size="xs"><span><strong>Overige tekens</strong></span></nldd-text></summary>
           <div v-for="g in LEGENDA" :key="g.kop" class="legenda-groep">
             <nldd-text size="xs" color="secondary"><p>{{ g.kop }}</p></nldd-text>
             <span v-for="l in g.items" :key="l.tekst" class="legenda-item">

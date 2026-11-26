@@ -643,7 +643,7 @@ onBeforeUnmount(() => { kaart?.remove(); });
             <i class="lg-vlak" :style="{ borderColor: l.kleur, background: `color-mix(in srgb, ${l.kleur} 72%, transparent)` }"></i>
             <nldd-text size="xs"><span>{{ l.tekst }}<template v-if="thema === 'uitkomst' && uitkomstTelling && uitkomstVoortgang === null"> ({{ uitkomstTelling[l.klasse] }})</template></span></nldd-text>
           </span>
-          <a v-if="thema === 'uitkomst'" href="#" @click.prevent="naarUitleg('onthouding')"><nldd-text size="xs"><p>Wat is een onthouding?</p></nldd-text></a>
+          <a v-if="thema === 'uitkomst'" href="#" @click.prevent="naarUitleg('onthouding')"><nldd-text size="xs"><span>Wat is een onthouding?</span></nldd-text></a>
         </div>
         <div v-if="thema === 'plan'" class="legenda-groep">
           <nldd-text size="xs" color="secondary"><p>{{ themaNu.uitleg }}</p></nldd-text>
@@ -656,7 +656,7 @@ onBeforeUnmount(() => { kaart?.remove(); });
           </details>
         </div>
         <details v-if="thema === 'uitkomst' && ontbreektLijst.length && uitkomstVoortgang === null" class="overig ontbreekt" open>
-          <summary><nldd-text size="xs"><p><strong>Wat ontbreekt nog</strong> (aantal vakken)</p></nldd-text></summary>
+          <summary><nldd-text size="xs"><span><strong>Wat ontbreekt nog</strong> (aantal vakken)</span></nldd-text></summary>
           <ul class="ontbreekt-lijst">
             <li v-for="o in ontbreektLijst" :key="o.id">
               <a v-if="o.invulbaar" href="#" @click.prevent="naarInvoer"><nldd-text size="xs"><span>{{ o.tekst }}</span></nldd-text></a>
@@ -667,7 +667,7 @@ onBeforeUnmount(() => { kaart?.remove(); });
         </details>
         <nldd-checkbox-field label="Bouwvlakken (waar een hoofdgebouw mag)" :checked="toonBouwvlak || undefined" @change="toonBouwvlak = $event.target.checked"></nldd-checkbox-field>
         <details class="overig">
-        <summary><nldd-text size="xs"><p><strong>Overige tekens</strong></p></nldd-text></summary>
+        <summary><nldd-text size="xs"><span><strong>Overige tekens</strong></span></nldd-text></summary>
         <div v-for="g in LEGENDA" :key="g.kop" class="legenda-groep">
           <nldd-text size="xs" color="secondary"><p>{{ g.kop }}</p></nldd-text>
           <span v-for="l in g.items" :key="l.tekst" class="legenda-item">

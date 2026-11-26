@@ -534,7 +534,7 @@ const sectionLabels: Record<string, string> = {
                     <nldd-switch-field :checked="def.bool ? true : undefined" @change="def.bool = Boolean($event.detail?.checked)">Waarde</nldd-switch-field>
                   </nldd-cell>
                   <nldd-cell v-else-if="defKind === 'number' || defKind === 'amount'">
-                    <!-- number-field with hide-spin-buttons: keeps numeric input
+                    <!-- number-field with spin-buttons="none": keeps numeric input
                          validation (rejects non-numeric, handles locale) without
                          the visual clutter that felt out of place for "fixed
                          value from law" semantics. Both @input and @change are

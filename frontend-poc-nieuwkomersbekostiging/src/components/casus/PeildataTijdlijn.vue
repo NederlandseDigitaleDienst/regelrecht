@@ -35,17 +35,15 @@
             </span>
           </p>
         </nldd-text-cell>
-        <nldd-text-cell size="sm" horizontal-alignment="right">
-          <p>
-            <nldd-button
-              text="Trace"
-              size="xs"
-              appearance="neutral-transparent"
-              start-icon="text-document"
-              @click="emit('trace', peildata[i])"
-            ></nldd-button>
-          </p>
-        </nldd-text-cell>
+        <nldd-cell horizontal-alignment="right">
+          <nldd-button
+            text="Trace"
+            size="xs"
+            appearance="neutral-transparent"
+            start-icon="text-document"
+            @click="emit('trace', peildata[i])"
+          ></nldd-button>
+        </nldd-cell>
       </nldd-table-row>
 
       <nldd-table-row class="tl-totaal">

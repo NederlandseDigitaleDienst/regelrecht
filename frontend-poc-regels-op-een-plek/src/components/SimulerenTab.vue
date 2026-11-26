@@ -187,7 +187,7 @@ function getal(e, veld, obj = bouwplan) {
           <span v-for="s in ['toegestaan', 'onthouding', 'niet toegestaan']" :key="s" class="leg-item">
             <span class="cel" :class="staat(s).klasse">{{ staat(s).kort }}</span><nldd-text size="xs"><span>{{ staat(s).tekst }}</span></nldd-text>
           </span>
-          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs"><p>regel slaat om</p></nldd-text></span>
+          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs"><span>regel slaat om</span></nldd-text></span>
           <span class="leg-item"><span class="cel leeg vraag-voorbeeld"></span><nldd-text size="xs"><span>{{ bouwplan.lagen }} lagen, de vraag</span></nldd-text></span>
         </div>
         <nldd-segmented-control :value="toon" size="sm" accessible-label="Welke regels" @change="toon = $event.target.value">

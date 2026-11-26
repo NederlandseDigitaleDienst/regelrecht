@@ -259,11 +259,13 @@ function claimLawName(cl: DemoClaim) {
                        and an end cell never shrinks, so beside the tag the title would break
                        per letter. In the overline the title keeps the whole card width. -->
                   <nldd-text-cell :text="c.lawName" :supporting-text="`${subjectName(c)} · ${formatDateTime(c.submittedAt)}`">
-                    <p slot="overline"><nldd-tag size="sm" :color="laneTag(c).color" :text="laneTag(c).text"></nldd-tag></p>
-                    <!-- Er is een gegeven gewijzigd waarmee deze wet nu op iets
-                         anders uitkomt dan waarop besloten is. Het besluit staat
-                         nog; dit zegt alleen dat ernaar gekeken moet worden. -->
-                    <p slot="overline"><nldd-tag v-if="driftedIds.has(c.id)" size="sm" color="warning" icon="warning" :text="t('zaak.tag.changed')"></nldd-tag></p>
+                    <p slot="overline">
+                      <nldd-tag size="sm" :color="laneTag(c).color" :text="laneTag(c).text"></nldd-tag>
+                      <!-- Er is een gegeven gewijzigd waarmee deze wet nu op iets
+                           anders uitkomt dan waarop besloten is. Het besluit staat
+                           nog; dit zegt alleen dat ernaar gekeken moet worden. -->
+                      <nldd-tag v-if="driftedIds.has(c.id)" size="sm" color="warning" icon="warning" :text="t('zaak.tag.changed')"></nldd-tag>
+                    </p>
                   </nldd-text-cell>
                 </nldd-list-item>
               </nldd-list>

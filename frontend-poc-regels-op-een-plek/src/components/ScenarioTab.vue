@@ -35,9 +35,9 @@ const soort = (s) => (s.besluit?.match(/\((verleend|BOPA|geweigerd)/)?.[1]) ?? n
         <nldd-title-cell size="display-6" :text="s.naam" :supporting-text="`Verwacht: ${s.verwacht.uitkomst}${soort(s) ? ` · besluit: ${SOORT[soort(s)]}` : ''}`"></nldd-title-cell>
         <nldd-cell width="fit-content">
           <div class="sporen">
-            <span class="spoor"><nldd-text size="xs" color="secondary"><p>vóór</p></nldd-text>
+            <span class="spoor"><nldd-text size="xs" color="secondary"><span>vóór</span></nldd-text>
               <nldd-tag :color="s.oud.uitkomst_klopt ? 'success' : (TAG[k(s.oud.uitkomst)] === 'critical' ? 'critical' : 'warning')" :text="TEKST[k(s.oud.uitkomst)] ?? s.oud.uitkomst ?? s.oud.status ?? 'geen'"></nldd-tag></span>
-            <span class="spoor"><nldd-text size="xs" color="secondary"><p>met DSO</p></nldd-text>
+            <span class="spoor"><nldd-text size="xs" color="secondary"><span>met DSO</span></nldd-text>
               <nldd-tag :color="s.dso.uitkomst_klopt ? 'success' : (TAG[k(s.dso.uitkomst)] === 'critical' ? 'critical' : 'warning')" :text="TEKST[k(s.dso.uitkomst)] ?? s.dso.uitkomst ?? s.dso.status ?? 'geen'"></nldd-tag></span>
           </div>
         </nldd-cell>

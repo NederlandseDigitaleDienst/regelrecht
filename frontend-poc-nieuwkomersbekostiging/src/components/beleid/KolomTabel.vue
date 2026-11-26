@@ -48,7 +48,7 @@
           :color="cellColor(row, col)"
         >
           <p><span class="kt-value" :class="{ 'kt-bold': row.total }">{{ cellValue(row, col) }}</span></p>
-          <p slot="supporting-text" v-if="cellDelta(row, col)" class="kt-delta">{{ cellDelta(row, col) }}</p>
+          <p v-if="cellDelta(row, col)" slot="supporting-text"><span class="kt-delta">{{ cellDelta(row, col) }}</span></p>
         </nldd-text-cell>
       </nldd-table-row>
     </nldd-table>

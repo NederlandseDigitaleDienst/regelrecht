@@ -135,9 +135,9 @@ const titel = (rij, i) => `${res.value.lagen[i]} lagen (${meter(res.value.hoogte
             <span class="cel" :class="staat(s).klasse">{{ staat(s).kort }}</span>
             <nldd-text size="xs"><span>{{ staat(s).tekst }}</span></nldd-text>
           </span>
-          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs"><p>regel slaat om</p></nldd-text></span>
+          <span class="leg-item"><span class="cel leeg kantel-voorbeeld"></span><nldd-text size="xs"><span>regel slaat om</span></nldd-text></span>
           <span class="leg-item"><span class="cel leeg vraag-voorbeeld"></span><nldd-text size="xs"><span>{{ bouwplan.lagen }} lagen, de vraag</span></nldd-text></span>
-          <a href="#" class="uitleg-link" @click.prevent="emit('uitleg', 'onthouding')"><nldd-text size="xs"><p>Wat betekenen deze termen?</p></nldd-text></a>
+          <a href="#" class="uitleg-link" @click.prevent="emit('uitleg', 'onthouding')"><nldd-text size="xs"><span>Wat betekenen deze termen?</span></nldd-text></a>
         </div>
 
         <nldd-segmented-control :value="toon" size="sm" accessible-label="Welke regels" @change="toon = $event.target.value">
