@@ -62,6 +62,23 @@ pub enum Place {
     Definition { name: String },
 }
 
+impl Place {
+    /// The place of an action in an article's list of actions: the output it
+    /// assigns, or its position in that list when it assigns none.
+    /// `position` counts from zero, as the list is walked; the place counts
+    /// from one, as a reader does.
+    pub(crate) fn of_action(position: usize, output: Option<&str>) -> Self {
+        match output {
+            Some(name) => Place::Output {
+                name: name.to_string(),
+            },
+            None => Place::Action {
+                index: position + 1,
+            },
+        }
+    }
+}
+
 impl fmt::Display for Place {
     /// The place as the type check has always printed it: `output 'x'`,
     /// `action 3`, `input 'x'`, `definition 'X'`, and nothing for the article
@@ -270,6 +287,18 @@ articles:
                 .starts_with("article 2, output geen_huur: operation EQUALS could not be read"),
             "{}",
             diagnostic.message
+        );
+    }
+
+    #[test]
+    fn an_action_without_an_output_is_placed_by_its_position_from_one() {
+        assert_eq!(Place::of_action(0, None), Place::Action { index: 1 });
+        assert_eq!(Place::of_action(2, None), Place::Action { index: 3 });
+        assert_eq!(
+            Place::of_action(2, Some("huur")),
+            Place::Output {
+                name: "huur".to_string()
+            }
         );
     }
 

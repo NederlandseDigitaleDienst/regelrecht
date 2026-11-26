@@ -175,10 +175,10 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
         return Ok(());
     }
     for (where_, section) in sections(law) {
-        for action in all_actions(section) {
+        for (place, action) in placed_actions(section) {
             if action.operands().any(contains_distinct) {
                 return Err(where_.refuse(
-                    action_place(action),
+                    place,
                     format!(
                         "law '{}' {where_}: action for output '{}' has a FOREACH with combine \
                      DISTINCT, which schema v0.8.21 introduced; declare v0.8.21 or later",
@@ -192,13 +192,21 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
     Ok(())
 }
 
-/// Every action of a section: those of its execution, the default actions
-/// of its open terms and the actions of the steps of its projection.
-fn all_actions(section: &MachineReadable) -> impl Iterator<Item = &Action> {
+/// Every action of a section with its place: those of its execution, the
+/// default actions of its open terms and the actions of the steps of its
+/// projection.
+///
+/// An action of the execution is placed as the type check places it
+/// ([`Place::of_action`]), so both mark the same row. An action of a default
+/// or a step is in no such list: it is placed on the output it assigns, or on
+/// the article.
+fn placed_actions(section: &MachineReadable) -> impl Iterator<Item = (Place, &Action)> {
     let execution = section
         .execution
         .iter()
-        .flat_map(|e| e.actions.iter().flatten());
+        .flat_map(|e| e.actions.iter().flatten())
+        .enumerate()
+        .map(|(position, action)| (Place::of_action(position, action.output.as_deref()), action));
     let defaults = section
         .open_terms
         .iter()
@@ -208,7 +216,11 @@ fn all_actions(section: &MachineReadable) -> impl Iterator<Item = &Action> {
         .projection
         .iter()
         .flat_map(|p| p.steps.iter().flat_map(|step| step.actions.iter()));
-    execution.chain(defaults).chain(steps)
+    execution.chain(
+        defaults
+            .chain(steps)
+            .map(|action| (outside_the_list(action), action)),
+    )
 }
 
 /// Refuse a `RECORD` in a file on schema v0.8.21 or earlier, which does not
@@ -221,14 +233,14 @@ fn all_actions(section: &MachineReadable) -> impl Iterator<Item = &Action> {
 pub(crate) fn reject_malformed_records(law: &ArticleBasedLaw) -> Result<()> {
     let records_allowed = from_version(law, (0, 8, 22));
     for (where_, section) in sections(law) {
-        for action in all_actions(section) {
+        for (place, action) in placed_actions(section) {
             let mut records = Vec::new();
             action
                 .operands()
                 .for_each(|v| collect_records(v, &mut records));
             let refuse = |why: String| {
                 Err(where_.refuse(
-                    action_place(action),
+                    place.clone(),
                     format!(
                         "law '{}' {where_}: action for output '{}' {why}",
                         law.id,
@@ -781,8 +793,9 @@ impl Scope<'_> {
     }
 }
 
-/// The place of an action: the output it assigns, or the article when it has none.
-fn action_place(action: &Action) -> Place {
+/// The place of an action that is not in the execution's list of actions: the
+/// output it assigns, or the article when it has none.
+fn outside_the_list(action: &Action) -> Place {
     match &action.output {
         Some(name) => Place::Output { name: name.clone() },
         None => Place::Article,
@@ -822,12 +835,7 @@ pub(crate) fn reject_unknown_literals(law: &ArticleBasedLaw) -> Result<()> {
             let operands = action.operands();
             for operand in operands {
                 if action_value_contains_unknown(operand) {
-                    let place = match &action.output {
-                        Some(output) => Place::Output {
-                            name: output.clone(),
-                        },
-                        None => Place::Action { index: index + 1 },
-                    };
+                    let place = Place::of_action(index, action.output.as_deref());
                     return Err(unknown_literal(law, &article.number, place));
                 }
             }
@@ -2337,6 +2345,40 @@ articles:
                   default: null
 "#
         )
+    }
+
+    /// A refusal on an action that assigns no output marks that action, by
+    /// its position in the execution's list, as the type check does.
+    #[test]
+    fn a_refusal_on_an_action_without_an_output_names_its_position() {
+        let yaml = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: record_gate
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        output:
+          - name: eerste
+            type: number
+        actions:
+          - output: eerste
+            value: 1
+          - value: {operation: RECORD, fields: {naam: 1}}
+"#;
+        let law: ArticleBasedLaw = serde_yaml_ng::from_str(yaml).unwrap();
+        let err = reject_malformed_records(&law).unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                EngineError::LoadCheck { article, place: Place::Action { index: 2 }, .. }
+                    if article == "1"
+            ),
+            "{err:?}"
+        );
     }
 
     #[test]

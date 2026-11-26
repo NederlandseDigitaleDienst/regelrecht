@@ -1097,6 +1097,48 @@ articles:
         );
     }
 
+    /// The refusing side of the size limit, which is the text both load
+    /// methods throw: nothing at the limit, the sentence one byte over it.
+    #[test]
+    fn oversize_text_refuses_only_a_text_over_the_limit() {
+        let at_limit = "x".repeat(config::MAX_YAML_SIZE);
+        assert_eq!(oversize_text(&at_limit), None);
+
+        let over = "x".repeat(config::MAX_YAML_SIZE + 1);
+        assert_eq!(
+            oversize_text(&over),
+            Some(format!(
+                "YAML exceeds maximum size ({} bytes)",
+                config::MAX_YAML_SIZE
+            ))
+        );
+    }
+
+    /// A law that is not loaded gets the hint to load it; any other error
+    /// keeps the engine's own sentence.
+    #[test]
+    fn engine_error_text_adds_the_hint_only_for_a_law_that_is_not_loaded() {
+        assert_eq!(
+            engine_error_text(&EngineError::LawNotFound("wet_a".to_string())),
+            "Law 'wet_a' not found. Load it first with loadLaw()."
+        );
+        let other = EngineError::LoadError("article 2 does something".to_string());
+        assert_eq!(engine_error_text(&other), other.to_string());
+    }
+
+    /// The accepting side of `loadLawWithDiagnostics` is the one `loadLaw`
+    /// has: the law's id comes back and the law is there. The refusing side
+    /// builds a `JsValue` and cannot run outside wasm32.
+    #[test]
+    fn load_law_with_diagnostics_loads_a_law_and_returns_its_id() {
+        let mut engine = WasmEngine::new();
+
+        let law_id = engine.load_law_with_diagnostics(MINIMAL_LAW_YAML).ok();
+
+        assert_eq!(law_id.as_deref(), Some("test_law"));
+        assert!(engine.has_law("test_law"));
+    }
+
     /// De engine-versie reist mee in elk uitvoeringsresultaat en is daarmee
     /// onderdeel van de herleidbaarheid van een beschikking: hij moet de
     /// werkelijke crate-versie zijn, geen placeholder.

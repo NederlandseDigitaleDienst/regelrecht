@@ -345,11 +345,7 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
                     action.output.as_deref().unwrap_or("(unnamed)")
                 );
                 walk_action(action, &where_).map_err(|err| {
-                    let place = match &action.output {
-                        Some(name) => Place::Output { name: name.clone() },
-                        None => Place::Action { index: index + 1 },
-                    };
-                    placed(err, place)
+                    placed(err, Place::of_action(index, action.output.as_deref()))
                 })?;
             }
         }

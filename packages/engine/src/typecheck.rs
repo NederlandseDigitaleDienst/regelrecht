@@ -501,12 +501,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             .unwrap_or_else(|_| (0..actions.len()).collect());
         for index in order {
             let action = &actions[index];
-            self.location = match &action.output {
-                Some(output) => Place::Output {
-                    name: output.clone(),
-                },
-                None => Place::Action { index: index + 1 },
-            };
+            self.location = Place::of_action(index, action.output.as_deref());
             self.output = action.output.clone();
             self.check_action(action);
         }
