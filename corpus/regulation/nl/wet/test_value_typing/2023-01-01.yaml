@@ -14,7 +14,8 @@ articles:
     url: https://example.com/test_value_typing/1
     text: >-
       De waarde is een getal indien zij gelijk is aan 42, en tekst indien zij
-      gelijk is aan "42".
+      gelijk is aan "42". De waarde is een code indien zij gelijk is aan "014",
+      en het getal veertien indien zij gelijk is aan 14.
     machine_readable:
       execution:
         parameters:
@@ -25,6 +26,10 @@ articles:
           - name: waarde_is_getal
             type: boolean
           - name: waarde_is_tekst
+            type: boolean
+          - name: waarde_is_code
+            type: boolean
+          - name: waarde_is_veertien
             type: boolean
         actions:
           # EQUALS is structureel: Int(42) en String("42") zijn niet gelijk.
@@ -56,3 +61,27 @@ articles:
                 operation: LIST
                 items:
                   - '42'
+          # Een code met een voorloopnul: als getal gelezen zou 014 het getal
+          # 14 zijn en de nul kwijt zijn.
+          - output: waarde_is_code
+            value:
+              operation: EQUALS
+              subject:
+                operation: LIST
+                items:
+                  - $waarde
+              value:
+                operation: LIST
+                items:
+                  - '014'
+          - output: waarde_is_veertien
+            value:
+              operation: EQUALS
+              subject:
+                operation: LIST
+                items:
+                  - $waarde
+              value:
+                operation: LIST
+                items:
+                  - 14

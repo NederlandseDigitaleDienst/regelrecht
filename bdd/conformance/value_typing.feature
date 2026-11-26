@@ -40,3 +40,27 @@ Feature: Typing of a parameter value — bdd/grammar.yaml value_typing
     Then the execution succeeds
     Then output "waarde_is_getal" is false
     Then output "waarde_is_tekst" is false
+
+  # A code that consists of digits (an SBI code, a BSN) is told apart from a
+  # number by its leading zero: as a number, 014 would reach the law as 14.
+  Scenario: Digits behind a leading zero stay a code
+    Given parameter "waarde" is "014"
+    When I evaluate outputs "waarde_is_code, waarde_is_veertien" of "test_value_typing"
+    Then the execution succeeds
+    Then output "waarde_is_code" is true
+    Then output "waarde_is_veertien" is false
+
+  Scenario: A table cell keeps the leading zero too
+    Given the following parameters:
+      | waarde | 014 |
+    When I evaluate outputs "waarde_is_code, waarde_is_veertien" of "test_value_typing"
+    Then the execution succeeds
+    Then output "waarde_is_code" is true
+    Then output "waarde_is_veertien" is false
+
+  Scenario: The same digits without the zero are a number
+    Given parameter "waarde" is "14"
+    When I evaluate outputs "waarde_is_code, waarde_is_veertien" of "test_value_typing"
+    Then the execution succeeds
+    Then output "waarde_is_code" is false
+    Then output "waarde_is_veertien" is true
