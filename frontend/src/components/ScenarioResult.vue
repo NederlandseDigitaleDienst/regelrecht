@@ -27,6 +27,7 @@ const emit = defineEmits<{
       :result="run?.result ?? null"
       :trace-text="run?.traceText ?? null"
       :error="run?.error ?? null"
+      :diagnostics="run?.diagnostics ?? []"
       :running="!!run?.pending"
       :expectations="run?.expectations ?? {}"
       :output-types="outputTypes"

@@ -5,6 +5,7 @@ import type { ScenarioValues, EditedRow } from '../scenario/inputs';
 import type { ScenarioRun } from '../scenario/run';
 import { formatValue, formatMissing, normalizeForCompare, humanize, expectationsFromAssertions } from '../utils/outputFormat';
 import { NOT_NULLABLE_MESSAGE, nullAllowed, isNullText } from '../utils/nullability';
+import { describeExecutionError } from '../lib/userError';
 import DataSourceTable from './DataSourceTable.vue';
 import ScenarioParameterInput from './ScenarioParameterInput.vue';
 import AbsenceToggle from './AbsenceToggle.vue';
@@ -192,10 +193,17 @@ function sourceLabel(name: string) {
 const expectations = computed(() => expectationsFromAssertions(props.scenario.assertions));
 const hasExpectations = computed(() => Object.keys(expectations.value).length > 0);
 const runError = computed(() => props.run?.error ?? null);
+// What the form says about a failed run: the readable sentence. The engine's
+// own text is behind the details button in the result.
+const runErrorText = computed(() => {
+  if (!props.run?.error) return null;
+  const described = describeExecutionError({ error: props.run.error, diagnostics: props.run.diagnostics ?? [] });
+  return described.title ?? described.summary;
+});
 
 // Minimal field-level validation: a missing date, or an empty input that
 // caused an execution error, is marked invalid so the user sees which
-// field to fill (the raw engine message still shows as context). No
+// field to fill (the error's readable sentence still shows as context). No
 // auto-revert - the input stays. We deliberately do NOT map engine error
 // strings onto fields (incl. substring-matching the error against a param
 // name): that produced confusing cross-field invalid states (changing bsn
@@ -242,7 +250,7 @@ const dateControlId = useId();
       </template>
 
       <!-- Error -->
-      <nldd-banner v-if="runError" variant="critical" :text="runError"></nldd-banner>
+      <nldd-banner v-if="runErrorText" variant="critical" :text="runErrorText" data-testid="scenario-run-error"></nldd-banner>
 
       <!-- Input: date + parameters -->
       <nldd-spacer v-if="hasExpectations" size="16"></nldd-spacer>

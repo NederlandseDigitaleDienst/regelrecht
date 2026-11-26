@@ -553,14 +553,23 @@ impl WasmEngine {
                 #[derive(Serialize)]
                 struct TracedErrorResult {
                     error: String,
+                    /// The error in parts, for the kinds the engine can
+                    /// take apart: an article it does not run for a marking.
+                    #[serde(skip_serializing_if = "Vec::is_empty")]
+                    diagnostics: Vec<Diagnostic>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace: Option<TraceDocument>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace_text: Option<String>,
                 }
 
+                let diagnostics = match source.as_ref() {
+                    EngineError::Untranslatable { .. } => source.diagnostics(),
+                    _ => Vec::new(),
+                };
                 let err_result = TracedErrorResult {
                     error: source.to_string(),
+                    diagnostics,
                     trace: trace_node.map(TraceDocument::new),
                     trace_text,
                 };
@@ -675,14 +684,23 @@ impl WasmEngine {
                 #[derive(Serialize)]
                 struct TracedErrorResult {
                     error: String,
+                    /// The error in parts, for the kinds the engine can
+                    /// take apart: an article it does not run for a marking.
+                    #[serde(skip_serializing_if = "Vec::is_empty")]
+                    diagnostics: Vec<Diagnostic>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace: Option<TraceDocument>,
                     #[serde(skip_serializing_if = "Option::is_none")]
                     trace_text: Option<String>,
                 }
 
+                let diagnostics = match source.as_ref() {
+                    EngineError::Untranslatable { .. } => source.diagnostics(),
+                    _ => Vec::new(),
+                };
                 let err_result = TracedErrorResult {
                     error: source.to_string(),
+                    diagnostics,
                     trace: trace_node.map(TraceDocument::new),
                     trace_text,
                 };

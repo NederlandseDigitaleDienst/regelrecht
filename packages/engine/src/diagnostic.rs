@@ -13,6 +13,7 @@
 //! record each. An error the engine still builds as a sentence comes out as
 //! one record that holds that sentence and no place.
 
+use regelrecht_law_model::MarkingResolution;
 use serde::Serialize;
 use std::fmt;
 
@@ -40,6 +41,9 @@ pub enum DiagnosticKind {
     /// A finding of the type check on another loaded law that reads this
     /// one: loading this law would leave that one ill-typed.
     CrossLaw,
+    /// An article flags a construct it cannot express and nobody accepted
+    /// that yet, so the engine does not run it (RFC-012).
+    Marking,
 }
 
 /// The place within an article that a problem is about.
@@ -80,6 +84,21 @@ pub struct SourcePosition {
     pub column: usize,
 }
 
+/// What an article says about a construct it cannot express, in the fields
+/// it was written in. An `untranslatables` entry of schema v0.5.x has only
+/// the first two.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FlaggedFacts {
+    /// The construct, in the article's own words.
+    pub about: String,
+    /// Why it does not fit the format.
+    pub reason: String,
+    /// What has to be built: an operation, or a new shape in the format.
+    pub resolution: Option<MarkingResolution>,
+    /// The change that would resolve it.
+    pub resolved_by: Option<String>,
+}
+
 /// One problem with a law.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Diagnostic {
@@ -97,6 +116,8 @@ pub struct Diagnostic {
     pub position: Option<SourcePosition>,
     /// The code of the rule that is broken, such as `N1`.
     pub rule: Option<String>,
+    /// The flagged construct, for [`DiagnosticKind::Marking`].
+    pub flagged: Option<FlaggedFacts>,
     /// What is wrong, in the engine's words.
     pub message: String,
 }
@@ -113,6 +134,7 @@ impl Diagnostic {
             place: None,
             position: None,
             rule: None,
+            flagged: None,
             message,
         }
     }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject } from 'vue';
 import { formatValue, formatOutputValueParts, formatMissing, normalizeForCompare, matchStatus as _matchStatus, humanize } from '../utils/outputFormat';
 import type { OutputMeta } from '../utils/articleMapping';
 import { describeExecutionError } from '../lib/userError';
 import { useErrorsStore } from '../stores/errors';
+import { GO_TO_FINDING, type EngineDiagnostic } from '../lib/engineDiagnostics';
 
 /** The execution result; only the outputs are read here. */
 interface ExecutionResult {
@@ -20,6 +21,8 @@ const props = withDefaults(
     expectations?: Record<string, unknown>;
     /** Error message if execution failed */
     error?: string | null;
+    /** That error in parts, when the engine gave them. */
+    diagnostics?: readonly EngineDiagnostic[];
     /** Scenario is currently executing */
     running?: boolean;
     /** Whether a re-run action is available */
@@ -32,6 +35,7 @@ const props = withDefaults(
     traceText: null,
     expectations: () => ({}),
     error: null,
+    diagnostics: () => [],
     running: false,
     canReload: false,
     outputTypes: null,
@@ -58,9 +62,13 @@ function humanizeOutput(text: string): string {
 }
 
 const errors = useErrorsStore();
-const userError = computed(() => (props.error ? describeExecutionError(props.error) : null));
+const userError = computed(() =>
+  (props.error ? describeExecutionError({ error: props.error, diagnostics: props.diagnostics }) : null));
+const errorTitle = computed(() => userError.value?.title ?? 'Fout bij uitvoering');
+// The editor says how to open the article a finding is about; outside it there is no such jump.
+const goTo = inject(GO_TO_FINDING, undefined);
 function showErrorDetails() {
-  if (userError.value) errors.showDetails([{ title: 'Fout bij uitvoering', ...userError.value }]);
+  if (userError.value) errors.showDetails([{ ...userError.value, title: errorTitle.value, ...(goTo ? { goTo } : {}) }]);
 }
 
 const hasContent = computed(() =>
@@ -81,10 +89,18 @@ const overallStatus = computed(() => {
 <template>
   <nldd-inline-dialog v-if="running" text="Bezig met uitvoeren…"></nldd-inline-dialog>
 
-  <template v-else-if="error && !result && !traceText">
-    <nldd-inline-dialog variant="alert" text="Fout bij uitvoering" :supporting-text="userError?.summary">
+  <!-- A failed run says what went wrong in words first; the trace up to the
+       failure, when the engine gave one, comes after. -->
+  <template v-else-if="error && !result">
+    <nldd-inline-dialog variant="alert" :text="errorTitle" :supporting-text="userError?.summary" data-testid="execution-error">
       <nldd-button v-if="userError?.details" slot="actions" appearance="secondary" text="Technische details" data-testid="execution-error-details" @click="showErrorDetails"></nldd-button>
     </nldd-inline-dialog>
+    <template v-if="traceText">
+      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-title size="display-5" heading-level="4" class="etv-section-title"><span>Partial trace (tot fout)</span></nldd-title>
+      <nldd-spacer size="8"></nldd-spacer>
+      <nldd-code-viewer wrap>{{ traceText }}</nldd-code-viewer>
+    </template>
     <template v-if="canReload">
       <nldd-spacer size="12"></nldd-spacer>
       <nldd-button size="md" text="Opnieuw uitvoeren" @click="emit('reload')"></nldd-button>
@@ -165,14 +181,5 @@ const overallStatus = computed(() => {
       <nldd-code-viewer wrap>{{ traceText }}</nldd-code-viewer>
     </template>
 
-    <template v-if="error && traceText && !result">
-      <nldd-title size="display-5" heading-level="4" class="etv-section-title"><span>Partial trace (tot fout)</span></nldd-title>
-      <nldd-spacer size="8"></nldd-spacer>
-      <nldd-code-viewer wrap>{{ traceText }}</nldd-code-viewer>
-      <template v-if="canReload">
-        <nldd-spacer size="12"></nldd-spacer>
-        <nldd-button size="md" text="Opnieuw uitvoeren" @click="emit('reload')"></nldd-button>
-      </template>
-    </template>
   </template>
 </template>

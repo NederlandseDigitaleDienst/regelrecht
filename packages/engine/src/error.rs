@@ -12,7 +12,9 @@
 //! errors to external callers (API responses, WASM, etc.) to prevent
 //! information disclosure.
 
-use crate::diagnostic::{Diagnostic, DiagnosticKind, Place, Severity, SourcePosition};
+use crate::diagnostic::{
+    Diagnostic, DiagnosticKind, FlaggedFacts, Place, Severity, SourcePosition,
+};
 use crate::trace::PathNode;
 use crate::typecheck::Finding;
 use std::collections::BTreeSet;
@@ -241,7 +243,10 @@ pub enum EngineError {
         law_id: String,
         article: String,
         construct: String,
+        /// Everything the article says about why, as one sentence.
         reason: String,
+        /// The same in the fields it was written in.
+        facts: Box<FlaggedFacts>,
     },
 
     /// External reference not resolved - requires ServiceProvider
@@ -308,6 +313,7 @@ impl EngineError {
                     place: Some(finding.location.clone()),
                     position: None,
                     rule: Some(finding.rule.code().to_string()),
+                    flagged: None,
                     message: finding.message.clone(),
                 })
                 .collect(),
@@ -324,6 +330,19 @@ impl EngineError {
                     message.clone(),
                 )]
             }
+            EngineError::Untranslatable {
+                law_id,
+                article,
+                facts,
+                ..
+            } => vec![Diagnostic {
+                law_id: Some(law_id.clone()),
+                article: Some(article.clone()),
+                place: Some(Place::Article),
+                flagged: Some((**facts).clone()),
+                ..Diagnostic::unplaced(DiagnosticKind::Marking, self.to_string())
+            }],
+            EngineError::TracedError { source, .. } => source.diagnostics(),
             EngineError::LoadCheck {
                 message,
                 article,

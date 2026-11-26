@@ -8,6 +8,7 @@
  * records are factual and in the engine's English; what the user reads is
  * written here.
  */
+import type { InjectionKey } from 'vue';
 import { humanizeLawId } from './lawName';
 
 /** The place within an article a problem is about. */
@@ -21,13 +22,39 @@ export type DiagnosticPlace =
 /** One problem, as the engine serializes it (packages/engine/src/diagnostic.rs). */
 export interface EngineDiagnostic {
   severity: 'error' | 'warning';
-  kind: 'structure' | 'load_check' | 'type_check' | 'cross_law';
+  kind: 'structure' | 'load_check' | 'type_check' | 'cross_law' | 'marking';
   law_id: string | null;
   article: string | null;
   place: DiagnosticPlace | null;
   position: { line: number; column: number } | null;
   rule: string | null;
+  /** The construct an article flags as beyond the format, for `marking`. */
+  flagged?: FlaggedFacts | null;
   message: string;
+}
+
+/** A marking in the fields the article wrote it in (schema `markings`, RFC-012). */
+export interface FlaggedFacts {
+  about: string;
+  reason: string;
+  resolution: 'operation' | 'model' | null;
+  resolved_by: string | null;
+}
+
+/** A marking's fields under the editor's labels, leaving out what the article did not give. */
+export function flaggedParts(flagged: FlaggedFacts): Array<{ label: string; text: string }> {
+  const needed = flagged.resolution === 'operation'
+    ? 'Een nieuwe bewerking in de engine'
+    : flagged.resolution === 'model'
+      ? 'Een nieuwe vorm in het formaat'
+      : null;
+  const resolvedBy = flagged.resolved_by?.trim();
+  const wanted = resolvedBy && needed ? `${needed}: ${resolvedBy}` : resolvedBy || needed;
+  return [
+    { label: 'Waar het om gaat', text: flagged.about },
+    { label: 'Waarom het niet past', text: flagged.reason },
+    { label: 'Wat ervoor nodig is', text: wanted ?? '' },
+  ].filter((part) => part.text.trim() !== '');
 }
 
 /** The records in whatever the engine threw; none when it threw a bare string. */
@@ -145,3 +172,6 @@ export function findingsText(findings: readonly EngineDiagnostic[]): string | un
   if (findings.length === 0) return undefined;
   return [...new Set(findings.map((finding) => ruleText(finding) ?? UNNAMED_FINDING))].join(' ');
 }
+
+/** Provided by the editor: opens the article a finding is about. */
+export const GO_TO_FINDING: InjectionKey<(finding: EngineDiagnostic) => void> = Symbol('goToFinding');

@@ -7,7 +7,7 @@
 // findings per article, each a row that opens the place it is about.
 import { storeToRefs } from 'pinia';
 import { useErrorsStore, type ReportedError } from '../stores/errors';
-import { findingsByArticle, placeLabel, ruleText, type EngineDiagnostic } from '../lib/engineDiagnostics';
+import { findingsByArticle, flaggedParts, placeLabel, ruleText, type EngineDiagnostic } from '../lib/engineDiagnostics';
 
 const store = useErrorsStore();
 const { detailsOpen, detailsOf } = storeToRefs(store);
@@ -38,20 +38,31 @@ function open(error: ReportedError, finding: EngineDiagnostic): void {
               <nldd-title size="display-6"><h3>{{ group.heading }}</h3></nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
               <nldd-list appearance="box-tinted" :accessible-label="`Bevindingen: ${group.heading}`">
-                <nldd-list-item
-                  v-for="(finding, findingIndex) in group.findings"
-                  :key="findingIndex"
-                  size="md"
-                  :button="error.goTo ? true : undefined"
-                  data-testid="error-details-finding"
-                  @click="open(error, finding)"
-                >
-                  <nldd-text-cell
-                    :text="placeLabel(finding.place) ?? group.heading"
-                    :supporting-text="ruleText(finding) ?? finding.message"
-                  ></nldd-text-cell>
-                  <nldd-icon-cell v-if="error.goTo" size="20" icon="chevron-right" disclosure></nldd-icon-cell>
-                </nldd-list-item>
+                <template v-for="(finding, findingIndex) in group.findings" :key="findingIndex">
+                  <!-- A marking is shown in the parts the article wrote it in, with the way to the article after them. -->
+                  <template v-if="finding.flagged">
+                    <nldd-list-item v-for="part in flaggedParts(finding.flagged)" :key="part.label" size="md" data-testid="error-details-marking-part">
+                      <nldd-text-cell :overline="part.label" :text="part.text"></nldd-text-cell>
+                    </nldd-list-item>
+                    <nldd-list-item v-if="error.goTo" size="md" button data-testid="error-details-finding" @click="open(error, finding)">
+                      <nldd-text-cell :text="`Open artikel ${finding.article}`"></nldd-text-cell>
+                      <nldd-icon-cell size="20" icon="chevron-right" disclosure></nldd-icon-cell>
+                    </nldd-list-item>
+                  </template>
+                  <nldd-list-item
+                    v-else
+                    size="md"
+                    :button="error.goTo ? true : undefined"
+                    data-testid="error-details-finding"
+                    @click="open(error, finding)"
+                  >
+                    <nldd-text-cell
+                      :text="placeLabel(finding.place) ?? group.heading"
+                      :supporting-text="ruleText(finding) ?? finding.message"
+                    ></nldd-text-cell>
+                    <nldd-icon-cell v-if="error.goTo" size="20" icon="chevron-right" disclosure></nldd-icon-cell>
+                  </nldd-list-item>
+                </template>
               </nldd-list>
             </template>
 

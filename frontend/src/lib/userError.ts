@@ -17,6 +17,8 @@ import { articlesOf, diagnosticsOf, type EngineDiagnostic } from './engineDiagno
 import { humanizeLawId } from './lawName';
 
 export interface UserError {
+  /** A heading that says more than the caller's general one, when the error has one. */
+  title?: string;
   /** One or two Dutch sentences for the message itself. */
   summary: string;
   /** The technical text, or null when the summary already says everything. */
@@ -147,6 +149,21 @@ const NOT_LOADED = /^Regelwerk '([^']+)' is niet geladen: /;
 export function describeExecutionError(e: unknown): UserError {
   const raw = rawErrorText(e);
   if (raw === SCENARIO_WITHOUT_OUTPUT) return { summary: raw, details: null };
+  // An article the engine does not run because it flags a construct nobody
+  // accepted yet. Nothing is broken: the marking waits for a decision.
+  const marking = diagnosticsOf(e).find((d) => d.kind === 'marking');
+  if (marking) {
+    const where = [marking.article ? `Artikel ${marking.article}` : null, marking.law_id ? humanizeLawId(marking.law_id) : null]
+      .filter(Boolean)
+      .join(' van ');
+    return {
+      title: `${where || 'Een artikel'} heeft een markering die nog niet is geaccepteerd`,
+      summary:
+        'De engine voert een artikel met een niet-geaccepteerde markering niet uit. Beoordeel de markering en accepteer haar, of pas het artikel aan.',
+      details: raw,
+      diagnostics: [marking],
+    };
+  }
   const notLoaded = raw.match(NOT_LOADED);
   if (notLoaded) {
     return {

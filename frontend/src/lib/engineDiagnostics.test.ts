@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { articlesOf, diagnosticsOf, findingsAt, findingsByArticle, findingsText, placeLabel, ruleText, type EngineDiagnostic } from './engineDiagnostics';
+import { articlesOf, diagnosticsOf, findingsAt, findingsByArticle, findingsText, flaggedParts, placeLabel, ruleText, type EngineDiagnostic } from './engineDiagnostics';
 
 const base: EngineDiagnostic = {
   severity: 'error', kind: 'type_check', law_id: 't', article: '2', place: null, position: null, rule: 'N1', message: 'm',
@@ -97,5 +97,24 @@ describe('findingsByArticle', () => {
     const elsewhere = (lawId: string): EngineDiagnostic => ({ ...base, kind: 'cross_law', law_id: lawId });
     const groups = findingsByArticle([elsewhere('wet_a'), elsewhere('wet_b')]);
     expect(groups.map((g) => g.heading)).toEqual(['Wet A, artikel 2', 'Wet B, artikel 2']);
+  });
+});
+
+describe('flaggedParts', () => {
+  it('gives a marking under the editor\'s labels', () => {
+    expect(flaggedParts({ about: 'afronden', reason: 'geen afronding', resolution: 'operation', resolved_by: 'ROUND' })).toEqual([
+      { label: 'Waar het om gaat', text: 'afronden' },
+      { label: 'Waarom het niet past', text: 'geen afronding' },
+      { label: 'Wat ervoor nodig is', text: 'Een nieuwe bewerking in de engine: ROUND' },
+    ]);
+  });
+
+  it('leaves out what an older entry does not say', () => {
+    expect(flaggedParts({ about: 'afronden', reason: '', resolution: null, resolved_by: null })).toEqual([
+      { label: 'Waar het om gaat', text: 'afronden' },
+    ]);
+    expect(flaggedParts({ about: 'x', reason: 'y', resolution: 'model', resolved_by: null })[2]).toEqual(
+      { label: 'Wat ervoor nodig is', text: 'Een nieuwe vorm in het formaat' },
+    );
   });
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount, provide } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate, type RouteLocationNormalized } from 'vue-router';
 import { useOpenLaw } from './composables/useOpenLaw';
@@ -17,7 +17,7 @@ import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
 import { describeEngineLoadError, describeSaveError, type UserError } from './lib/userError';
-import type { EngineDiagnostic } from './lib/engineDiagnostics';
+import { GO_TO_FINDING, type EngineDiagnostic } from './lib/engineDiagnostics';
 import { useErrorsStore } from './stores/errors';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
@@ -1753,6 +1753,12 @@ function goToDiagnostic(diagnostic: EngineDiagnostic) {
   }
   if (diagnostic.place?.kind === 'output') handleSheetOpenOutput(diagnostic.place.name);
 }
+// A failed scenario run points at an article too, from wherever its result is
+// shown; that is always a jump, since the result is not the article.
+provide(GO_TO_FINDING, (finding: EngineDiagnostic) => {
+  const targetLaw = finding.law_id ?? lawId.value;
+  if (targetLaw && finding.article) handleRegelRijmNavigate({ lawId: targetLaw, articleNumber: finding.article });
+});
 // The engine's refusal is a notification, shared with the other errors the
 // editor reports. The panes stay: the frontend reads the regelwerk with its
 // own parser, and they are where the author repairs it.
