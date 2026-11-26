@@ -137,8 +137,11 @@ export function findingsAt(findings: readonly EngineDiagnostic[], row: RowPlace)
   });
 }
 
-/** What a row says about its findings: the kind of mistake, or the engine's message when the editor has no words for it. */
+/** What a row says about a finding the editor has no sentence for; the engine's own words are in the details. */
+const UNNAMED_FINDING = 'De engine kan dit niet lezen of uitvoeren. De technische details zeggen waarom.';
+
+/** What a row says about its findings: the kind of mistake, in the editor's words. */
 export function findingsText(findings: readonly EngineDiagnostic[]): string | undefined {
   if (findings.length === 0) return undefined;
-  return [...new Set(findings.map((finding) => ruleText(finding) ?? finding.message))].join(' ');
+  return [...new Set(findings.map((finding) => ruleText(finding) ?? UNNAMED_FINDING))].join(' ');
 }

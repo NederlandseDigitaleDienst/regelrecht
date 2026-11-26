@@ -56,9 +56,11 @@
 //! field keeps its meaning of RFC-002, who decides, and names one authority.
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
+use crate::diagnostic::Place;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
     Action, ActionOperation, ActionValue, Article, Column, CombineOp, CompetentAuthority,
@@ -78,9 +80,11 @@ use regelrecht_law_model::{
 /// one cell, and an article makes one outcome of the answers of different
 /// cells (RFC-048 §4).
 pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
-    let refuse = |why: String| Err(EngineError::LoadError(format!("law '{}' {why}", law.id)));
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     for (where_, section) in sections(law) {
+        let refuse = |why: String| -> Result<()> {
+            Err(where_.refuse(Place::Article, format!("law '{}' {why}", law.id)))
+        };
         if reduction && section.implements.is_some() {
             return refuse(format!(
                 "{where_}: a REDUCTIE fills no open term (implements), which schema v0.8.9 \
@@ -144,11 +148,14 @@ pub(crate) fn reject_host_before_its_version(law: &ArticleBasedLaw) -> Result<()
             .flatten()
             .find(|declaration| declaration.host.is_some());
         if let Some(declaration) = named {
-            return Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: implements open term '{}' of {} article {} with a host, \
+            return Err(where_.refuse(
+                Place::Article,
+                format!(
+                    "law '{}' {where_}: implements open term '{}' of {} article {} with a host, \
                  which schema v0.8.24 introduced; declare v0.8.24 or later",
-                law.id, declaration.open_term, declaration.law, declaration.article
-            )));
+                    law.id, declaration.open_term, declaration.law, declaration.article
+                ),
+            ));
         }
     }
     Ok(())
@@ -170,12 +177,15 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
     for (where_, section) in sections(law) {
         for action in all_actions(section) {
             if action.operands().any(contains_distinct) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: action for output '{}' has a FOREACH with combine \
+                return Err(where_.refuse(
+                    action_place(action),
+                    format!(
+                        "law '{}' {where_}: action for output '{}' has a FOREACH with combine \
                      DISTINCT, which schema v0.8.21 introduced; declare v0.8.21 or later",
-                    law.id,
-                    action.output.as_deref().unwrap_or("(unnamed)")
-                )));
+                        law.id,
+                        action.output.as_deref().unwrap_or("(unnamed)")
+                    ),
+                ));
             }
         }
     }
@@ -217,11 +227,14 @@ pub(crate) fn reject_malformed_records(law: &ArticleBasedLaw) -> Result<()> {
                 .operands()
                 .for_each(|v| collect_records(v, &mut records));
             let refuse = |why: String| {
-                Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: action for output '{}' {why}",
-                    law.id,
-                    action.output.as_deref().unwrap_or("(unnamed)")
-                )))
+                Err(where_.refuse(
+                    action_place(action),
+                    format!(
+                        "law '{}' {where_}: action for output '{}' {why}",
+                        law.id,
+                        action.output.as_deref().unwrap_or("(unnamed)")
+                    ),
+                ))
             };
             for fields in records {
                 if !records_allowed {
@@ -298,6 +311,9 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
     for (where_, section) in sections(law) {
+        let refuse = |why: String| -> Result<()> {
+            Err(where_.refuse(Place::Article, format!("law '{}' {why}", law.id)))
+        };
         if reduction && let Some(key) = acts_on_law(section) {
             return refuse(format!(
                 "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
@@ -627,11 +643,16 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
             };
             let Some(target) = &source.article else {
                 if source.parameters_from.is_some() {
-                    return Err(EngineError::LoadError(format!(
-                        "law '{}' {where_}: input '{}' has parameters_from without an article \
+                    return Err(where_.refuse(
+                        Place::Input {
+                            name: input.name.clone(),
+                        },
+                        format!(
+                            "law '{}' {where_}: input '{}' has parameters_from without an article \
                          to pass them to",
-                        law.id, input.name
-                    )));
+                            law.id, input.name
+                        ),
+                    ));
                 }
                 continue;
             };
@@ -642,11 +663,16 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
                 ("endpoint", source.endpoint.is_some()),
             ];
             if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: input '{}' calls the article {target}, which no {key} \
+                return Err(where_.refuse(
+                    Place::Input {
+                        name: input.name.clone(),
+                    },
+                    format!(
+                        "law '{}' {where_}: input '{}' calls the article {target}, which no {key} \
                      can stand beside",
-                    law.id, input.name
-                )));
+                        law.id, input.name
+                    ),
+                ));
             }
         }
     }
@@ -662,10 +688,10 @@ pub(crate) fn reject_misplaced_article_call(law: &ArticleBasedLaw) -> Result<()>
 pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         let refuse = |why: String| {
-            Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: {why} (RFC-051)",
-                law.id
-            )))
+            Err(where_.refuse(
+                Place::Article,
+                format!("law '{}' {where_}: {why} (RFC-051)", law.id),
+            ))
         };
         if matches!(
             section.competent_authority,
@@ -716,19 +742,51 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
 
 /// Every machine-readable section of `law`, the preamble's first, with how
 /// a message names it.
-fn sections(law: &ArticleBasedLaw) -> impl Iterator<Item = (String, &MachineReadable)> {
+fn sections(law: &ArticleBasedLaw) -> impl Iterator<Item = (Scope<'_>, &MachineReadable)> {
     law.preamble
         .iter()
-        .filter_map(|p| {
-            p.machine_readable
-                .as_ref()
-                .map(|m| ("the preamble".to_string(), m))
-        })
+        .filter_map(|p| p.machine_readable.as_ref().map(|m| (Scope::Preamble, m)))
         .chain(law.articles.iter().filter_map(|a| {
             a.machine_readable
                 .as_ref()
-                .map(|m| (format!("article {}", a.number), m))
+                .map(|m| (Scope::Article(&a.number), m))
         }))
+}
+
+/// The part of a law a machine-readable section belongs to. It prints as a
+/// message names it: `the preamble`, `article 2`.
+#[derive(Debug, Clone, Copy)]
+enum Scope<'a> {
+    Preamble,
+    Article(&'a str),
+}
+
+impl fmt::Display for Scope<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Scope::Preamble => f.write_str("the preamble"),
+            Scope::Article(number) => write!(f, "article {number}"),
+        }
+    }
+}
+
+impl Scope<'_> {
+    /// The refusal for a problem at `place` in this part of the law. The
+    /// preamble is no article, so a problem there carries no place.
+    fn refuse(self, place: Place, message: String) -> EngineError {
+        match self {
+            Scope::Preamble => EngineError::LoadError(message),
+            Scope::Article(number) => EngineError::refused_at(number, place, message),
+        }
+    }
+}
+
+/// The place of an action: the output it assigns, or the article when it has none.
+fn action_place(action: &Action) -> Place {
+    match &action.output {
+        Some(name) => Place::Output { name: name.clone() },
+        None => Place::Article,
+    }
 }
 
 fn inputs(section: &MachineReadable) -> &[regelrecht_law_model::Input] {
@@ -749,7 +807,7 @@ pub(crate) fn reject_unknown_literals(law: &ArticleBasedLaw) -> Result<()> {
                     return Err(unknown_literal(
                         law,
                         &article.number,
-                        format!("definition '{name}'"),
+                        Place::Definition { name: name.clone() },
                     ));
                 }
             }
@@ -761,14 +819,16 @@ pub(crate) fn reject_unknown_literals(law: &ArticleBasedLaw) -> Result<()> {
             continue;
         };
         for (index, action) in actions.iter().enumerate() {
-            let where_ = match &action.output {
-                Some(output) => format!("action for output '{output}'"),
-                None => format!("action {}", index + 1),
-            };
             let operands = action.operands();
             for operand in operands {
                 if action_value_contains_unknown(operand) {
-                    return Err(unknown_literal(law, &article.number, where_));
+                    let place = match &action.output {
+                        Some(output) => Place::Output {
+                            name: output.clone(),
+                        },
+                        None => Place::Action { index: index + 1 },
+                    };
+                    return Err(unknown_literal(law, &article.number, place));
                 }
             }
         }
@@ -783,10 +843,14 @@ pub(crate) fn reject_unknown_literals(law: &ArticleBasedLaw) -> Result<()> {
 pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
     for article in &law.articles {
         let refuse = |why: String| {
-            Err(EngineError::LoadError(format!(
-                "law '{}': article {} {why} (RFC-051)",
-                law.id, article.number
-            )))
+            Err(EngineError::refused_at(
+                &article.number,
+                Place::Article,
+                format!(
+                    "law '{}': article {} {why} (RFC-051)",
+                    law.id, article.number
+                ),
+            ))
         };
         let mut names: Vec<&str> = Vec::new();
         for requirement in article.get_requires() {
@@ -916,10 +980,14 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
     for article in law.articles.iter().filter(|a| a.produces_list()) {
         let produced = article.get_produced();
         let refuse = |why: String| {
-            Err(EngineError::LoadError(format!(
-                "law '{}': article {} {why} (RFC-045 §1)",
-                law.id, article.number
-            )))
+            Err(EngineError::refused_at(
+                &article.number,
+                Place::Article,
+                format!(
+                    "law '{}': article {} {why} (RFC-045 §1)",
+                    law.id, article.number
+                ),
+            ))
         };
         let decisions = produced
             .iter()
@@ -1091,11 +1159,8 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
 /// property of its state once, and its steps read and set only those
 /// properties.
 pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
-    let refuse = |where_: String, why: String| {
-        Err(EngineError::LoadError(format!(
-            "law '{}' {where_}: {why}",
-            law.id
-        )))
+    let refuse = |where_: Scope<'_>, why: String| {
+        Err(where_.refuse(Place::Article, format!("law '{}' {where_}: {why}", law.id)))
     };
     for (where_, section) in sections(law) {
         let Some(projection) = &section.projection else {
@@ -1369,10 +1434,13 @@ pub(crate) fn reject_malformed_columns(law: &ArticleBasedLaw) -> Result<()> {
                 ))
             };
             if let Some(why) = why {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: parameter '{}' {why}",
-                    law.id, parameter.name
-                )));
+                return Err(where_.refuse(
+                    Place::Article,
+                    format!(
+                        "law '{}' {where_}: parameter '{}' {why}",
+                        law.id, parameter.name
+                    ),
+                ));
             }
         }
         let outputs = section
@@ -1399,10 +1467,12 @@ pub(crate) fn reject_malformed_columns(law: &ArticleBasedLaw) -> Result<()> {
                 ))
             };
             if let Some(why) = why {
-                return Err(EngineError::LoadError(format!(
-                    "law '{}' {where_}: output '{}' {why}",
-                    law.id, output.name
-                )));
+                return Err(where_.refuse(
+                    Place::Output {
+                        name: output.name.clone(),
+                    },
+                    format!("law '{}' {where_}: output '{}' {why}", law.id, output.name),
+                ));
             }
         }
     }
@@ -1647,10 +1717,7 @@ pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
             continue;
         };
         let refuse = |why: String| {
-            Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: {why}",
-                law.id
-            )))
+            Err(where_.refuse(Place::Article, format!("law '{}' {where_}: {why}", law.id)))
         };
         let Some(projection) = &section.projection else {
             let declares = execution
@@ -2108,12 +2175,21 @@ fn filling_warnings(
     }
 }
 
-fn unknown_literal(law: &ArticleBasedLaw, article: &str, where_: String) -> EngineError {
-    EngineError::LoadError(format!(
-        "law '{}': article {article} writes an unknown value as a literal ({where_}); \
-         an unknown cannot be written in a law, only resolution produces it (RFC-036)",
-        law.id
-    ))
+fn unknown_literal(law: &ArticleBasedLaw, article: &str, place: Place) -> EngineError {
+    // The sentence names an action by its output; the place does not say "action for".
+    let where_ = match &place {
+        Place::Output { name } => format!("action for output '{name}'"),
+        other => other.to_string(),
+    };
+    EngineError::refused_at(
+        article,
+        place,
+        format!(
+            "law '{}': article {article} writes an unknown value as a literal ({where_}); \
+             an unknown cannot be written in a law, only resolution produces it (RFC-036)",
+            law.id
+        ),
+    )
 }
 
 /// Whether an Unknown literal sits anywhere in an action value: a literal at
@@ -2479,7 +2555,7 @@ articles:
             panic!("{case}: a law with an Unknown literal must not load");
         });
         assert!(
-            matches!(err, EngineError::LoadError(_)) && err.to_string().contains("RFC-036"),
+            matches!(err, EngineError::LoadCheck { .. }) && err.to_string().contains("RFC-036"),
             "{case}: got {err:?}"
         );
     }
@@ -2574,7 +2650,7 @@ articles:
                 .load_law(&law_requiring(requires))
                 .expect_err("a malformed fact must not load");
             assert!(
-                matches!(err, EngineError::LoadError(_)) && err.to_string().contains(why),
+                matches!(err, EngineError::LoadCheck { .. }) && err.to_string().contains(why),
                 "{why}: got {err:?}"
             );
         }
@@ -2685,7 +2761,7 @@ articles:
                 .load_law(&law_with_two_outputs(items))
                 .expect_err("an unlisted or misplaced derived output must not load");
             assert!(
-                matches!(err, EngineError::LoadError(_)) && err.to_string().contains(why),
+                matches!(err, EngineError::LoadCheck { .. }) && err.to_string().contains(why),
                 "{why}: got {err:?}"
             );
         }
@@ -2760,7 +2836,7 @@ articles:
                 .load_law(&law_producing(items))
                 .expect_err("an ambiguous list must not load");
             assert!(
-                matches!(err, EngineError::LoadError(_)) && err.to_string().contains(why),
+                matches!(err, EngineError::LoadCheck { .. }) && err.to_string().contains(why),
                 "{why}: got {err:?}"
             );
         }
@@ -3582,7 +3658,7 @@ articles:
                 .expect_err("a law with an Unknown literal must not load");
             let message = err.to_string();
             assert!(
-                matches!(err, EngineError::LoadError(_)) && message.contains(where_),
+                matches!(err, EngineError::LoadCheck { .. }) && message.contains(where_),
                 "got {err:?}"
             );
             assert!(message.contains("RFC-036"), "got {message}");

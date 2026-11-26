@@ -39,9 +39,14 @@ test.describe('A regelwerk the engine refuses', () => {
     // The message is the readable sentence, not the engine's text.
     await expect(notification(page)).not.toHaveAttribute('supporting-text', /NO_SUCH_OPERATION/);
     await expect(notification(page)).toHaveAttribute('supporting-text', /Kijk bij artikel 2\./);
+    // A refusal before the type check has a place too: the action is marked.
+    const marked = page.locator('[data-testid="pane-machine"] nldd-list-item[data-finding]');
+    await expect(marked).toHaveCount(1);
+    await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute('text', 'hoogte_zorgtoeslag');
 
     await notification(page).locator('nldd-button').click();
     await expect(detailsSheet(page)).toHaveAttribute('open', '');
+    await expect(detailsSheet(page).locator('[data-testid="error-details-finding"] nldd-text-cell')).toHaveAttribute('text', 'Uitkomst hoogte_zorgtoeslag');
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
   });
 

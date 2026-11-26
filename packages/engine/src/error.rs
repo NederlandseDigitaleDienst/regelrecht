@@ -12,7 +12,7 @@
 //! errors to external callers (API responses, WASM, etc.) to prevent
 //! information disclosure.
 
-use crate::diagnostic::{Diagnostic, DiagnosticKind, Severity, SourcePosition};
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Place, Severity, SourcePosition};
 use crate::trace::PathNode;
 use crate::typecheck::Finding;
 use std::collections::BTreeSet;
@@ -24,6 +24,18 @@ pub enum EngineError {
     /// Failed to load or parse a law file
     #[error("Failed to load law: {0}")]
     LoadError(String),
+
+    /// A load check refused a law at a place it can name. The message is the
+    /// sentence a [`EngineError::LoadError`] would hold, and prints the same.
+    #[error("Failed to load law: {message}")]
+    LoadCheck {
+        /// The whole sentence, as before the place was kept apart.
+        message: String,
+        /// The number of the article the problem is in.
+        article: String,
+        /// The place within that article.
+        place: Place,
+    },
 
     /// The type check refused a law (RFC-036, RFC-037). The findings are on
     /// `law_id` itself, or on laws already loaded that read it and would be
@@ -256,6 +268,24 @@ pub enum EngineError {
 }
 
 impl EngineError {
+    /// A load check's refusal of a law, at `place` in the article `article`.
+    pub(crate) fn refused_at(article: &str, place: Place, message: String) -> Self {
+        EngineError::LoadCheck {
+            message,
+            article: article.to_string(),
+            place,
+        }
+    }
+
+    /// This error with the place it is about, when it is a load refusal that
+    /// had none; any other error comes back as it is.
+    pub(crate) fn placed(self, article: &str, place: Place) -> Self {
+        match self {
+            EngineError::LoadError(message) => Self::refused_at(article, place, message),
+            other => other,
+        }
+    }
+
     /// The problems behind an error from loading a law, one record each.
     ///
     /// The type check's findings come out one by one, with their article and
@@ -294,6 +324,15 @@ impl EngineError {
                     message.clone(),
                 )]
             }
+            EngineError::LoadCheck {
+                message,
+                article,
+                place,
+            } => vec![Diagnostic {
+                article: Some(article.clone()),
+                place: Some(place.clone()),
+                ..Diagnostic::unplaced(DiagnosticKind::LoadCheck, message.clone())
+            }],
             other => vec![Diagnostic::unplaced(
                 DiagnosticKind::LoadCheck,
                 other.to_string(),
@@ -497,9 +536,10 @@ impl From<EngineError> for ExternalError {
         tracing::debug!(internal_error = ?err, "Converting internal error to external");
 
         match err {
-            EngineError::LoadError(_) | EngineError::TypeCheck { .. } | EngineError::IoError(_) => {
-                ExternalError::LoadError
-            }
+            EngineError::LoadError(_)
+            | EngineError::LoadCheck { .. }
+            | EngineError::TypeCheck { .. }
+            | EngineError::IoError(_) => ExternalError::LoadError,
             EngineError::YamlError(_) | EngineError::JsonError(_) => ExternalError::ParseError,
             EngineError::VariableNotFound(name) => ExternalError::VariableNotFound(name),
             EngineError::InvalidOperation(msg) => ExternalError::InvalidOperation(msg),

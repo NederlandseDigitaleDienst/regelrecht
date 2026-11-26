@@ -79,8 +79,10 @@ describe('findingsText', () => {
     );
   });
 
-  it('falls back on the engine\'s message, and has nothing for no findings', () => {
-    expect(findingsText([{ ...base, rule: null, kind: 'load_check', message: 'the engine says' }])).toBe('the engine says');
+  it('has a sentence of its own for a finding without a rule, and nothing for no findings', () => {
+    expect(findingsText([{ ...base, rule: null, kind: 'load_check', message: 'the engine says' }])).toBe(
+      'De engine kan dit niet lezen of uitvoeren. De technische details zeggen waarom.',
+    );
     expect(findingsText([])).toBeUndefined();
   });
 });

@@ -197,6 +197,60 @@ articles:
         assert_eq!(diagnostics[0].place, None);
     }
 
+    /// A law whose only fault is a comparison without its `value`.
+    const UNREADABLE_OPERATION: &str = r#"
+$id: t
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '2'
+    text: tekst
+    machine_readable:
+      execution:
+        parameters:
+          - name: huur
+            type: number
+        output:
+          - name: geen_huur
+            type: boolean
+        actions:
+          - output: geen_huur
+            value:
+              operation: EQUALS
+              subject: $huur
+"#;
+
+    #[test]
+    fn a_load_check_refusal_keeps_its_article_and_place() {
+        let err = RuleResolver::new()
+            .load_from_yaml(UNREADABLE_OPERATION)
+            .unwrap_err();
+        let diagnostics = err.diagnostics();
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.kind, DiagnosticKind::LoadCheck);
+        assert_eq!(diagnostic.article.as_deref(), Some("2"));
+        assert_eq!(
+            diagnostic.place,
+            Some(Place::Output {
+                name: "geen_huur".to_string()
+            })
+        );
+        assert_eq!(diagnostic.rule, None);
+        // The sentence is the one a load error has always given.
+        assert_eq!(
+            err.to_string(),
+            format!("Failed to load law: {}", diagnostic.message)
+        );
+        assert!(
+            diagnostic
+                .message
+                .starts_with("article 2, output geen_huur: operation EQUALS could not be read"),
+            "{}",
+            diagnostic.message
+        );
+    }
+
     #[test]
     fn a_record_serializes_to_plain_fields() {
         let err = RuleResolver::new().load_from_yaml(ILL_TYPED).unwrap_err();
