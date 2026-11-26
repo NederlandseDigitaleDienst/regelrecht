@@ -33,6 +33,7 @@ pub mod config;
 pub mod context;
 pub mod data_source;
 mod demand;
+pub mod diagnostic;
 pub mod engine;
 pub mod error;
 mod load_check;

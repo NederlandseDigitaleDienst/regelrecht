@@ -12,7 +12,10 @@
 //! errors to external callers (API responses, WASM, etc.) to prevent
 //! information disclosure.
 
+use crate::diagnostic::{Diagnostic, DiagnosticKind, Severity, SourcePosition};
 use crate::trace::PathNode;
+use crate::typecheck::Finding;
+use std::collections::BTreeSet;
 use thiserror::Error;
 
 /// Main error type for engine operations
@@ -21,6 +24,17 @@ pub enum EngineError {
     /// Failed to load or parse a law file
     #[error("Failed to load law: {0}")]
     LoadError(String),
+
+    /// The type check refused a law (RFC-036, RFC-037). The findings are on
+    /// `law_id` itself, or on laws already loaded that read it and would be
+    /// left ill-typed. The message is the sentence a load error has always
+    /// been; the findings are there for a caller that wants them apart.
+    #[error("Failed to load law: {}", type_check_message(law_id, findings))]
+    TypeCheck {
+        /// The law that was being loaded.
+        law_id: String,
+        findings: Vec<Finding>,
+    },
 
     /// YAML parsing error
     #[error("YAML parse error: {0}")]
@@ -241,6 +255,82 @@ pub enum EngineError {
     },
 }
 
+impl EngineError {
+    /// The problems behind an error from loading a law, one record each.
+    ///
+    /// The type check's findings come out one by one, with their article and
+    /// place. A text that could not be read comes out with its position. Any
+    /// other error is one record holding its message: the loader still builds
+    /// those as a sentence, so no article or place can be given for them.
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        match self {
+            EngineError::TypeCheck { law_id, findings } => findings
+                .iter()
+                .map(|finding| Diagnostic {
+                    severity: Severity::Error,
+                    kind: if finding.law_id == *law_id {
+                        DiagnosticKind::TypeCheck
+                    } else {
+                        DiagnosticKind::CrossLaw
+                    },
+                    law_id: Some(finding.law_id.clone()),
+                    article: Some(finding.article.clone()),
+                    place: Some(finding.location.clone()),
+                    position: None,
+                    rule: Some(finding.rule.code().to_string()),
+                    message: finding.message.clone(),
+                })
+                .collect(),
+            EngineError::YamlError(source) => vec![Diagnostic {
+                position: source.location().map(|at| SourcePosition {
+                    line: at.line(),
+                    column: at.column(),
+                }),
+                ..Diagnostic::unplaced(DiagnosticKind::Structure, source.to_string())
+            }],
+            EngineError::LoadError(message) => {
+                vec![Diagnostic::unplaced(
+                    DiagnosticKind::LoadCheck,
+                    message.clone(),
+                )]
+            }
+            other => vec![Diagnostic::unplaced(
+                DiagnosticKind::LoadCheck,
+                other.to_string(),
+            )],
+        }
+    }
+}
+
+/// The sentence for a refused type check. Findings on other laws mean the
+/// loaded law would leave those ill-typed, and the sentence names them.
+fn type_check_message(law_id: &str, findings: &[Finding]) -> String {
+    let count = format!(
+        "{} finding{}",
+        findings.len(),
+        if findings.len() == 1 { "" } else { "s" }
+    );
+    let list = findings
+        .iter()
+        .map(|finding| format!("  {finding}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let others: BTreeSet<&str> = findings
+        .iter()
+        .map(|finding| finding.law_id.as_str())
+        .filter(|id| *id != law_id)
+        .collect();
+    if others.is_empty() {
+        return format!("law '{law_id}' fails the type check ({count}):\n{list}");
+    }
+    let named = others
+        .iter()
+        .map(|id| format!("'{id}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("loading law '{law_id}' makes {named} ill-typed ({count}):\n{list}")
+}
+
 /// Result type alias for engine operations
 pub type Result<T> = std::result::Result<T, EngineError>;
 
@@ -407,7 +497,9 @@ impl From<EngineError> for ExternalError {
         tracing::debug!(internal_error = ?err, "Converting internal error to external");
 
         match err {
-            EngineError::LoadError(_) | EngineError::IoError(_) => ExternalError::LoadError,
+            EngineError::LoadError(_) | EngineError::TypeCheck { .. } | EngineError::IoError(_) => {
+                ExternalError::LoadError
+            }
             EngineError::YamlError(_) | EngineError::JsonError(_) => ExternalError::ParseError,
             EngineError::VariableNotFound(name) => ExternalError::VariableNotFound(name),
             EngineError::InvalidOperation(msg) => ExternalError::InvalidOperation(msg),

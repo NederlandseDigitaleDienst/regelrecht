@@ -60,6 +60,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::annotation::{self, TextQuoteSelector, law_id_from_source};
 use crate::config;
+use crate::diagnostic::{Diagnostic, DiagnosticKind};
 use crate::engine::OutputProvenance;
 use crate::error::EngineError;
 use crate::service::{ExecutionOutcome, LawExecutionService, StageState};
@@ -186,6 +187,23 @@ fn engine_error_to_wasm(err: EngineError) -> JsValue {
     }
 }
 
+/// What `loadLawWithDiagnostics` throws: the error as `loadLaw` words it, and
+/// the problems behind it one by one. Falls back to the bare string when the
+/// object cannot be built.
+fn load_failure_to_wasm(error: String, diagnostics: Vec<Diagnostic>) -> JsValue {
+    #[derive(Serialize)]
+    struct LoadFailure {
+        error: String,
+        diagnostics: Vec<Diagnostic>,
+    }
+
+    let failure = LoadFailure { error, diagnostics };
+    match failure.serialize(&js_serializer()) {
+        Ok(thrown) => thrown,
+        Err(_) => wasm_error(&failure.error),
+    }
+}
+
 /// Serializable result for execute()
 #[derive(Serialize)]
 struct WasmExecuteResult {
@@ -309,6 +327,45 @@ impl WasmEngine {
         }
 
         self.service.load_law(yaml).map_err(engine_error_to_wasm)
+    }
+
+    /// Load a law like `loadLaw`, and on failure say what is wrong in parts.
+    ///
+    /// # Arguments
+    /// * `yaml` - YAML string containing the law definition (max 1 MB)
+    ///
+    /// # Returns
+    /// * `Ok(String)` - The law ID
+    /// * `Err(JsValue)` - An object `{ error, diagnostics }`. `error` is the
+    ///   string `loadLaw` throws. `diagnostics` lists the problems one by one:
+    ///   `severity`, `kind`, and where the check knows them `law_id`,
+    ///   `article`, `place`, `position` and `rule`, each with its `message`.
+    ///   The records are factual; wording for an end user is the caller's.
+    #[wasm_bindgen(js_name = loadLawWithDiagnostics)]
+    pub fn load_law_with_diagnostics(&mut self, yaml: &str) -> Result<String, JsValue> {
+        if yaml.len() > config::MAX_YAML_SIZE {
+            let error = format!(
+                "YAML exceeds maximum size ({} bytes)",
+                config::MAX_YAML_SIZE
+            );
+            let diagnostics = vec![Diagnostic::unplaced(
+                DiagnosticKind::Structure,
+                error.clone(),
+            )];
+            return Err(load_failure_to_wasm(error, diagnostics));
+        }
+
+        self.service.load_law(yaml).map_err(|err| {
+            let diagnostics = err.diagnostics();
+            // The same text `loadLaw` throws for this error.
+            let error = match &err {
+                EngineError::LawNotFound(law_id) => {
+                    format!("Law '{law_id}' not found. Load it first with loadLaw().")
+                }
+                other => other.to_string(),
+            };
+            load_failure_to_wasm(error, diagnostics)
+        })
     }
 
     /// Execute a law output with automatic cross-law resolution.
