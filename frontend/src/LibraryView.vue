@@ -84,6 +84,8 @@ interface SidebarSection {
   title: string;
   laws: CorpusLaw[];
   empty?: boolean;
+  /** What the section says instead of a list when it is `empty`. */
+  emptyText?: string;
   /** The laws are the matches of the quick search, not the whole section. */
   filtered?: boolean;
 }
@@ -1139,6 +1141,22 @@ const recentLaws = ref(loadRecentLaws(activeTrajectRef.value));
 watch(activeTrajectRef, (trajectRef) => {
   recentLaws.value = loadRecentLaws(trajectRef);
 });
+// Whether "Recent bekeken" also lists what "In dit traject" already shows.
+// Off by default: in a small traject the repeat only adds noise. In a large
+// one, someone working on a handful of its regelwerken wants those few at
+// hand, and turns it on. A preference of the person, so one value for every
+// traject, kept in this browser.
+const RECENT_INCLUDES_TRAJECT_KEY = 'regelrecht-recent-includes-traject';
+function loadRecentIncludesTraject(): boolean {
+  try { return localStorage.getItem(RECENT_INCLUDES_TRAJECT_KEY) === 'true'; } catch { return false; }
+}
+const recentIncludesTraject = ref(loadRecentIncludesTraject());
+function toggleRecentIncludesTraject() {
+  recentIncludesTraject.value = !recentIncludesTraject.value;
+  try {
+    localStorage.setItem(RECENT_INCLUDES_TRAJECT_KEY, String(recentIncludesTraject.value));
+  } catch { /* storage unavailable - the choice holds for this visit */ }
+}
 function recordRecentLaw(lawId: string, name: string | null | undefined) {
   if (!lawId) return;
   const entry = { law_id: lawId, name: name || humanizeLawId(lawId) };
@@ -1298,16 +1316,27 @@ const sidebarSections = computed(() => {
   // history, minus what "In dit traject" already lists: those laws have a
   // fixed place one section up, and repeating them here made this list
   // reshuffle on every click there. They stay in the stored history, so a law
-  // that leaves the traject's diff is back here. A favorite does stay in both
+  // that leaves the traject's diff is back here, and the section's menu can
+  // turn the repeat back on (`recentIncludesTraject`). A favorite does stay in both
   // sections (favoriting a law must not remove it from recent). Each id
   // resolves to its richer index entry when available, otherwise to the stored
   // { law_id, name } (e.g. a law not present in the active traject).
   const inTraject = new Set(trajectSectionLaws.value.map(law => law.law_id));
   const recent = recentLaws.value
-    .filter(r => !inTraject.has(r.law_id))
+    .filter(r => recentIncludesTraject.value || !inTraject.has(r.law_id))
     .map(r => indexedLaw(r.law_id) || r);
   if (recent.length > 0) {
     sections.push({ key: 'recent', title: 'Recent bekeken', laws: recent });
+  } else if (recentLaws.value.length > 0) {
+    // Everything viewed is in the traject. The section stays, so the menu
+    // that brings those regelwerken back is still there.
+    sections.push({
+      key: 'recent',
+      title: 'Recent bekeken',
+      laws: [],
+      empty: true,
+      emptyText: 'Alles wat je recent bekeek staat onder "In dit traject".',
+    });
   }
 
 
@@ -2527,8 +2556,29 @@ watch(activeTrajectRef, () => {
                     <template v-if="section.title">
                       <nldd-title size="display-5">
                         <h4>{{ section.title }}</h4>
+                        <!-- In a traject the section has a choice to make, so
+                             its one action becomes a menu of two. -->
+                        <nldd-icon-button
+                          v-if="section.key === 'recent' && activeTrajectRef"
+                          slot="end"
+                          size="xs"
+                          icon="more"
+                          text="Opties voor Recent bekeken"
+                          data-testid="recent-options"
+                        >
+                          <nldd-menu slot="popup">
+                            <nldd-menu-item
+                              type="checkbox"
+                              text="Toon ook regelwerken uit dit traject"
+                              :selected="recentIncludesTraject || undefined"
+                              data-testid="recent-includes-traject"
+                              @select="toggleRecentIncludesTraject"
+                            ></nldd-menu-item>
+                            <nldd-menu-item text="Wis de lijst" data-testid="recent-clear" @select="clearRecent"></nldd-menu-item>
+                          </nldd-menu>
+                        </nldd-icon-button>
                         <nldd-button
-                          v-if="section.key === 'recent'"
+                          v-else-if="section.key === 'recent'"
                           slot="end"
                           size="xs"
                           appearance="accent-transparent"
@@ -2563,8 +2613,8 @@ watch(activeTrajectRef, () => {
                          alleen de mededeling. Uitleg over hóe je hem vult lees
                          je één keer en daarna voor altijd, op de plek waar je
                          werk hoort te staan. -->
-                    <nldd-rich-text v-if="section.empty" data-testid="traject-no-laws">
-                      <p>Nog niets bewerkt.</p>
+                    <nldd-rich-text v-if="section.empty" :data-testid="section.key === 'traject' ? 'traject-no-laws' : `${section.key}-empty`">
+                      <p>{{ section.emptyText ?? 'Nog niets bewerkt.' }}</p>
                     </nldd-rich-text>
                     <!-- Snel zoeken in "In dit traject", vanaf het aantal
                          waarbij de lijst inklapt. Het aantal eronder maakt de

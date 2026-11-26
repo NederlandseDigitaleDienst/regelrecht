@@ -127,6 +127,23 @@ test('"Recent bekeken" leaves out what "In dit traject" already lists', async ({
   await expect(sectionRows(page, 'recent').first()).toContainText('Centrale wet');
 });
 
+test('the menu of "Recent bekeken" brings the ruleworks of the traject back, and remembers it', async ({ page }) => {
+  const own = ownLaws(5);
+  await mockTrajectLibrary(page, own);
+  await seedRecent(page, [own[1], CENTRAL_LAW, own[3]]);
+  await page.goto(`/trajecten/${TEST_TRAJECT_REF}`);
+  await expect(sectionRows(page, 'recent')).toHaveCount(1);
+
+  await page.locator('[data-testid="recent-options"]').click();
+  const option = page.locator('[data-testid="recent-includes-traject"]');
+  await expect(option).toBeVisible();
+  await option.click();
+  await expect(sectionRows(page, 'recent')).toHaveCount(3);
+
+  await page.reload();
+  await expect(sectionRows(page, 'recent')).toHaveCount(3);
+});
+
 test('an open rulework from the central corpus can be added to the traject', async ({ page }) => {
   const { promoted } = await mockTrajectLibrary(page, ownLaws(3));
   await page.goto(`/trajecten/${TEST_TRAJECT_REF}/corpus/${CENTRAL_LAW.law_id}`);

@@ -475,12 +475,37 @@ describe('LibraryView - Recent bekeken naast "In dit traject"', () => {
     expect(sectionLaws(wrapper, 'recent')).toEqual(['Kieswet']);
   });
 
-  it('laat de sectie weg als alles wat bekeken is in het traject staat', async () => {
+  it('houdt de sectie met een uitleg als alles wat bekeken is in het traject staat', async () => {
     setRecent(['wet_a']);
     server.changed = ['wet_a'];
     const wrapper = await mountLibrary();
 
+    // The section carries the menu that brings those regelwerken back.
+    expect(sectionTitles(wrapper)).toContain('Recent bekeken');
+    expect(wrapper.find('[data-testid="recent-empty"]').text()).toContain('In dit traject');
+    expect(wrapper.find('[data-testid="recent-options"]').exists()).toBe(true);
+  });
+
+  it('laat de sectie weg als er niets bekeken is', async () => {
+    server.changed = ['wet_a'];
+    const wrapper = await mountLibrary();
+
     expect(sectionTitles(wrapper)).not.toContain('Recent bekeken');
+  });
+
+  it('toont de wetten van het traject wel als de voorkeur aan staat, en onthoudt die', async () => {
+    setRecent(['wet_a', 'wet_f']);
+    server.changed = ['wet_a'];
+    const wrapper = await mountLibrary();
+    expect(sectionLaws(wrapper, 'recent')).toHaveLength(1);
+
+    await wrapper.find('[data-testid="recent-includes-traject"]').trigger('select');
+    expect(sectionLaws(wrapper, 'recent')).toHaveLength(2);
+    expect(localStorage.getItem('regelrecht-recent-includes-traject')).toBe('true');
+
+    await wrapper.find('[data-testid="recent-includes-traject"]').trigger('select');
+    expect(sectionLaws(wrapper, 'recent')).toHaveLength(1);
+    expect(localStorage.getItem('regelrecht-recent-includes-traject')).toBe('false');
   });
 
   it('laat ook een wet weg die in het traject achter de uitklapknop staat', async () => {
