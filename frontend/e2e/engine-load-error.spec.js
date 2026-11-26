@@ -91,6 +91,17 @@ test.describe('A regelwerk the engine refuses', () => {
     await expect(notification(page)).toBeVisible({ timeout: 30_000 });
     await expect(notification(page)).toHaveAttribute('supporting-text', /De engine vond 2 fouten in het regelwerk\. Kijk bij de artikelen 2 en 3\./);
 
+    // The place is marked where the author works: on the action's row in
+    // the Machine pane, and on the article's tab.
+    const marked = page.locator('[data-testid="pane-machine"] nldd-list-item[data-finding]');
+    await expect(marked).toHaveCount(1);
+    await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute('text', 'heeft_recht_op_zorgtoeslag');
+    await expect(marked.locator('nldd-text-cell').first()).toHaveAttribute(
+      'supporting-text',
+      'Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is.',
+    );
+    await expect(page.locator('nldd-document-tab-bar-item[selected]')).toHaveAttribute('supporting-text', /bevat een fout/);
+
     await notification(page).locator('nldd-button').click();
     const findings = detailsSheet(page).locator('[data-testid="error-details-finding"]');
     await expect(findings).toHaveCount(2);

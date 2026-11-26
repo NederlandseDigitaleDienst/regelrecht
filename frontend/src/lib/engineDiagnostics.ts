@@ -84,3 +84,28 @@ export function ruleText(diagnostic: EngineDiagnostic): string | null {
 export function articlesOf(diagnostics: readonly EngineDiagnostic[]): string[] {
   return [...new Set(diagnostics.flatMap((d) => (d.article ? [d.article] : [])))];
 }
+
+/** Where a row of the Machine pane is: what the engine calls its place. */
+export type RowPlace =
+  | { kind: 'input' | 'definition'; name: string }
+  /** An action: by the output it assigns, or by its position (from 1) when it has none. */
+  | { kind: 'action'; output: string | null; index: number };
+
+/** The findings on one row. The engine places a finding on an action by its output when it has one. */
+export function findingsAt(findings: readonly EngineDiagnostic[], row: RowPlace): EngineDiagnostic[] {
+  return findings.filter((finding) => {
+    const place = finding.place;
+    if (!place) return false;
+    if (row.kind === 'action') {
+      if (place.kind === 'output') return row.output === place.name;
+      return place.kind === 'action' && row.output === null && row.index === place.index;
+    }
+    return place.kind === row.kind && place.name === row.name;
+  });
+}
+
+/** What a row says about its findings: the kind of mistake, or the engine's message when the editor has no words for it. */
+export function findingsText(findings: readonly EngineDiagnostic[]): string | undefined {
+  if (findings.length === 0) return undefined;
+  return [...new Set(findings.map((finding) => ruleText(finding) ?? finding.message))].join(' ');
+}

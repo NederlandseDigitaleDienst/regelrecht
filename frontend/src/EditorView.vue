@@ -1517,6 +1517,11 @@ function tabLabel(tab: OpenTab): TabLabel {
     shortText: `Art. ${tab.articleNumber}`,
     supportingText,
     unsaved: isOpenArticle(tab.lawId, tab.articleNumber) && openLaw.hasUnsavedWork.value,
+    // The engine's verdict is on the open regelwerk, so only its tabs can say.
+    hasFindings: tab.lawId === lawId.value
+      && (engineLoadError.value?.diagnostics ?? []).some(
+        (finding) => (finding.law_id ?? lawId.value) === lawId.value && finding.article === tab.articleNumber,
+      ),
   };
 }
 
@@ -1728,6 +1733,13 @@ const errors = useErrorsStore();
 // regelwerk. The article, when the engine names one, is in the sentence.
 const engineErrorTitle = computed(() => `${failedLawName.value || 'Dit regelwerk'} kan niet worden uitgevoerd`);
 const saveErrorTitle = computed(() => `${failedLawName.value || 'Het regelwerk'} is niet opgeslagen`);
+// The engine's findings on the article on screen, for the Machine pane to mark.
+const articleFindings = computed(() => {
+  const article = selectedArticle.value ? String(selectedArticle.value.number) : null;
+  return (engineLoadError.value?.diagnostics ?? []).filter(
+    (finding) => (finding.law_id ?? lawId.value) === lawId.value && finding.article === article,
+  );
+});
 // Open what a finding of the engine is about: its article, and the action
 // behind an output when that article is already on screen. Another article
 // goes through the router, which asks first when there are unsaved edits.
@@ -2738,6 +2750,7 @@ async function handleActionSave() {
                   :law="law"
                   :law-id="lawId"
                   :links="regelrijmLinks"
+                  :findings="articleFindings"
                   @open-action="handleOpenAction"
                   @navigate="handleRegelRijmNavigate"
                   @open-edit="activeEditItem = $event"

@@ -19,6 +19,8 @@ export interface TabLabel {
   supportingText: string;
   /** The tab holds edits that are not saved. */
   unsaved: boolean;
+  /** The engine found something wrong in what the tab shows. */
+  hasFindings?: boolean;
 }
 
 /** The editor's actions for the document tab bar. */

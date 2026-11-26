@@ -8,6 +8,7 @@
 // comes from. Under a rule stand the fragments of the article text that a
 // linking note ties to it (regelrijmLinks.ts). Behind the feature flag
 // `panel.regelrijm`.
+import { findingsAt, findingsText, type EngineDiagnostic } from '../lib/engineDiagnostics';
 import { computed, reactive, ref, useId, watch } from 'vue';
 import { articleContext, formatLiteral, references, renderAction } from '@regelrecht/frontend-shared/regelrijm/index';
 import type { ActionReading, ArticleContext, Path, Token, Unit } from '@regelrecht/frontend-shared/regelrijm/index';
@@ -35,13 +36,21 @@ const props = withDefaults(defineProps<{
   editable?: boolean;
   /** Output → fragments of the article text linked to it (linksByOutput). */
   links?: ReadonlyMap<string, LinkedFragment[]>;
+  /** What the engine found wrong in this article; marked on the rule it is about. */
+  findings?: readonly EngineDiagnostic[];
 }>(), {
   article: null,
   law: null,
   lawId: null,
   editable: false,
   links: () => new Map(),
+  findings: () => [],
 });
+
+/** The text for the engine's findings on a rule; undefined for a rule without any. */
+function ruleFindings(rule: { output: string | null; index: number }): string | undefined {
+  return findingsText(findingsAt(props.findings, { kind: 'action', output: rule.output, index: rule.index + 1 }));
+}
 const emit = defineEmits<{
   /** `path`: the part of the action to open the sheet at. */
   'open-action': [action: ExecutionAction, path?: Path];
@@ -229,6 +238,10 @@ function ruleId(key: string): string {
       <div :id="ruleId(rule.key)" :data-testid="`regelrijm-pane-rule-${rule.output ?? rule.key}`">
         <nldd-title size="display-6"><h6>{{ rule.output ? humanize(rule.output) : 'Actie zonder uitkomst' }}</h6></nldd-title>
         <nldd-spacer size="4"></nldd-spacer>
+        <template v-if="ruleFindings(rule)">
+          <nldd-banner size="sm" variant="critical" :text="ruleFindings(rule)" :data-testid="`regelrijm-pane-finding-${rule.output ?? rule.key}`"></nldd-banner>
+          <nldd-spacer size="4"></nldd-spacer>
+        </template>
         <nldd-box background="tinted">
           <nldd-container padding="12">
             <nldd-inline-dialog v-if="rule.error" variant="alert" text="Deze regel is nog niet te lezen" :supporting-text="rule.error"></nldd-inline-dialog>

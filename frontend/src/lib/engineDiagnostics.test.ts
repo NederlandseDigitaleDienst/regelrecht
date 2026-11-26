@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { articlesOf, diagnosticsOf, placeLabel, ruleText, type EngineDiagnostic } from './engineDiagnostics';
+import { articlesOf, diagnosticsOf, findingsAt, findingsText, placeLabel, ruleText, type EngineDiagnostic } from './engineDiagnostics';
 
 const base: EngineDiagnostic = {
   severity: 'error', kind: 'type_check', law_id: 't', article: '2', place: null, position: null, rule: 'N1', message: 'm',
@@ -47,5 +47,40 @@ describe('articlesOf', () => {
   it('names each article once, in order', () => {
     expect(articlesOf([{ ...base, article: 'B 5' }, { ...base, article: 'B 1' }, { ...base, article: 'B 5' }, { ...base, article: null }]))
       .toEqual(['B 5', 'B 1']);
+  });
+});
+
+describe('findingsAt', () => {
+  const onOutput: EngineDiagnostic = { ...base, place: { kind: 'output', name: 'hoogte' } };
+  const onAction: EngineDiagnostic = { ...base, place: { kind: 'action', index: 2 } };
+  const onInput: EngineDiagnostic = { ...base, place: { kind: 'input', name: 'inkomen' } };
+  const all = [onOutput, onAction, onInput, { ...base, place: { kind: 'article' as const } }, { ...base, place: null }];
+
+  it('puts a finding on an output on the action that assigns it', () => {
+    expect(findingsAt(all, { kind: 'action', output: 'hoogte', index: 1 })).toEqual([onOutput]);
+  });
+
+  it('puts a finding on an action without an output on that position', () => {
+    expect(findingsAt(all, { kind: 'action', output: null, index: 2 })).toEqual([onAction]);
+    // An action with an output is never found by position.
+    expect(findingsAt(all, { kind: 'action', output: 'ander', index: 2 })).toEqual([]);
+  });
+
+  it('keeps inputs and definitions with the same name apart', () => {
+    expect(findingsAt(all, { kind: 'input', name: 'inkomen' })).toEqual([onInput]);
+    expect(findingsAt(all, { kind: 'definition', name: 'inkomen' })).toEqual([]);
+  });
+});
+
+describe('findingsText', () => {
+  it('says each kind of mistake once', () => {
+    expect(findingsText([{ ...base, rule: 'T1' }, { ...base, rule: 'T1' }, { ...base, rule: 'T3' }])).toBe(
+      'Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is. Er worden waarden van verschillend type met elkaar vergeleken.',
+    );
+  });
+
+  it('falls back on the engine\'s message, and has nothing for no findings', () => {
+    expect(findingsText([{ ...base, rule: null, kind: 'load_check', message: 'the engine says' }])).toBe('the engine says');
+    expect(findingsText([])).toBeUndefined();
   });
 });

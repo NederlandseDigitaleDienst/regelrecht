@@ -10,6 +10,7 @@ import BreakableName from './BreakableName.vue';
 import RowActionsMenu from './RowActionsMenu.vue';
 import MachineEmptyState from './MachineEmptyState.vue';
 import RegelRijmPane from '../regelrijm/RegelRijmPane.vue';
+import { findingsAt, findingsText, type EngineDiagnostic, type RowPlace } from '../lib/engineDiagnostics';
 import type { LinkedFragment } from '../regelrijm/regelrijmLinks';
 import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
 import { useFeatureFlagsStore } from '../stores/featureFlags';
@@ -79,6 +80,9 @@ const props = withDefaults(defineProps<{
   /** Anchor target for that button. Leave unset when the user isn't logged
    *  in, so the click gates on the login popover instead of the href. */
   createHref?: string;
+  /** What the engine found wrong in this article (lib/engineDiagnostics); each
+   *  is marked on the row it is about. */
+  findings?: readonly EngineDiagnostic[];
   /** Show the actions as RegelRijm readings (with flag `panel.regelrijm`).
    *  Only the editor sets it: it is the view that handles `navigate`. */
   regelrijm?: boolean;
@@ -102,12 +106,18 @@ const props = withDefaults(defineProps<{
   reviewArticle: '',
   createHref: undefined,
   regelrijm: false,
+  findings: () => [],
   law: null,
   lawId: null,
   links: () => new Map(),
 });
 
 const { displayName: lawDisplayName } = useCorpus();
+
+/** The text for the findings on a row; undefined for a row without any. */
+function rowFindings(row: RowPlace): string | undefined {
+  return findingsText(findingsAt(props.findings, row));
+}
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
@@ -408,6 +418,7 @@ function addOutput() {
         :law-id="lawId"
         :editable="editable"
         :links="links"
+        :findings="findings"
         @open-action="(action, path) => emit('open-action', action, path)"
         @navigate="emit('navigate', $event)"
         @add-action="emit('add-action')"
@@ -475,13 +486,17 @@ function addOutput() {
       <nldd-title size="display-5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
-        <nldd-list-item v-for="def in definitions" :key="def.name" size="md">
+        <nldd-list-item v-for="def in definitions" :key="def.name" size="md" :data-finding="rowFindings({ kind: 'definition', name: def.name }) ? '' : undefined">
+          <template v-if="rowFindings({ kind: 'definition', name: def.name })">
+            <nldd-icon-cell size="20" color="critical" icon="error"></nldd-icon-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+          </template>
           <template v-if="editable">
-            <nldd-text-cell><BreakableName :name="def.name" /> = {{ formatValue(def.value, def.unit) }}</nldd-text-cell>
+            <nldd-text-cell :supporting-text="rowFindings({ kind: 'definition', name: def.name })"><BreakableName :name="def.name" /> = {{ formatValue(def.value, def.unit) }}</nldd-text-cell>
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
           </template>
           <template v-else>
-            <nldd-text-cell min-width="120px"><BreakableName :name="def.name" /></nldd-text-cell>
+            <nldd-text-cell min-width="120px" :supporting-text="rowFindings({ kind: 'definition', name: def.name })"><BreakableName :name="def.name" /></nldd-text-cell>
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
             <nldd-text-cell
               v-if="def.isList"
@@ -547,9 +562,13 @@ function addOutput() {
       <nldd-title size="display-5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
-        <nldd-list-item v-for="(input, index) in inputs" :key="input.name" :data-testid="`input-row-${input.name}`" size="md">
+        <nldd-list-item v-for="(input, index) in inputs" :key="input.name" :data-testid="`input-row-${input.name}`" size="md" :data-finding="rowFindings({ kind: 'input', name: input.name }) ? '' : undefined">
+          <template v-if="rowFindings({ kind: 'input', name: input.name })">
+            <nldd-icon-cell size="20" color="critical" icon="error"></nldd-icon-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+          </template>
           <nldd-text-cell
-            :supporting-text="input.sourceRegulation ? lawDisplayName(input.sourceRegulation) : undefined"
+            :supporting-text="rowFindings({ kind: 'input', name: input.name }) ?? (input.sourceRegulation ? lawDisplayName(input.sourceRegulation) : undefined)"
           ><BreakableName :name="input.name" /> <nldd-tag size="sm" :text="input.type"></nldd-tag></nldd-text-cell>
           <nldd-spacer-cell v-if="editable" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="editable">
@@ -607,9 +626,14 @@ function addOutput() {
           :key="index"
           size="md"
           :button="!editable"
+          :data-finding="rowFindings({ kind: 'action', output: action.output ?? null, index: index + 1 }) ? '' : undefined"
           @click="!editable && emit('open-action', action)"
         >
-          <nldd-text-cell :text="action.output"></nldd-text-cell>
+          <template v-if="rowFindings({ kind: 'action', output: action.output ?? null, index: index + 1 })">
+            <nldd-icon-cell size="20" color="critical" icon="error"></nldd-icon-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+          </template>
+          <nldd-text-cell :text="action.output" :supporting-text="rowFindings({ kind: 'action', output: action.output ?? null, index: index + 1 })"></nldd-text-cell>
           <nldd-spacer-cell v-if="editable" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="editable">
             <RowActionsMenu
