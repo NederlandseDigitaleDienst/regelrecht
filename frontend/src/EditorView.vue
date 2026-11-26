@@ -16,6 +16,8 @@ import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
 import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
+import { describeEngineLoadError, describeSaveError, type UserError } from './lib/userError';
+import { useErrorsStore } from './stores/errors';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
 import { humanizeLawId } from './lib/lawName';
 import { quoteContext } from './lib/quoteContext';
@@ -1719,7 +1721,28 @@ let engineLoadDebounce: ReturnType<typeof setTimeout> | undefined;
 // rejects an unparseable one, and it has already dropped the previous copy
 // by then, so every scenario would otherwise fail with "Law not found"
 // without saying why. The WASM binding throws a plain string.
-const engineLoadError = ref<string | null>(null);
+const engineLoadError = ref<UserError | null>(null);
+const errors = useErrorsStore();
+// A notification is not next to what it is about, so its title names the
+// regelwerk. The article, when the engine names one, is in the sentence.
+const engineErrorTitle = computed(() => `${failedLawName.value || 'Dit regelwerk'} kan niet worden uitgevoerd`);
+const saveErrorTitle = computed(() => `${failedLawName.value || 'Het regelwerk'} is niet opgeslagen`);
+// The engine's refusal is a notification, shared with the other errors the
+// editor reports. The panes stay: the frontend reads the regelwerk with its
+// own parser, and they are where the author repairs it.
+watch(
+  [engineLoadError, engineErrorTitle],
+  ([error, title]) => {
+    if (error) errors.report('engine-load', title, error);
+    else errors.clear('engine-load');
+  },
+  { immediate: true },
+);
+// Another regelwerk starts clean: the previous one's verdict says nothing
+// about it.
+watch([lawId, activeTrajectRef], () => {
+  engineLoadError.value = null;
+});
 
 // The open regelwerk's other saved versions, so a scenario on a date another
 // version covers runs on that one. The saved copy of the version on screen is
@@ -1752,8 +1775,15 @@ async function reloadEngineLaw(lawYaml: string | null, isReady: boolean) {
     await loadLawYaml(lawYaml, id, trajectRef, others);
     engineLoadError.value = null;
   } catch (e) {
-    // Reads `.message` off whatever was thrown, as before.
-    engineLoadError.value = typeof e === 'string' ? e : ((e as { message?: string } | null)?.message || String(e));
+    // A newer load, or another regelwerk, has the say by now.
+    if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
+    // The same refusal after another keystroke is the same error: a new
+    // object would bring back a notification the user dismissed.
+    const described = describeEngineLoadError(e);
+    const previous = engineLoadError.value;
+    if (previous?.summary !== described.summary || previous.details !== described.details) {
+      engineLoadError.value = described;
+    }
     // Plain first argument: the law id is user text, not a format string.
     console.warn('Failed to load law into engine:', lawId.value, e);
   }
@@ -1870,19 +1900,21 @@ async function handleLawSave() {
 // niet in) en verdient dezelfde melding, inclusief de 412-uitleg bij een
 // conflict.
 const saveFailure = computed(() => review.processError.value ?? lawSaveError.value);
-const saveErrorText = computed(() =>
-  saveFailure.value ? saveFailure.value.message || String(saveFailure.value) : '',
+const saveError = computed(() => (saveFailure.value ? describeSaveError(saveFailure.value) : null));
+// `lawSaveError` lives on until the next save; the store remembers that this
+// failure was dismissed. Dismissing also clears the review's error.
+watch(
+  [saveError, saveErrorTitle],
+  ([error, title]) => {
+    if (error) errors.report('save', title, error, () => { review.processError.value = null; });
+    else errors.clear('save');
+  },
+  { immediate: true },
 );
-// The failure the user dismissed. `lawSaveError` lives on until the next save,
-// so dismissing remembers which failure it was rather than clearing it.
-const dismissedSaveFailure = ref<unknown>(null);
-const showSaveError = computed(
-  () => !!saveFailure.value && saveFailure.value !== dismissedSaveFailure.value,
-);
-function dismissSaveError() {
-  dismissedSaveFailure.value = saveFailure.value;
-  review.processError.value = null;
-}
+onBeforeUnmount(() => {
+  errors.clear('engine-load');
+  errors.clear('save');
+});
 
 // Alias kept to minimise template churn; both panes ultimately call the
 // same whole-law save.
@@ -2170,17 +2202,6 @@ async function handleActionSave() {
               :text="enrichFeedback.text"
               dismissible
               @dismiss="dismissEnrichFeedback"
-            ></nldd-banner>
-          </nldd-container>
-
-          <!-- The engine refused the current YAML (parse or type-check error,
-               RFC-037). Same page-wide pattern as the feedback above; not
-               dismissible, it clears when a reload succeeds. -->
-          <nldd-container v-if="engineLoadError" padding="8">
-            <nldd-banner
-              variant="critical"
-              text="De engine kan dit regelwerk niet laden"
-              :supporting-text="engineLoadError"
             ></nldd-banner>
           </nldd-container>
 
@@ -2927,16 +2948,5 @@ async function handleActionSave() {
     <nldd-button slot="actions" appearance="primary" text="Blijf hier" data-testid="leave-stay-btn" @click="answerLeave(false)"></nldd-button>
     <nldd-button slot="actions" appearance="destructive" text="Wijzigingen weggooien" data-testid="leave-discard-btn" @click="answerLeave(true)"></nldd-button>
   </nldd-modal-dialog>
-
-  <!-- Whole-law save failure, shown over the whole editor rather than inline in
-       one pane. Critical, so it stays until dismissed. -->
-  <nldd-notification
-    v-if="showSaveError"
-    variant="critical"
-    text="Opslaan mislukt"
-    :supporting-text="saveErrorText"
-    data-testid="save-error-notification"
-    @dismiss="dismissSaveError"
-  ></nldd-notification>
 
 </template>

@@ -8,6 +8,10 @@ import TrajectMenu from './components/TrajectMenu.vue';
 import MobileTrajectSheet from './components/MobileTrajectSheet.vue';
 import AboutSheet from './components/AboutSheet.vue';
 import SupportSheet from './components/SupportSheet.vue';
+import ErrorDetailsSheet from './components/ErrorDetailsSheet.vue';
+import { useErrorsStore } from './stores/errors';
+import ErrorIndicator from './components/ErrorIndicator.vue';
+import ErrorNotification from './components/ErrorNotification.vue';
 import SettingsSheet from './components/SettingsSheet.vue';
 import NewMenuItems from './components/NewMenuItems.vue';
 import AccountMenuItems from './components/AccountMenuItems.vue';
@@ -178,6 +182,7 @@ function onEditorTab(e: Event) {
 
 // View-specific toolbar bits published by the active view.
 const appChrome = useAppChromeStore();
+const { standing: standingErrors } = storeToRefs(useErrorsStore());
 const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = storeToRefs(appChrome);
 const { openSearch, openSearchAt, onBarSearchKeydown } = appChrome;
 
@@ -365,6 +370,11 @@ function restoreTabSelection() {
                 <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
               </nldd-menu-group>
             </nldd-toolbar-item>
+            <!-- What the editor reported and still holds; opens the details sheet. -->
+            <nldd-toolbar-item v-if="standingErrors.length > 0" slot="end">
+              <ErrorIndicator />
+              <ErrorIndicator slot="overflow" menu-item />
+            </nldd-toolbar-item>
             <nldd-toolbar-item v-if="lastSavedPr" slot="end">
               <!-- Federated write-back indicator (editor only). New tab so the
                    editor state isn't lost. -->
@@ -474,6 +484,11 @@ function restoreTabSelection() {
                 ></nldd-search-field>
               </nldd-just-in-time-education>
               <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <!-- What the editor reported and still holds; opens the details sheet. -->
+            <nldd-toolbar-item v-if="standingErrors.length > 0" slot="end">
+              <ErrorIndicator />
+              <ErrorIndicator slot="overflow" menu-item />
             </nldd-toolbar-item>
             <nldd-toolbar-item v-if="lastSavedPr" slot="end">
               <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
@@ -812,6 +827,8 @@ function restoreTabSelection() {
 
     <AboutSheet ref="aboutSheet"></AboutSheet>
     <SupportSheet ref="supportSheet"></SupportSheet>
+    <ErrorDetailsSheet></ErrorDetailsSheet>
+    <ErrorNotification></ErrorNotification>
     <SettingsSheet ref="settingsSheet"></SettingsSheet>
   </nldd-shell>
 
