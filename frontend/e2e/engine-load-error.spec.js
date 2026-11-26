@@ -12,6 +12,12 @@ import { mockCorpusApi } from './helpers-corpus.js';
 // The frontend's own parser reads this; the engine knows no such operation.
 const breakLaw = (yamlText, operation = 'NO_SUCH_OPERATION') => yamlText.replace('operation: MAX', `operation: ${operation}`);
 
+// Two type errors the engine reports as findings: a comparison of a number
+// with a boolean in article 2, and of a boolean with a number in article 3.
+const illTyped = (yamlText) => yamlText
+  .replace(/(operation: GREATER_THAN\n\s+subject: [^\n]+\n\s+value: )0\n/, '$1true\n')
+  .replace(/(- output: vermogen_onder_grens[\s\S]*?operation: EQUALS\n\s+subject: [^\n]+\n\s+value: )true\n/, '$15\n');
+
 const splitView = (page) => page.locator('nldd-side-by-side-split-view');
 const notification = (page) => page.locator('[data-testid="error-notification"]');
 const detailsSheet = (page) => page.locator('[data-testid="error-details-sheet"]');
@@ -80,12 +86,7 @@ test.describe('A regelwerk the engine refuses', () => {
   });
 
   test('type-check findings are listed per article, and a finding opens its article', async ({ page }) => {
-    // Two type errors: an ordering against a boolean in article 2, and a
-    // comparison of a boolean with a number in article 3.
-    const illTyped = loadFixture('zorgtoeslag-full.yaml')
-      .replace(/(operation: GREATER_THAN\n\s+subject: [^\n]+\n\s+value: )0\n/, '$1true\n')
-      .replace(/(- output: vermogen_onder_grens[\s\S]*?operation: EQUALS\n\s+subject: [^\n]+\n\s+value: )true\n/, '$15\n');
-    await mockLaw(page, illTyped);
+    await mockLaw(page, illTyped(loadFixture('zorgtoeslag-full.yaml')));
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
 
     await expect(notification(page)).toBeVisible({ timeout: 30_000 });
@@ -112,6 +113,19 @@ test.describe('A regelwerk the engine refuses', () => {
     await findings.nth(1).click();
     await expect(page).toHaveURL(/\/editor\/wet_op_de_zorgtoeslag\/3$/);
     await expect(detailsSheet(page)).not.toHaveAttribute('open', '');
+  });
+
+  test('with RegelRijm on, the finding stands above the rule it is about', async ({ page }) => {
+    await page.route('**/api/feature-flags', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ 'panel.regelrijm': true }) }));
+    await mockLaw(page, illTyped(loadFixture('zorgtoeslag-full.yaml')));
+    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
+
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    const finding = page.locator('[data-testid="regelrijm-pane-finding-heeft_recht_op_zorgtoeslag"]');
+    await expect(finding).toBeVisible();
+    await expect(finding).toHaveAttribute('text', 'Een rekenkundige bewerking of vergelijking krijgt iets dat geen getal is.');
+    await expect(page.locator('[data-testid^="regelrijm-pane-finding-"]')).toHaveCount(1);
   });
 
   test('a dismissed notification stays away until the error changes', async ({ page }) => {
