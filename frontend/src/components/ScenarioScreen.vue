@@ -169,7 +169,8 @@ const dirty = computed(() => file.value.dirty.value);
 <template>
   <nldd-navigation-split-view primary-sidebar-accessible-label="Scenario's" data-testid="scenario-screen">
     <!-- The file's scenarios, each with the status of its latest run. -->
-    <nldd-page slot="primary-sidebar" sticky-header accessible-label="Scenario's">
+    <nldd-split-view-pane slot="primary-sidebar" has-content>
+      <nldd-page sticky-header accessible-label="Scenario's">
         <nldd-container slot="header" padding="8" padding-bottom="0">
           <nldd-top-title-bar :text="filename" :supporting-text="lawName || undefined"></nldd-top-title-bar>
         </nldd-container>
@@ -227,10 +228,13 @@ const dirty = computed(() => file.value.dirty.value);
           </template>
         </nldd-simple-section>
       </nldd-page>
+    </nldd-split-view-pane>
 
     <!-- The selected scenario: its form, and its result next to it. -->
-    <nldd-side-by-side-split-view slot="main" panes="2" @nldd-single-column-change="onSingleColumnChange">
-        <nldd-page slot="pane-1" data-testid="scenario-form-pane" sticky-header :sticky-footer="dirty || undefined" landmarks="page">
+    <nldd-split-view-pane slot="main" has-content>
+      <nldd-side-by-side-split-view panes="2" @nldd-single-column-change="onSingleColumnChange">
+        <nldd-split-view-pane slot="pane-1" data-testid="scenario-form-pane">
+          <nldd-page sticky-header :sticky-footer="dirty || undefined" landmarks="page">
             <nldd-container slot="header" padding="8" padding-bottom="0">
               <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- the stacked view has no way to show the scenario list yet, so a back button would lead nowhere -->
               <nldd-top-title-bar
@@ -315,27 +319,31 @@ const dirty = computed(() => file.value.dirty.value);
               </nldd-button-group>
             </nldd-container>
           </nldd-page>
-        <nldd-page slot="pane-2" data-testid="scenario-result-pane" sticky-header accessible-label="Resultaat">
-          <nldd-container slot="header" padding="8" padding-bottom="0">
-            <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- this pane sits beside the form, and in a single column the result opens as a sheet instead -->
-            <nldd-top-title-bar text="Resultaat">
-              <nldd-button
-                slot="toolbar"
-                appearance="secondary"
-                text="Graaf"
-                data-testid="scenario-graph-btn"
-                @click="showGraph"
-              ></nldd-button>
-            </nldd-top-title-bar>
-          </nldd-container>
-          <ScenarioResult
-            v-if="!singleColumn"
-            :run="selectedRun"
-            :output-types="outputTypes"
-            @rerun="runNow"
-          />
-        </nldd-page>
+        </nldd-split-view-pane>
+        <nldd-split-view-pane slot="pane-2" data-testid="scenario-result-pane">
+          <nldd-page sticky-header accessible-label="Resultaat">
+            <nldd-container slot="header" padding="8" padding-bottom="0">
+              <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- this pane sits beside the form, and in a single column the result opens as a sheet instead -->
+              <nldd-top-title-bar text="Resultaat">
+                <nldd-button
+                  slot="toolbar"
+                  appearance="secondary"
+                  text="Graaf"
+                  data-testid="scenario-graph-btn"
+                  @click="showGraph"
+                ></nldd-button>
+              </nldd-top-title-bar>
+            </nldd-container>
+            <ScenarioResult
+              v-if="!singleColumn"
+              :run="selectedRun"
+              :output-types="outputTypes"
+              @rerun="runNow"
+            />
+          </nldd-page>
+        </nldd-split-view-pane>
       </nldd-side-by-side-split-view>
+    </nldd-split-view-pane>
   </nldd-navigation-split-view>
 
   <!-- The result when only the form fits. -->

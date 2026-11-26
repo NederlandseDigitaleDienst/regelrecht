@@ -4,31 +4,6 @@ Instructions for coding agents working in this repository (Codex, Copilot,
 Cursor, Claude Code and others). This file is the source; `CLAUDE.md` only
 imports it, because Claude Code reads that name. Edit this file, not that one.
 
-## Fieldlab 2026: this copy lives on Forgejo
-
-This repository is the hackathon copy of regelrecht on Forgejo
-(`code.digitaledienst.overheid.nl/regelrecht/fieldlab-2026`), not the GitHub
-repository. The GitHub workflow does not apply here:
-
-- **A minimal CI.** `.forgejo/workflows/ci.yml` runs Rust format, lint,
-  validation and tests, and the frontend tests and type checks, on every push.
-  Nothing under `.github/workflows/` runs: Forgejo reads `.forgejo/workflows/`
-  instead. Runners take `runs-on: default` (a container without root) or
-  `vm` (a VM with Docker); GitHub labels such as `ubuntu-latest` never start.
-  The Rust jobs use an image built from `.forgejo/ci-image/Dockerfile` by
-  `ci-image.yml`; a tool a job needs goes into that Dockerfile.
-- **No GitHub gates.** There is no merge queue, no Claude review gate, no
-  `Werkpakket:` check and no PR-title lint. Do not wait for them and do not
-  add a `Werkpakket:` line.
-- **No previews, and no deploys to ZAD.** The fieldlab runs on the shared
-  Fundament cluster `cluster-a`; other teams use the same cluster, so ask
-  before changing anything on it outside our own namespaces.
-- **No `gh`.** It talks to GitHub, not Forgejo. Do not use it to open, merge
-  or inspect pull requests for this repository.
-
-Docs pages under `docs/src/content/docs/operations/` and some skills still
-describe the GitHub setup. Treat those parts as background, not instructions.
-
 ## Skills
 
 Task-specific instructions live in `.claude/skills/<name>/SKILL.md`. When this
@@ -158,20 +133,96 @@ locally. What the hooks cover is in `docs/src/content/docs/guide/dev-environment
 
 ### Commit & PR Title Conventions
 
-Commit messages and PR titles use **Conventional Commits**: `type(scope): subject`,
-where `(scope)` is optional.
+PR titles are linted by `.github/workflows/pr-title.yml` (a failing title blocks
+merge). The format is **Conventional Commits**: `type(scope): subject`, where
+`(scope)` is optional. Commit messages should follow the same shape.
 
 - **Allowed types**: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`,
   `test`, `chore`, `build`, `ci`.
 - **Allowed scopes** (optional): `engine`, `admin`, `pipeline`, `harvester`,
   `editor`, `corpus`, `github`, `frontend`, `lawmaking`, `demo`, `docs`, `grafana`,
-  `ci`, `schema`, `deps`, `dev`.
+  `ci`, `schema`, `deps`, `dev`. An unlisted scope fails the lint.
 - **The subject MUST start with a lowercase letter** (`subjectPattern:
-  ^[a-z].*$`). `docs: RFC-…` breaks it because "RFC" is uppercase — write
-  `docs: verwijzingen naar RFC's …` instead.
+  ^[a-z].*$`). This is the easiest rule to trip on: `docs: RFC-…` fails because
+  "RFC" is uppercase — write `docs: verwijzingen naar RFC's …` instead. Editing
+  the PR title re-runs the check; no new commit needed.
 
 Per the global convention these subjects are written in **Dutch** (PR
 descriptions too), while code identifiers stay English.
+
+### Every pull request names its werkpakket
+
+**Every PR body ends with a `Werkpakket:` line naming the werkpakket from the
+roadmap that the work contributes to.** The check **`Werkpakket genoemd`**
+(`.github/workflows/werkpakket-gate.yml`) turns red without it. It is not a
+required status check, but treat it as one: write the line whenever you open a
+PR; it is not optional and not something to ask about.
+
+```
+Werkpakket: referentie-casus-i
+Werkpakket: referentie-casus-i, effect-over-tijd
+Werkpakket: geen — losse typefout in de docs
+```
+
+- **The slug is the werkpakket's `id`**, which is also its filename and its URL.
+  The full list is `ls docs/src/content/roadmap/werkpakketten/`, rendered at
+  `/roadmap`. Never invent one: an unknown slug fails the check, which then
+  suggests the nearest matches.
+- **Several werkpakketten** on one line, comma-separated.
+- **`geen` needs a reason.** `Werkpakket: geen` on its own fails. Work that
+  genuinely belongs to no werkpakket says why: `geen — losse typefout in de
+  docs`. Without the reason it is a box that fills itself, and then the check
+  measures whether someone can paste a line rather than whether they asked the
+  question.
+- **Exempt**, decided from the API and not from the workflow: Dependabot PRs and
+  fork PRs.
+
+Put it on its own line at the end of the body, in trailer form. That is what
+makes it greppable, survives being copied into a merge commit, and lets a later
+script total up commits and PRs per werkpakket without this gate changing.
+
+**Write the bare slug.** After the gate passes, `script/linkify-werkpakket.sh`
+rewrites the line in the PR body into a markdown link to the roadmap, so the
+reference is clickable where people actually read it:
+
+```
+Werkpakket: [referentie-casus-i](https://regelrecht.rijks.app/roadmap/werkpakket/referentie-casus-i)
+```
+
+Do not write that link yourself and do not paste a URL into the trailer; the bot
+builds it. The gate reads both forms (it strips the markdown before matching), so
+the rewrite cannot turn the next run red, and a line that is already a link is
+left alone. The werkpakket page links back to the PRs carrying its slug, so the
+reference works in both directions.
+
+Commit messages are not checked and carry no trailer requirement. Note that this
+repo squash-merges and the squash body is assembled from the individual commit
+messages, not the PR body, so a `Werkpakket:` line only reaches `git log` if you
+put it in a commit message. Do that when it is useful, not as a rule.
+
+**When the PR touches a law from the corpus, add a `Wet:` line under it**, with
+the law's `$id` (the directory name under `corpus/regulation/`):
+
+```
+Werkpakket: referentie-casus-i
+Wet: wet_op_de_zorgtoeslag
+```
+
+This line is optional, because most PRs touch no law and requiring it would
+produce the same empty box as a reasonless `geen`. Present, it has to resolve:
+the gate rejects an id that is not in the corpus, and renders each one as a link
+to the law on wetten.overheid.nl in the check's summary. The URL comes from the
+rulework's own `url` (falling back to `bwb_id`), so it cannot drift from the
+corpus. Do not write the link yourself, and never invent a BWB number: name the
+`$id` and let the gate resolve it.
+
+Which werkpakket a change belongs to is a judgement, so make it deliberately:
+match the work to the roadmap rather than reaching for the nearest-sounding
+slug. If nothing fits, `geen` with an honest reason is the correct answer, not a
+failure. The logic lives in `script/require-werkpakket.sh`, with
+`script/require-werkpakket.test.sh` next to it (a `gh` stub) covering every path
+that decides green or red; both run as a pre-commit hook. Content changes to the
+roadmap itself go through the `roadmap` skill.
 
 ### Test Data
 
@@ -555,3 +606,129 @@ skill (`.claude/skills/code-reviewer/SKILL.md`) before committing.
 Run that review in a fresh subagent when your tool has one (in Claude Code: the
 Agent tool with `subagent_type: "general-purpose"`), so the review does not
 inherit the reasoning that produced the change.
+
+## CI/CD and Deployment
+
+What CI checks, which checks are required, and how the merge gates and the
+merge queue work: `docs/src/content/docs/operations/ci-cd.md`. Which components
+are deployed where, previews, cleanup, ZAD CLI and secrets:
+`docs/src/content/docs/operations/deployment.md`. The instructions below are
+what changes how you act.
+
+### The Claude review merge gate
+
+**Claude review completed** is a required check. It passes only once the
+automated review has run to completion for this commit and left no finding
+marked `🔴 **Critical**`. How it establishes that, and what it cannot protect
+against, is in `docs/src/content/docs/operations/ci-cd.md#the-claude-review-gate`.
+
+- **There is no override.** Fix the Critical finding and push again. Do not add
+  an escape hatch (a label, a magic comment, an environment variable): an agent
+  operates one as easily as a person, while it reads as a human judgement.
+- **Wait on the job's `status`, never on the number of review comments.** Zero
+  comments means "still running" as often as "nothing to report".
+- **No review on the head commit? Start one by hand** with
+  `gh workflow run "Claude Code Review" -f pr=<n>`, then rerun the failed gate
+  (`gh run rerun <run id> --failed`); the gate takes that review over. Rerunning
+  an old `pull_request` run does not help, because it keeps the commit it was
+  started for. Toggling the PR to draft and back to ready also works.
+- **A PR that edits `.github/workflows/claude-code-review.yml` gets no automatic
+  review**: the action skips itself when the file differs from the default
+  branch, and the gate then blocks. Such a PR needs a human review and an admin
+  merge.
+- **Do not rename the step "Record that the review ran"** without changing
+  `PROOF_STEP` in `script/await-claude-review.sh`, and do not change
+  `CRITICAL_MARKER` without changing the review prompt. The test suites bind
+  both pairs; a mismatch makes the gate read past every finding.
+- Every comment the review writes ends with `<!-- claude-review -->`; snapshot
+  and cleanup select on that line, not on the author.
+- A red outcome must state what was established and name no cause it has not
+  tested ([issue #1178](https://github.com/NederlandseDigitaleDienst/regelrecht/issues/1178)).
+- The logic lives in `script/await-claude-review.sh` and
+  `script/claude-review-comments.sh`; change a path that decides green or red
+  only together with its test suite next to it.
+
+### Security updates
+
+A Dependabot security update skips the five-day cooldown and turns
+**Security update approved** green only once an engineer with write access has
+approved it, on the commit being merged; after a rebase or push the approval no
+longer counts. That check is not a required status check, so nothing technically
+stops a merge: do not merge a security update without that approval.
+`claude-dependabot.yml` does not merge security updates either. Details:
+`docs/src/content/docs/operations/ci-cd.md#the-security-update-gate`.
+
+The Mattermost notification in that workflow reads its webhook from the
+**Dependabot** secret store, not the Actions one. The logic is in
+`script/require-security-approval.sh` with its test suite.
+
+### The merge queue
+
+`main` merges through a merge queue. Put a PR in it with:
+
+```bash
+gh pr merge <nr> -R NederlandseDigitaleDienst/regelrecht --squash
+```
+
+"The merge strategy for main is set by the merge queue" is a notice, not an
+error. Do not pass `--delete-branch`; the repository deletes the branch itself.
+The GraphQL queries and the `gh run list` command below are in
+`docs/src/content/docs/operations/ci-cd.md#the-merge-queue`.
+
+- **A successful command does not mean the PR is queued.** Check
+  `mergeQueueEntry`.
+- **A PR that drops out of the queue stays `OPEN`.** Never wait for the state to
+  leave `OPEN`; follow `mergeQueueEntry` (`MERGED` is done, `OPEN` with
+  `mergeQueueEntry: null` is a drop) and read the reason from the
+  `REMOVED_FROM_MERGE_QUEUE_EVENT` timeline item.
+- **A failure in the queue does not show on the PR.** Find the red run with
+  `gh run list --event merge_group`.
+- **Flaky test in the queue**: when a test the PR does not touch fails in the
+  queue while the PR's run and the latest `main` run are green, queue it once
+  more. If it drops a second time on the same failure, find the cause instead of
+  queueing it again, and open an issue for the flaky test.
+- **When the required checks in the branch protection change, update
+  `REQUIRED_CHECKS` in `script/merge-queue-checks.test.mjs` in the same go.**
+  Nothing reminds you: the protection changes with a button, not a commit.
+- **A required job may skip in the queue (`if:`), but its workflow must run on
+  `merge_group`.** A workflow that does not run leaves the check on "Expected"
+  and hangs every entry.
+- Keep "Require branches to be up to date before merging" off.
+- `enforce_admins` is on, so a stuck entry cannot be bypassed: take it out of
+  the queue, merge, switch the queue back on.
+
+### Previews
+
+A PR builds and deploys nothing unless it carries the **`deploy:preview`**
+label. Add it only when someone needs a running preview; removing it (or
+closing the PR) deletes the preview. `deploy:<component>` labels force a
+component to build and do nothing without `deploy:preview`. Fork PRs never
+build.
+
+A preview sleeps 48 hours after its last deploy. Wake it with the `zad-wake`
+skill before a smoketest or `check-deployment`; how sleep-mode works is in
+`docs/src/content/docs/operations/deployment.md#sleeping-previews`.
+
+### Cleanup
+
+All image cleanup beyond a PR's own `pr-N` tags runs through
+`script/ghcr-cleanup.mjs` from `scheduled-cleanup.yml`. Extend that script; do
+not add a second cleaner next to it, because two cleaners do not know each
+other's exceptions and production runs on a `sha-` tag. What it protects and
+why: `docs/src/content/docs/operations/deployment.md#cleanup`.
+
+### Debugging deploy-preview failures
+
+A timeout on the wait ("Timed out after 900s waiting for the task") only means
+ZAD was slower than the window; the deployment carries on. An error with a
+status or an exception is what needs diagnosing: `zad logs <deployment>` (e.g.
+`zad logs pr429`) and look for `ERROR` lines. `Could not extract URL from
+result` with `"status": "superseded"` is harmless; re-run only that job. The
+full procedure, including resetting a broken preview database, is in
+`docs/src/content/docs/operations/deployment.md#debugging-a-failed-preview-deploy`.
+
+### ZAD CLI
+
+Use [`zad-cli`](https://github.com/RijksICTGilde/zad-cli) with `ZAD_API_KEY`
+and `ZAD_PROJECT_ID` in `.env`. Install and common commands:
+`docs/src/content/docs/operations/deployment.md#zad-cli`.

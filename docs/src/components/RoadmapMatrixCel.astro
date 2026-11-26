@@ -118,9 +118,7 @@ const { cel, class: className, headers } = Astro.props;
                 without one the content sits flush against the border. */}
             <nldd-container padding="12" gap="8">
               <nldd-text size="sm" weight="medium">
-                <p>
-                  {wp.data.titel}
-                </p>
+                {wp.data.titel}
               </nldd-text>
               {(tags.length > 0 || wp.data.rfcs.length > 0) && (
                 <nldd-container layout="wrap" gap="4" vertical-alignment="center">
@@ -139,9 +137,7 @@ const { cel, class: className, headers } = Astro.props;
                       the werkpakket — the detail page names them. */}
                   {wp.data.rfcs.length > 0 && (
                     <nldd-text size="xs" color="secondary">
-                      <p>
-                        {wp.data.rfcs.length} RFC{wp.data.rfcs.length > 1 ? "'s" : ''}
-                      </p>
+                      {wp.data.rfcs.length} RFC{wp.data.rfcs.length > 1 ? "'s" : ''}
                     </nldd-text>
                   )}
                 </nldd-container>

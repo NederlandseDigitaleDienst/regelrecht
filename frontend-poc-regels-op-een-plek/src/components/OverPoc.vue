@@ -33,41 +33,33 @@ const STAPPEN = [
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat is dit?"></nldd-title>
         <nldd-text size="sm">
-          <p>
-            Een proof of concept (PoC) van RegelRecht voor de fysieke leefomgeving. De vraag: kan er in de Spoorzone van
-            Veenendaal een woontoren van 5 lagen komen, en zo nee, waarom niet? Elke uitkomst is terug te volgen naar het
-            artikel waar hij uit komt.
-          </p>
+          Een proof of concept (PoC) van RegelRecht voor de fysieke leefomgeving. De vraag: kan er in de Spoorzone van
+          Veenendaal een woontoren van 5 lagen komen, en zo nee, waarom niet? Elke uitkomst is terug te volgen naar het
+          artikel waar hij uit komt.
         </nldd-text>
         <nldd-text size="sm">
-          <p>
-            De kaart, de toets en de simulatie zijn die van de eerste PoC: plannen zelf opgehaald, lagen met de hand gelegd,
-            regels per bestemming geschreven, alleen de gemeente. Daarnaast staat het DSO-spoor: plannen, regels en teksten
-            uit het Digitaal Stelsel Omgevingswet (DSO), via één zoekvraag op het gebied, voor gemeente, provincie,
-            waterschap en rijk tegelijk. Het DSO-spoor leidt de lagen af uit de gegevens en genereert de regels in een paar
-            vaste vormen. Beide rekenen op dezelfde RegelRecht-engine. De tab "Met en zonder DSO" zet ze naast elkaar.
-          </p>
+          De kaart, de toets en de simulatie zijn die van de eerste PoC: plannen zelf opgehaald, lagen met de hand gelegd,
+          regels per bestemming geschreven, alleen de gemeente. Daarnaast staat het DSO-spoor: plannen, regels en teksten
+          uit het Digitaal Stelsel Omgevingswet (DSO), via één zoekvraag op het gebied, voor gemeente, provincie,
+          waterschap en rijk tegelijk. Het DSO-spoor leidt de lagen af uit de gegevens en genereert de regels in een paar
+          vaste vormen. Beide rekenen op dezelfde RegelRecht-engine. De tab "Met en zonder DSO" zet ze naast elkaar.
         </nldd-text>
       </section>
 
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat we willen leren"></nldd-title>
         <nldd-text size="sm">
-          <p>
-            Hoe RegelRecht werkt in de fysieke leefomgeving. Tot nu toe rekende RegelRecht met landelijke regelingen die
-            overal hetzelfde gelden. Hier geldt een regel alleen op een plek, komt hij van gemeente, provincie, waterschap
-            en rijk tegelijk, en liggen oude en nieuwe plannen over elkaar. We willen weten of het schema, de engine en de
-            werkwijze dat aankunnen: de regels op een plek verzamelen zonder er één te missen, de voorrang tussen plannen,
-            en een uitkomst die terug te volgen is naar het artikel, ook als dat een onthouding is.
-          </p>
+          Hoe RegelRecht werkt in de fysieke leefomgeving. Tot nu toe rekende RegelRecht met landelijke regelingen die
+          overal hetzelfde gelden. Hier geldt een regel alleen op een plek, komt hij van gemeente, provincie, waterschap
+          en rijk tegelijk, en liggen oude en nieuwe plannen over elkaar. We willen weten of het schema, de engine en de
+          werkwijze dat aankunnen: de regels op een plek verzamelen zonder er één te missen, de voorrang tussen plannen,
+          en een uitkomst die terug te volgen is naar het artikel, ook als dat een onthouding is.
         </nldd-text>
         <nldd-text size="sm">
-          <p>
-            Daarbij zien we ook wat het DSO levert en wat niet. Het DSO zegt per regel bij welke activiteit en plek hij
-            hoort, maar niet wat de regel doet; welke activiteiten bij een bouwplan horen, blijft handwerk. En het DSO-spoor
-            kijkt naar meer plannen, ook van provincie, waterschap en rijk. Dat had ook zonder het DSO gekund, met een
-            uitgebreidere analyse van de plannen; het DSO maakte het verzamelen wel makkelijker.
-          </p>
+          Daarbij zien we ook wat het DSO levert en wat niet. Het DSO zegt per regel bij welke activiteit en plek hij
+          hoort, maar niet wat de regel doet; welke activiteiten bij een bouwplan horen, blijft handwerk. En het DSO-spoor
+          kijkt naar meer plannen, ook van provincie, waterschap en rijk. Dat had ook zonder het DSO gekund, met een
+          uitgebreidere analyse van de plannen; het DSO maakte het verzamelen wel makkelijker.
         </nldd-text>
       </section>
 
@@ -76,7 +68,7 @@ const STAPPEN = [
         <ol class="stappen">
           <li v-for="(s, i) in STAPPEN" :key="s.kop">
             <span class="nr">{{ i + 1 }}</span>
-            <div><nldd-text size="sm"><p><strong>{{ s.kop }}</strong></p></nldd-text><nldd-text size="sm"><p>{{ s.tekst }}</p></nldd-text></div>
+            <div><nldd-text size="sm"><strong>{{ s.kop }}</strong></nldd-text><nldd-text size="sm">{{ s.tekst }}</nldd-text></div>
           </li>
         </ol>
       </section>
@@ -84,45 +76,37 @@ const STAPPEN = [
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Zo werkt simuleren met het DSO-spoor"></nldd-title>
         <nldd-text size="sm">
-          <p>
-            Het kaartthema DSO en "Op dit punt" onder Met en zonder DSO tonen een uitkomst die vooraf is gerekend, voor één
-            bouwplan (5 lagen van 3,2 m) en met alle open gegevens gunstig. Onder Met en zonder DSO, Simuleren, reken je het
-            DSO-spoor opnieuw, in je eigen browser. Er gaat niets naar een server.
-          </p>
+          Het kaartthema DSO en "Op dit punt" onder Met en zonder DSO tonen een uitkomst die vooraf is gerekend, voor één
+          bouwplan (5 lagen van 3,2 m) en met alle open gegevens gunstig. Onder Met en zonder DSO, Simuleren, reken je het
+          DSO-spoor opnieuw, in je eigen browser. Er gaat niets naar een server.
         </nldd-text>
         <ol class="stappen">
           <li v-for="(s, i) in SIMULATIE" :key="s.kop">
             <span class="nr">{{ i + 1 }}</span>
-            <div><nldd-text size="sm"><p><strong>{{ s.kop }}</strong></p></nldd-text><nldd-text size="sm"><p>{{ s.tekst }}</p></nldd-text></div>
+            <div><nldd-text size="sm"><strong>{{ s.kop }}</strong></nldd-text><nldd-text size="sm">{{ s.tekst }}</nldd-text></div>
           </li>
         </ol>
         <nldd-text size="sm">
-          <p>
-            Grenzen: hier rekent alleen het DSO-spoor opnieuw; in de kaartlaag Vóór DSO blijft de vooraf gerekende uitkomst. De
-            eerste PoC rekent opnieuw onder de tab Simuleren en in de kaartlaag Uitkomst. Het aantal woningen telt niet mee, omdat de gegenereerde bouwregels het niet lezen. Een verbouw of omzetten naar
-            wonen kan niet. Waar het DSO-spoor zich onthoudt omdat een tekst of hoogte ontbreekt, helpt een andere aanname niet.
-          </p>
+          Grenzen: hier rekent alleen het DSO-spoor opnieuw; in de kaartlaag Vóór DSO blijft de vooraf gerekende uitkomst. De
+          eerste PoC rekent opnieuw onder de tab Simuleren en in de kaartlaag Uitkomst. Het aantal woningen telt niet mee, omdat de gegenereerde bouwregels het niet lezen. Een verbouw of omzetten naar
+          wonen kan niet. Waar het DSO-spoor zich onthoudt omdat een tekst of hoogte ontbreekt, helpt een andere aanname niet.
         </nldd-text>
       </section>
 
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat het niet is"></nldd-title>
         <nldd-text size="sm">
-          <p>
-            Geen vergunning en geen juridisch advies. Open gegevens (welstand, parkeren, fundering) zijn gunstig ingevuld.
-            Het DSO-materiaal komt deels uit de pre-productieomgeving, met testregelingen; die tellen niet mee. Het Ambacht uit
-            2009 staat niet in het DSO. Verkenning, geen besluit.
-          </p>
+          Geen vergunning en geen juridisch advies. Open gegevens (welstand, parkeren, fundering) zijn gunstig ingevuld.
+          Het DSO-materiaal komt deels uit de pre-productieomgeving, met testregelingen; die tellen niet mee. Het Ambacht uit
+          2009 staat niet in het DSO. Verkenning, geen besluit.
         </nldd-text>
       </section>
 
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Bronnen"></nldd-title>
         <nldd-text size="sm">
-          <p>
-            Ruimtelijke plannen opvragen v4 (productie), Omgevingsdocumenten presenteren v8 en Geometrie opvragen v1
-            (pre-productie), bekendmakingen van officielebekendmakingen.nl, de achtergrondkaart van PDOK.
-          </p>
+          Ruimtelijke plannen opvragen v4 (productie), Omgevingsdocumenten presenteren v8 en Geometrie opvragen v1
+          (pre-productie), bekendmakingen van officielebekendmakingen.nl, de achtergrondkaart van PDOK.
         </nldd-text>
       </section>
     </div>

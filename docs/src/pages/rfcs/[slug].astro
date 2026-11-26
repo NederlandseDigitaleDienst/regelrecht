@@ -95,9 +95,7 @@ const title = pageTitle + ' · RegelRecht';
         // roadmap's werkpakket sidebar uses for its "Kerngegevens" labels.
         <nldd-container gap="4">
           <nldd-text size="xs" weight="medium" color="secondary">
-            <p>
-              {group.label}
-            </p>
+            {group.label}
           </nldd-text>
           <nldd-list type="navigation" appearance="simple" aria-label={group.label}>
             {group.items.map((r) => (

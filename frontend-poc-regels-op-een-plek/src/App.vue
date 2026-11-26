@@ -63,17 +63,15 @@ onMounted(async () => {
 
       <footer class="app-footer">
         <nldd-container padding-inline="16" padding-block="8">
-          <nldd-text v-if="status.fout" size="xs" color="critical"><p>Engine niet geladen: {{ status.fout }}</p></nldd-text>
+          <nldd-text v-if="status.fout" size="xs" color="critical">Engine niet geladen: {{ status.fout }}</nldd-text>
           <nldd-text v-else-if="status.geladen" size="xs" color="secondary">
-            <p>
-              RegelRecht-engine {{ status.engine }}<template v-if="status.commit">, commit {{ status.commit }}</template><template v-if="status.schema">, schema t/m {{ status.schema }}</template>,
-              {{ status.regelingen }} regelingen geladen<template v-if="bron?.versie">, gegevens {{ bron.versie }}</template>.
-              <template v-if="dso.geladen">DSO-spoor: {{ dso.cellen }} vakken van 40 m, {{ dso.artikelen }} artikelen, deels uit de pre-productieomgeving.</template>
-              <template v-else-if="dso.fout">DSO-spoor niet geladen ({{ dso.fout }}).</template>
-              Verkenning, geen besluit.
-            </p>
+            RegelRecht-engine {{ status.engine }}<template v-if="status.commit">, commit {{ status.commit }}</template><template v-if="status.schema">, schema t/m {{ status.schema }}</template>,
+            {{ status.regelingen }} regelingen geladen<template v-if="bron?.versie">, gegevens {{ bron.versie }}</template>.
+            <template v-if="dso.geladen">DSO-spoor: {{ dso.cellen }} vakken van 40 m, {{ dso.artikelen }} artikelen, deels uit de pre-productieomgeving.</template>
+            <template v-else-if="dso.fout">DSO-spoor niet geladen ({{ dso.fout }}).</template>
+            Verkenning, geen besluit.
           </nldd-text>
-          <nldd-text v-else size="xs" color="secondary"><p>Engine laden…</p></nldd-text>
+          <nldd-text v-else size="xs" color="secondary">Engine laden…</nldd-text>
         </nldd-container>
       </footer>
     </div>

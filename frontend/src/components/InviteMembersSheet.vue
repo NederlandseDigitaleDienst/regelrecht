@@ -201,9 +201,7 @@ defineExpose({ show });
               <template v-if="inviteResult">
                 <nldd-spacer size="12"></nldd-spacer>
                 <nldd-text v-if="inviteResult.succeeded.length" size="sm" color="secondary">
-                  <p>
-                    {{ inviteResult.succeeded.length }} uitnodiging{{ inviteResult.succeeded.length === 1 ? '' : 'en' }} verstuurd. Toegang wordt actief bij de eerste login.
-                  </p>
+                  {{ inviteResult.succeeded.length }} uitnodiging{{ inviteResult.succeeded.length === 1 ? '' : 'en' }} verstuurd. Toegang wordt actief bij de eerste login.
                 </nldd-text>
                 <nldd-spacer v-if="inviteResult.succeeded.length && inviteResult.failed.length" size="4"></nldd-spacer>
                 <nldd-text v-if="inviteResult.failed.length" size="sm" color="critical">

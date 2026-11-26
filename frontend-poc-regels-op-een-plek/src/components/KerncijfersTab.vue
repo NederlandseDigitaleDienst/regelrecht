@@ -35,8 +35,8 @@ const CIJFERS = computed(() => [
     <nldd-title size="display-5" :heading-level="2" text="Kerncijfers" supporting-text="Vóór DSO is de eerste PoC; met DSO is het DSO-spoor. Zelfde bouwplan, zelfde engine."></nldd-title>
     <div class="cijfers">
       <div v-for="c in CIJFERS" :key="c.tekst">
-        <nldd-text size="display-3"><p>{{ c.waarde }}</p></nldd-text>
-        <nldd-text size="xs" color="secondary"><p>{{ c.tekst }}</p></nldd-text>
+        <nldd-text size="display-3">{{ c.waarde }}</nldd-text>
+        <nldd-text size="xs" color="secondary">{{ c.tekst }}</nldd-text>
       </div>
     </div>
 

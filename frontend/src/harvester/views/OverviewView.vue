@@ -97,8 +97,8 @@ async function onFailureClick(row: RecentFailure) {
       <nldd-card v-for="(kpi, i) in topKpis" :key="kpi.label" :slot="i === 0 ? 'left' : 'right'">
         <nldd-container padding="16">
           <!-- A figure, not a heading: nldd-text with a display size. -->
-          <nldd-text size="md" color="secondary"><p>{{ kpi.label }}</p></nldd-text>
-          <nldd-text size="display-2"><p>{{ formatNumber(kpi.value) }}</p></nldd-text>
+          <nldd-text size="md" color="secondary">{{ kpi.label }}</nldd-text>
+          <nldd-text size="display-2">{{ formatNumber(kpi.value) }}</nldd-text>
         </nldd-container>
       </nldd-card>
     </nldd-one-half-one-half-section>
@@ -109,8 +109,8 @@ async function onFailureClick(row: RecentFailure) {
 
       <nldd-card slot="left">
         <nldd-container padding="16">
-          <nldd-text size="display-3"><p>{{ formatNumber(panel.total) }}</p></nldd-text>
-          <nldd-text size="md" color="secondary"><p>jobs totaal</p></nldd-text>
+          <nldd-text size="display-3">{{ formatNumber(panel.total) }}</nldd-text>
+          <nldd-text size="md" color="secondary">jobs totaal</nldd-text>
 
           <nldd-spacer size="16"></nldd-spacer>
 

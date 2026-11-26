@@ -128,7 +128,7 @@ function onSwitchChange(event: FieldEvent) {
     :unmet="invalid ? unmet : undefined"
     step="0.01"
     width="full"
-    spin-buttons="none"
+    hide-spin-buttons
     @input="(e: FieldEvent) => emitAmount(e.detail?.value)"
     @change="(e: FieldEvent) => emitAmount(e.detail?.value)"
   ></nldd-number-field>
@@ -140,7 +140,7 @@ function onSwitchChange(event: FieldEvent) {
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
     width="full"
-    spin-buttons="none"
+    hide-spin-buttons
     @input="(e: FieldEvent) => emitNumber(e.detail?.value)"
     @change="(e: FieldEvent) => emitNumber(e.detail?.value)"
   ></nldd-number-field>

@@ -37,7 +37,7 @@ const { title, label, close, refsLabel, refs } = Astro.props;
       <nldd-top-title-bar slot="header" text={title} supporting-text={label} heading-level="2" dismiss-text={close} />
       <nldd-container padding="24" sm-padding="16" gap="24">
         <slot />
-        <nldd-title size="display-5"><h3>{refsLabel}</h3></nldd-title>
+        <nldd-title size="5"><h3>{refsLabel}</h3></nldd-title>
         <nldd-list type="navigation" aria-label={refsLabel} appearance="box-tinted">
           {refs.map((r) => (
             <nldd-list-item href={r.href}>

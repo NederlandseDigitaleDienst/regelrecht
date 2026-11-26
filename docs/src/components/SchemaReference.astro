@@ -94,8 +94,8 @@ const others = otherSubStructures();
   columns="minmax(220px, 1fr) minmax(200px, 1fr)"
 >
   <nldd-table-row slot="header">
-    <nldd-cell width="full"><nldd-text weight="bold"><p>Regulatory layer</p></nldd-text></nldd-cell>
-    <nldd-cell width="full"><nldd-text weight="bold"><p>Required</p></nldd-text></nldd-cell>
+    <nldd-cell width="full"><nldd-text weight="bold">Regulatory layer</nldd-text></nldd-cell>
+    <nldd-cell width="full"><nldd-text weight="bold">Required</nldd-text></nldd-cell>
   </nldd-table-row>
   {
     rules.map((rule) => (
@@ -115,7 +115,7 @@ const others = otherSubStructures();
             {rule.requires.map((r) => (
               <nldd-tag size="sm" color="accent" text={r} />
             ))}
-            {rule.forbids.length > 0 && <nldd-text size="sm"><p>No identifier; may not carry</p></nldd-text>}
+            {rule.forbids.length > 0 && <nldd-text size="sm">No identifier; may not carry</nldd-text>}
             {rule.forbids.map((f) => (
               <nldd-tag size="sm" color="neutral" text={f} />
             ))}
@@ -146,7 +146,7 @@ const others = otherSubStructures();
 
 <div class="rr-schema-nested rr-schema-row" data-zoek="legal_basis law_id article grondslag">
   <h4 id="top-legal-basis">legal_basis</h4>
-  <nldd-text size="sm" color="secondary"><p><code>legal_basis[]</code></p></nldd-text>
+  <nldd-text size="sm" color="secondary"><code>legal_basis[]</code></nldd-text>
   <p>
     The articles of higher law that authorize this regulation. Not the same
     shape as the <a href="#legal-basis">legal basis</a> a field or action
@@ -164,7 +164,7 @@ const others = otherSubStructures();
   (others['law-file'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -174,7 +174,7 @@ const others = otherSubStructures();
   (others['procedure'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -196,7 +196,7 @@ const others = otherSubStructures();
   (others['articles'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -219,7 +219,7 @@ const others = otherSubStructures();
   subStructures.map((sub) => (
     <div class="rr-schema-row rr-schema-op rr-schema-sub" data-zoek={sub.zoek}>
       <h3 id={sub.slug}>{sub.title}</h3>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -230,7 +230,7 @@ const others = otherSubStructures();
   (others['enables'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -243,7 +243,7 @@ const others = otherSubStructures();
   (others['hooks'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -264,7 +264,7 @@ const others = otherSubStructures();
   (others['execution'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -285,7 +285,7 @@ const others = otherSubStructures();
   (others['action'] ?? []).map((sub) => (
     <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
       <h4 id={sub.slug}>{sub.title}</h4>
-      <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
       {sub.description && <p set:html={sub.description} />}
       <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
     </div>
@@ -316,7 +316,7 @@ const others = otherSubStructures();
       {subStructuresFor(kind.slug).map((sub) => (
         <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
           <h4 id={sub.slug}>{sub.title}</h4>
-          <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+          <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
           {sub.description && <p set:html={sub.description} />}
           <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
         </div>
@@ -345,13 +345,13 @@ const others = otherSubStructures();
 
 <p set:html={stringDefinition('articleReference').description} />
 
-<nldd-text size="sm" color="secondary"><p><code>{stringDefinition('articleReference').pattern}</code></p></nldd-text>
+<nldd-text size="sm" color="secondary"><code>{stringDefinition('articleReference').pattern}</code></nldd-text>
 
 <h3 id="variable-reference">Variable reference</h3>
 
 <p set:html={stringDefinition('variableReference').description} />
 
-<nldd-text size="sm" color="secondary"><p><code>{stringDefinition('variableReference').pattern}</code></p></nldd-text>
+<nldd-text size="sm" color="secondary"><code>{stringDefinition('variableReference').pattern}</code></nldd-text>
 
 <h2 id="operations">Operations</h2>
 
@@ -396,7 +396,7 @@ const others = otherSubStructures();
       {(others[op.slug] ?? []).map((sub) => (
         <div class="rr-schema-nested rr-schema-row" data-zoek={sub.zoek}>
           <h4 id={sub.slug}>{sub.title}</h4>
-          <nldd-text size="sm" color="secondary"><p><code>{sub.path}</code></p></nldd-text>
+          <nldd-text size="sm" color="secondary"><code>{sub.path}</code></nldd-text>
           {sub.description && <p set:html={sub.description} />}
           <SchemaFieldTable fields={sub.fields} label={`Fields of ${sub.title}`} />
         </div>
@@ -421,7 +421,7 @@ const others = otherSubStructures();
   enums.map((block) => (
     <div class="rr-schema-row rr-schema-op" data-zoek={block.zoek}>
       <h3 id={block.slug}>{block.title}</h3>
-      <nldd-text size="sm" color="secondary"><p><code>{block.path}</code></p></nldd-text>
+      <nldd-text size="sm" color="secondary"><code>{block.path}</code></nldd-text>
       {block.description && <p set:html={block.description} />}
       <nldd-container layout="wrap" gap="4">
         {block.values.map((v) => (

@@ -110,12 +110,10 @@ function artikelTekst(e) {
         </nldd-list-item>
       </nldd-list>
       <nldd-text v-if="stapel.tam" size="sm">
-        <p>
-          Geen bestemmingsplannen op dit punt. Alleen de bruidschat (hoofdstuk 22) blijft, voor zover niet in strijd met het
-          TAM-plan. In de toets staan de regels van het TAM-plan in de kolom nieuw.
-        </p>
+        Geen bestemmingsplannen op dit punt. Alleen de bruidschat (hoofdstuk 22) blijft, voor zover niet in strijd met het
+        TAM-plan. In de toets staan de regels van het TAM-plan in de kolom nieuw.
       </nldd-text>
-      <nldd-text v-if="!geldend" size="sm" color="secondary"><p>Geen geldend plan in de bronnen.</p></nldd-text>
+      <nldd-text v-if="!geldend" size="sm" color="secondary">Geen geldend plan in de bronnen.</nldd-text>
     </nldd-container>
 
     <!-- Feiten -->
@@ -196,10 +194,8 @@ function artikelTekst(e) {
     <nldd-container layout="stack" gap="8">
       <nldd-title size="display-5" :heading-level="2" text="Nieuw deel omgevingsplan"></nldd-title>
       <nldd-text size="sm" color="secondary">
-        <p>
-          Geldt overal, naast het tijdelijk deel; beide worden getoond. Afdeling 5.3 Bouwactiviteiten
-          staat op "Gereserveerd": geen hoogteregel.
-        </p>
+        Geldt overal, naast het tijdelijk deel; beide worden getoond. Afdeling 5.3 Bouwactiviteiten
+        staat op "Gereserveerd": geen hoogteregel.
       </nldd-text>
     </nldd-container>
   </nldd-container>

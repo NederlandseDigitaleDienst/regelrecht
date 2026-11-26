@@ -48,8 +48,8 @@ const steps = (GRAMMAR as any[]).filter((entry) => entry.tier === tier);
   sm-columns="minmax(240px, 1fr)"
 >
   <nldd-table-row slot="header">
-    <nldd-cell width="full"><nldd-text weight="bold"><p>Step</p></nldd-text></nldd-cell>
-    <nldd-cell width="full" hide-below="md"><nldd-text weight="bold"><p>Id</p></nldd-text></nldd-cell>
+    <nldd-cell width="full"><nldd-text weight="bold">Step</nldd-text></nldd-cell>
+    <nldd-cell width="full" hide-below="md"><nldd-text weight="bold">Id</nldd-text></nldd-cell>
   </nldd-table-row>
 
   {
@@ -69,14 +69,12 @@ const steps = (GRAMMAR as any[]).filter((entry) => entry.tier === tier);
             {/* Below md the Id column is dropped, so the id rides along under
                 the step rather than disappearing. */}
             <nldd-text size="sm" color="secondary" class="rr-steps-id-inline">
-              <p>
-                <code>{entry.id}</code>
-              </p>
+              <code>{entry.id}</code>
             </nldd-text>
           </nldd-container>
         </nldd-cell>
         <nldd-cell width="full" vertical-alignment="top" hide-below="md">
-          <nldd-text size="sm" color="secondary"><p><code>{entry.id}</code></p></nldd-text>
+          <nldd-text size="sm" color="secondary"><code>{entry.id}</code></nldd-text>
         </nldd-cell>
       </nldd-table-row>
     ))

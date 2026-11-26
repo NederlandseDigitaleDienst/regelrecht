@@ -569,7 +569,7 @@ function exportJson() {
     :primary-sidebar-as-sheet="narrow || undefined"
     :primary-sidebar-accessible-label="t('sim.settings.label')"
   >
-    <nldd-split-view-pane slot="primary-sidebar" has-content background="tinted">
+    <nldd-split-view-pane slot="sidebar" has-content background="tinted">
       <!-- Kop, keuze en zoekveld horen in de header, zoals Wetten het doet: de
            burger/ondernemer-keuze is de hoofdknop van dit paneel, want alles
            eronder gaat over de gekozen soort.
@@ -597,13 +597,13 @@ function exportJson() {
             <nldd-button width="full" appearance="neutral-transparent" horizontal-alignment="left" :end-icon="open.populatie ? 'chevron-up' : 'chevron-down'" :text="t(kind === 'ondernemers' ? 'sim.population.businesses' : 'sim.population.citizens')" :expanded="open.populatie || undefined" @click="open.populatie = !open.populatie"></nldd-button>
             <template v-if="open.populatie">
               <nldd-form-field :label="t('sim.seed')">
-                <nldd-number-field size="sm" :value="params.seed" min="1" step="1" width="full" spin-buttons="none" @input="params.seed = numberFrom($event) ?? params.seed" @change="params.seed = numberFrom($event) ?? params.seed"></nldd-number-field>
+                <nldd-number-field size="sm" :value="params.seed" min="1" step="1" width="full" hide-spin-buttons @input="params.seed = numberFrom($event) ?? params.seed" @change="params.seed = numberFrom($event) ?? params.seed"></nldd-number-field>
                 <nldd-form-field-help-text>{{ t('sim.seed.help') }}</nldd-form-field-help-text>
               </nldd-form-field>
               <nldd-container v-for="group in knobs" :key="group.key" gap="8">
                 <nldd-text-cell size="sm" color="secondary" :text="group.group"></nldd-text-cell>
                 <nldd-form-field v-for="field in group.fields" :key="field.path.join('.')" :label="field.label">
-                  <nldd-number-field size="sm" :value="getKnob(field.path)" min="0" max="100" step="5" width="full" spin-buttons="none" @input="setKnob(field.path, numberFrom($event))" @change="setKnob(field.path, numberFrom($event))"></nldd-number-field>
+                  <nldd-number-field size="sm" :value="getKnob(field.path)" min="0" max="100" step="5" width="full" hide-spin-buttons @input="setKnob(field.path, numberFrom($event))" @change="setKnob(field.path, numberFrom($event))"></nldd-number-field>
                 </nldd-form-field>
               </nldd-container>
             </template>
@@ -649,7 +649,8 @@ function exportJson() {
       </nldd-page>
     </nldd-split-view-pane>
 
-    <nldd-page slot="main" landmarks="page" sticky-header>
+    <nldd-split-view-pane slot="main" has-content>
+      <nldd-page landmarks="page" sticky-header>
         <!-- De koptekst staat er altijd, ook zonder run: hij draagt de knop
              naar de instellingen, en die is op een smal scherm de enige
              ingang naar het zijpaneel. Stond hij achter `runs.length`, dan
@@ -904,7 +905,7 @@ function exportJson() {
                       </nldd-dropdown>
                     </nldd-form-field>
                     <nldd-form-field :label="t('sim.harmonise.brackets')">
-                      <nldd-number-field :value="String(harmonizeBrackets)" spin-buttons="none" min="2" max="10" @change="harmonizeBrackets = $event.detail?.value ?? harmonizeBrackets"></nldd-number-field>
+                      <nldd-number-field :value="String(harmonizeBrackets)" hide-spin-buttons min="2" max="10" @change="harmonizeBrackets = $event.detail?.value ?? harmonizeBrackets"></nldd-number-field>
                     </nldd-form-field>
                   </nldd-container>
                   <nldd-banner v-if="harmonizeError" variant="critical" :text="harmonizeError"></nldd-banner>
@@ -1012,8 +1013,10 @@ function exportJson() {
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>
+    </nldd-split-view-pane>
 
-    <nldd-page v-if="inspector && inspectorLaw" slot="inspector" :accessible-label="inspectorLaw.name">
+    <nldd-split-view-pane v-if="inspector && inspectorLaw" slot="inspector" has-content>
+      <nldd-page :accessible-label="inspectorLaw.name">
         <nldd-container slot="header" padding="12">
           <!-- `inspectorLaw` comes from the corpus, so the corpus is loaded here. -->
           <nldd-top-title-bar :text="inspectorLaw.name" :supporting-text="inspector.type === 'params' ? t('sim.inspector.params') : serviceInfo(corpus!, inspectorLaw.service).name" :dismiss-text="t('sim.inspector.close')" @dismiss="inspector = null"></nldd-top-title-bar>
@@ -1031,7 +1034,7 @@ function exportJson() {
                    (gemeten: wel `input` met { value }, geen `change` na Enter of
                    blur), waardoor een getypt bedrag bij het starten van de run
                    terugsprong naar de standaardwaarde. -->
-              <nldd-number-field :value="overrides[inspectorLaw.id]?.[def.key] ?? def.value" :step="Number.isInteger(def.value) ? '1' : '0.001'" width="full" spin-buttons="none" @input="setOverride(inspectorLaw.id, def.key, numberFrom($event))" @change="setOverride(inspectorLaw.id, def.key, numberFrom($event))"></nldd-number-field>
+              <nldd-number-field :value="overrides[inspectorLaw.id]?.[def.key] ?? def.value" :step="Number.isInteger(def.value) ? '1' : '0.001'" width="full" hide-spin-buttons @input="setOverride(inspectorLaw.id, def.key, numberFrom($event))" @change="setOverride(inspectorLaw.id, def.key, numberFrom($event))"></nldd-number-field>
               <nldd-form-field-help-text>{{ t('sim.inspector.definition_help', { article: def.article, value: def.value, hint: definitionHint(def) }) }}</nldd-form-field-help-text>
             </nldd-form-field>
             <nldd-button v-if="overrideCount(inspectorLaw.id)" appearance="secondary" start-icon="arrow-2-counter-clockwise" :text="t('sim.inspector.reset')" @click="resetOverrides(inspectorLaw.id)"></nldd-button>
@@ -1062,5 +1065,6 @@ function exportJson() {
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>
+    </nldd-split-view-pane>
   </nldd-navigation-split-view>
 </template>

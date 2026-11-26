@@ -13,7 +13,7 @@
   margin: var(--primitives-space-20) 0;
   padding: var(--primitives-space-16);
   border-radius: var(--semantics-surfaces-corner-radius);
-  border: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px solid var(--semantics-surfaces-tinted-border-color);
   background: var(--semantics-surfaces-tinted-background-color);
   border-left-width: 3px;
 }
@@ -38,7 +38,7 @@
   padding: var(--primitives-space-16);
   border-radius: var(--semantics-surfaces-corner-radius);
   background: var(--semantics-surfaces-tinted-background-color);
-  border: 1px dashed var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px dashed var(--semantics-surfaces-tinted-border-color);
 }
 
 .rr-aside__title {
@@ -61,7 +61,7 @@
 .rr-schema {
   margin: var(--primitives-space-32) 0;
   padding: var(--primitives-space-20);
-  border: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px solid var(--semantics-surfaces-tinted-border-color);
   border-radius: var(--semantics-surfaces-corner-radius);
   background: var(--semantics-surfaces-base-background-color);
 }
@@ -124,7 +124,7 @@
 
 .rr-kaart__kolom {
   padding: var(--primitives-space-12);
-  border: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px solid var(--semantics-surfaces-tinted-border-color);
   border-radius: var(--primitives-corner-radius-md);
   background: var(--semantics-surfaces-tinted-background-color);
 }
@@ -177,7 +177,7 @@
 .rr-ladder li {
   position: relative;
   padding: var(--primitives-space-8) var(--primitives-space-12);
-  border: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px solid var(--semantics-surfaces-tinted-border-color);
   border-radius: var(--primitives-corner-radius-md);
   background: var(--semantics-surfaces-tinted-background-color);
 }
@@ -231,7 +231,7 @@
 .rr-ladder__verhouding {
   margin: var(--primitives-space-8) 0 0;
   padding-top: var(--primitives-space-8);
-  border-top: 1px dotted var(--semantics-surfaces-tinted-highlight-border-color);
+  border-top: 1px dotted var(--semantics-surfaces-tinted-border-color);
   font: var(--primitives-font-body-xs-regular);
   color: var(--semantics-content-secondary-color);
 }
@@ -290,7 +290,7 @@
   flex-direction: column;
   gap: 0.15rem;
   padding: var(--primitives-space-8) var(--primitives-space-12);
-  border: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px solid var(--semantics-surfaces-tinted-border-color);
   border-radius: var(--primitives-corner-radius-md);
   background: var(--semantics-surfaces-tinted-background-color);
 }
@@ -415,7 +415,7 @@
   padding: 0.1rem 0.5rem;
   border-radius: var(--primitives-corner-radius-full);
   background: var(--semantics-surfaces-tinted-background-color);
-  border: 1px solid var(--semantics-surfaces-tinted-highlight-border-color);
+  border: 1px solid var(--semantics-surfaces-tinted-border-color);
 }
 
 @media (max-width: 60rem) {

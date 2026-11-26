@@ -17,11 +17,9 @@ function getal(e, sleutel) {
 <template>
   <nldd-container layout="stack" gap="8" class="bouwplan">
     <nldd-text size="sm" color="secondary">
-      <p>
-        Bouwplan, aannames:
-        <template v-if="props.metLagen">{{ bouwplan.lagen }} lagen van {{ String(bouwplan.meterPerLaag).replace('.', ',') }} m is {{ hoogte }} m, </template>
-        plat dak, {{ bouwplan.aantalWoningen }} woningen.
-      </p>
+      Bouwplan, aannames:
+      <template v-if="props.metLagen">{{ bouwplan.lagen }} lagen van {{ String(bouwplan.meterPerLaag).replace('.', ',') }} m is {{ hoogte }} m, </template>
+      plat dak, {{ bouwplan.aantalWoningen }} woningen.
     </nldd-text>
     <div class="velden">
       <nldd-form-field v-if="props.metLagen" label="Lagen">

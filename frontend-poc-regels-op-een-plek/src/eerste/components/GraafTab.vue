@@ -101,14 +101,14 @@ const TAG = { ok: 'success', nee: 'critical', onbekend: 'warning', af: 'neutral'
         </nldd-segmented-control>
         <nldd-checkbox-field label="Afvallers tonen" :checked="afgevallen || undefined" @change="afgevallen = $event.target.checked"></nldd-checkbox-field>
         <nldd-button size="sm" appearance="neutral-tinted" start-icon="fit-to-view" text="Passend" @click="passend()"></nldd-button>
-        <nldd-text size="xs" color="secondary"><p>{{ bezig ? 'Rekenen…' : telling }}</p></nldd-text>
+        <nldd-text size="xs" color="secondary">{{ bezig ? 'Rekenen…' : telling }}</nldd-text>
       </nldd-container>
     </div>
 
     <div class="graaf-vlak">
       <nldd-container v-if="!stapel" padding="24" layout="stack" gap="8">
         <nldd-title size="display-4" :heading-level="2" text="Nog geen plek gekozen"></nldd-title>
-        <nldd-text><p>Ga terug naar de kaart en klik op een plek, of kies een testpunt. De graaf toont dan alle regels die het besluit daar bepalen.</p></nldd-text>
+        <nldd-text>Ga terug naar de kaart en klik op een plek, of kies een testpunt. De graaf toont dan alle regels die het besluit daar bepalen.</nldd-text>
       </nldd-container>
       <nldd-banner v-else-if="fout" variant="critical" text="De graaf kon niet worden opgebouwd" :supporting-text="fout"></nldd-banner>
       <VueFlow
@@ -136,23 +136,23 @@ const TAG = { ok: 'success', nee: 'critical', onbekend: 'warning', af: 'neutral'
       </nldd-button-bar>
 
       <div v-if="graaf" class="graaf-legenda" aria-label="Legenda van de graaf">
-        <nldd-text size="xs"><p><strong>Lijnen en rijen</strong></p></nldd-text>
+        <nldd-text size="xs"><strong>Lijnen en rijen</strong></nldd-text>
         <!-- Zelfde kleur en streep als de lijnen in de graaf (stijlen onderaan, gl--*). -->
         <span v-for="l in LEGENDA" :key="l.toon" class="lg">
           <svg class="lg-lijn" :class="`lg--${l.toon}`" width="26" height="8" aria-hidden="true"><line x1="1" y1="4" x2="25" y2="4" /></svg>
-          <nldd-text size="xs"><p>{{ l.tekst }}</p></nldd-text>
+          <nldd-text size="xs">{{ l.tekst }}</nldd-text>
         </span>
-        <nldd-text size="xs" color="secondary"><p>Klik op een kader voor de volledige tekst.</p></nldd-text>
+        <nldd-text size="xs" color="secondary">Klik op een kader voor de volledige tekst.</nldd-text>
       </div>
 
       <aside v-if="kaderGekozen" class="graaf-detail" aria-label="Details van het gekozen kader">
         <nldd-container padding="16" layout="stack" gap="12">
           <nldd-title size="display-5" :heading-level="2" :text="kaderGekozen.kop" :supporting-text="kaderGekozen.sub" :overline="kaderGekozen.status ?? ''"></nldd-title>
           <nldd-link v-if="kaderGekozen.link" :href="kaderGekozen.link" target="_blank" rel="noopener" text="Bron openen" end-icon="external-link"></nldd-link>
-          <nldd-text v-if="kaderGekozen.bron" size="xs" color="secondary"><p>{{ kaderGekozen.bron }}</p></nldd-text>
+          <nldd-text v-if="kaderGekozen.bron" size="xs" color="secondary">{{ kaderGekozen.bron }}</nldd-text>
           <nldd-banner v-if="kaderGekozen.fout" variant="critical" text="Fout in de berekening" :supporting-text="kaderGekozen.fout"></nldd-banner>
           <template v-for="s in kaderGekozen.secties" :key="s.titel">
-            <nldd-text size="sm" weight="bold"><p>{{ s.titel }}</p></nldd-text>
+            <nldd-text size="sm" weight="bold">{{ s.titel }}</nldd-text>
             <nldd-list appearance="simple" :accessible-label="s.titel">
               <template v-for="r in s.rijen" :key="r.id">
                 <nldd-list-item size="sm">

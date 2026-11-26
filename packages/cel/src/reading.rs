@@ -1650,6 +1650,60 @@ articles:
     }
 
     #[test]
+    fn an_answer_takes_the_parameters_of_its_reduction_each_required_or_not() {
+        let required = reduction("reductie_a", "2026-01-01");
+        let optional = required.replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n            required: false\n        input:",
+        );
+        for (law, needed) in [(required, true), (optional, false)] {
+            let service = service_with(&law);
+            let reader = Reader::new(
+                ACTOR,
+                authority(),
+                answers(),
+                reductions(),
+                Vec::new(),
+                None,
+            );
+            let takes = reader.takes(&service, "al_verleend", day()).unwrap();
+            assert_eq!(
+                takes,
+                Some(vec![AnswerParameter {
+                    name: "bsn".to_string(),
+                    required: needed,
+                }])
+            );
+        }
+    }
+
+    #[test]
+    fn an_answer_given_directly_names_the_version_of_its_reduction_once() {
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let given = reader
+            .give(&service, "al_verleend", &parameters(), day())
+            .unwrap()
+            .expect("the catalogue names the answer and its reduction is in force");
+        assert_eq!(given.value, Value::Bool(true));
+        assert_eq!(given.provenance.law_id, "reductie_a");
+        let own: Vec<_> = given
+            .regulations_read
+            .iter()
+            .filter(|read| read.law_id == "reductie_a")
+            .collect();
+        assert_eq!(own.len(), 1, "{:?}", given.regulations_read);
+        assert_eq!(given.regulations_read[0].law_id, "reductie_a");
+    }
+
+    #[test]
     fn a_null_for_a_parameter_the_reduction_needs_leaves_the_cell_silent() {
         // The binding asks about nobody: the reduction is not run for nobody
         // and fails nothing; the cell gives no answer (RFC-036).

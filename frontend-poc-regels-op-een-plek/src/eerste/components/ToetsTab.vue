@@ -122,14 +122,12 @@ const traceTekst = (k) => k.stappen.map((s) => `# ${KORT[s.regeling] ?? s.regeli
     ></nldd-banner>
 
     <nldd-banner v-if="fout" variant="critical" text="De toets kon niet rekenen" :supporting-text="fout" :heading-level="3"></nldd-banner>
-    <nldd-text v-if="!stapel" size="sm"><p>Klik op een plek op de kaart, of kies een testpunt.</p></nldd-text>
+    <nldd-text v-if="!stapel" size="sm">Klik op een plek op de kaart, of kies een testpunt.</nldd-text>
 
     <template v-if="uitkomst && stapel">
       <nldd-text size="sm">
-        <p>
-          Vergunningplicht (omgevingsplan 22.26 en 22.27):
-          <strong>{{ uitkomst.vergunningplicht.waarde === true ? 'ja, een omgevingsvergunning is nodig' : uitkomst.vergunningplicht.uitkomst }}</strong>.
-        </p>
+        Vergunningplicht (omgevingsplan 22.26 en 22.27):
+        <strong>{{ uitkomst.vergunningplicht.waarde === true ? 'ja, een omgevingsvergunning is nodig' : uitkomst.vergunningplicht.uitkomst }}</strong>.
       </nldd-text>
 
       <div class="kolommen">

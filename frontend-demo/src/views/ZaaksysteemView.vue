@@ -230,7 +230,8 @@ function claimLawName(cl: DemoClaim) {
 
 <template>
   <nldd-navigation-split-view>
-    <nldd-page slot="main" landmarks="page" sticky-header>
+    <nldd-split-view-pane slot="main" has-content>
+      <nldd-page landmarks="page" sticky-header>
         <nldd-container slot="header" padding="12">
           <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- main is the only pane of this view, so there is no previous pane to go back to -->
           <nldd-top-title-bar :text="t('zaak.title')" :supporting-text="serviceName(service) ?? ''">
@@ -295,6 +296,7 @@ function claimLawName(cl: DemoClaim) {
           </nldd-container>
         </nldd-simple-section>
       </nldd-page>
+    </nldd-split-view-pane>
 
   </nldd-navigation-split-view>
 
@@ -314,7 +316,7 @@ function claimLawName(cl: DemoClaim) {
 
             <nldd-container gap="4">
 
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary"><p>{{ t('zaak.outcome') }}</p></nldd-text><nldd-text size="xs" color="secondary"><p>{{ verified?.ok ? t('zaak.outcome.recomputed') : t('zaak.outcome.claimed') }}</p></nldd-text></nldd-container>
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.outcome') }}</nldd-text><nldd-text size="xs" color="secondary">{{ verified?.ok ? t('zaak.outcome.recomputed') : t('zaak.outcome.claimed') }}</nldd-text></nldd-container>
 
               <nldd-list appearance="box-tinted" :accessible-label="t('zaak.outcome')">
                 <nldd-list-item v-for="row in outputRows(selected)" :key="row.name" size="sm">
@@ -334,7 +336,7 @@ function claimLawName(cl: DemoClaim) {
             <nldd-banner v-if="selected.lifecycleError" variant="warning" :text="t('zaak.lifecycle_failed')" :supporting-text="selected.lifecycleError"></nldd-banner>
 
             <nldd-container v-if="lineage.length" gap="4">
-              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.data') }}</nldd-text><nldd-text size="xs" color="secondary"><p>{{ t('zaak.data.hint') }}</p></nldd-text></nldd-container>
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('zaak.data') }}</nldd-text><nldd-text size="xs" color="secondary">{{ t('zaak.data.hint') }}</nldd-text></nldd-container>
               <nldd-list type="tree" appearance="box-tinted" :accessible-label="t('zaak.data')">
                 <DataLineage :nodes="lineage" @edit="editing = $event" />
               </nldd-list>
