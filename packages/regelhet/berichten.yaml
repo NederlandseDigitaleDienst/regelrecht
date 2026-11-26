@@ -33,8 +33,8 @@
 # kern levert het af). Het artikel is fictief beleid van Wilgendaal, het laatste
 # artikel van het beleid voor de gehandicaptenparkeerkaart.
 verzending:
-  feit: 'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#13#bericht_verzonden'
-  doorsturen: 'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#13#bericht_doorgestuurd'
+  feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#13#bericht_verzonden
+  doorsturen: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#13#bericht_doorgestuurd
   velden:
     bsn_aanvrager: {veld: bsn_aanvrager}
 
@@ -45,7 +45,7 @@ berichtsoorten:
     patroon: beschikking
     vastlegging:
       rol: besluit
-      artikel: 'besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49'
+      artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
       rechtskarakter: BESCHIKKING
       uitkomst: gehandicaptenparkeerkaart_verstrekt
       stap: besluit
@@ -63,17 +63,25 @@ berichtsoorten:
     delen:
       - {id: kop, plek: kop, bron: {regels: [naam_aanvrager, adres_aanvrager]}, nldd: nldd-identity}
       - {id: inleiding, plek: inleiding, bron: {tekst: ['']}, nldd: nldd-rich-text}
-      - {id: dictum, plek: dictum, vereist_door: 'Awb 1:3', bron: {tekst: [Ons besluit]}, nldd: nldd-box}
-      - {id: grondslag, plek: grondslag, vereist_door: 'Awb 3:47', bron: {wet: grondslag}, nldd: nldd-list}
-      - {id: motivering, plek: motivering, vereist_door: 'Awb 3:46', bron: {tekst: [Waarom wij zo besluiten], wet: keten}, nldd: nldd-rich-text}
+      - {id: dictum, plek: dictum, vereist_door: Awb 1:3, bron: {tekst: [Ons besluit]}, nldd: nldd-box}
+      - {id: grondslag, plek: grondslag, vereist_door: Awb 3:47, bron: {wet: grondslag}, nldd: nldd-list}
+      - id: motivering
+        plek: motivering
+        vereist_door: Awb 3:46
+        bron: {tekst: [Waarom wij zo besluiten], wet: keten}
+        nldd: nldd-rich-text
       - id: kaart
         plek: specificatie
         titel: Uw kaart
         als: toekenning
         bron: {regels: [kaart_vermeldt_bestuurder, kaart_vermeldt_passagier, kaart_geldig_tot]}
         nldd: nldd-list
-      - {id: ondertekening, plek: ondertekening, vereist_door: 'Awb 10:10', bron: {wet: ondertekening}, nldd: nldd-text}
-      - {id: rechtsmiddelen, plek: rechtsmiddelen, vereist_door: 'Awb 3:45', bron: {tekst: [Bezwaar], wet: rechtsmiddelen}, nldd: nldd-box}
+      - {id: ondertekening, plek: ondertekening, vereist_door: Awb 10:10, bron: {wet: ondertekening}, nldd: nldd-text}
+      - id: rechtsmiddelen
+        plek: rechtsmiddelen
+        vereist_door: Awb 3:45
+        bron: {tekst: [Bezwaar], wet: rechtsmiddelen}
+        nldd: nldd-box
       # Een kleine bijlage: de gegevens die op de kaart komen, in kolommen. De
       # rij bouwt de spec uit sleutels; elke kop en cel komt uit de tekstlaag.
       - id: kaartgegevens
@@ -114,7 +122,7 @@ berichtsoorten:
     patroon: ontvangstbevestiging
     vastlegging:
       rol: indiening
-      artikel: 'besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49'
+      artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
       rechtskarakter: AANVRAAG
       stap: aanvraag
     sjabloon: ontvangstbevestiging
@@ -125,7 +133,7 @@ berichtsoorten:
       volledig: {indiening: aanvraag_bevat_wat_artikel_4_2_eist, is: true}
     delen:
       - {id: kop, plek: kop, bron: {regels: [naam_aanvrager, adres_aanvrager]}, nldd: nldd-identity}
-      - {id: wat, plek: dictum, vereist_door: 'Awb 2:17', bron: {tekst: ['', Uw aanvraag is compleet]}, nldd: nldd-box}
+      - {id: wat, plek: dictum, vereist_door: Awb 2:17, bron: {tekst: ['', Uw aanvraag is compleet]}, nldd: nldd-box}
       - id: aanvraag
         plek: specificatie
         titel: Wat u aanvroeg
@@ -142,8 +150,8 @@ berichtsoorten:
     patroon: herstelverzoek
     vastlegging:
       rol: vastlegging
-      artikel: 'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#12'
-      feit: 'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#12#verzoek_tot_aanvulling_verzonden'
+      artikel: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#12
+      feit: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#12#verzoek_tot_aanvulling_verzonden
       stap: herstelverzoek
     sjabloon: herstelverzoek
     sleutels:
@@ -153,8 +161,8 @@ berichtsoorten:
     delen:
       - {id: kop, plek: kop, bron: {regels: [naam_aanvrager, adres_aanvrager]}, nldd: nldd-identity}
       - {id: inleiding, plek: inleiding, bron: {tekst: ['']}, nldd: nldd-rich-text}
-      - {id: verzoek, plek: dictum, vereist_door: 'Awb 4:5', bron: {tekst: [Wat wij van u vragen]}, nldd: nldd-box}
-      - {id: ontbreekt, plek: specificatie, vereist_door: 'Awb 4:5', bron: {tekst: [Wat er ontbreekt]}, nldd: nldd-rich-text}
+      - {id: verzoek, plek: dictum, vereist_door: Awb 4:5, bron: {tekst: [Wat wij van u vragen]}, nldd: nldd-box}
+      - {id: ontbreekt, plek: specificatie, vereist_door: Awb 4:5, bron: {tekst: [Wat er ontbreekt]}, nldd: nldd-rich-text}
       - {id: gevolg, plek: mededeling, bron: {tekst: [Als u niet aanvult]}, nldd: nldd-rich-text}
       - {id: ondertekening, plek: ondertekening, bron: {wet: ondertekening}, nldd: nldd-text}
     kanaal: {vast: portaal}
@@ -165,7 +173,7 @@ berichtsoorten:
     patroon: beslissing_op_bezwaar
     vastlegging:
       rol: besluit
-      artikel: 'algemene_wet_bestuursrecht#7:11'
+      artikel: algemene_wet_bestuursrecht#7:11
       rechtskarakter: BESCHIKKING
       uitkomst: bestreden_besluit_herroepen
       stap: beslissing op bezwaar
@@ -178,10 +186,18 @@ berichtsoorten:
     delen:
       - {id: kop, plek: kop, bron: {regels: [naam_indiener, adres_indiener]}, nldd: nldd-identity}
       - {id: inleiding, plek: inleiding, bron: {tekst: ['']}, nldd: nldd-rich-text}
-      - {id: dictum, plek: dictum, vereist_door: 'Awb 7:11', bron: {tekst: [Onze beslissing]}, nldd: nldd-box}
-      - {id: motivering, plek: motivering, vereist_door: 'Awb 7:12', bron: {tekst: [Waarom wij zo beslissen], wet: keten}, nldd: nldd-rich-text}
-      - {id: ondertekening, plek: ondertekening, vereist_door: 'Awb 10:10', bron: {wet: ondertekening}, nldd: nldd-text}
-      - {id: rechtsmiddelen, plek: rechtsmiddelen, vereist_door: 'Awb 3:45', bron: {tekst: [Beroep], wet: rechtsmiddelen}, nldd: nldd-box}
+      - {id: dictum, plek: dictum, vereist_door: Awb 7:11, bron: {tekst: [Onze beslissing]}, nldd: nldd-box}
+      - id: motivering
+        plek: motivering
+        vereist_door: Awb 7:12
+        bron: {tekst: [Waarom wij zo beslissen], wet: keten}
+        nldd: nldd-rich-text
+      - {id: ondertekening, plek: ondertekening, vereist_door: Awb 10:10, bron: {wet: ondertekening}, nldd: nldd-text}
+      - id: rechtsmiddelen
+        plek: rechtsmiddelen
+        vereist_door: Awb 3:45
+        bron: {tekst: [Beroep], wet: rechtsmiddelen}
+        nldd: nldd-box
     invarianten:
       - soort: oordeel_past
         oordelen:

@@ -836,6 +836,14 @@ jobs:
       - name: Type check regelhet
         run: npm run typecheck -w frontend-regelhet
 
+      # Also a pre-commit hook, but the Pre-commit job has no `npm ci` and skips
+      # them there for want of js-yaml. Here the workspace is installed.
+      - name: Fundament plugin console tests
+        run: >-
+          node --test packages/fundament-plugin/console-test/regelhets-body.test.js
+          packages/fundament-plugin/console-test/organisaties-body.test.js
+          packages/fundament-plugin/console-test/crd-conformance.test.js
+
       - name: Run chronolexografie poc tests
         run: npm test -w packages/poc-chronolexografie/frontend
 

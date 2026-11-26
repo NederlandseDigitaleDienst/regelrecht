@@ -356,14 +356,14 @@ elements:
         when_true: Aanvrager heeft andere ernstige beperkingen dan loopbeperkingen
         when_false: Aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen
       - name: advies_langdurige_loopbeperking_volgens_college
-        when_true: "Advies: aanvrager heeft een langdurige loopbeperking"
-        when_false: "Advies: aanvrager heeft geen langdurige loopbeperking"
+        when_true: 'Advies: aanvrager heeft een langdurige loopbeperking'
+        when_false: 'Advies: aanvrager heeft geen langdurige loopbeperking'
       - name: advies_continu_afhankelijk_van_hulp_bestuurder_volgens_college
-        when_true: "Advies: aanvrager is continu afhankelijk van hulp"
-        when_false: "Advies: aanvrager is niet continu afhankelijk van hulp"
+        when_true: 'Advies: aanvrager is continu afhankelijk van hulp'
+        when_false: 'Advies: aanvrager is niet continu afhankelijk van hulp'
       - name: advies_permanent_rolstoelgebonden_volgens_college
-        when_true: "Advies: aanvrager is permanent rolstoelgebonden"
-        when_false: "Advies: aanvrager is niet permanent rolstoelgebonden"
+        when_true: 'Advies: aanvrager is permanent rolstoelgebonden'
+        when_false: 'Advies: aanvrager is niet permanent rolstoelgebonden'
       - name: advies_ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
-        when_true: "Advies: aanvrager heeft andere ernstige beperkingen dan loopbeperkingen"
-        when_false: "Advies: aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen"
+        when_true: 'Advies: aanvrager heeft andere ernstige beperkingen dan loopbeperkingen'
+        when_false: 'Advies: aanvrager heeft geen andere ernstige beperkingen dan loopbeperkingen'

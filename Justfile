@@ -213,6 +213,22 @@ nldd-slots:
 nldd-slots-test:
     node --test script/nldd-slots.test.mjs
 
+# The console wizards of the Fundament plugin against its CRDs. The CRD test
+# reads the CRDs with js-yaml from the npm workspace. The Pre-commit job in CI
+# runs without `npm ci`, so there it skips and says so; Frontend tests, which
+# has the workspace installed, runs the tests without this recipe.
+[doc("Check the Fundament plugin's console wizards against its CRDs")]
+fundament-plugin-console-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d node_modules/js-yaml ]; then
+      echo "js-yaml is not installed (no npm ci): skipped here; the Frontend tests job runs these tests."
+      exit 0
+    fi
+    node --test packages/fundament-plugin/console-test/regelhets-body.test.js \
+      packages/fundament-plugin/console-test/organisaties-body.test.js \
+      packages/fundament-plugin/console-test/crd-conformance.test.js
+
 # A test that runs nowhere stays green because it never starts. This guard
 # reads what CI runs (workflow steps, pre-commit hooks, and the recipes and npm
 # scripts they reach) and fails on a test outside it, a crate no `cargo test`

@@ -90,3 +90,7 @@ ignore: |
   # risico (een cijfer dat verschuift) dan de winst. pocs/registry.yaml — dat
   # wél hier is geschreven — valt er bewust buiten en wordt gewoon gelint.
   corpus-poc/
+  # Hetzelfde voor de casus-corpus van RegelHet voor de individuele
+  # inkomenstoeslag: wetteksten zoals ze zijn overgenomen. De twee regelingen
+  # die het van het corpus leent zijn symlinks en worden daar gelint.
+  packages/regelhet/iit-groningen/corpus/

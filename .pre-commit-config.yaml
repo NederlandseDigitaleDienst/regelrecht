@@ -113,10 +113,7 @@ repos:
 
       - id: fundament-plugin-console-tests
         name: De wizards van de Fundament-plugin bouwen wat de CRDs aannemen
-        entry: >-
-          node --test packages/fundament-plugin/console-test/regelhets-body.test.js
-          packages/fundament-plugin/console-test/organisaties-body.test.js
-          packages/fundament-plugin/console-test/crd-conformance.test.js
+        entry: just fundament-plugin-console-test
         language: system
         pass_filenames: false
         files: ^packages/fundament-plugin/(console|console-test|crds)/

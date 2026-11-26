@@ -268,7 +268,7 @@ Each layer has `elements`. An element has:
 | `adds` | parts it adds to the generic element, each with `part`, `place`, `fields` and `facts`. A part that names fields and facts is a table per field: its rows the list of records the submission holds there, each row with the records of those facts it comes from (below) |
 | `facts` | facts whose records the element shows: a table per fact, of the records that belong to the submission |
 | `outcomes` | left to the register: what follows from what the element records |
-| `letter`, `parts` | a letter ([the decision as a letter](#the-decision-as-a-letter)) |
+| `letter`, `parts` | a letter ([messages to the citizen](#messages-to-the-citizen)) |
 | `table` | a table given in full: `rows` (`field`, `outcome` or `fact`), `columns` (each a `name` and a `label`), `provenance` (each a `fact` and the keys to `match` on), `label` and `help` |
 
 A field has `name` and:
