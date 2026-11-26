@@ -30,6 +30,12 @@ export function rawErrorText(e: unknown): string {
 
 /** Engine messages (packages/engine/src/error.rs) an author can act on. */
 const ENGINE_PATTERNS: Array<[RegExp, (m: RegExpMatchArray) => string]> = [
+  [
+    /fails the type check \((\d+) findings?\)/,
+    (m) => (m[1] === '1'
+      ? 'De engine vond een fout in het regelwerk.'
+      : `De engine vond ${m[1]} fouten in het regelwerk.`),
+  ],
   [/YAML parse error/, () => 'Het regelwerk is niet geldig en kan niet worden gelezen.'],
   [/YAML exceeds maximum size/, () => 'Het regelwerk is te groot om uit te voeren.'],
   [
@@ -51,12 +57,31 @@ function engineSummary(raw: string, fallback: string): string {
       break;
     }
   }
-  // A finding on the regelwerk itself starts with the article it is about
-  // ("article 2: ...", "Failed to load law: article 2, output x: ..."). Other
-  // messages mention an article too, of another regelwerk or one that does
-  // not exist, so only this shape counts.
-  const article = raw.match(/(?:^|: )article (\w+(?:\.\w+)*)(?=[:,])/);
-  return article ? `${summary} Kijk bij artikel ${article[1]}.` : summary;
+  const articles = articlesNamed(raw);
+  if (articles.length === 0) return summary;
+  return `${summary} Kijk bij ${articles.length === 1 ? 'artikel' : 'de artikelen'} ${listInDutch(articles)}.`;
+}
+
+/**
+ * The articles the engine's text points at, in the two shapes it uses. Other
+ * messages mention an article too, of another regelwerk or one that does not
+ * exist, so only these shapes count. An article number can hold a space
+ * ("B 1").
+ */
+function articlesNamed(raw: string): string[] {
+  // The type check lists its findings one per line:
+  // "  <law> article <number> output 'x': [N1] ...".
+  const perFinding = [...raw.matchAll(/^\s+\S+ article (.+?) (?:output|action|input|definition)\b/gm)].flatMap((m) => (m[1] ? [m[1]] : []));
+  if (perFinding.length > 0) return [...new Set(perFinding)];
+  // A load check starts with the article: "article 2: ...",
+  // "Failed to load law: article 2, output x: ...".
+  const leading = raw.match(/(?:^|: )article ([^:,\n]+)(?=[:,])/);
+  return leading?.[1] ? [leading[1]] : [];
+}
+
+function listInDutch(items: string[]): string {
+  if (items.length < 2) return items.join('');
+  return `${items.slice(0, -1).join(', ')} en ${items[items.length - 1]}`;
 }
 
 /** The engine refused the regelwerk (parse or type-check error). */

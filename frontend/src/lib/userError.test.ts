@@ -44,6 +44,23 @@ describe('describeEngineLoadError', () => {
     );
   });
 
+  it('reads the articles off the findings of the type check', () => {
+    const raw = [
+      "Failed to load law: law 'kieswet' fails the type check (3 findings):",
+      "  kieswet article B 1 output 'kiesgerechtigd': [N1] 'leeftijd' is not nullable",
+      "  kieswet article B 1 action 2: [T2] cannot compare a number with a boolean",
+      "  kieswet article B 5 input 'woonplaats': [N5] the source is nullable",
+    ].join('\n');
+    const described = describeEngineLoadError(raw);
+    expect(described.summary).toBe('De engine vond 3 fouten in het regelwerk. Kijk bij de artikelen B 1 en B 5.');
+    expect(described.details).toBe(raw);
+  });
+
+  it('keeps an article number with a space whole', () => {
+    const described = describeEngineLoadError('Failed to load law: article B 1, output x: operation Y could not be read');
+    expect(described.summary).toContain('Kijk bij artikel B 1.');
+  });
+
   it('leaves out the article when the message is not a finding on it', () => {
     const described = describeEngineLoadError('Failed to load law: this law has no article 5');
     expect(described.summary).not.toContain('Kijk bij artikel');

@@ -1,8 +1,7 @@
 /**
- * A regelwerk the engine refuses. Opened that way, the error takes the place
- * of the panes, as a readable message with the engine's own text one click
- * away. Broken by an unsaved edit, the panes stay and the error is a
- * notification, so the mistake can be repaired where it was made.
+ * A regelwerk the engine refuses. The panes stay, because that is where the
+ * mistake is repaired; the error is a notification with a readable message
+ * and the engine's own text one click away.
  *
  * Requires the WASM engine to be built (frontend/public/wasm/pkg).
  */
@@ -14,7 +13,6 @@ import { mockCorpusApi } from './helpers-corpus.js';
 const breakLaw = (yamlText, operation = 'NO_SUCH_OPERATION') => yamlText.replace('operation: MAX', `operation: ${operation}`);
 
 const splitView = (page) => page.locator('nldd-side-by-side-split-view');
-const blockingError = (page) => page.locator('[data-testid="engine-load-error"]');
 const notification = (page) => page.locator('[data-testid="error-notification"]');
 const detailsSheet = (page) => page.locator('[data-testid="error-details-sheet"]');
 
@@ -25,30 +23,20 @@ async function mockLaw(page, content) {
 }
 
 test.describe('A regelwerk the engine refuses', () => {
-  test('opened broken: the error replaces the panes', async ({ page }) => {
+  test('opened broken: the panes stay, with the error as a notification', async ({ page }) => {
     await mockLaw(page, breakLaw(loadFixture('zorgtoeslag-full.yaml')));
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
 
-    await expect(blockingError(page)).toBeVisible({ timeout: 30_000 });
-    await expect(splitView(page)).toHaveCount(0);
+    await expect(notification(page)).toBeVisible({ timeout: 30_000 });
+    await expect(splitView(page)).toHaveCount(1);
+    await expect(notification(page)).toHaveAttribute('text', 'Wet op de zorgtoeslag kan niet worden uitgevoerd');
     // The message is the readable sentence, not the engine's text.
-    await expect(blockingError(page)).not.toHaveAttribute('supporting-text', /NO_SUCH_OPERATION/);
-    // The dialog is the message; no notification beside it.
-    await expect(notification(page)).toHaveCount(0);
+    await expect(notification(page)).not.toHaveAttribute('supporting-text', /NO_SUCH_OPERATION/);
+    await expect(notification(page)).toHaveAttribute('supporting-text', /Kijk bij artikel 2\./);
 
-    await blockingError(page).locator('nldd-button[text="Technische details"]').click();
+    await notification(page).locator('nldd-button').click();
     await expect(detailsSheet(page)).toHaveAttribute('open', '');
     await expect(detailsSheet(page).locator('[data-testid="error-details-text"]')).toContainText('NO_SUCH_OPERATION');
-  });
-
-  test('opened broken: the panes come back on request, with a notification', async ({ page }) => {
-    await mockLaw(page, breakLaw(loadFixture('zorgtoeslag-full.yaml')));
-    await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
-
-    await expect(blockingError(page)).toBeVisible({ timeout: 30_000 });
-    await page.locator('[data-testid="engine-load-error-show-panes"]').click();
-    await expect(splitView(page)).toHaveCount(1);
-    await expect(notification(page)).toBeVisible();
   });
 
   test('broken by an unsaved edit: the panes stay', async ({ page }) => {
@@ -59,7 +47,6 @@ test.describe('A regelwerk the engine refuses', () => {
     await setYamlPane(page, breakLaw(await readYamlSource(page)));
     await expect(notification(page)).toBeVisible({ timeout: 30_000 });
     await expect(splitView(page)).toHaveCount(1);
-    await expect(blockingError(page)).toHaveCount(0);
     await expect(notification(page)).toHaveAttribute('text', 'Wet op de zorgtoeslag kan niet worden uitgevoerd');
 
     await expect(notification(page)).toHaveAttribute('supporting-text', /Kijk bij artikel 2\./);

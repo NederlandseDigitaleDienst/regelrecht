@@ -1722,32 +1722,18 @@ let engineLoadDebounce: ReturnType<typeof setTimeout> | undefined;
 // by then, so every scenario would otherwise fail with "Law not found"
 // without saying why. The WASM binding throws a plain string.
 const engineLoadError = ref<UserError | null>(null);
-// The engine has accepted this regelwerk since it was opened, so a refusal
-// that follows comes from something done in this session.
-let engineAcceptedOpenLaw = false;
-// The panes stay up beside the error: it arose in this session (an edit, a
-// proposal under review), or the user asked to see the regelwerk anyway.
-// Otherwise the error takes the place of the panes, so a regelwerk that
-// cannot run is not shown as if it could.
-const showPanesDespiteEngineError = ref(false);
-const engineErrorBlocksPanes = computed(
-  () => !!engineLoadError.value && !showPanesDespiteEngineError.value,
-);
 const errors = useErrorsStore();
 // A notification is not next to what it is about, so its title names the
 // regelwerk. The article, when the engine names one, is in the sentence.
 const engineErrorTitle = computed(() => `${failedLawName.value || 'Dit regelwerk'} kan niet worden uitgevoerd`);
 const saveErrorTitle = computed(() => `${failedLawName.value || 'Het regelwerk'} is niet opgeslagen`);
-function showEngineErrorDetails() {
-  if (engineLoadError.value) errors.showDetails([{ title: engineErrorTitle.value, ...engineLoadError.value }]);
-}
-// Beside the panes the error is a notification, shared with the other errors
-// the editor reports. In place of the panes it is the inline dialog, which
-// needs no notification next to it.
+// The engine's refusal is a notification, shared with the other errors the
+// editor reports. The panes stay: the frontend reads the regelwerk with its
+// own parser, and they are where the author repairs it.
 watch(
-  [engineLoadError, engineErrorBlocksPanes, engineErrorTitle],
-  ([error, blocksPanes, title]) => {
-    if (error && !blocksPanes) errors.report('engine-load', title, error);
+  [engineLoadError, engineErrorTitle],
+  ([error, title]) => {
+    if (error) errors.report('engine-load', title, error);
     else errors.clear('engine-load');
   },
   { immediate: true },
@@ -1756,8 +1742,6 @@ watch(
 // about it.
 watch([lawId, activeTrajectRef], () => {
   engineLoadError.value = null;
-  showPanesDespiteEngineError.value = false;
-  engineAcceptedOpenLaw = false;
 });
 
 // The open regelwerk's other saved versions, so a scenario on a date another
@@ -1790,16 +1774,9 @@ async function reloadEngineLaw(lawYaml: string | null, isReady: boolean) {
     if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
     await loadLawYaml(lawYaml, id, trajectRef, others);
     engineLoadError.value = null;
-    showPanesDespiteEngineError.value = false;
-    engineAcceptedOpenLaw = true;
   } catch (e) {
     // A newer load, or another regelwerk, has the say by now.
     if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
-    // Taking the panes away mid-work would hide the mistake and the work: an
-    // edit (also one saved a moment ago) or a proposal under review.
-    if (engineAcceptedOpenLaw || openLaw.hasUnsavedWork.value || review.active.value) {
-      showPanesDespiteEngineError.value = true;
-    }
     // The same refusal after another keystroke is the same error: a new
     // object would bring back a notification the user dismissed.
     const described = describeEngineLoadError(e);
@@ -2197,23 +2174,6 @@ async function handleActionSave() {
         <nldd-page v-else-if="paneViews.length === 0">
           <nldd-simple-section width="full">
             <nldd-inline-dialog text="Geen editors actief. Schakel ten minste één editor in via Instellingen."></nldd-inline-dialog>
-          </nldd-simple-section>
-        </nldd-page>
-
-        <!-- The engine refused the regelwerk as it was opened (parse or
-             type-check error, RFC-037): the error takes the place of the
-             panes. Same error-state pattern as the failed load above. -->
-        <nldd-page v-else-if="engineLoadError && engineErrorBlocksPanes">
-          <nldd-simple-section width="full">
-            <nldd-inline-dialog
-              variant="alert"
-              :text="engineErrorTitle"
-              :supporting-text="engineLoadError.summary"
-              data-testid="engine-load-error"
-            >
-              <nldd-button slot="actions" appearance="primary" text="Toon het regelwerk toch" data-testid="engine-load-error-show-panes" @click="showPanesDespiteEngineError = true"></nldd-button>
-              <nldd-button slot="actions" appearance="secondary" text="Technische details" @click="showEngineErrorDetails"></nldd-button>
-            </nldd-inline-dialog>
           </nldd-simple-section>
         </nldd-page>
 

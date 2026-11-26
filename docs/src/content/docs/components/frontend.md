@@ -85,7 +85,7 @@ An error message is a short Dutch sentence. The text the failure itself produced
 
 Errors that are not tied to one place on screen go to the `errors` store, each source under a key of its own, and the shell shows them as one notification (`ErrorNotification.vue`). Its title names the rulework, because a notification is not next to what it is about; the article, when the engine names one, is in the sentence under it. One error shows as itself. Several show as a count, with the list in the details sheet, so a run of failures does not stack up. A dismissed error stays away until its source reports a new one. The component renders nothing and raises the notification from code (`src/lib/raiseNotification.ts`): a notification moves itself to a shared area of the page, and an element that Vue rendered and then lost track of does not come back after a dismiss.
 
-When the engine refuses the rulework as it was opened (a parse or type-check error), the error takes the place of the panes. *Toon het regelwerk toch* brings the panes back, with the error as a notification, so the rulework can be repaired in the editor. When the refusal arises in the session, the panes stay and only the notification appears: the engine accepted the rulework earlier, there are unsaved edits, or a proposal is under review. The notification goes when the engine accepts the rulework again.
+When the engine refuses the rulework (a parse or type-check error), the panes stay: the frontend reads the rulework with its own parser, and the panes are where the author repairs it. The refusal shows as the notification, and scenarios fail with the reason until the engine accepts the rulework again.
 
 #### Scenario tabs
 
