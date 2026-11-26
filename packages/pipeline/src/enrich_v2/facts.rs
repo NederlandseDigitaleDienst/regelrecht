@@ -317,6 +317,14 @@ articles:
     }
 
     #[test]
+    fn the_loaded_law_carries_the_graph_and_the_definitions() {
+        let loaded = LawFacts::from_yaml(LAW).unwrap().loaded();
+        assert_eq!(loaded.graph.bwb_id, "BWBR0018451");
+        assert_eq!(loaded.graph.articles, ["1", "2", "3", "3a", "4"]);
+        assert!(loaded.definitions.contains("1"));
+    }
+
+    #[test]
     fn only_a_short_text_that_says_vervallen_is_lapsed() {
         assert!(!says_something(""));
         assert!(!says_something("  Vervallen.  "));

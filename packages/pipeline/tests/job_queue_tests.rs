@@ -584,6 +584,33 @@ async fn test_job_heartbeat_stops_at_its_ceiling() {
 }
 
 #[tokio::test]
+async fn test_job_heartbeat_fires_its_token_when_a_stop_is_requested() {
+    let db = TestDb::new().await;
+    let req = CreateJobRequest::new(JobType::Harvest, "BWBR0001840");
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let job = job_queue::claim_job(&db.pool, None).await.unwrap().unwrap();
+
+    let guard = job_queue::JobHeartbeat::start_with(
+        db.pool.clone(),
+        &job,
+        Duration::from_millis(50),
+        Duration::from_secs(60),
+    );
+    let stop = guard.stop_requested();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(!stop.is_cancelled(), "no stop asked, nothing fires");
+
+    sqlx::query("UPDATE jobs SET cancel_requested_at = now() WHERE id = $1")
+        .bind(job.id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), stop.cancelled())
+        .await
+        .expect("the token handed out fires once a beat sees the stop");
+}
+
+#[tokio::test]
 async fn test_reap_uses_start_when_heartbeat_missing() {
     // A job claimed by a worker from before heartbeats has none.
     let db = TestDb::new().await;

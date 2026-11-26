@@ -1273,6 +1273,12 @@ articles:
             .expect("de aangehaalde wet staat als taak in het plan");
         assert_eq!(task.depth, 1, "een wetssprong kost een punt, ook hier");
         assert_eq!(task.articles, vec!["3".to_string()]);
+        assert_eq!(task.entries, 1, "the taken article counts its own entry");
+        assert_eq!(
+            plan.entries(),
+            plan.tasks.iter().map(|t| t.articles.len()).sum::<usize>(),
+            "without sub-entries each article is one entry"
+        );
     }
 
     #[test]
