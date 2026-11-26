@@ -29,6 +29,10 @@ export const DEFAULTS = {
   // article as readable text, first, as the way into its actions. Off by
   // default while the reading is a draft.
   'panel.regelrijm': false,
+  // "Importeer scenario's…" in the editor's scenario pane: feature files from
+  // disk, checked against the open regelwerk and the traject's corpus before
+  // they are saved. Off by default while it is new.
+  'scenarios.import': false,
 };
 
 // DEFAULTS widened for lookups by an arbitrary key: unknown keys are allowed

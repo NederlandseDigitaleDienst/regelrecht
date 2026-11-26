@@ -38,7 +38,7 @@ export interface FileStatus extends FileSummary {
 
 export function useLawScenarios(inputs: LawScenarioInputs) {
   const store = useOpenScenariosStore();
-  const { scenarios: listed, loading: listLoading, error: listError } = useScenarios(inputs.lawId, inputs.trajectRef);
+  const { scenarios: listed, loading: listLoading, error: listError, fetchScenarios } = useScenarios(inputs.lawId, inputs.trajectRef);
 
   // Without a traject there is nothing to edit, and no open files either.
   const files = computed<OpenScenario[]>(() => {
@@ -96,6 +96,10 @@ export function useLawScenarios(inputs: LawScenarioInputs) {
     loadingText,
     listError,
     environmentError: computed(() => (active.value ? environment.error.value : null)),
+    /** The list of files is being read; until it is in, which names are taken is unknown. */
+    listLoading,
+    /** Read the list of files again, after a write that added one. */
+    refresh: fetchScenarios,
   };
 }
 

@@ -89,6 +89,18 @@ The file and its unsaved edits live in `src/scenario/openScenario.ts`, one per f
 
 A tab with unsaved edits, article or scenario file, has a dot in its corner, and its supporting text adds *niet opgeslagen*, so a screen reader says it as well. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
 
+#### Importing scenarios
+
+Behind `scenarios.import`, the *Scenario's* pane and the sheet behind the status in the *Machine* toolbar end with *Importeer scenario's…*. It picks one or more `.feature` files from disk and imports them into the open rulework's scenario folder in the traject. `ScenarioImportDialog.vue` checks each file in the browser before anything is written, and lists the files with one line each. The check is in `src/scenario/scenarioImport.ts`. A file is refused when:
+
+- its name is not one `validate_scenario_filename` accepts, or it is larger than the 1 MB the scenario route takes;
+- a file of that name is already in the folder, or was chosen twice, ignoring case;
+- it does not parse with the editor's Gherkin parser, or holds no scenarios;
+- its `When` steps run another rulework than the open one;
+- a rulework it loads or runs is not in the traject's corpus. The dialog asks the corpus for all named ruleworks in one request.
+
+A file that fits is saved, and its line can still carry a warning: no step runs the rulework, the editor does not recognize a step, or an output the file evaluates or asserts is not one the rulework declares. The outputs come from the saved rulework, not from unsaved edits in the editor. A file is saved with the ordinary scenario `PUT`, one commit per file, without `If-Match`. The backend has no create-only precondition, so the name check against the listed files is what prevents an overwrite. A file another member creates under the same name between the listing and the save is overwritten. After the import the list is read again and the first imported file opens in its tab, unless the editor moved to another rulework while the dialog was open. When a save fails, the dialog stays open and that file's line gives the server's reason.
+
 ### Top-level pages
 
 | Route | Page |
@@ -122,6 +134,7 @@ The list in `packages/editor-api/src/feature_flags.rs` is also the allow-list: t
 | `panel.yaml_editor` | on | Offers the *YAML* pane. |
 | `panel.notes` | on | Offers the *Notities* pane. |
 | `panel.regelrijm` | off | Reads the actions in *Machine* as RegelRijm text (experimental). |
+| `scenarios.import` | off | Offers *Importeer scenario's…* below the scenario list (see [Importing scenarios](#importing-scenarios)). |
 | `github.user_oauth` | off | Traject writes require the acting user's own GitHub token, and the settings sheet offers linking a GitHub account. The `GITHUB_USER_TOKEN_REQUIRED` environment variable can force this on regardless of the flag. |
 
 Turning a `panel.*` flag off removes that pane from the editor; turning it back on adds it again. `panel.regelrijm` is the exception: it adds no pane, but changes how *Machine* reads its actions. Other users see the change on their next page load.
@@ -168,6 +181,7 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 | `EditSheet.vue` / `ActionSheet.vue` / `OperationSettings.vue` | Editing definitions, actions and operations |
 | `ScenarioScreen.vue` / `ScenarioForm.vue` / `ScenarioResult.vue` | A scenario tab: the scenario list, the form of one scenario, and its result |
 | `ScenarioStatusPane.vue` | The read-only *Scenario's* pane, also shown in the sheet behind the scenario status in the *Machine* toolbar |
+| `ScenarioImportDialog.vue` | The file picker and confirm step of *Importeer scenario's…* |
 | `ExecutionTraceView.vue` / `LawGraphView.vue` (+ `graph/`) | Execution trace and cross-law graph |
 | `NoteCreator.vue` / `NoteCard.vue` | Stand-off notes (RFC-018) |
 | `RegelRijmPane.vue` / `RegelRijmText.vue` (in `src/regelrijm/`) | The RegelRijm readings at the top of *Machine* and the token text they show (RFC-054) |

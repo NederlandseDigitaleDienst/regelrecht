@@ -14,11 +14,15 @@ import { scenarioFileKey } from '../scenario/openScenario';
  */
 const props = defineProps<{
   scenarios: LawScenarios;
+  /** Offer to import feature files (a traject is open and the flag is on). */
+  canImport?: boolean;
 }>();
 
 const emit = defineEmits<{
   /** Open a file in its tab, at a scenario. */
   open: [filename: string, scenarioName: string | null];
+  /** The user wants to import feature files. */
+  import: [];
 }>();
 
 // The files whose passed scenarios are shown one by one, by traject,
@@ -146,5 +150,16 @@ function toggle(key: string) {
       v-else-if="!props.scenarios.listError.value && !props.scenarios.files.value.length"
       text="Geen scenario's voor dit regelwerk."
     ></nldd-inline-dialog>
+    <template v-if="props.canImport">
+      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-button
+        appearance="secondary"
+        size="md"
+        start-icon="import"
+        text="Importeer scenario's…"
+        data-testid="scenario-import-btn"
+        @click="emit('import')"
+      ></nldd-button>
+    </template>
   </nldd-simple-section>
 </template>

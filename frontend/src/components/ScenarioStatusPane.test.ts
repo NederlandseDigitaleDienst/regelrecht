@@ -44,9 +44,9 @@ function fakeEngine(): EditorEngine {
 }
 
 // The editor runs the scenarios (useLawScenarios) and hands them to the pane.
-function mountPane(engine: EditorEngine = fakeEngine()) {
+function mountPane(engine: EditorEngine = fakeEngine(), { canImport = false } = {}) {
   const Host = defineComponent({
-    emits: ['open'],
+    emits: ['open', 'import'],
     setup(_, { emit }) {
       const scenarios = useLawScenarios({
         trajectRef: ref(TRAJECT),
@@ -57,7 +57,13 @@ function mountPane(engine: EditorEngine = fakeEngine()) {
         articles: ref([]),
         lawLoading: ref(false),
       });
-      return () => h(ScenarioStatusPane, { scenarios, onOpen: (...args: unknown[]) => emit('open', ...args) });
+      return () =>
+        h(ScenarioStatusPane, {
+          scenarios,
+          canImport,
+          onOpen: (...args: unknown[]) => emit('open', ...args),
+          onImport: () => emit('import'),
+        });
     },
   });
   return mount(Host);
@@ -140,5 +146,16 @@ describe('ScenarioStatusPane', () => {
       expect(w.findAll('[data-testid^="scenario-status-basis.feature-"]')).toHaveLength(2);
     });
     expect(statusesOf(w)).toEqual([]);
+  });
+
+  it('offers the import only when the editor allows it', async () => {
+    const off = mountPane();
+    await settle();
+    expect(off.find('[data-testid="scenario-import-btn"]').exists()).toBe(false);
+
+    const on = mountPane(fakeEngine(), { canImport: true });
+    await settle();
+    await on.find('[data-testid="scenario-import-btn"]').trigger('click');
+    expect(on.emitted('import')).toHaveLength(1);
   });
 });

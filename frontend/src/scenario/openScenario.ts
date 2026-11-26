@@ -47,6 +47,28 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/**
+ * Write a new feature file with `text`, as it is. Sent without `If-Match`: the
+ * backend has no create-only precondition, so the caller checks the listed
+ * files for a file of the same name first. Rejects with the server's message
+ * when the write fails.
+ */
+export async function writeNewScenarioFile(file: ScenarioFileRef, text: string): Promise<void> {
+  const res = await apiFetch(scenarioFileUrl(file.trajectRef, file.lawId, file.filename), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    body: text,
+    errorMessage: (status, body) => body || `Opslaan mislukt: ${status}`,
+  });
+  // Same `{ pr, etag }` shape as `save` below: the PR feeds the "PR #N" badge.
+  try {
+    const json = (await res.json()) as { pr?: unknown } | null;
+    lastSavedPr.value = sanitizeSavedPr(json?.pr);
+  } catch {
+    // An older deployment answered with a bare 200: keep the prior PR.
+  }
+}
+
 export function createOpenScenario(file: ScenarioFileRef) {
   const loading = ref(false);
   const loaded = ref(false);
