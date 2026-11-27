@@ -124,6 +124,20 @@ export function scenarioOver(artikel) {
   return verwijzing(huidigeStap().step.stap.verwijst_naar);
 }
 
+/**
+ * The article the form for an ex officio decision acts under: what the
+ * visitor chose (`gekozen`), or else, at an ex officio step of a scenario,
+ * the step's article when the case's cell can take it (`artikelen`). Never
+ * a default of its own: an ex officio decision nobody asked for, taken with
+ * one click, is a decision on a law the visitor did not choose. Null until
+ * there is a choice.
+ */
+export function ambtshalveArtikel(gekozen, artikelen, stap = huidigeStap()?.step.stap) {
+  if (gekozen && artikelen.includes(gekozen)) return gekozen;
+  if (stap?.stap === 'ambtshalve' && artikelen.includes(stap.artikel)) return stap.artikel;
+  return null;
+}
+
 // The id of the record of the earlier step with kenmerk `naar`, or else the
 // kenmerk as it is (a record in the begin of the cell); null without one.
 function verwijzing(naar) {

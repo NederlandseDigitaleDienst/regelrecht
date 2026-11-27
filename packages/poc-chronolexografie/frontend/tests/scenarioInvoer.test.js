@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formulier, ingeklapt, scenarioVerwijzing, scenarioWaarden } from '../src/scenarioInvoer.js';
+import { ambtshalveArtikel, formulier, ingeklapt, scenarioVerwijzing, scenarioWaarden } from '../src/scenarioInvoer.js';
 import { state } from '../src/state.js';
 
 vi.mock('../src/api.js', () => ({ api: {} }));
@@ -189,5 +189,24 @@ describe("a record of the case's own cell", () => {
       { id: 'e1', kind: 'EXECUTOGRAM', basis: 'wet#4', fact: 'leges_betaald', refers_to: 'b1' },
     ];
     expect(scenarioVerwijzing('dienst', 'wet#4#leges_terugbetaald')).toBe('e1');
+  });
+});
+
+describe('ambtshalveArtikel', () => {
+  const artikelen = ['wet#60', 'awb#4:99'];
+
+  it('chooses nothing by itself outside an ex officio step', () => {
+    expect(ambtshalveArtikel(null, artikelen, { stap: 'besluit' })).toBeNull();
+    expect(ambtshalveArtikel(null, artikelen, null)).toBeNull();
+  });
+
+  it('takes the article of an ex officio step when the cell can take it', () => {
+    expect(ambtshalveArtikel(null, artikelen, { stap: 'ambtshalve', artikel: 'awb#4:99' })).toBe('awb#4:99');
+    expect(ambtshalveArtikel(null, artikelen, { stap: 'ambtshalve', artikel: 'awb#5:37' })).toBeNull();
+  });
+
+  it("keeps what the visitor chose over the step's article", () => {
+    expect(ambtshalveArtikel('wet#60', artikelen, { stap: 'ambtshalve', artikel: 'awb#4:99' })).toBe('wet#60');
+    expect(ambtshalveArtikel('awb#5:37', artikelen, null)).toBeNull();
   });
 });

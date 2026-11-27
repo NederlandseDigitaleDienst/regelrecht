@@ -8,7 +8,7 @@
 // the form stand the decisions taken this way.
 import { computed, reactive, watch } from 'vue';
 import { api } from '../api.js';
-import { formulier, huidigeStap, scenarioOver, scenarioWaarden } from '../scenarioInvoer.js';
+import { ambtshalveArtikel, formulier, huidigeStap, scenarioOver, scenarioWaarden } from '../scenarioInvoer.js';
 import { besluitenOnder, isBesluitSoort, kort, leesbaar, longDate, state, stap, waarde, zonderLeeg } from '../state.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
@@ -19,6 +19,8 @@ const artikelen = computed(() =>
 
 // The article chosen; at an ex officio step of a scenario, the step's own.
 // What the visitor chose holds until the scenario moves to its next step.
+// Without either, nothing is chosen and the form asks for a choice first
+// (ambtshalveArtikel): the first article is no default.
 const keuze = reactive({ artikel: null, over: {} });
 watch(
   () => huidigeStap()?.index,
@@ -27,12 +29,7 @@ watch(
     keuze.over = {};
   },
 );
-const artikel = computed(() => {
-  const nu = huidigeStap()?.step.stap;
-  if (keuze.artikel) return keuze.artikel;
-  if (nu?.stap === 'ambtshalve' && artikelen.value.includes(nu.artikel)) return nu.artikel;
-  return artikelen.value[0] ?? null;
-});
+const artikel = computed(() => ambtshalveArtikel(keuze.artikel, artikelen.value));
 const vorm = computed(() => state.vormen?.besluiten?.[artikel.value] ?? null);
 
 const besluitVorm = formulier((a) => scenarioWaarden('ambtshalve', { artikel: a }));
@@ -57,6 +54,7 @@ const over = (a) => (a in keuze.over ? keuze.over[a] : (scenarioOver(a) ?? ''));
 
 async function nemen() {
   const a = artikel.value;
+  if (!a) return;
   const ok = await stap(() => api.ambtshalve(a, gegeven(a), state.datum, over(a) || null));
   if (ok) {
     besluitVorm.wis(a);
@@ -73,31 +71,34 @@ const genomen = computed(() => artikelen.value.flatMap((a) => besluitenOnder(a))
       <nldd-container padding="16" gap="12">
         <nldd-form-field label="Besluit" supporting-label="Het artikel waaronder het bestuursorgaan ambtshalve besluit">
           <nldd-dropdown>
-            <select :value="artikel" @change="keuze.artikel = $event.target.value">
+            <select :value="artikel ?? ''" @change="keuze.artikel = $event.target.value || null">
+              <option value="" disabled>Kies een besluit</option>
               <option v-for="a in artikelen" :key="a" :value="a">{{ a }}</option>
             </select>
           </nldd-dropdown>
         </nldd-form-field>
-        <nldd-text size="sm" color="secondary"><ArtikelLink :basis="artikel" /></nldd-text>
-        <nldd-form-field label="Over besluit" supporting-label="Het besluit waarover dit besluit gaat, of geen" optional>
-          <nldd-dropdown>
-            <select :value="over(artikel)" @change="keuze.over[artikel] = $event.target.value">
-              <option value="">Geen</option>
-              <option v-for="id in extra(artikel)" :key="id" :value="id">Record {{ kort(id) }}</option>
-              <option v-for="b in besluiten" :key="b.id" :value="b.id">
-                Besluit {{ kort(b.id) }} van {{ longDate(b.recorded_on) }}
-              </option>
-            </select>
-          </nldd-dropdown>
-        </nldd-form-field>
-        <VeldInvoer
-          v-for="o in vorm?.bevindingen ?? []"
-          :key="o.naam"
-          :veld="o"
-          :model-value="besluitVorm.waarden(artikel)[o.naam]"
-          @update:model-value="besluitVorm.zet(artikel, o.naam, $event)"
-        />
-        <nldd-button appearance="primary" text="Ambtshalve besluiten" @click="nemen"></nldd-button>
+        <template v-if="artikel">
+          <nldd-text size="sm" color="secondary"><ArtikelLink :basis="artikel" /></nldd-text>
+          <nldd-form-field label="Over besluit" supporting-label="Het besluit waarover dit besluit gaat, of geen" optional>
+            <nldd-dropdown>
+              <select :value="over(artikel)" @change="keuze.over[artikel] = $event.target.value">
+                <option value="">Geen</option>
+                <option v-for="id in extra(artikel)" :key="id" :value="id">Record {{ kort(id) }}</option>
+                <option v-for="b in besluiten" :key="b.id" :value="b.id">
+                  Besluit {{ kort(b.id) }} van {{ longDate(b.recorded_on) }}
+                </option>
+              </select>
+            </nldd-dropdown>
+          </nldd-form-field>
+          <VeldInvoer
+            v-for="o in vorm?.bevindingen ?? []"
+            :key="o.naam"
+            :veld="o"
+            :model-value="besluitVorm.waarden(artikel)[o.naam]"
+            @update:model-value="besluitVorm.zet(artikel, o.naam, $event)"
+          />
+          <nldd-button appearance="primary" text="Ambtshalve besluiten" @click="nemen"></nldd-button>
+        </template>
       </nldd-container>
     </nldd-card>
     <nldd-card v-for="g in genomen" :key="g.id">
