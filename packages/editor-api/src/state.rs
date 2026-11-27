@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::config::AppConfig;
+use crate::health::Readiness;
 use crate::traject_corpus::TrajectCorpusCache;
 use crate::traject_integrity::IntegrityCache;
 
@@ -47,6 +48,9 @@ pub struct AppState {
     /// on a TTL, which would throw the memo away and re-read every law body
     /// on the next visit.
     pub integrity: Arc<IntegrityCache>,
+    /// Whether this process takes new requests; flips once on shutdown (see
+    /// [`crate::health`]).
+    pub readiness: Readiness,
 }
 
 impl OidcAppState for AppState {

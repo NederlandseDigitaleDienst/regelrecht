@@ -39,7 +39,7 @@ Derived from the router in `packages/editor-api/src/router.rs` (and `github_oaut
 
 | Method | Path | Gate |
 |--------|------|------|
-| GET | `/health` | Public |
+| GET | `/health`, `/health/ready` | Public (liveness and readiness; see [Health checks](/operations/deployment#health-checks)) |
 | GET | `/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/status` | Public (OIDC flow from `regelrecht-auth`) |
 | GET | `/api/feature-flags` | Public |
 | PUT | `/api/feature-flags/{key}` | Admin |

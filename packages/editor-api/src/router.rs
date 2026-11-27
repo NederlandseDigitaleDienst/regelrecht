@@ -18,8 +18,8 @@ use axum::routing::get;
 use crate::state::AppState;
 use crate::{
     accounts, corpus_handlers, enrich_review, favorites, feature_flags, github_oauth,
-    harvest_proxy, middleware, task_requests, tasks_api, traject_integrity, traject_runs, trajects,
-    user_notes, user_settings,
+    harvest_proxy, health, middleware, task_requests, tasks_api, traject_integrity, traject_runs,
+    trajects, user_notes, user_settings,
 };
 
 /// Whether a route group's handlers need the caller's account row.
@@ -73,7 +73,8 @@ pub fn router(state: AppState) -> Router {
     let auth_enabled = state.config.is_auth_enabled();
 
     let mut routes = Router::new()
-        .route("/health", get(|| async { "OK" }))
+        .route("/health", get(health::live))
+        .route("/health/ready", get(health::ready))
         .merge(regelrecht_auth::auth_routes::<AppState>())
         .merge(public_api_routes())
         .merge(gated(

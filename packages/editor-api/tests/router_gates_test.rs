@@ -77,6 +77,7 @@ const HARVESTER: &str = "harvester-reader";
 /// Every route the editor-api mounts (with OIDC configured), and its gate.
 const ROUTES: &[Route] = &[
     route(Method::GET, "/health", Public),
+    route(Method::GET, "/health/ready", Public),
     // Login and logout (regelrecht_auth::auth_routes).
     route(Method::GET, "/auth/login", Public),
     route(Method::GET, "/auth/callback", Public),
@@ -654,4 +655,30 @@ async fn every_response_carries_its_server_timing() {
             "{method} {path} answered without a Server-Timing header"
         );
     }
+}
+
+#[tokio::test]
+async fn readiness_answers_503_once_stopping_while_liveness_stays_up() {
+    let state = auth_state();
+    let readiness = state.readiness.clone();
+    readiness.start_serving();
+    let app = app(state);
+    let status = |path: &'static str| {
+        let app = app.clone();
+        async move {
+            app.oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap()
+                .status()
+        }
+    };
+    assert_eq!(status("/health/ready").await, StatusCode::OK);
+
+    readiness.on_stop();
+
+    assert_eq!(
+        status("/health/ready").await,
+        StatusCode::SERVICE_UNAVAILABLE
+    );
+    assert_eq!(status("/health").await, StatusCode::OK);
 }

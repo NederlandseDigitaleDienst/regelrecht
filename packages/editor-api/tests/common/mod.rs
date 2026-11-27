@@ -88,6 +88,7 @@ pub fn app_state(pool: Option<PgPool>, oauth: Option<GithubOAuth>) -> AppState {
         harvest_admin_url: None,
         reload_lock: Arc::new(Mutex::new(())),
         integrity: Default::default(),
+        readiness: Default::default(),
         trajects: Arc::new(TrajectCorpusCache::new()),
     }
 }

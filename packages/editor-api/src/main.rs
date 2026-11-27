@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,7 +20,8 @@ use tower_sessions_sqlx_store::PostgresStore;
 
 use regelrecht_editor_api::state::{self, AppState, CorpusState};
 use regelrecht_editor_api::{
-    config, github_oauth, middleware, router, static_cache, traject_corpus, traject_integrity,
+    config, github_oauth, health, middleware, router, static_cache, traject_corpus,
+    traject_integrity,
 };
 
 #[tokio::main]
@@ -30,6 +32,15 @@ async fn main() {
     // the hot-path workers. `LOG_SPAN_EVENTS` still overrides at runtime.
     regelrecht_shared::telemetry::init_subscriber_with_spans("info", true);
     regelrecht_auth::install_crypto_provider();
+
+    // Before anything slow: a SIGTERM during startup exits at once, one
+    // after it drains the server (see `health`).
+    let readiness = health::Readiness::default();
+    let stop_signal = health::stop_signal().unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to install the stop signal handlers");
+        std::process::exit(1);
+    });
+    let stop_signal = health::watch_stop(stop_signal, readiness.clone());
 
     let app_config = config::AppConfig::from_env();
 
@@ -128,6 +139,7 @@ async fn main() {
         reload_lock: Arc::new(tokio::sync::Mutex::new(())),
         trajects: Arc::new(traject_corpus::TrajectCorpusCache::new()),
         integrity: Arc::new(traject_integrity::IntegrityCache::new()),
+        readiness: readiness.clone(),
     };
 
     let index_file = PathBuf::from(&static_dir).join("index.html");
@@ -190,7 +202,7 @@ async fn main() {
             .layer(TraceLayer::new_for_http());
         let app = serve_static_and_secure(app, &static_dir, &index_file);
 
-        serve(app, Some(deletion_handle)).await;
+        serve(app, stop_signal, readiness, Some(deletion_handle)).await;
     } else {
         // No .with_secure(true) — this branch only runs when OIDC is disabled
         // (local development over plain HTTP). In production OIDC is always
@@ -204,12 +216,17 @@ async fn main() {
             .layer(TraceLayer::new_for_http());
         let app = serve_static_and_secure(app, &static_dir, index_file);
 
-        serve(app, None).await;
+        serve(app, stop_signal, readiness, None).await;
     }
 }
 
+/// Serve `app` on port 8000 until a stop signal, then drain (see
+/// [`health::drain_on`]). Exits the process when the listener cannot bind,
+/// the server fails, or the session deletion task stops.
 async fn serve(
     app: Router,
+    stop_signal: impl Future<Output = health::StopSignal> + Send + 'static,
+    readiness: health::Readiness,
     deletion_handle: Option<
         tokio::task::JoinHandle<Result<(), tower_sessions::session_store::Error>>,
     >,
@@ -224,14 +241,16 @@ async fn serve(
             std::process::exit(1);
         });
 
-    if let Some(deletion_handle) = deletion_handle {
-        tokio::select! {
-            result = axum::serve(listener, app) => {
-                if let Err(e) = result {
-                    tracing::error!(error = %e, "server error");
-                    std::process::exit(1);
-                }
-            }
+    if !readiness.start_serving() {
+        // A stop signal came first; its task is exiting the process.
+        return;
+    }
+    let shutdown = health::drain_on(stop_signal, health::DRAIN_DELAY);
+    let server = axum::serve(listener, app).with_graceful_shutdown(shutdown);
+
+    let result = match deletion_handle {
+        Some(deletion_handle) => tokio::select! {
+            result = server => result,
             result = deletion_handle => {
                 match result {
                     Ok(Ok(())) => tracing::error!("session deletion task exited unexpectedly"),
@@ -240,11 +259,14 @@ async fn serve(
                 }
                 std::process::exit(1);
             }
-        }
-    } else if let Err(e) = axum::serve(listener, app).await {
+        },
+        None => server.await,
+    };
+    if let Err(e) = result {
         tracing::error!(error = %e, "server error");
         std::process::exit(1);
     }
+    tracing::info!("server stopped");
 }
 
 /// Initialize the corpus: load local sources, then fetch only the
