@@ -3274,14 +3274,47 @@ pub async fn reload_corpus(
     // source). Without this gate, an authenticated client firing parallel
     // reloads can exhaust the 5000 req/hr token quota and break corpus
     // reads for everyone. Concurrent callers get 429 rather than being
-    // serialised — a reload already in flight will pick up their changes.
-    let _reload_guard = state.reload_lock.try_lock().map_err(|_| {
+    // serialised. A reload already in flight picks up changes in the
+    // sources, but not the `law_ids` of a refused call; that caller has to
+    // ask again. The favourites' load after startup holds this lock too.
+    let reload_guard = state.reload_lock.try_lock().map_err(|_| {
         (
             StatusCode::TOO_MANY_REQUESTS,
             "Corpus reload already in progress".to_string(),
         )
     })?;
 
+    let extra = body.map(|Json(req)| req.law_ids).unwrap_or_default();
+    let law_count = reload_global_corpus(&state, &reload_guard, extra)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "corpus reload failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to reload corpus".to_string(),
+            )
+        })?;
+    tracing::info!(law_count, "corpus reloaded (local + GitHub)");
+    Ok(Json(ReloadResponse { law_count }))
+}
+
+/// Fetch the global corpus again and swap it in: the bodies of every law
+/// that is loaded now plus `extra_law_ids`, and the rest of each source by
+/// path. Returns the number of laws in the new map.
+///
+/// `_reload_guard` is the guard of `state.reload_lock`: holding it is what
+/// keeps two reloads from fanning out to GitHub at once.
+///
+/// # Errors
+///
+/// When the registry cannot be loaded again (see
+/// [`regelrecht_corpus::CorpusRegistry::load_favorites_async`]). The corpus
+/// in memory is left as it was.
+pub async fn reload_global_corpus(
+    state: &AppState,
+    _reload_guard: &tokio::sync::MutexGuard<'_, ()>,
+    extra_law_ids: impl IntoIterator<Item = String>,
+) -> Result<usize, regelrecht_corpus::error::CorpusError> {
     // Gather everything we need under a read lock so concurrent readers
     // (law fetches, scenario loads, dependency resolution) are not blocked
     // for the duration of the GitHub round-trip.
@@ -3300,25 +3333,11 @@ pub async fn reload_corpus(
             .collect();
         (corpus.registry.clone(), corpus.github.clone(), law_ids)
     };
-
-    // Include any extras the caller explicitly requests (e.g. a freshly
-    // harvested law not yet in the corpus).
-    if let Some(Json(req)) = &body {
-        for id in &req.law_ids {
-            law_ids.insert(id.clone());
-        }
-    }
+    law_ids.extend(extra_law_ids);
 
     let mut new_map = registry
         .load_favorites_async(&law_ids, &github, &regelrecht_shared::dates::today_str())
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "corpus reload failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to reload corpus".to_string(),
-            )
-        })?;
+        .await?;
     // Same as at startup (`init_corpus`): the version in force is current,
     // then the rest of each source by path.
     new_map.prefer_version_in_force();
@@ -3338,8 +3357,7 @@ pub async fn reload_corpus(
         // budget stays: a reload must not hand out a fresh hour.
         corpus.lazy_bodies.cache = Default::default();
     }
-    tracing::info!(law_count, "corpus reloaded (local + GitHub)");
-    Ok(Json(ReloadResponse { law_count }))
+    Ok(law_count)
 }
 
 #[derive(Debug, Deserialize)]

@@ -20,8 +20,8 @@ use tower_sessions_sqlx_store::PostgresStore;
 
 use regelrecht_editor_api::state::{self, AppState, CorpusState};
 use regelrecht_editor_api::{
-    config, github_oauth, health, middleware, router, static_cache, traject_corpus,
-    traject_integrity,
+    config, corpus_handlers, github_oauth, health, middleware, router, static_cache,
+    traject_corpus, traject_integrity,
 };
 
 #[tokio::main]
@@ -69,8 +69,8 @@ async fn main() {
 
     // --- Corpus init ---
     let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
-    let favorites = Arc::new(load_favorites(&static_dir));
-    let corpus_state = init_corpus(&favorites).await;
+    let favorites = load_favorites(&static_dir);
+    let corpus_state = init_corpus().await;
 
     let hostname = env::var("HOSTNAME").ok();
     let pipeline_api_url =
@@ -141,6 +141,12 @@ async fn main() {
         integrity: Arc::new(traject_integrity::IntegrityCache::new()),
         readiness: readiness.clone(),
     };
+
+    // The favourites' bodies are fetched in the background, and startup does
+    // not wait for them: they took most of the startup time, and until they
+    // are in, a favourite is fetched on first read like any other indexed
+    // regelwerk.
+    tokio::spawn(load_favorite_bodies(app_state.clone(), favorites));
 
     let index_file = PathBuf::from(&static_dir).join("index.html");
 
@@ -269,9 +275,10 @@ async fn serve(
     tracing::info!("server stopped");
 }
 
-/// Initialize the corpus: load local sources, then fetch only the
-/// favorites that are missing from GitHub sources.
-async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
+/// Initialize the corpus: load local sources and the GitHub sources marked
+/// `load_all`, and hold the rest of each GitHub source by path. The
+/// favourites' bodies follow in the background ([`load_favorite_bodies`]).
+async fn init_corpus() -> CorpusState {
     let manifest_str =
         env::var("CORPUS_REGISTRY_PATH").unwrap_or_else(|_| "corpus-registry.yaml".to_string());
     let local_str = env::var("CORPUS_REGISTRY_LOCAL_PATH")
@@ -302,7 +309,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
 
     let today = regelrecht_shared::dates::today_str();
     let mut source_map = match registry
-        .load_favorites_async(favorites, &github, &today)
+        .load_favorites_async(&HashSet::new(), &github, &today)
         .await
     {
         Ok(map) => {
@@ -310,7 +317,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
             map
         }
         Err(e) => {
-            tracing::warn!(error = %e, "failed to load favorites from GitHub, falling back to local-only");
+            tracing::warn!(error = %e, "failed to load the GitHub sources, falling back to local-only");
             match registry.load_local_sources(&today) {
                 Ok(map) => {
                     tracing::info!(laws = map.len(), "loaded corpus laws (local-only fallback)");
@@ -345,6 +352,24 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
     let backends = init_backends(&registry, &github).await;
 
     CorpusState::new(registry, source_map, backends, github, index_failures)
+}
+
+/// Fetch the bodies of the favourites into the global corpus, through the
+/// same reload `POST /api/corpus/reload` runs. A failure leaves the corpus as
+/// it was; the favourites are then fetched on first read, and are not found
+/// as implementors until a reload loads them.
+async fn load_favorite_bodies(state: AppState, favorites: HashSet<String>) {
+    if favorites.is_empty() {
+        return;
+    }
+    let reload_guard = state.reload_lock.lock().await;
+    match corpus_handlers::reload_global_corpus(&state, &reload_guard, favorites).await {
+        Ok(laws) => tracing::info!(laws, "loaded the favourites' bodies"),
+        Err(e) => tracing::warn!(
+            error = %e,
+            "failed to load the favourites' bodies; they are fetched on first read"
+        ),
+    }
 }
 
 /// Create and initialize backends for each registered source.
