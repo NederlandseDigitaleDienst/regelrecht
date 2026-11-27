@@ -119,6 +119,35 @@ What the check can and cannot establish:
 
 The docs image also serves `/roadmap`, a read-only rendering of the werkpakketten in `docs/src/content/roadmap/` and the JSON file in `docs/src/data/`. It is not a component of its own and has no write path: changing the roadmap means editing those files through a pull request, and every werkpakket page links to its own source on GitHub. The landing page links to it from the footer, next to the documentation and research links; it stays out of the main navigation, which covers the landing page's own sections.
 
+## Health checks
+
+Without the `health-check` service, ZAD checks a component only at TCP level, on its first inbound port. The editor has two HTTP probes for that service to point at, both on port 8000:
+
+| Probe | Path | Answers 200 while |
+|-------|------|-------------------|
+| Liveness | `/health` | the process serves HTTP |
+| Readiness | `/health/ready` | the process takes new requests |
+
+Neither probe looks at the database. A restart does not bring a database back, and the corpus routes keep working without one. A readiness probe that failed with the database would take the only editor pod out of the routing and turn a partial outage into a full one.
+
+The setting lives in ZAD, not in this repository, and it belongs to the component: `editor` is one component in the ZAD project, shared by `regelrecht`, `upload` and every preview, so a change reaches all of them at once. The same holds for its `persistent-storage`. `zadctl component list` shows which deployments use a component, and `zadctl deployment describe <deployment>` which image each one runs.
+
+That is why the readiness probe points at `/health` for now. An editor image from before `/health/ready` existed answers 404 there, because the path falls through to the single-page app, and a pod behind that probe never becomes ready. The `upload` deployment runs such an image (`ghcr.io/minbzk/regelrecht-editor:latest`, from before the move to NederlandseDigitaleDienst), and so does every preview built before the route was added.
+
+```bash
+zadctl service config set health-check -c editor \
+  --set scheme=http --set port=8000 \
+  --set liveness-path=/health --set readiness-path=/health
+```
+
+Switch `readiness-path` to `/health/ready` once every deployment of `editor` runs an image that has it. `zadctl service config get health-check` shows what is set; without a setting, ZAD keeps probing the port.
+
+### Stopping
+
+The editor answers 503 on `/health/ready` from the moment it receives SIGTERM. It keeps serving for five more seconds, because the ingress learns a little later than Kubernetes that the pod is on its way out. Then it stops accepting connections and lets the requests in flight finish. There is no limit on that last part of its own: a slow request, such as one through the harvest proxy, holds the process until Kubernetes kills it at the end of the 30-second grace period. Ctrl-C in a terminal skips the five seconds. The code is in `packages/editor-api/src/health.rs`.
+
+The signal handler is what lets the editor stop at all. The editor runs as PID 1 in its container, and the kernel drops a signal sent to PID 1 that the process does not handle. `main` installs the handler before anything slow. A SIGTERM that arrives before the port is open ends the process at once, since there is nothing to drain; one that arrives later starts the drain. Measured with `docker stop -t 30` on 27 November 2026: the image without the handler took 31 seconds, which is the full timeout followed by a kill, and the build with it took 5 ([#2085](https://github.com/NederlandseDigitaleDienst/regelrecht/issues/2085)).
+
 ## The demo
 
 The demo (`frontend-demo/`) runs at `demo.regelrecht.rijks.app` as the ZAD component `demo` in the `regelrecht` deployment, with only `publish-on-web` on port 8000. It rolls out with `deploy-preview` and `deploy-production` when `script/deploy-filters.mjs` marks the `demo` component as changed. That happens for changes to the engine crate and the workspace crates it depends on, the workspace-wide Rust files (`packages/Cargo.toml`, `packages/Cargo.lock`, `rust-toolchain.toml`, `schema/`), `frontend-demo/`, `packages/frontend-shared/`, `corpus/demo/`, or `deploy/nginx/`.

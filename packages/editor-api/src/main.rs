@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::future::Future;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,7 +20,8 @@ use tower_sessions_sqlx_store::PostgresStore;
 
 use regelrecht_editor_api::state::{self, AppState, CorpusState};
 use regelrecht_editor_api::{
-    config, github_oauth, middleware, router, static_cache, traject_corpus, traject_integrity,
+    config, corpus_handlers, github_oauth, health, middleware, router, static_cache,
+    traject_corpus, traject_integrity,
 };
 
 #[tokio::main]
@@ -30,6 +32,15 @@ async fn main() {
     // the hot-path workers. `LOG_SPAN_EVENTS` still overrides at runtime.
     regelrecht_shared::telemetry::init_subscriber_with_spans("info", true);
     regelrecht_auth::install_crypto_provider();
+
+    // Before anything slow: a SIGTERM during startup exits at once, one
+    // after it drains the server (see `health`).
+    let readiness = health::Readiness::default();
+    let stop_signal = health::stop_signal().unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to install the stop signal handlers");
+        std::process::exit(1);
+    });
+    let stop_signal = health::watch_stop(stop_signal, readiness.clone());
 
     let app_config = config::AppConfig::from_env();
 
@@ -58,8 +69,8 @@ async fn main() {
 
     // --- Corpus init ---
     let static_dir = env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
-    let favorites = Arc::new(load_favorites(&static_dir));
-    let corpus_state = init_corpus(&favorites).await;
+    let favorites = load_favorites(&static_dir);
+    let corpus_state = init_corpus().await;
 
     let hostname = env::var("HOSTNAME").ok();
     let pipeline_api_url =
@@ -128,7 +139,14 @@ async fn main() {
         reload_lock: Arc::new(tokio::sync::Mutex::new(())),
         trajects: Arc::new(traject_corpus::TrajectCorpusCache::new()),
         integrity: Arc::new(traject_integrity::IntegrityCache::new()),
+        readiness: readiness.clone(),
     };
+
+    // The favourites' bodies are fetched in the background, and startup does
+    // not wait for them: they took most of the startup time, and until they
+    // are in, a favourite is fetched on first read like any other indexed
+    // regelwerk.
+    tokio::spawn(load_favorite_bodies(app_state.clone(), favorites));
 
     let index_file = PathBuf::from(&static_dir).join("index.html");
 
@@ -190,7 +208,7 @@ async fn main() {
             .layer(TraceLayer::new_for_http());
         let app = serve_static_and_secure(app, &static_dir, &index_file);
 
-        serve(app, Some(deletion_handle)).await;
+        serve(app, stop_signal, readiness, Some(deletion_handle)).await;
     } else {
         // No .with_secure(true) — this branch only runs when OIDC is disabled
         // (local development over plain HTTP). In production OIDC is always
@@ -204,12 +222,17 @@ async fn main() {
             .layer(TraceLayer::new_for_http());
         let app = serve_static_and_secure(app, &static_dir, index_file);
 
-        serve(app, None).await;
+        serve(app, stop_signal, readiness, None).await;
     }
 }
 
+/// Serve `app` on port 8000 until a stop signal, then drain (see
+/// [`health::drain_on`]). Exits the process when the listener cannot bind,
+/// the server fails, or the session deletion task stops.
 async fn serve(
     app: Router,
+    stop_signal: impl Future<Output = health::StopSignal> + Send + 'static,
+    readiness: health::Readiness,
     deletion_handle: Option<
         tokio::task::JoinHandle<Result<(), tower_sessions::session_store::Error>>,
     >,
@@ -224,14 +247,16 @@ async fn serve(
             std::process::exit(1);
         });
 
-    if let Some(deletion_handle) = deletion_handle {
-        tokio::select! {
-            result = axum::serve(listener, app) => {
-                if let Err(e) = result {
-                    tracing::error!(error = %e, "server error");
-                    std::process::exit(1);
-                }
-            }
+    if !readiness.start_serving() {
+        // A stop signal came first; its task is exiting the process.
+        return;
+    }
+    let shutdown = health::drain_on(stop_signal, health::DRAIN_DELAY);
+    let server = axum::serve(listener, app).with_graceful_shutdown(shutdown);
+
+    let result = match deletion_handle {
+        Some(deletion_handle) => tokio::select! {
+            result = server => result,
             result = deletion_handle => {
                 match result {
                     Ok(Ok(())) => tracing::error!("session deletion task exited unexpectedly"),
@@ -240,16 +265,20 @@ async fn serve(
                 }
                 std::process::exit(1);
             }
-        }
-    } else if let Err(e) = axum::serve(listener, app).await {
+        },
+        None => server.await,
+    };
+    if let Err(e) = result {
         tracing::error!(error = %e, "server error");
         std::process::exit(1);
     }
+    tracing::info!("server stopped");
 }
 
-/// Initialize the corpus: load local sources, then fetch only the
-/// favorites that are missing from GitHub sources.
-async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
+/// Initialize the corpus: load local sources and the GitHub sources marked
+/// `load_all`, and hold the rest of each GitHub source by path. The
+/// favourites' bodies follow in the background ([`load_favorite_bodies`]).
+async fn init_corpus() -> CorpusState {
     let manifest_str =
         env::var("CORPUS_REGISTRY_PATH").unwrap_or_else(|_| "corpus-registry.yaml".to_string());
     let local_str = env::var("CORPUS_REGISTRY_LOCAL_PATH")
@@ -280,7 +309,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
 
     let today = regelrecht_shared::dates::today_str();
     let mut source_map = match registry
-        .load_favorites_async(favorites, &github, &today)
+        .load_favorites_async(&HashSet::new(), &github, &today)
         .await
     {
         Ok(map) => {
@@ -288,7 +317,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
             map
         }
         Err(e) => {
-            tracing::warn!(error = %e, "failed to load favorites from GitHub, falling back to local-only");
+            tracing::warn!(error = %e, "failed to load the GitHub sources, falling back to local-only");
             match registry.load_local_sources(&today) {
                 Ok(map) => {
                     tracing::info!(laws = map.len(), "loaded corpus laws (local-only fallback)");
@@ -323,6 +352,24 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
     let backends = init_backends(&registry, &github).await;
 
     CorpusState::new(registry, source_map, backends, github, index_failures)
+}
+
+/// Fetch the bodies of the favourites into the global corpus, through the
+/// same reload `POST /api/corpus/reload` runs. A failure leaves the corpus as
+/// it was; the favourites are then fetched on first read, and are not found
+/// as implementors until a reload loads them.
+async fn load_favorite_bodies(state: AppState, favorites: HashSet<String>) {
+    if favorites.is_empty() {
+        return;
+    }
+    let reload_guard = state.reload_lock.lock().await;
+    match corpus_handlers::reload_global_corpus(&state, &reload_guard, favorites).await {
+        Ok(laws) => tracing::info!(laws, "loaded the favourites' bodies"),
+        Err(e) => tracing::warn!(
+            error = %e,
+            "failed to load the favourites' bodies; they are fetched on first read"
+        ),
+    }
 }
 
 /// Create and initialize backends for each registered source.

@@ -23,7 +23,7 @@ regelrecht-corpus = { path = "../corpus", features = ["github", "annotation-vali
 regelrecht-github = { path = "../github" }
 regelrecht-law-model = { path = "../law-model" }
 regelrecht-pipeline = { path = "../pipeline" }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["fs", "trace"] }
 tower-sessions.workspace = true
@@ -53,6 +53,8 @@ http-body-util.workspace = true
 pretty_assertions.workspace = true
 tower = { workspace = true, features = ["util"] }
 tempfile.workspace = true
+# Paused time for the drain tests in src/health.rs.
+tokio = { workspace = true, features = ["test-util"] }
 wiremock.workspace = true
 
 [lints]

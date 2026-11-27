@@ -14,6 +14,7 @@ mod favorites;
 pub mod feature_flags;
 pub mod github_oauth;
 mod harvest_proxy;
+pub mod health;
 mod law_search;
 pub mod middleware;
 mod router;
