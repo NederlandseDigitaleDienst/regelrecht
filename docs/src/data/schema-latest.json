@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.24",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.26/schema/v0.8.26/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.26",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -11,6 +11,18 @@
     "articles"
   ],
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL of the schema version this rulework conforms to."
+    },
+    "$id": {
+      "type": "string",
+      "description": "Identifier of the rulework, the same in every version of it. Other ruleworks name it in `source.regulation`, `implements` and `legal_basis`."
+    },
+    "uuid": {
+      "type": "string",
+      "description": "An identifier of this version of the rulework in UUID form, optional. The engine carries it into the trace as `law_uuid`."
+    },
     "name": {
       "type": "string",
       "description": "Name of the law/regulation (can be plain text or internal reference like '#wet_naam')."
@@ -74,6 +86,13 @@
       "description": "BWB identification number (for Dutch national laws).",
       "examples": [
         "BWBR0018451"
+      ]
+    },
+    "cvdr_id": {
+      "type": "string",
+      "description": "CVDR identification number (for decentralized regulations), as the harvester records it for a regulation it took from the CVDR.",
+      "examples": [
+        "CVDR681386"
       ]
     },
     "celex_nummer": {
@@ -406,7 +425,8 @@
                 "description": "Legal character this procedure governs."
               }
             },
-            "description": "Which decisions this procedure governs, matched on the legal character an article declares in `produces`."
+            "description": "Which decisions this procedure governs, matched on the legal character an article declares in `produces`.",
+            "additionalProperties": false
           },
           "stages": {
             "type": "array",
@@ -450,14 +470,17 @@
                         ],
                         "description": "Value type of the required input."
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   }
                 }
-              }
+              },
+              "additionalProperties": false
             },
             "description": "The lifecycle stages in order, from the application to the final decision. Each names itself and what it needs before it can complete."
           }
-        }
+        },
+        "additionalProperties": false
       }
     }
   },
@@ -1160,7 +1183,8 @@
               "unit": "ratio",
               "precision": 4
             }
-          ]
+          ],
+          "additionalProperties": false
         },
         "temporal": {
           "type": "object",
@@ -1202,7 +1226,8 @@
                 }
               ]
             }
-          }
+          },
+          "additionalProperties": false
         },
         "legal_basis": {
           "$ref": "#/definitions/legalBasis",
@@ -1254,7 +1279,19 @@
             }
           }
         }
-      ]
+      ],
+      "properties": {
+        "name": true,
+        "description": true,
+        "type": true,
+        "nullable": true,
+        "type_spec": true,
+        "temporal": true,
+        "legal_basis": true,
+        "required": true,
+        "columns": true
+      },
+      "additionalProperties": false
     },
     "arrayColumn": {
       "type": "object",
@@ -1316,14 +1353,10 @@
                   "type": "string",
                   "description": "Human-readable description or legal reference for this data source."
                 },
-                "endpoint": {
-                  "type": "string",
-                  "description": "Endpoint to call on the delegated regulation."
-                },
                 "reduction": {
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
-                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint` or `article`."
+                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output` or `article`."
                 },
                 "article": {
                   "oneOf": [
@@ -1334,7 +1367,7 @@
                       "$ref": "#/definitions/variableReference"
                     }
                   ],
-                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `basis` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `basis` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{basis, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation`, `decisions` and `endpoint`."
+                  "description": "The article whose decision this input takes: `<regulation>#<article>`, or a `$`-reference to a value that holds one, such as the `basis` of a `decision` value, or that is a `decision` value itself. A `decision` value is called anew: the engine runs its `basis` with its own `fields` as parameters and its own `findings`. Without `output` the engine runs the decision item of that article at stage BESLUIT, and the input is a `decision` value `{basis, fields, findings, outputs}`. With `output`, the input is that one output of the decision item. The article is the one in force on the calculation date; one that is not in force, or that takes no decision, is an error at run time. The parameters are the `fields` of a `decision` value, then those of `parameters_from`, with `parameters` on top; a name the article does not declare is dropped, and the trace names it, unless it is the id of an open term the article leaves to an authority per case (`decided_per_case_by`): that is the finding for this case, kept under `findings`, not `fields`. A finding the caller of the engine gives for the execution, apart from the parameters, wins over one the call passes, and an implementation of the term still wins over both (RFC-047). It stands apart from `regulation` and `decisions`."
                 },
                 "parameters_from": {
                   "type": "array",
@@ -1347,7 +1380,7 @@
                 "projections": {
                   "type": "string",
                   "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$",
-                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`. Since v0.8.19 it names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the `$id` of the reduction alone. The article must play one aggregate per record (`projection.per`). A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list.",
+                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`. Since v0.8.19 it names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the `$id` of the reduction alone. The article must play one aggregate per record (`projection.per`). A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list.",
                   "not": {
                     "pattern": " lid [0-9]"
                   },
@@ -1376,11 +1409,6 @@
                         "required": [
                           "regulation"
                         ]
-                      },
-                      {
-                        "required": [
-                          "endpoint"
-                        ]
                       }
                     ]
                   }
@@ -1401,11 +1429,6 @@
                       {
                         "required": [
                           "output"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "endpoint"
                         ]
                       },
                       {
@@ -1432,11 +1455,6 @@
                       {
                         "required": [
                           "parameters"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "endpoint"
                         ]
                       },
                       {
@@ -1503,7 +1521,18 @@
             "source"
           ]
         }
-      ]
+      ],
+      "properties": {
+        "name": true,
+        "description": true,
+        "type": true,
+        "nullable": true,
+        "type_spec": true,
+        "temporal": true,
+        "legal_basis": true,
+        "source": true
+      },
+      "additionalProperties": false
     },
     "outputField": {
       "allOf": [
@@ -1536,7 +1565,18 @@
             }
           }
         }
-      ]
+      ],
+      "properties": {
+        "name": true,
+        "description": true,
+        "type": true,
+        "nullable": true,
+        "type_spec": true,
+        "temporal": true,
+        "legal_basis": true,
+        "columns": true
+      },
+      "additionalProperties": false
     },
     "arithmeticOperation": {
       "type": "object",
@@ -2372,25 +2412,6 @@
           "minimum": -28,
           "maximum": 28
         },
-        "resolve": {
-          "type": "object",
-          "description": "Look up the value in whichever regulation implements it. The Rust law-model reads it, but the engine does not execute it yet; no law in the corpus uses it.",
-          "properties": {
-            "type": {
-              "type": "string",
-              "description": "Regulatory layer to search for implementation."
-            },
-            "output": {
-              "type": "string",
-              "description": "Output field to retrieve."
-            },
-            "match": {
-              "type": "object",
-              "description": "Matching criteria for selecting the right implementation.",
-              "additionalProperties": true
-            }
-          }
-        },
         "legal_basis": {
           "$ref": "#/definitions/legalBasis",
           "description": "The provision this action rests on. The engine records it on the action's trace step (RFC-039), so a result can cite the provision it follows from."
@@ -2476,10 +2497,6 @@
       "type": "object",
       "description": "Machine-readable interpretation of legal text.",
       "properties": {
-        "endpoint": {
-          "type": "string",
-          "description": "Named endpoint for this article. The Rust law-model reads it, but the engine does not call by endpoint: a law calls another law by output name."
-        },
         "competent_authority": {
           "description": "Bevoegd gezag: the authority whose execution of this article produces a binding decision. Another body may run the same calculation and get the same number, but its result carries no legal force (RFC-009). Annotation only: the engine computes the same either way.",
           "oneOf": [
@@ -2935,7 +2952,8 @@
                       ]
                     }
                   },
-                  "description": "What executing this article yields in legal terms: its legal character, the kind of decision it is, and the procedure that governs it. Not merely annotation: `legal_character` and `decision_type` select which hooks fire, and `legal_character` with `procedure_id` selects the Awb procedure, so an article's outputs and how it runs both depend on what is declared here."
+                  "description": "What executing this article yields in legal terms: its legal character, the kind of decision it is, and the procedure that governs it. Not merely annotation: `legal_character` and `decision_type` select which hooks fire, and `legal_character` with `procedure_id` selects the Awb procedure, so an article's outputs and how it runs both depend on what is declared here.",
+                  "additionalProperties": false
                 },
                 {
                   "type": "array",
@@ -3204,11 +3222,6 @@
                               {
                                 "required": [
                                   "precision"
-                                ]
-                              },
-                              {
-                                "required": [
-                                  "resolve"
                                 ]
                               }
                             ]
@@ -3800,7 +3813,9 @@
           "default": "INSTANCE",
           "description": "INSTANCE = specific organization (default), CATEGORY = must be resolved per context."
         }
-      }
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "additionalProperties": false
 }

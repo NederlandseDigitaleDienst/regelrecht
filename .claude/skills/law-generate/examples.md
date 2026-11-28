@@ -368,7 +368,6 @@ the marking, and the marking takes nothing away from the model.
 
 ```yaml
 machine_readable:
-  endpoint: is_verzekerde
   markings:
     - about: het bereik van de begripsbepalingen over de daarop berustende bepalingen
       reason: >-

@@ -13,12 +13,12 @@ This page owns the field-level detail, down to which operands each operation tak
 
 ## Current Version
 
-The current schema version is **v0.8.24**.
+The current schema version is **v0.8.26**.
 
 Schema URLs use immutable git tags to guarantee reproducibility. The format is:
 
 ```
-https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.26/schema/v0.8.26/schema.json
 ```
 
 The tag `schema-vX.Y.Z` is created when a schema version is released. Using tags instead of `refs/heads/main` ensures that the schema a version of a rulework references can never change underneath it. See [RFC-013](/rfcs/rfc-013) for the rationale.
@@ -31,6 +31,7 @@ This table is the single source of truth for which schema version introduced whi
 
 | Version | Introduces | RFC |
 |---------|-----------|-----|
+| v0.8.26 | Removes two fields no engine acts on. `resolve` on an action searched downward for a regulation that implements a value; `open_terms` and `implements` replaced it in v0.4.0, and the engine never executed it. `endpoint` on a `machine_readable` and on the `source` of an input named a callable entry point, but a rulework calls another by the name of its output. The objects that still accepted any key now refuse one the schema does not define: the document itself, a `procedure` with its `applies_to`, stages and stage requirements, the object form of `produces`, a named authority, `type_spec`, `temporal`, and every parameter, input and output. A misspelled key such as `valid_form` used to pass in silence. The document declares `$schema`, `$id` and `uuid`, which ruleworks already carry, and `cvdr_id`, which the harvester writes. `jaar` and `identifiers` are refused: the law-model reads them, but no schema version defined them. Keys that some older ruleworks carry, such as `enum` on a `type_spec` or `required` on an input, are refused too. A file on v0.8.24 or earlier is not affected: it validates against its own version, and the engine reads `resolve` and `endpoint` there as before | [RFC-003](/rfcs/rfc-003) |
 | v0.8.24 | `implements` takes an optional `host` (`law` and `article`): the article a hook fires on. Such a filling of an open term of a hook applies only while the hook fires on that article, receives its parameters from that article's scope, may come from any regulation the term's `delegation_type` admits, and goes before a filling without `host`. A filling without `host` fills the term wherever the article runs, with the parameters of the article that declares the term. A file on an earlier version that uses `host` is refused | [RFC-058](/rfcs/rfc-058) |
 | v0.8.22 | `RECORD` builds one row with its own columns: each key of `fields` names a column and each value is an operand, so a `$`-reference in it is resolved and an operation in it is executed. As the body of a `FOREACH` without `combine` it gives an array of rows. An output of type `array` may declare `columns`, and the loader checks every `RECORD` the article writes for that output against them. An unknown value stays in its column; a marked construct makes the row untranslatable. A file on v0.8.21 or earlier that uses `RECORD`, or gives an output `columns`, is refused | [RFC-016](/rfcs/rfc-016) |
 | v0.8.21 | `FOREACH` takes `combine: DISTINCT`: the unique results as an array, in the order each first occurs. Two results are the same when `EQUALS` says so: scalars by value, rows field by field, lists element by element in order. `null` stays once, and an empty collection gives an empty array. To get the value that several equal results share, apply `ONLY` to the result of `DISTINCT`; `ONLY` stays strict. A file on v0.8.20 or earlier that uses `DISTINCT` is refused | [RFC-016](/rfcs/rfc-016) |

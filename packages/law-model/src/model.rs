@@ -2453,6 +2453,10 @@ pub struct ArticleBasedLaw {
     /// BWB identifier for national laws
     #[serde(default)]
     pub bwb_id: Option<String>,
+    /// CVDR identifier for decentralized regulations, as the harvester writes
+    /// it (schema v0.8.26)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cvdr_id: Option<String>,
     /// URL to official source
     #[serde(default)]
     pub url: Option<String>,

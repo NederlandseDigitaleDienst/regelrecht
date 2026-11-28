@@ -16,6 +16,7 @@ fn make_law(id: &str, layer: RegulatoryLayer, valid_from: &str) -> ArticleBasedL
         schema: None,
         competent_authority: None,
         bwb_id: None,
+        cvdr_id: None,
         url: None,
         identifiers: None,
         gemeente_code: None,
