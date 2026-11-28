@@ -560,9 +560,10 @@ smoke-preview TARGET="":
 
 # --- Mutation testing ---
 
-# Run mutation testing on engine (in-place because tests use relative paths to corpus/)
+# Run mutation testing on the engine and the cell, as the weekly run does
+# (in-place because tests use relative paths to corpus/)
 mutants *ARGS:
-    cd packages/engine && cargo mutants --in-place --timeout-multiplier 3 {{ARGS}}
+    cd packages && cargo mutants --in-place --package regelrecht-engine --package regelrecht-cel --timeout-multiplier 3 {{ARGS}}
 
 # Mutation testing on your own changes only — the local tegenhanger of the
 # mutation-diff CI-poort. De volledige set kost uren, dit een paar minuten.
@@ -593,6 +594,20 @@ mutants-diff BASE="origin/main":
     fi
     cd packages
     cargo mutants --in-place --timeout 120 --in-diff "$diff_file"
+
+# Constructiemutatie: breek één constructie van het wetsformaat tegelijk in de
+# synthetische test_*-regelwerken en draai bucket B en de suite van de cel. Een
+# constructie is vastgepind als er een scenario rood wordt. cargo-mutants
+# hierboven vraagt hetzelfde van de Rust-code van de engine; dit vraagt het van
+# de taal. `--check bdd/construct-gaps.txt` vergelijkt met de bekende gaten,
+# `--only ADD,IF` draait een deel. In CI kost het hele rondje over vier shards
+# zo'n zes minuten per shard.
+[doc("Break one law-format construct at a time and see which scenarios notice")]
+construct-mutants *ARGS:
+    {{ci_flags}} node script/construct-mutants.mjs {{ARGS}}
+
+construct-mutants-test:
+    node --test script/construct-mutants.test.mjs
 
 # --- Benchmarks ---
 
