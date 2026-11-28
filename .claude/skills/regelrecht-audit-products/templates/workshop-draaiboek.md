@@ -1,4 +1,4 @@
-# {Dossier}-expert-workshop — {artikel/onderwerp} — {datum} ({duur})
+# {Traject}-expert-workshop — {artikel/onderwerp} — {datum} ({duur})
 
 **Doel**: {wat valideren we, met wie, in hoeveel tijd}.
 

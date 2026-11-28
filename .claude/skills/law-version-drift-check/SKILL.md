@@ -115,7 +115,7 @@ fallback for that article.
 Before any drift-report is emitted, the skill must independently re-find a set
 of pre-recorded **known drifts** for the corpus under review. The ijkpunten file
 lives **in the corpus** (`docs/drift-ijkpunten.md` or equivalent), **not in this
-skill**, so the skill stays dossier-agnostic.
+skill**, so the skill stays case-agnostic.
 
 If calibration fails to recall ≥ 80% of known drifts: WebFetch is not reliable
 for this run. Retry with stricter prompts; on a second failure, fall back to
@@ -264,7 +264,7 @@ plannable (one PR that restores accents corpus-wide, rather than per-article).
 
 ## Hard rules
 
-- **Dossier-agnostisch.** No corpus content, no concrete drift examples, no
+- **Casus-agnostisch.** No corpus content, no concrete drift examples, no
   references to specific findings — those belong to the corpus the skill runs
   against, not to the skill itself.
 - **Verbatim is wet.** No normalization beyond the single intra-paragraph

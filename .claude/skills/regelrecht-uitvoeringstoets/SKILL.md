@@ -1,6 +1,6 @@
 ---
 name: regelrecht-uitvoeringstoets
-description: Genereert uit een (semi-)gevalideerd regelrecht-corpus een geloofwaardige service-PoC (burger- + behandelaar-portaal, of een headless beslis-service) en zet die in als validatie-instrument met uitvoeringsexperts — om tastbaar te maken wat nodig is om een wet rechtvaardig in de praktijk te brengen, gezien vanuit de betrokkene. Gebruik dit als workshop-fase ná de logica-/scenariovalidatie (audit-products) om de dienstverlening-kant te valideren: welke service impliceert de wet, waar zit menselijk oordeel, welke last ligt bij de burger, welke termijnen, waar is de wet hard of onduidelijk. Dossier-agnostisch; de regelrecht-methode (hooks, legal_character, untranslatables, source/implements, type_spec, receipts) is de vaste taal. Voor de logica-/scenariovalidatie zelf: zie de zusterskill regelrecht-audit-products.
+description: Genereert uit een (semi-)gevalideerd regelrecht-corpus een geloofwaardige service-PoC (burger- + behandelaar-portaal, of een headless beslis-service) en zet die in als validatie-instrument met uitvoeringsexperts — om tastbaar te maken wat nodig is om een wet rechtvaardig in de praktijk te brengen, gezien vanuit de betrokkene. Gebruik dit als workshop-fase ná de logica-/scenariovalidatie (audit-products) om de dienstverlening-kant te valideren: welke service impliceert de wet, waar zit menselijk oordeel, welke last ligt bij de burger, welke termijnen, waar is de wet hard of onduidelijk. Casus-agnostisch; de regelrecht-methode (hooks, legal_character, untranslatables, source/implements, type_spec, receipts) is de vaste taal. Voor de logica-/scenariovalidatie zelf: zie de zusterskill regelrecht-audit-products.
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, AskUserQuestion
 ---
 
@@ -19,11 +19,11 @@ zijn dat het "echt had kunnen zijn", anders valideert het niet eerlijk.
 > **De familie + router.** Dit is **workshop-fase 2 (dienstverlening)**, ná de logica-/
 > scenariovalidatie. Logica valideren = `regelrecht-audit-products`. Desk-review/corpus-
 > completion = `regelrecht-stelselanalyse`. Casussen/persona's/traces = `regelrecht-
-> scenario-traces`. Twijfel je waar te beginnen → `regelrecht-dossier` (front-door router).
+> scenario-traces`. Twijfel je waar te beginnen → `regelrecht-traject` (voordeur).
 
 ## Geen casus-inhoud
 
-Deze skill is **dossier-agnostisch**. Hij bevat geen organisatie-, persoons-, functie-,
+Deze skill is **casus-agnostisch**. Hij bevat geen organisatie-, persoons-, functie-,
 of domeinnamen, geen concrete law-ids/param-namen/bedragen, en geen onderbouwingen uit een
 specifieke casus. Concrete waarden leven **uitsluitend** in het (privé) corpus en in de
 at-runtime gegenereerde service-spec van de (privé) PoC — nooit in deze skill of de

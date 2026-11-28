@@ -1,4 +1,4 @@
-# Jargon-spiekbriefje — {Dossier}-workshop
+# Jargon-spiekbriefje — {Traject}-workshop
 
 *Houd dit naast je. Alle schema-/engine-termen in mensentaal, met één concreet
 casus-voorbeeld per stuk. Generieke definities staan vast (zie method-glossary);

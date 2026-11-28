@@ -1,4 +1,4 @@
-# {Dossier / endpoint} — casus-matrix (reverse-lookup index)
+# {Traject / endpoint} — casus-matrix (reverse-lookup index)
 
 Vind een casus terug: van mensentaal naar scenario, keten-pad en uitkomst. De
 tegenhanger van de persona-bibliotheek — daar staat de definitie, hier de index.

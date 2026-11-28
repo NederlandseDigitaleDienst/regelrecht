@@ -1,6 +1,6 @@
 ---
 name: regelrecht-stelselanalyse
-description: Voert de iteratieve desk-review-&-completion-cyclus uit op een regelrecht-corpus — plannen, harvesten/migreren/uitbreiden, multi-agent valideren, bevindingen 4-weg classificeren (modellering-fout / wetgevings-fout / engine-limitatie / acceptabele untranslatable), synthese + heroverweging, documenteren (wetgevings-/stelselfouten-analyse, fixes-plan, engine-limitaties, diagrammen, corpus-status), verifiëren tegen externe bronnen (resolutie-tracker + bronnen-dossier), en een eindrapport per cyclus. Gebruik dit bij corpus-review op correctheid/coverage zonder live expert-sessie, het opstellen van een wetgevings-notitie-bron, schema-migratie, het harvesten van nieuwe wetten, of het aansturen van een autonome completion-loop. Dossier-agnostisch; de regelrecht-methode is de vaste taal. Voor live-validatie met experts: zie regelrecht-audit-products.
+description: Voert de iteratieve desk-review-&-completion-cyclus uit op een regelrecht-corpus — plannen, harvesten/migreren/uitbreiden, multi-agent valideren, bevindingen 4-weg classificeren (modellering-fout / wetgevings-fout / engine-limitatie / acceptabele untranslatable), synthese + heroverweging, documenteren (wetgevings-/stelselfouten-analyse, fixes-plan, engine-limitaties, diagrammen, corpus-status), verifiëren tegen externe bronnen (resolutie-tracker + bronnen-dossier), en een eindrapport per cyclus. Gebruik dit bij corpus-review op correctheid/coverage zonder live expert-sessie, het opstellen van een wetgevings-notitie-bron, schema-migratie, het harvesten van nieuwe wetten, of het aansturen van een autonome completion-loop. Casus-agnostisch; de regelrecht-methode is de vaste taal. Voor live-validatie met experts: zie regelrecht-audit-products.
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, WebFetch, WebSearch, Agent, AskUserQuestion, ScheduleWakeup, Monitor
 ---
 
@@ -25,8 +25,8 @@ praktijk, scope-keuzes) routeren naar de workshop-skill **`regelrecht-audit-prod
 feitelijke defecten blijven hier. De *judgment*-set untranslatables wordt de beslispunten
 van een workshop; de scope-analyse daar komt uit de desk-producten `cross-law-diagram` +
 `corpus-status`. Workshop-correctiepunten komen terug de cyclus in (fixes + verificatie).
-Twijfel je waar te beginnen → **`regelrecht-dossier`** (router). Canonieke flow:
-`regelrecht-dossier/references/routing.md`.
+Twijfel je waar te beginnen → **`regelrecht-traject`** (router). Canonieke flow:
+`regelrecht-traject/references/routing.md`.
 
 ## De cyclus
 
@@ -151,7 +151,7 @@ toetsbaar tegen de wettekst i.p.v. alleen de endpoint.
 8. **Eindrapport** per cyclus (`templates/eindrapport.md`): doel vs resultaat, geleverd,
    discoveries, open punten voor de volgende cyclus.
 
-9. **Schrijf naar het corpus/dossier, niet in de skill. Commit/push alleen op verzoek.**
+9. **Schrijf naar het corpus/traject, niet in de skill. Commit/push alleen op verzoek.**
 
 ## Bestanden in deze skill
 
@@ -199,7 +199,7 @@ alleen naar private repos). Draai als preflight vóór elke push; PUBLIC/INTERNA
 - `regelrecht-scenario-traces` — techniek-skill voor keten-checkpoints + golden-trace-
   snapshots (zie de *Meta-check*): maakt elke ketenschakel los toetsbaar tegen de wettekst,
   niet alleen de endpoint.
-- `regelrecht-dossier` — front-door router (`references/routing.md` = canonieke flow).
+- `regelrecht-traject` — voordeur (`references/routing.md` = canonieke flow).
 - `law-wetsgeschiedenis` — de wetsgeschiedenis per artikel en lid, uit de afgespeelde
   Kamerstukken: waar een regel vandaan komt, welke nota's en amendementen haar raakten,
   hoe zij op een datum luidde, en wat de toelichting erover zegt. Gebruik in stap 7
@@ -216,4 +216,4 @@ alleen naar private repos). Draai als preflight vóór elke push; PUBLIC/INTERNA
   (doorgestreept + reden), tellingen aangepast — geen stille verwijdering.
 - **Scheid corpus- en engine-issues**: een engine-limitatie is geen wetgevings- of
   modellering-fout; track 'm apart zodat het corpus niet onterecht "fout" lijkt.
-- **Dossier-agnostisch blijven**; niets pushen zonder toestemming.
+- **Casus-agnostisch blijven**; niets pushen zonder toestemming.

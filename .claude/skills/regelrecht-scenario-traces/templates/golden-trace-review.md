@@ -1,4 +1,4 @@
-# {Dossier / endpoint} — golden-trace & coverage-review — {datum}
+# {Traject / endpoint} — golden-trace & coverage-review — {datum}
 
 **Scope**: {endpoint(s) / keten} · **Engine**: {versie} · **Scenario's**: {n}
 

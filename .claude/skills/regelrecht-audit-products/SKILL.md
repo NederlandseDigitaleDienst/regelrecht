@@ -1,6 +1,6 @@
 ---
 name: regelrecht-audit-products
-description: Bouwt de audit- en workshop-producten waarmee juridische experts een machine-leesbare (regelrecht-YAML) vertaling van wet- en regelgeving valideren in een live sessie. Gebruik dit bij het voorbereiden van een expert-workshop of validatie-sessie over een dossier, het maken van een scope-/stelselanalyse, per-artikel audit-checklists, facilitator-materiaal, testcase-scenario's, of sessie-verslagen (intern + extern). Dossier-agnostisch; de regelrecht-methode (YAML, formules, untranslatables, source/override, legal_basis, engine-trace) is de vaste taal. Voor analytische desk-review van een corpus zonder live sessie (wetgevings-/stelselfouten, coverage, multi-agent review): zie de zusterskill regelrecht-stelselanalyse.
+description: Bouwt de audit- en workshop-producten waarmee juridische experts een machine-leesbare (regelrecht-YAML) vertaling van wet- en regelgeving valideren in een live sessie. Gebruik dit bij het voorbereiden van een expert-workshop of validatie-sessie over een traject, het maken van een scope-/stelselanalyse, per-artikel audit-checklists, facilitator-materiaal, testcase-scenario's, of sessie-verslagen (intern + extern). Casus-agnostisch; de regelrecht-methode (YAML, formules, untranslatables, source/override, legal_basis, engine-trace) is de vaste taal. Voor analytische desk-review van een corpus zonder live sessie (wetgevings-/stelselfouten, coverage, multi-agent review): zie de zusterskill regelrecht-stelselanalyse.
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, AskUserQuestion
 ---
 
@@ -12,7 +12,7 @@ facilitatie, en nazorg van een **live validatie-sessie**.
 
 > **Twee skills + een router.** Dit is de live-sessie-familie. De analytische
 > **desk-review**-familie woont in **`regelrecht-stelselanalyse`**. Twijfel je waar te
-> beginnen of hoe ze samenhangen → **`regelrecht-dossier`** (front-door router).
+> beginnen of hoe ze samenhangen → **`regelrecht-traject`** (voordeur).
 
 ## Routing & handoff
 
@@ -21,16 +21,16 @@ praktijkvragen naar de workshop (hier). Twee workshop-modi: **verkennend** (vroe
 gate — domeinkennis ontginnen op een ruwe scope-analyse) en **validerend** (gate: schema
 valide + tests groen + modellering-fouten gefixt + resterende open punten zijn judgment).
 Na de sessie gaan correctiepunten + bevestigde interpretaties terug de desk-cyclus in.
-Canonieke flow: zie `regelrecht-dossier/references/routing.md`.
+Canonieke flow: zie `regelrecht-traject/references/routing.md`.
 
-Deze skill bevat **geen casus-inhoud**. Hij is generiek over dossiers; alleen de
+Deze skill bevat **geen casus-inhoud**. Hij is generiek over trajecten; alleen de
 regelrecht-*methode* ligt vast. Concrete casus-inhoud (welke wet, welke gronden,
 welke bedragen) komt uit de aangeleverde casus-map of uit de analist tijdens het
 opbouwen.
 
 ## Wanneer gebruiken
 
-- "Ik ga een workshop / validatie-sessie voorbereiden over dossier X"
+- "Ik ga een workshop / validatie-sessie voorbereiden over traject X"
 - "Maak een scope-analyse / stelseloverzicht voor deze casus"
 - "Maak audit-documenten voor de artikelen die we gaan doornemen"
 - "Ik heb facilitator-materiaal nodig (draaiboek, spiekbriefje, jargon-uitleg)"
@@ -74,7 +74,7 @@ beoordelings-paden op te halen voordat je schrijft.
    `references/method-glossary.md`.
 
 4. **Schrijf naar de casus-map, niet in de skill.** Output gaat naar de
-   werkomgeving van het dossier (bijv. een `audit/`- of `docs/`-map van de casus).
+   werkomgeving van het traject (bijv. een `audit/`- of `docs/`-map van de casus).
    Wijzig nooit de sjablonen in deze skill met casus-inhoud.
 
 5. **Commit/push alleen op verzoek.** Nooit ongevraagd pushen.
@@ -95,7 +95,7 @@ beoordelings-paden op te halen voordat je schrijft.
 
 ## Belangrijke regels
 
-- **Dossier-agnostisch blijven.** Geen vaste wet-namen, bedragen, of casus-specifieke
+- **Casus-agnostisch blijven.** Geen vaste wet-namen, bedragen, of casus-specifieke
   voorbeelden in de skill-bestanden. In *output* mag casus-inhoud uiteraard wel.
 - **Vertrouwelijkheid.** Neem geen persoonsgegevens of vertrouwelijke casus-details op
   in producten die voor verspreiding bedoeld zijn (bijv. extern verslag, scenario's).

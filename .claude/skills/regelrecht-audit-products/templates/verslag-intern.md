@@ -1,4 +1,4 @@
-# Verslag {Dossier}-expert-sessie {datum} — intern
+# Verslag {Traject}-expert-sessie {datum} — intern
 
 *Voor het eigen team. Primair document voor reflectie + vervolgstappen. De hoogover-
 variant voor de klant staat apart. Eerlijk en volledig — ook wat niet goed liep.*

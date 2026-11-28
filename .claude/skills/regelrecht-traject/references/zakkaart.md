@@ -3,14 +3,14 @@
 *Eén A4. Waar begin ik · welke skill · hoe loopt een casus. (Methode bekend verondersteld.)*
 
 ## Bij twijfel: de voordeur
-**Beschrijf je casus → `regelrecht-dossier` (router) wijst de weg.** Je hoeft geen
+**Beschrijf je casus → `regelrecht-traject` (router) wijst de weg.** Je hoeft geen
 skill-namen te onthouden — zeg wat je wilt, de router triageert en dispatcht.
 
 ## Drie deuren (op intentie)
 
 | Je wilt… | Deur |
 |---|---|
-| nieuwe casus · waar begin ik · welke producten heb ik nodig | **router** — `regelrecht-dossier` |
+| nieuwe casus · waar begin ik · welke producten heb ik nodig | **router** — `regelrecht-traject` |
 | wet machine-leesbaar maken · corpus reviewen · fouten in de wet vinden | **desk** — `regelrecht-stelselanalyse` |
 | expert-/validatiesessie voorbereiden | **workshop** — `regelrecht-audit-products` |
 
@@ -69,4 +69,4 @@ Commits door routines gaan **alleen naar private repos** (push-guard); bewust pu
 pushen: `ALLOW_PUBLIC_PUSH=1`.
 
 ---
-Canonieke flow & details: `regelrecht-dossier/references/routing.md`
+Canonieke flow & details: `regelrecht-traject/references/routing.md`
