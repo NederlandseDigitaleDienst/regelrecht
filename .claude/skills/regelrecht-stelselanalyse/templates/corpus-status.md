@@ -1,4 +1,4 @@
-# {Corpus/dossier} — overzicht, structuur en machine-readable status
+# {Corpus/traject} — overzicht, structuur en machine-readable status
 
 **Datum**: {datum}
 

@@ -143,7 +143,8 @@ Interpreted {LAW_NAME}
 
   Reverse validation:
   - Fully grounded: {N} articles
-  - Assumptions: {N} (see details above)
+  - Claims recorded (voorgesteld): {N}
+      - claim:{id} {what was assumed} → competent: {who must confirm}
   - Elements removed: {N}
 
   Remaining issues:

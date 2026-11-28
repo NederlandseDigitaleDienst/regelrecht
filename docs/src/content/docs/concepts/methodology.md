@@ -45,7 +45,7 @@ A passing scenario proves the model computes what the scenario expects. It does 
 
 Across a set of related laws, `regelrecht-stelselanalyse` runs the desk cycle: harvest, model, validate with several independent reviewers, classify, fix, document. Every finding gets one of four labels, and the label decides where it goes. A modeling error is fixed in the YAML. An engine limitation becomes an engine issue. A defect in the law itself is written up for the people who maintain it. An interpretation or practice question goes to experts.
 
-`regelrecht-dossier` is the entry point that routes between the two layers. The short form of its rule: factual defects stay at the desk, questions of judgement go to a workshop.
+`regelrecht-traject` is the entry point that routes between the two layers. The short form of its rule: factual defects stay at the desk, questions of judgement go to a workshop.
 
 Two skills prepare the workshops.
 

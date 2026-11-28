@@ -74,11 +74,17 @@ the halving in article 2, fourth lid never happened.
 | YES | YES | Keep |
 | YES | NO | Keep (informational) |
 | NO, but in another provision | YES | **Scope violation**: refactor to a `source` reference |
-| NO | YES | Report as assumption |
+| NO | YES | **Record as a claim** (step 4) |
 | NO | NO | **Remove** |
 | Produced here, restricting, read by nothing | (any) | **Dangling restriction**: bind it from the entry whose outcome it restricts |
 
-4. Remove what has to go, collect the assumptions for the report.
+4. Remove what has to go. Record each assumption as a claim: an element the logic needs but
+   the text does not contain is an interpretation choice. Use the form in
+   `regelrecht-verantwoording` (step 3) with `voorstel_van:model` and the tool as `creator`,
+   anchored on the passage of the article where the element enters the logic.
+   This does not block anything: the model keeps calculating on the assumption. Outside a
+   working branch (trajectbranch or feature branch), list the claims in the report instead
+   of writing them.
 5. Re-run `just validate <file>` after any removal. Removing an element can break
    a required field or leave a dangling `$variable`. Fix that before reporting.
 
@@ -182,7 +188,7 @@ Reverse Validation for {LAW_NAME}
   Entries checked: {COUNT}
 
   Fully grounded: {N}
-  Contains assumptions: {N}
+  Claims recorded (voorgesteld): {N}
   Elements removed: {N}
 
   Scope violations:
@@ -198,8 +204,8 @@ Reverse Validation for {LAW_NAME}
   - {entry}: {about}, should be an open term / a binding / modelled
   - {entry}: target names {value}, which the entry computes anyway
 
-  Assumptions requiring review:
-  - {entry}: {assumed element}
+  Claims (voorgesteld):
+  - claim:{id} {entry}: {assumed element} → competent: {who}
 
   Harvest work (not defects):
   - {regulation} is bound but not in the corpus

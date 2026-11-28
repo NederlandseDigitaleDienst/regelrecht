@@ -1,4 +1,4 @@
-# {Dossier} — testcase-scenario's voor vervolg-sessie
+# {Traject} — testcase-scenario's voor vervolg-sessie
 
 Scenario's om met experts door te lopen. Elk raakt een ander hoofdpad in de digitale
 beoordelings-keten. **Kernvraag per scenario**: *"komen jullie op hetzelfde uit als

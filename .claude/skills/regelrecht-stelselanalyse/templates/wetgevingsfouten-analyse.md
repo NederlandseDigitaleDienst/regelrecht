@@ -1,4 +1,4 @@
-# Wetgevings-fouten in het {stelsel/dossier}
+# Wetgevings-fouten in het {stelsel/traject}
 
 **Datum**: {datum} · **Bron**: {review-synthese / cyclus}
 **Onderwerp**: fouten en gaten in de wetgeving die **niet door interpretatie te

@@ -9,7 +9,7 @@ fictieve data).
 
 1. **Casus-onderbouwingen** — domein-vocabulaire of voorbeelden die naar één casus wijzen,
    ook geparafraseerd.
-2. **Casus-namen** — namen van wetten/regelingen/dossiers die een specifieke casus aanduiden.
+2. **Casus-namen** — namen van wetten/regelingen/trajecten die een specifieke casus aanduiden.
 3. **Persoonsnamen** — inclusief persona-aanduidingen.
 4. **Organisatie-/functienamen** — organisaties, bestuursorganen, functietitels.
 
@@ -37,7 +37,7 @@ specifieke casus verraden.
 - De guard is een **denylist** (snelle eerste filter) en draait in **pre-commit én CI** —
   dus de PR wordt server-side gecontroleerd, niet alleen lokaal.
 - Een denylist is reactief; combineer 'm daarom met laag 1–4 hierboven. Voeg per nieuw
-  dossier de concrete markers toe aan de denylist.
+  traject de concrete markers toe aan de denylist.
 
 ## Checklist vóór publiceren
 
