@@ -4,11 +4,13 @@
 //! deciding cell's own decisions.
 //!
 //! The case: the college of a municipality grants a gehandicaptenparkeerkaart
-//! on application (BABW art. 49, with the criteria of the Regeling
-//! gehandicaptenparkeerkaart and the validity of art. 51), with the Awb on it,
-//! a reduction over its own decisions and the objection under Awb 7:11. Nothing in the cell knows this case: it follows from the
-//! law, the municipality's policy and its reduction, as the leave case of
-//! `tests/submission_lifecycle/` does.
+//! on application (art. 49 of a fictional traffic decree after the BABW, with
+//! the criteria of a fictional parking card regulation after the Regeling
+//! gehandicaptenparkeerkaart, and the validity of art. 51), with a mini
+//! general administrative act on it, a reduction over its own decisions and
+//! the objection under Awb 7:11. Nothing in the cell knows this case: it
+//! follows from the law, the municipality's policy and its reduction, as the
+//! leave case of `tests/submission_lifecycle/` does.
 //!
 //! The medical examination is the GGD's (Regeling art. 3): a cell of its
 //! own records it, and the municipality's decisions take that cell along
@@ -39,9 +41,9 @@ use regelrecht_cel::{Cell, Error, Gram, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, Value, json};
 
-const LAW: &str = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw";
+const LAW: &str = "test_traffic_decree";
 const ARTICLE: &str = "49";
-const AWB: &str = "algemene_wet_bestuursrecht";
+const AWB: &str = "test_general_administrative_act";
 const OBJECTION: &str = "7:11";
 /// A fictional municipality.
 const RECORDING_ACTOR: &str = "gemeente_wilgendaal";
@@ -65,7 +67,7 @@ const PERMITS_REDUCTION: &str = "reductie_geldige_bedrijfsparkeervergunningen";
 /// Art. 2 of the Regeling: no card before a medical examination (lid 1),
 /// unless it is left out for someone who had a card before (lid 2, onder a
 /// en b). The cell answers its two facts.
-const REGELING: &str = "regeling_gehandicaptenparkeerkaart";
+const REGELING: &str = "test_parking_card_regulation";
 const EXAMINED: &str = "geneeskundig_onderzoek_heeft_plaatsgehad";
 const EARLIER: &str = "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt";
 /// What the college establishes itself where no cell answers: open terms of
@@ -76,7 +78,7 @@ const EARLIER_C: &str = "aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_vo
 /// The fact art. 3 lid 1 of the Regeling requires: the medical
 /// examination. The GGD records it as an executogram in its own cell, and
 /// its reduction reads those executograms.
-const EXAMINATION: &str = "regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht";
+const EXAMINATION: &str = "test_parking_card_regulation#3#geneeskundig_onderzoek_verricht";
 const REPORTS: &str = "reductie_geneeskundig_onderzoek";
 /// The fictitious GGD that examines for the municipality.
 const GGD_ACTOR: &str = "ggd_wilgendaal";
@@ -136,14 +138,14 @@ const CAUSE: &str = "heroverweging_geeft_aanleiding";
 const REVOKED: &str = "bestreden_besluit_herroepen";
 const NEW: &str = "nieuw_besluit";
 
-/// The BABW, the Regeling, the Awb and the municipality's policy from the
-/// corpus.
+/// The traffic decree, the parking card regulation, the general act and the
+/// municipality's policy from the fixtures.
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let laws = [
         format!("regulation/nl/amvb/{LAW}"),
-        "regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart".to_string(),
-        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
+        "regulation/nl/ministeriele_regeling/test_parking_card_regulation".to_string(),
+        "regulation/nl/wet/test_general_administrative_act".to_string(),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
         // The reductions of the municipality and of the GGD, each with its
         // cell (RFC-048).
@@ -154,9 +156,7 @@ fn service() -> LawExecutionService {
         // The decisions under an article as aggregates, with what the Awb
         // gives a decision on an objection and the receipt of a ruling.
         common::reduction_dir("reductie_gehandicaptenparkeerkaart"),
-        common::poc(
-            "regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
-        ),
+        "regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal".to_string(),
     ];
     common::load(&mut service, laws);
     service
@@ -344,7 +344,7 @@ fn walking(judged: bool) -> Map<String, Value> {
 /// The fictional court, and the fact that a party holds the copy of its
 /// judgment (Awb 8:79).
 const COURT: &str = "rechtbank_wilgendaal";
-const JUDGMENTS: &str = "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak";
+const JUDGMENTS: &str = "test_general_administrative_act#8:79#afschrift_van_de_uitspraak";
 
 /// The court's judgement on a well-founded appeal: Awb 7:12 lid 1 is
 /// breached, the legal effects do not stay, and the college gets two weeks.

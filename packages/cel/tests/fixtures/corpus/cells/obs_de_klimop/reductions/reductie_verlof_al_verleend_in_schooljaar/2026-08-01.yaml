@@ -20,7 +20,7 @@ valid_from: '2026-08-01'
 # begrip van artikel 13a, tweede lid, van de Leerplichtwet 1969, ook als Awb
 # 7:11 dat artikel opnieuw aanroept. Er is geen bekendmaking; de url wijst
 # naar dat artikel.
-url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+url: https://example.com/test_school_leave_act/13a
 name: Al verleend vakantieverlof in het schooljaar bij OBS De Klimop (reductie)
 articles:
   - number: '1'
@@ -30,7 +30,7 @@ articles:
       in het schooljaar van het gevraagde verlof een besluit meetelt waarin de
       jongere verlof kreeg. Welke besluiten meetellen, volgt uit de Awb (7:11
       en 8:72). Wat een besluit betekent, zegt het beleid van het hoofd.
-    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    url: https://example.com/test_school_leave_act/13a
     machine_readable:
       execution:
         # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op

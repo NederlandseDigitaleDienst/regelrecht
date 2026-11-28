@@ -1,0 +1,247 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
+# beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
+# url wijst daarom naar het artikel dat dit beleid uitwerkt.
+# Wat de besluiten op aanvragen om een gehandicaptenparkeerkaart (artikel 49
+# van het BABW) betekenen voor de vragen of de aanvrager een geldige kaart
+# heeft en of hij eerder een kaart kreeg. De reductie van de gemeente
+# (reductie_geldige_gehandicaptenparkeerkaart) geeft dit beleid de besluiten
+# die meetellen, elk als rij (schema v0.8.17); artikel 3 zegt per ontvangen
+# uitspraak of de bestuursrechter zelf een kaart verstrekte, en artikel 4 per
+# beslissing op bezwaar wat het nieuwe besluit verstrekt dat zij in de plaats
+# van het herroepen besluit nam, beide voor de reductie per besluit. Het
+# staat los van het beleid gehandicaptenparkeerkaart, omdat dat beleid de
+# reductie aanroept.
+url: https://example.com/test_traffic_decree/49
+name: Verstrekte gehandicaptenparkeerkaarten in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      aanvrager heeft op een dag een geldige kaart als het college hem in een
+      besluit een kaart verstrekte die op die dag nog geldig is. Een weigering
+      geeft geen kaart. Verstrekte de bestuursrechter hem zelf een kaart, en
+      het college geen geldige, dan stelt het college zelf vast of hij een
+      geldige kaart heeft.
+    url: https://example.com/test_traffic_decree/49
+    machine_readable:
+      # The reduction gives the decisions about the applicant as rows. This
+      # article reads nothing else than what it gets.
+      execution:
+        parameters:
+          - name: kaarten
+            type: array
+            description: >-
+              De besluiten op aanvragen van de aanvrager, elk met of het een
+              kaart verstrekt, de laatste dag waarop zij geldig is, en of de
+              bestuursrechter zelf een kaart verstrekte.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop de kaart geldig moet zijn.
+        output:
+          - name: kaart_van_het_college
+            type: boolean
+            description: Of het college de aanvrager een kaart verstrekte die op besluit_datum geldig is.
+          - name: kaart_van_de_rechter
+            type: boolean
+            description: Of de bestuursrechter de aanvrager zelf een kaart verstrekte.
+          - name: geldige_kaart
+            type: boolean
+            nullable: true
+            description: >-
+              Of de aanvrager een kaart heeft die op besluit_datum geldig is;
+              afwezig als de bestuursrechter hem zelf een kaart verstrekte en
+              het college geen geldige kaart.
+        actions:
+          # Per besluit eerst of er een kaart is: een weigering heeft geen
+          # kaart_geldig_tot, waarop DATE_DIFF faalt, en AND stopt bij de
+          # eerste onwaar.
+          - output: kaart_van_het_college
+            value:
+              operation: FOREACH
+              collection: $kaarten
+              as: kaart
+              body:
+                operation: AND
+                conditions:
+                  - $kaart.verstrekt
+                  - operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $kaart.kaart_geldig_tot
+                      value: null
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $besluit_datum
+                      to: $kaart.kaart_geldig_tot
+                      in: days
+                    value: 0
+              combine: OR
+          - output: kaart_van_de_rechter
+            value:
+              operation: FOREACH
+              collection: $kaarten
+              as: kaart
+              body: $kaart.kaart_van_de_rechter
+              combine: OR
+          # Verstrekte de bestuursrechter zelf een kaart, dan zwijgt het
+          # systeem (null) en oordeelt het college: hoe lang die kaart geldt,
+          # leidt de gemeente niet af.
+          - output: geldige_kaart
+            value:
+              operation: IF
+              cases:
+                - when: $kaart_van_het_college
+                  then: true
+                - when: $kaart_van_de_rechter
+                  then: null
+              default: false
+
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Het
+      college verstrekte de aanvrager eerder een kaart als het hem in een
+      besluit een kaart verstrekte, geldig of niet, of als de bestuursrechter
+      hem zelf een kaart verstrekte.
+    url: https://example.com/test_parking_card_regulation/2
+    machine_readable:
+      # Zoals artikel 1, voor de vraag of het college de aanvrager eerder een
+      # kaart verstrekte (artikel 3 van het beleid gehandicaptenparkeerkaart).
+      execution:
+        parameters:
+          - name: kaarten
+            type: array
+            description: De besluiten op aanvragen van de aanvrager, als in artikel 1.
+        output:
+          - name: eerder_verstrekt
+            type: boolean
+            description: Of het college de aanvrager een kaart verstrekte.
+        actions:
+          - output: eerder_verstrekt
+            value:
+              operation: FOREACH
+              collection: $kaarten
+              as: kaart
+              body:
+                operation: OR
+                conditions:
+                  - $kaart.verstrekt
+                  - $kaart.kaart_van_de_rechter
+              combine: OR
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Voorziet
+      de bestuursrechter zelf in de zaak en verstrekt zijn uitspraak de
+      aanvrager een kaart, dan heeft de aanvrager een kaart van de rechter.
+    url: https://example.com/test_general_administrative_act/8:72
+    machine_readable:
+      # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
+      # het vernietigde besluit. De gemeente legt de ontvangst van het
+      # afschrift vast (Awb 8:79), niet het besluit dat de uitspraak in de
+      # plaats stelt. Welk besluit op de aanvraag dat is, zegt de Awb, en het
+      # afschrift draagt het mee (primair_besluit_in_de_plaats). Hoe lang de
+      # kaart van de rechter geldt, leidt de gemeente niet af: dat doet zij
+      # alleen bij haar eigen besluit. Dit artikel leest niets anders dan wat
+      # het krijgt.
+      execution:
+        parameters:
+          - name: al_kaart_van_de_rechter
+            type: boolean
+            description: Of de rechter de aanvrager vóór deze uitspraak al een kaart verstrekte.
+          - name: primair_besluit_in_de_plaats
+            type: object
+            nullable: true
+            description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt, zoals het afschrift het vermeldt.
+        output:
+          - name: kaart_van_de_rechter_na_uitspraak
+            type: boolean
+            description: Of de rechter de aanvrager na deze uitspraak een kaart verstrekte.
+        actions:
+          - output: kaart_van_de_rechter_na_uitspraak
+            value:
+              operation: OR
+              conditions:
+                - $al_kaart_van_de_rechter
+                - operation: AND
+                  conditions:
+                    - operation: NOT
+                      value:
+                        operation: EQUALS
+                        subject: $primair_besluit_in_de_plaats
+                        value: null
+                    - operation: EQUALS
+                      subject: $primair_besluit_in_de_plaats.outputs.gehandicaptenparkeerkaart_verstrekt
+                      value: true
+
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Neemt
+      het college op bezwaar een nieuw besluit in de plaats van het herroepen
+      besluit, dan telt dat besluit zoals een besluit op de aanvraag:
+      verstrekt het een kaart, dan heeft de aanvrager een kaart tot en met de
+      dag die het noemt. Een beslissing op bezwaar zonder nieuw besluit laat
+      staan wat gold.
+    url: https://example.com/test_general_administrative_act/7:11
+    machine_readable:
+      # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
+      # besluit en neemt in de plaats daarvan een nieuw besluit. De gemeente
+      # legt de beslissing op bezwaar vast, met het nieuwe besluit erin
+      # (nieuw_besluit); het nieuwe besluit is geen eigen record. Hoe lang de
+      # kaart geldt, rekende het nieuwe besluit zelf uit, vanaf zijn eigen
+      # dag (artikel 51 van het BABW). Dit artikel leest niets anders dan wat
+      # het krijgt.
+      execution:
+        parameters:
+          - name: al_verstrekt
+            type: boolean
+            description: Of het besluit vóór deze beslissing op bezwaar een kaart verstrekte.
+          - name: al_kaart_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die kaart.
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de beslissing op bezwaar in de plaats van het
+              herroepen besluit nam; leeg als zij dat niet deed.
+        output:
+          - name: verstrekt_na_bezwaar
+            type: boolean
+            description: Of er na deze beslissing op bezwaar een kaart is verstrekt.
+          - name: kaart_geldig_tot_na_bezwaar
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die kaart.
+        actions:
+          - output: verstrekt_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_verstrekt
+              default:
+                operation: EQUALS
+                subject: $nieuw_besluit.outputs.gehandicaptenparkeerkaart_verstrekt
+                value: true
+          - output: kaart_geldig_tot_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $nieuw_besluit
+                    value: null
+                  then: $al_kaart_geldig_tot
+              default: $nieuw_besluit.outputs.kaart_geldig_tot

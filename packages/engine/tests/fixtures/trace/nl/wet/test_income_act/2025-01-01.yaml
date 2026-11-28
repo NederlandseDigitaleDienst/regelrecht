@@ -1,0 +1,68 @@
+---
+# FICTIEF. An income act for the trace tests: two outputs that another act
+# reads, each from a register. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_income_act
+regulatory_layer: WET
+publication_date: '2024-12-20'
+valid_from: '2025-01-01'
+name: Testwet inkomen
+bwb_id: BWBR9999932
+url: https://example.com/test_income_act
+articles:
+  - number: '1'
+    text: FICTIEF. Het toetsingsinkomen is het inkomen uit de registratie.
+    url: https://example.com/test_income_act/1
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: inkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+            source: {}
+        output:
+          - name: toetsingsinkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: toetsingsinkomen
+            value: $inkomen
+
+  - number: '2'
+    text: FICTIEF. De rendementsgrondslag is het spaargeld verminderd met de schulden.
+    url: https://example.com/test_income_act/2
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: spaargeld
+            type: amount
+            type_spec:
+              unit: eurocent
+            source: {}
+          - name: schulden
+            type: amount
+            type_spec:
+              unit: eurocent
+            source: {}
+        output:
+          - name: rendementsgrondslag
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: rendementsgrondslag
+            value:
+              operation: SUBTRACT
+              values:
+                - $spaargeld
+                - $schulden

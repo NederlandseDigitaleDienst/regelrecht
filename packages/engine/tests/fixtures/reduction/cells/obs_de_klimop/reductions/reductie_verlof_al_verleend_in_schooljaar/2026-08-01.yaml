@@ -8,13 +8,13 @@ $id: reductie_verlof_al_verleend_in_schooljaar
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
-url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+url: https://example.com/test_school_leave_act/13a
 name: Al verleend vakantieverlof in het schooljaar bij OBS De Klimop (reductie)
 articles:
   - number: '1'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    url: https://example.com/test_school_leave_act/13a
     machine_readable:
       execution:
         # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
@@ -30,7 +30,7 @@ articles:
             source:
               regulation: reductie_algemene_wet_bestuursrecht
               parameters:
-                basis: leerplichtwet_1969#13a
+                basis: test_school_leave_act#13a
           - name: begin_schooljaar
             type: date
             source:

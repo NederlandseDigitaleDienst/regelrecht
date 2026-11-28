@@ -295,7 +295,7 @@ fn a_decision_ex_officio_refers_to_the_record_it_is_about() {
     let mut service = service();
     common::load(
         &mut service,
-        ["regulation/nl/wet/algemene_wet_bestuursrecht"],
+        ["regulation/nl/wet/test_general_administrative_act"],
     );
     let mut withdraw = |cell: &mut Cell, about: &str, withdrawn: &str| {
         cell.decide_ex_officio(

@@ -1,0 +1,1025 @@
+---
+# FICTIEF. A school holidays regulation for the tests of the cell, after the
+# Regeling vaststelling schoolvakanties 2025-2030. None of it is the text of a
+# law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.6/schema/v0.8.6/schema.json
+$id: test_school_holidays_regulation
+name: Testregeling schoolvakanties
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2024-06-17'
+valid_from: '2025-08-01'
+bwb_id: BWBR9999940
+url: https://example.com/test_school_holidays_regulation
+competent_authority:
+  name: Minister voor Primair en Voortgezet Onderwijs
+legal_basis:
+  - law_id: wet_op_het_primair_onderwijs
+    article: '15'
+articles:
+  - number: '2'
+    text: FICTIEF, naar artikel 2 van de Regeling vaststelling schoolvakanties 2025-2030.
+    url: https://example.com/test_school_holidays_regulation/2
+    machine_readable:
+      open_terms:
+        - id: gemeente_van_vestiging
+          type: string
+          required: false
+          description: De gemeente waarin de vestiging van de school ligt, of het openbaar lichaam in
+            Caribisch Nederland (Bonaire, Sint-Eustatius, Saba).
+        - id: provincie_van_vestiging
+          type: string
+          required: false
+          description: De provincie waarin de vestiging van de school ligt. Afwezig voor een vestiging
+            in Caribisch Nederland, dat niet in een provincie ligt.
+        - id: deel_van_gemeente_van_vestiging
+          type: string
+          required: false
+          description: De voormalige gemeente of de kern waarin de vestiging ligt, waar artikel 3 een
+            gemeente zo verdeelt (Abcoude, Didam, Dodewaard, Aalburg, Hank, Dussen). Afwezig waar artikel
+            3 dat niet doet.
+      execution:
+        input:
+          - name: regio_van_plaats_van_vestiging
+            type: string
+            nullable: true
+            source:
+              regulation: test_school_holidays_regulation
+              output: regio
+              parameters:
+                gemeente: $gemeente_van_vestiging
+                provincie: $provincie_van_vestiging
+                deel_van_gemeente: $deel_van_gemeente_van_vestiging
+            description: De regio van artikel 3 waarin de plaats van vestiging ligt.
+        output:
+          - name: regio_van_school
+            type: string
+            nullable: true
+            description: De regio waartoe de school behoort voor de perioden van de zomervakantie van
+              artikel 6. Afwezig als artikel 3 de plaats van vestiging in geen regio noemt.
+        actions:
+          - output: regio_van_school
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $gemeente_van_vestiging
+                    value: null
+                  then: null
+              default: $regio_van_plaats_van_vestiging
+            legal_basis:
+              law: Testregeling schoolvakanties
+              article: '2'
+              explanation: De regio van een school volgt uit haar plaats van vestiging.
+  - number: '3'
+    text: FICTIEF, naar artikel 3 van de Regeling vaststelling schoolvakanties 2025-2030.
+    url: https://example.com/test_school_holidays_regulation/3
+    machine_readable:
+      execution:
+        parameters:
+          - name: gemeente
+            type: string
+            description: De gemeente, of het openbaar lichaam in Caribisch Nederland.
+          - name: provincie
+            type: string
+            nullable: true
+            description: De provincie waarin de gemeente ligt; afwezig in Caribisch Nederland.
+          - name: deel_van_gemeente
+            type: string
+            nullable: true
+            description: De voormalige gemeente of de kern binnen de gemeente, waar dit artikel een gemeente
+              zo verdeelt.
+        output:
+          - name: regio
+            type: string
+            nullable: true
+            description: 'De regio: Noord, Midden, Zuid of Caribisch Nederland. Afwezig als dit artikel
+              de plaats in geen regio noemt.'
+        actions:
+          - output: regio
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: IN
+                    subject: $gemeente
+                    values:
+                      - Bonaire
+                      - Sint-Eustatius
+                      - Saba
+                  then: Caribisch Nederland
+                - when:
+                    operation: OR
+                    conditions:
+                      - operation: IN
+                        subject: $provincie
+                        values:
+                          - Groningen
+                          - Friesland
+                          - Drenthe
+                          - Overijssel
+                          - Noord-Holland
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Flevoland
+                          - operation: NOT
+                            value:
+                              operation: EQUALS
+                              subject: $gemeente
+                              value: Zeewolde
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Gelderland
+                          - operation: EQUALS
+                            subject: $gemeente
+                            value: Hattem
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Utrecht
+                          - operation: OR
+                            conditions:
+                              - operation: EQUALS
+                                subject: $gemeente
+                                value: Eemnes
+                              - operation: EQUALS
+                                subject: $deel_van_gemeente
+                                value: Abcoude
+                  then: Noord
+                - when:
+                    operation: OR
+                    conditions:
+                      - operation: EQUALS
+                        subject: $provincie
+                        value: Utrecht
+                      - operation: EQUALS
+                        subject: $provincie
+                        value: Zuid-Holland
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Flevoland
+                          - operation: EQUALS
+                            subject: $gemeente
+                            value: Zeewolde
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Gelderland
+                          - operation: OR
+                            conditions:
+                              - operation: IN
+                                subject: $gemeente
+                                values:
+                                  - Aalten
+                                  - Apeldoorn
+                                  - Barneveld
+                                  - Berkelland
+                                  - Bronckhorst
+                                  - Brummen
+                                  - Buren
+                                  - Culemborg
+                                  - Doetinchem
+                                  - Ede
+                                  - Elburg
+                                  - Epe
+                                  - Ermelo
+                                  - Geldermalsen
+                                  - Harderwijk
+                                  - Heerde
+                                  - Lingewaal
+                                  - Lochem
+                                  - Neerijnen
+                                  - Nijkerk
+                                  - Nunspeet
+                                  - Oldebroek
+                                  - Oost-Gelre
+                                  - Oude IJsselstreek
+                                  - Putten
+                                  - Scherpenzeel
+                                  - Tiel
+                                  - Voorst
+                                  - Wageningen
+                                  - Winterswijk
+                                  - Zutphen
+                              - operation: AND
+                                conditions:
+                                  - operation: EQUALS
+                                    subject: $gemeente
+                                    value: Montferland
+                                  - operation: NOT
+                                    value:
+                                      operation: EQUALS
+                                      subject: $deel_van_gemeente
+                                      value: Didam
+                              - operation: AND
+                                conditions:
+                                  - operation: EQUALS
+                                    subject: $gemeente
+                                    value: Neder-Betuwe
+                                  - operation: NOT
+                                    value:
+                                      operation: EQUALS
+                                      subject: $deel_van_gemeente
+                                      value: Dodewaard
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Noord-Brabant
+                          - operation: EQUALS
+                            subject: $gemeente
+                            value: Altena
+                          - operation: NOT
+                            value:
+                              operation: IN
+                              subject: $deel_van_gemeente
+                              values:
+                                - Aalburg
+                                - Hank
+                                - Dussen
+                  then: Midden
+                - when:
+                    operation: OR
+                    conditions:
+                      - operation: EQUALS
+                        subject: $provincie
+                        value: Limburg
+                      - operation: EQUALS
+                        subject: $provincie
+                        value: Noord-Brabant
+                      - operation: EQUALS
+                        subject: $provincie
+                        value: Zeeland
+                      - operation: AND
+                        conditions:
+                          - operation: EQUALS
+                            subject: $provincie
+                            value: Gelderland
+                          - operation: OR
+                            conditions:
+                              - operation: IN
+                                subject: $gemeente
+                                values:
+                                  - Arnhem
+                                  - Berg en Dal
+                                  - Beuningen
+                                  - Doesburg
+                                  - Druten
+                                  - Duiven
+                                  - Heumen
+                                  - Lingewaard
+                                  - Maasdriel
+                                  - Nijmegen
+                                  - Overbetuwe
+                                  - Renkum
+                                  - Rheden
+                                  - Rijnwaarden
+                                  - Rozendaal
+                                  - Westervoort
+                                  - West Maas en Waal
+                                  - Wijchen
+                                  - Zaltbommel
+                                  - Zevenaar
+                              - operation: AND
+                                conditions:
+                                  - operation: EQUALS
+                                    subject: $gemeente
+                                    value: Neder-Betuwe
+                                  - operation: EQUALS
+                                    subject: $deel_van_gemeente
+                                    value: Dodewaard
+                              - operation: AND
+                                conditions:
+                                  - operation: EQUALS
+                                    subject: $gemeente
+                                    value: Montferland
+                                  - operation: EQUALS
+                                    subject: $deel_van_gemeente
+                                    value: Didam
+                  then: Zuid
+  - number: '5'
+    text: FICTIEF, naar artikel 5 van de Regeling vaststelling schoolvakanties 2025-2030.
+    url: https://example.com/test_school_holidays_regulation/5
+    machine_readable:
+      execution:
+        parameters:
+          - name: eerste_jaar_schooljaar
+            type: number
+            description: 'Het jaar waarin het schooljaar begint: 2025 voor het schooljaar 2025–2026.'
+          - name: regio
+            type: string
+            nullable: true
+            description: De regio van artikel 3 waartoe de school behoort.
+        output:
+          - name: kerstvakantie_eerste_dag
+            type: date
+            nullable: true
+            description: De eerste dag van de kerstvakantie.
+          - name: kerstvakantie_laatste_dag
+            type: date
+            nullable: true
+            description: De laatste dag van de kerstvakantie.
+          - name: meivakantie_eerste_dag
+            type: date
+            nullable: true
+            description: De eerste dag van de meivakantie.
+          - name: meivakantie_laatste_dag
+            type: date
+            nullable: true
+            description: De laatste dag van de meivakantie.
+        actions:
+          - output: kerstvakantie_eerste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2025
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2025-12-20'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2026
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2026-12-19'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2027
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2027-12-25'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2028
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2028-12-23'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2029
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2029-12-22'
+          - output: kerstvakantie_laatste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2025
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2026-01-04'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2026
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2027-01-03'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2027
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2028-01-09'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2028
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2029-01-07'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2029
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2030-01-06'
+          - output: meivakantie_eerste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2025
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2026-04-25'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2026
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2027-04-24'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2027
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2028-04-29'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2028
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2029-04-28'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2029
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2030-04-27'
+          - output: meivakantie_laatste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2025
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2026-05-03'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2026
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2027-05-02'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2027
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2028-05-07'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2028
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2029-05-06'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $eerste_jaar_schooljaar
+                        value: 2029
+                      - operation: NOT
+                        value:
+                          operation: EQUALS
+                          subject: $regio
+                          value: Caribisch Nederland
+                  then: '2030-05-05'
+  - number: '6'
+    text: FICTIEF, naar artikel 6 van de Regeling vaststelling schoolvakanties 2025-2030.
+    url: https://example.com/test_school_holidays_regulation/6
+    machine_readable:
+      execution:
+        parameters:
+          - name: jaar
+            type: number
+            description: 'Het jaar van de zomervakantie: 2026 voor die van het schooljaar 2025–2026.'
+          - name: regio
+            type: string
+            nullable: true
+            description: De regio van artikel 3 waartoe de school behoort.
+        output:
+          - name: zomervakantie_eerste_dag
+            type: date
+            nullable: true
+            description: De eerste dag van de zomervakantie of de grote vakantie.
+          - name: zomervakantie_laatste_dag
+            type: date
+            nullable: true
+            description: De laatste dag van de zomervakantie of de grote vakantie.
+        actions:
+          - output: zomervakantie_eerste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-07-04'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-07-10'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-07-15'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-07-21'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-07-20'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-07-18'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-07-17'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-07-08'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-07-07'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-07-13'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-07-11'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-07-24'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-07-22'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-07-14'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-07-06'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-07-04'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-07-10'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-07-08'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-07-07'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-07-06'
+          - output: zomervakantie_laatste_dag
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-08-16'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-08-22'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-08-27'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-09-02'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Noord
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-09-01'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-08-30'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-08-29'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-08-20'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-08-19'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Midden
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-08-25'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-08-23'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-09-05'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-09-03'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-08-26'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Zuid
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-08-18'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2026
+                  then: '2026-08-16'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2027
+                  then: '2027-08-22'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2028
+                  then: '2028-08-20'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2029
+                  then: '2029-08-19'
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $regio
+                        value: Caribisch Nederland
+                      - operation: EQUALS
+                        subject: $jaar
+                        value: 2030
+                  then: '2030-08-18'

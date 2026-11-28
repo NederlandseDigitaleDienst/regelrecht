@@ -35,7 +35,8 @@ const POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
 const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
 
 /// The fixtures of these tests (`tests/fixtures/reduction`): the fictional
-/// regelwerken and reductions of the vakantieverlof case. The three policies
+/// regelwerken and reductions of the vakantieverlof case, with a mini school
+/// leave act and a mini general administrative act they build on. The three policies
 /// are copies of those in the cel's fixtures, kept apart so a change there
 /// does not reach these tests. The reductions read the decisions of the
 /// cell with `source.decisions` (refused in a reduction from schema
@@ -43,11 +44,6 @@ const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
 /// and declare v0.8.12, which still reads them.
 fn corpus_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/reduction")
-}
-
-/// The corpus of the repository, which holds the real laws these tests call.
-fn repo_corpus_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
 /// A file of these tests, from [`corpus_dir`].
@@ -89,7 +85,7 @@ fn service() -> LawExecutionService {
 fn decision(bsn: &str, first: &str, granted: bool) -> serde_json::Value {
     json!({
         "id": format!("{bsn}-{first}-{granted}"),
-        "basis": "leerplichtwet_1969#13a",
+        "basis": "test_school_leave_act#13a",
         "bsn_jongere": bsn,
         "eerste_verlofdag": first,
         "laatste_verlofdag": first,
@@ -327,7 +323,7 @@ fn judgments_nobody_supplies_are_an_error_not_an_empty_list() {
     assert!(matches!(e, EngineError::DataSourceError(_)), "{message}");
     assert!(
         message.contains(
-            "reads the recorded facts algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak"
+            "reads the recorded facts test_general_administrative_act#8:79#afschrift_van_de_uitspraak"
         ) && message.contains("no data source supplies them"),
         "{message}"
     );
@@ -387,23 +383,25 @@ fn only_a_reduction_reads_decisions() {
 fn decisions_stand_alone_and_name_an_article() {
     // Each narrowing key on its own is refused, not only in company.
     for narrowing in [
-        "regulation: leerplichtwet_1969",
+        "regulation: test_school_leave_act",
         "output: verlof_verleend",
         "parameters:\n                bsn_jongere: $bsn_jongere",
         "endpoint: verlof",
     ] {
         refused(
             &awb_variant(
-                "decisions: algemene_wet_bestuursrecht#7:11",
-                &format!("decisions: algemene_wet_bestuursrecht#7:11\n              {narrowing}"),
+                "decisions: test_general_administrative_act#7:11",
+                &format!(
+                    "decisions: test_general_administrative_act#7:11\n              {narrowing}"
+                ),
             ),
             "no regulation, output, parameters or endpoint",
         );
     }
     refused(
         &awb_variant(
-            "decisions: algemene_wet_bestuursrecht#7:11",
-            "decisions: algemene_wet_bestuursrecht",
+            "decisions: test_general_administrative_act#7:11",
+            "decisions: test_general_administrative_act",
         ),
         "is neither <regulation>#<article> without a paragraph nor a $-reference",
     );
@@ -465,7 +463,7 @@ fn a_reduction_fills_no_open_term() {
     // Schema v0.8.5 to v0.8.8 allowed `implements` on a reduction; v0.8.9
     // removed it, and the engine runs every file on one code path, so a file
     // under any version, or none, is refused with the replacement named.
-    let implements = "      implements:\n        - law: leerplichtwet_1969\n          \
+    let implements = "      implements:\n        - law: test_school_leave_act\n          \
                       article: 13a\n          open_term: verlof_al_verleend_in_schooljaar\n";
     let says = "a REDUCTIE fills no open term (implements), which schema v0.8.9 removed; its \
                 cell gives it as a named answer, which a policy binds to the term with \
@@ -493,12 +491,12 @@ const BINDS: &str = "              reduction: verlof_al_verleend_in_schooljaar\n
 fn an_answer_stands_alone() {
     ArticleBasedLaw::from_yaml_str(&policy_yaml()).unwrap();
     for (key, line) in [
-        ("regulation", "regulation: leerplichtwet_1969"),
+        ("regulation", "regulation: test_school_leave_act"),
         ("output", "output: verlof_verleend"),
         ("endpoint", "endpoint: verlof"),
-        ("decisions", "decisions: leerplichtwet_1969#13a"),
-        ("facts", "facts: leerplichtwet_1969#13a#feit"),
-        ("article", "article: leerplichtwet_1969#13a"),
+        ("decisions", "decisions: test_school_leave_act#13a"),
+        ("facts", "facts: test_school_leave_act#13a#feit"),
+        ("article", "article: test_school_leave_act#13a"),
     ] {
         refused(
             &binding(BINDS, &format!("{BINDS}              {line}\n")),
@@ -585,7 +583,7 @@ fn executograms_of_v0_8_6_are_refused_with_facts_named() {
     for value in ["test_stroom_vestigingen", "~", ""] {
         let yaml = changed(
             &corpus("cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml"),
-            "decisions: algemene_wet_bestuursrecht#7:11",
+            "decisions: test_general_administrative_act#7:11",
             &format!("executograms: {value}"),
         );
         let yaml = changed(&yaml, "v0.8.12", "v0.8.6");
@@ -609,10 +607,7 @@ fn combine_is_refused_with_one_cell_named() {
         );
         refused(
             &changed(
-                &std::fs::read_to_string(
-                    repo_corpus_dir().join("regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml"),
-                )
-                .unwrap(),
+                &corpus("regulation/nl/wet/test_school_leave_act/2026-08-01.yaml"),
                 "          type: date\n          required: true\n          description: De eerste dag",
                 &format!(
                     "          type: date\n          required: true\n          combine: {value}\n          description: De eerste dag"
@@ -628,17 +623,17 @@ fn combine_is_refused_with_one_cell_named() {
 // (source.reduction, schema v0.8.9)
 // ---------------------------------------------------------------------------
 
-const AWB: &str = "algemene_wet_bestuursrecht";
+const AWB: &str = "test_general_administrative_act";
 
-/// The Leerplichtwet, the Awb and the school's policies from the corpus,
-/// the head's binding among them, and the reduction if `with_reduction`.
+/// The school leave act, the general act and the school's policies from
+/// the fixtures, the head's binding among them, and the reduction if
+/// `with_reduction`.
 fn corpus_service(with_reduction: bool) -> LawExecutionService {
-    let real = repo_corpus_dir().join("regulation/nl");
     let fictional = corpus_dir().join("regulation/nl");
     let mut service = LawExecutionService::new();
     for dir in [
-        real.join("wet/leerplichtwet_1969"),
-        real.join("wet/algemene_wet_bestuursrecht"),
+        fictional.join("wet/test_school_leave_act"),
+        fictional.join("wet/test_general_administrative_act"),
         fictional.join("uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop"),
         fictional.join("uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"),
         fictional.join("uitvoeringsbeleid/fictief_beleid_vakantieverlof_obs_de_klimop"),
@@ -699,7 +694,7 @@ fn granted_13a(
 ) -> regelrecht_engine::Result<regelrecht_engine::ArticleResult> {
     let (parameters, findings) = split(parameters);
     service.evaluate_law_with_trace_in(
-        "leerplichtwet_1969",
+        "test_school_leave_act",
         &["verlof_verleend"],
         parameters,
         Call::with_findings(findings),
@@ -800,7 +795,7 @@ fn granted_13a_with(
         sphere: Vec::new(),
     };
     service.evaluate_law_with_trace_in(
-        "leerplichtwet_1969",
+        "test_school_leave_act",
         &["verlof_verleend"],
         parameters,
         call,
@@ -1000,7 +995,7 @@ fn an_answerer_that_fails_ends_the_execution() {
     };
     let e = service
         .evaluate_law_in(
-            "leerplichtwet_1969",
+            "test_school_leave_act",
             &["verlof_verleend"],
             parameters,
             call,
@@ -1054,8 +1049,8 @@ fn without_an_answerer_the_term_is_the_heads_finding_or_an_error() {
 /// not in it.
 fn refusal_b() -> serde_json::Value {
     json!({
-        "basis": "leerplichtwet_1969#13a",
-        "taken_on": "leerplichtwet_1969#13a",
+        "basis": "test_school_leave_act#13a",
+        "taken_on": "test_school_leave_act#13a",
         "fields": {
             "bsn_jongere": "999990019",
             "eerste_verlofdag": "2027-05-10",
@@ -1161,7 +1156,7 @@ fn in_the_call_anew_without_an_answerer_the_finding_is_missing() {
 
 const AWB_REDUCTION: &str = "reductie_algemene_wet_bestuursrecht";
 /// The article of the decisions on leave.
-const LEAVE: &str = "leerplichtwet_1969#13a";
+const LEAVE: &str = "test_school_leave_act#13a";
 
 /// The Awb reduction from the corpus.
 fn awb_reduction_yaml() -> String {
@@ -1187,7 +1182,7 @@ fn judgment_keeping(about: &str, kept: bool, in_place: serde_json::Value) -> ser
     let id = format!("uitspraak-{about}");
     json!({
         "id": id,
-        "basis": "algemene_wet_bestuursrecht#8:79",
+        "basis": "test_general_administrative_act#8:79",
         "refers_to": about,
         "bestreden_besluit_vernietigd": true,
         "rechtsgevolgen_vernietigd": !kept,
@@ -1310,9 +1305,12 @@ fn an_annulled_decision_drops_out() {
 #[test]
 fn a_revocation_in_the_decision_the_court_set_in_place_holds() {
     let a = decision("999990019", "2026-10-05", false);
-    let grant = value_under("leerplichtwet_1969#13a", json!({ "verlof_verleend": true }));
+    let grant = value_under(
+        "test_school_leave_act#13a",
+        json!({ "verlof_verleend": true }),
+    );
     let in_place = value_under(
-        "algemene_wet_bestuursrecht#7:11",
+        "test_general_administrative_act#7:11",
         json!({ "bestreden_besluit_herroepen": true, "nieuw_besluit": grant }),
     );
     let rows = json!([a]);
@@ -1346,7 +1344,7 @@ fn a_decision_on_objection_the_court_set_in_place_that_upholds_revokes_nothing()
     let a = decision("999990019", "2026-10-05", false);
     let b = decision("999990019", "2026-10-05", true);
     let upheld = value_under(
-        "algemene_wet_bestuursrecht#7:11",
+        "test_general_administrative_act#7:11",
         json!({ "bestreden_besluit_herroepen": false, "nieuw_besluit": null }),
     );
     let rows = json!([a, b]);
@@ -1398,11 +1396,11 @@ fn the_decisions_the_court_set_in_place_come_from_either_path() {
     let direct = value_under(LEAVE, json!({ "verlof_verleend": true }));
     let anew = value_under(LEAVE, json!({ "verlof_verleend": false }));
     let on_objection = value_under(
-        "algemene_wet_bestuursrecht#7:11",
+        "test_general_administrative_act#7:11",
         json!({ "bestreden_besluit_herroepen": true, "nieuw_besluit": anew }),
     );
     let upheld = value_under(
-        "algemene_wet_bestuursrecht#7:11",
+        "test_general_administrative_act#7:11",
         json!({ "bestreden_besluit_herroepen": false, "nieuw_besluit": null }),
     );
     let other = value_under("een_andere_wet#1", json!({ "toegekend": true }));
@@ -1432,7 +1430,7 @@ fn a_decision_the_court_set_in_place_under_another_article_revokes_nothing() {
     let a = decision("999990019", "2026-10-05", true);
     let id = a["id"].as_str().unwrap();
     let in_place = value_under(
-        "leerplichtwet_1969#13a",
+        "test_school_leave_act#13a",
         json!({ "verlof_verleend": false }),
     );
     let judgments = json!([judgment(id, in_place)]);
@@ -1468,7 +1466,7 @@ impl Kroniek {
         Self {
             decisions: BTreeMap::from([
                 (LEAVE, decisions),
-                ("algemene_wet_bestuursrecht#7:11", on_objection),
+                ("test_general_administrative_act#7:11", on_objection),
             ]),
             judgments: json!([]),
             asked: RefCell::new(Vec::new()),
@@ -1612,7 +1610,7 @@ articles:
               regulation: reductie_algemene_wet_bestuursrecht
               output: geldende_besluiten
               parameters:
-                basis: leerplichtwet_1969#13a
+                basis: test_school_leave_act#13a
         output:
           - name: besluiten
             type: array
@@ -1677,7 +1675,7 @@ fn the_decisions_that_hold_are_those_in_force_and_those_set_in_place() {
 fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
     // `decisions: $basis` reads only under an article reference.
     let chronicle = Kroniek::with(json!([]), json!([]));
-    for not_an_article in [json!("leerplichtwet_1969"), json!(7)] {
+    for not_an_article in [json!("test_school_leave_act"), json!(7)] {
         let parameters = BTreeMap::from([
             ("basis".to_string(), Value::from(not_an_article.clone())),
             (
@@ -1710,6 +1708,6 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
             .asked
             .borrow()
             .iter()
-            .all(|(_, read)| !read.contains("leerplichtwet_1969"))
+            .all(|(_, read)| !read.contains("test_school_leave_act"))
     );
 }

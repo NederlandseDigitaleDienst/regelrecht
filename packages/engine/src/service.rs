@@ -9910,50 +9910,48 @@ articles:
     }
 
     // -------------------------------------------------------------------------
-    // Tests on a frozen copy of real ruleworks
+    // Tests on the fictional chain the trace tests read
     // -------------------------------------------------------------------------
 
     mod integration {
         use super::*;
         use std::path::PathBuf;
 
-        /// The frozen copy the trace tests read (`tests/fixtures/trace_corpus`),
-        /// so a change to these laws in the corpus does not touch these tests.
+        /// The fictional chain the trace tests read (`tests/fixtures/trace`),
+        /// in the layout of the corpus.
         fn get_regulation_path() -> PathBuf {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace_corpus")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace")
         }
 
         #[test]
         fn test_a_cross_law_output_resolves_through_the_regulation_it_names() {
-            // Load wet_op_de_zorgtoeslag and regeling_standaardpremie and
-            // check that the resolve action works end-to-end.
+            // Load the allowance act and the regulation that fills its open
+            // term, and check that the resolve action works end-to-end.
             let regulation_path = get_regulation_path();
 
-            let wet_op_de_zorgtoeslag_path =
-                regulation_path.join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
-            let regeling_path = regulation_path
-                .join("nl/ministeriele_regeling/regeling_standaardpremie/2025-01-01.yaml");
+            let act_path = regulation_path.join("nl/wet/test_allowance_act/2025-01-01.yaml");
+            let regulation = regulation_path
+                .join("nl/ministeriele_regeling/test_premium_regulation/2025-01-01.yaml");
 
-            let wet_op_de_zorgtoeslag_law =
-                ArticleBasedLaw::from_yaml_file(&wet_op_de_zorgtoeslag_path).unwrap();
-            let rsp_law = ArticleBasedLaw::from_yaml_file(&regeling_path).unwrap();
+            let act = ArticleBasedLaw::from_yaml_file(&act_path).unwrap();
+            let premium = ArticleBasedLaw::from_yaml_file(&regulation).unwrap();
 
             let mut service = LawExecutionService::new();
-            service.load_law_struct(wet_op_de_zorgtoeslag_law).unwrap();
-            service.load_law_struct(rsp_law).unwrap();
+            service.load_law_struct(act).unwrap();
+            service.load_law_struct(premium).unwrap();
 
-            // Execute wet_op_de_zorgtoeslag standaardpremie output
-            // This should resolve the regeling_standaardpremie via legal_basis
+            // The act's standaardpremie output resolves through the
+            // regulation that implements its open term.
             let result = service
                 .evaluate_law_output(
-                    "wet_op_de_zorgtoeslag",
+                    "test_allowance_act",
                     "standaardpremie",
                     BTreeMap::new(),
                     "2025-01-01",
                 )
                 .unwrap();
 
-            // standaardpremie for 2025 = 211200 eurocent (€2112)
+            // The regulation sets it at 211200 eurocent (€2112).
             assert_eq!(
                 result.outputs.get("standaardpremie"),
                 Some(&Value::Int(211200)),
@@ -9964,14 +9962,14 @@ articles:
         #[test]
         fn test_law_info_names_id_layer_and_outputs() {
             let regulation_path = get_regulation_path();
-            let path = regulation_path.join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
+            let path = regulation_path.join("nl/wet/test_allowance_act/2025-01-01.yaml");
             let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
 
             let mut service = LawExecutionService::new();
             service.load_law_struct(law).unwrap();
 
-            let info = service.get_law_info("wet_op_de_zorgtoeslag").unwrap();
-            assert_eq!(info.id, "wet_op_de_zorgtoeslag");
+            let info = service.get_law_info("test_allowance_act").unwrap();
+            assert_eq!(info.id, "test_allowance_act");
             assert_eq!(info.regulatory_layer, RegulatoryLayer::Wet);
             assert!(info.article_count > 0);
             assert!(!info.outputs.is_empty());

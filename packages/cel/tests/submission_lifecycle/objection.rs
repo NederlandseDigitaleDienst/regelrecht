@@ -16,26 +16,26 @@ fn the_shape_of_the_objection_comes_from_its_article() {
     assert_eq!(
         fields,
         vec![
-            ("bestreden_besluit", "algemene_wet_bestuursrecht#7:11"),
+            ("bestreden_besluit", "test_general_administrative_act#7:11"),
             (
                 "bezwaar_of_beroepschrift_ondertekend",
-                "algemene_wet_bestuursrecht#6:5"
+                "test_general_administrative_act#6:5"
             ),
-            ("naam_indiener", "algemene_wet_bestuursrecht#6:5"),
-            ("adres_indiener", "algemene_wet_bestuursrecht#6:5"),
+            ("naam_indiener", "test_general_administrative_act#6:5"),
+            ("adres_indiener", "test_general_administrative_act#6:5"),
             (
                 "dagtekening_bezwaar_of_beroepschrift",
-                "algemene_wet_bestuursrecht#6:5"
+                "test_general_administrative_act#6:5"
             ),
             (
                 "omschrijving_bestreden_besluit",
-                "algemene_wet_bestuursrecht#6:5"
+                "test_general_administrative_act#6:5"
             ),
             (
                 "gronden_bezwaar_of_beroep",
-                "algemene_wet_bestuursrecht#6:5"
+                "test_general_administrative_act#6:5"
             ),
-            ("termijn_einddatum", "algemene_wet_bestuursrecht#6:9"),
+            ("termijn_einddatum", "test_general_administrative_act#6:9"),
         ]
     );
     // What 6:9 gives is no field, though 7:11 asks it.
@@ -43,14 +43,14 @@ fn the_shape_of_the_objection_comes_from_its_article() {
     // The objection asks for the decision of 7:11 (`requests`).
     assert_eq!(
         shape.requests.as_deref(),
-        Some("algemene_wet_bestuursrecht#7:11")
+        Some("test_general_administrative_act#7:11")
     );
     let moment = shape.moment.unwrap();
     assert_eq!(
         moment.parameter.as_deref(),
         Some("datum_ontvangst_bezwaar_of_beroepschrift")
     );
-    assert_eq!(moment.declared_by, "algemene_wet_bestuursrecht#6:9");
+    assert_eq!(moment.declared_by, "test_general_administrative_act#6:9");
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn an_objection_refers_to_the_decision_and_takes_its_period_from_it() {
     let gram = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
 
     assert_eq!(gram.kind, "BEZWAAR");
-    assert_eq!(gram.basis, "algemene_wet_bestuursrecht#7:11");
+    assert_eq!(gram.basis, "test_general_administrative_act#7:11");
     assert_eq!(gram.refers_to.as_deref(), Some(refused.id.as_str()));
     // The contested decision, by its id.
     assert_eq!(gram.fields["bestreden_besluit"], json!(refused.id));
@@ -158,7 +158,7 @@ fn an_objection_against_what_is_no_decision_is_refused() {
     let bezwaar = object(&mut cell, &refused.id, &objection(&[]), "2026-11-01").unwrap();
     let e = object(&mut cell, &bezwaar.id, &objection(&[]), "2026-11-02").unwrap_err();
     assert!(
-        matches!(&e, Error::Refused(m) if m.contains("BEZWAAR under algemene_wet_bestuursrecht#7:11, not a decision")),
+        matches!(&e, Error::Refused(m) if m.contains("BEZWAAR under test_general_administrative_act#7:11, not a decision")),
         "{e}"
     );
 }
@@ -202,7 +202,7 @@ fn a_refusal_the_reconsideration_repeats_stands() {
 
     let decision = &decided[0];
     assert_eq!(decision.kind, "BESCHIKKING");
-    assert_eq!(decision.basis, "algemene_wet_bestuursrecht#7:11");
+    assert_eq!(decision.basis, "test_general_administrative_act#7:11");
     assert_eq!(decision.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     // The contested decision by its id; whether the objection came in on
     // time comes from the objection (Awb 6:9).
@@ -251,7 +251,7 @@ fn a_finding_anew_at_the_reconsideration_revokes_the_refusal() {
     // The decision on the objection holds the new decision as its value,
     // taken on the objection.
     assert_eq!(decision.outputs[NEW]["taken_on"], json!(bezwaar.basis));
-    assert_eq!(new.basis, "leerplichtwet_1969#13a");
+    assert_eq!(new.basis, "test_school_leave_act#13a");
     // The application's own fields.
     assert_eq!(new.fields["eerste_verlofdag"], json!("2027-02-01"));
     assert_eq!(new.fields["laatste_verlofdag"], json!("2027-02-05"));
@@ -466,14 +466,14 @@ fn a_grant_revoked_on_objection_does_not_count() {
         )
         .unwrap()
     };
-    let granted_rows: Vec<Value> = rows("leerplichtwet_1969#13a")
+    let granted_rows: Vec<Value> = rows("test_school_leave_act#13a")
         .as_array()
         .unwrap()
         .iter()
         .map(|row| json!([row["id"], row["verlof_verleend"]]))
         .collect();
     assert_eq!(granted_rows, [json!([granted.id, true])]);
-    let on_objection = rows("algemene_wet_bestuursrecht#7:11");
+    let on_objection = rows("test_general_administrative_act#7:11");
     assert_eq!(on_objection[0]["bestreden_besluit"], json!(granted.id));
     assert_eq!(on_objection[0][REVOKED], json!(true));
     assert_eq!(on_objection[0][NEW]["verlof_verleend"], json!(false));
@@ -622,7 +622,7 @@ fn the_reconsideration_runs_only_for_an_admissible_objection() {
         });
     let contested = json!({
         "basis": refused.basis,
-        "taken_on": "leerplichtwet_1969#13a",
+        "taken_on": "test_school_leave_act#13a",
         "fields": fields,
         "findings": findings,
         "outputs": {
@@ -664,11 +664,11 @@ fn the_reconsideration_runs_only_for_an_admissible_objection() {
     };
     let late = steps(false);
     assert!(
-        !late.contains("leerplichtwet_1969#13a"),
+        !late.contains("test_school_leave_act#13a"),
         "the heroverweging must not run:\n{late}"
     );
     let timely = steps(true);
-    assert!(timely.contains("leerplichtwet_1969#13a"), "{timely}");
+    assert!(timely.contains("test_school_leave_act#13a"), "{timely}");
 }
 
 #[test]
@@ -680,7 +680,7 @@ fn the_authority_gives_at_the_decision_on_objection_only_findings_an_article_ask
         // The contested decision comes from the objection: it is no finding.
         (
             json!({"bestreden_besluit": refused.id}),
-            "'bestreden_besluit' of the decision of algemene_wet_bestuursrecht#7:11 is no finding",
+            "'bestreden_besluit' of the decision of test_general_administrative_act#7:11 is no finding",
         ),
         // What no article in the decision asks, misspelt or not, is an
         // error that names it: it is not quietly dropped.
@@ -712,7 +712,7 @@ fn a_reduction_reads_the_decisions_on_objection_with_their_own_outcome() {
         regelrecht_cel::reading::rows(
             &service(),
             cell.grams(),
-            "algemene_wet_bestuursrecht#7:11",
+            "test_general_administrative_act#7:11",
             "BESCHIKKING",
         )
         .unwrap(),

@@ -8,13 +8,13 @@ $id: reductie_algemene_wet_bestuursrecht
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+url: https://example.com/test_general_administrative_act/8:72
 name: Besluiten die nog gelden, naar de Algemene wet bestuursrecht (reductie)
 articles:
   - number: '1'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    url: https://example.com/test_general_administrative_act/8:72
     machine_readable:
       execution:
         parameters:
@@ -28,11 +28,11 @@ articles:
           - name: beslissingen_op_bezwaar
             type: array
             source:
-              decisions: algemene_wet_bestuursrecht#7:11
+              decisions: test_general_administrative_act#7:11
           - name: uitspraken
             type: array
             source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+              facts: test_general_administrative_act#8:79#afschrift_van_de_uitspraak
         output:
           - name: beslissingen_herroepen_bij_uitspraak
             type: array
@@ -71,7 +71,7 @@ articles:
                 conditions:
                   - operation: EQUALS
                     subject: $uitspraak.uitspraak_in_de_plaats.basis
-                    value: algemene_wet_bestuursrecht#7:11
+                    value: test_general_administrative_act#7:11
                   - operation: EQUALS
                     subject: $uitspraak.uitspraak_in_de_plaats.bestreden_besluit_herroepen
                     value: true
@@ -125,14 +125,14 @@ articles:
   - number: '2'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    url: https://example.com/test_general_administrative_act/8:72
     machine_readable:
       execution:
         input:
           - name: uitspraken
             type: array
             source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+              facts: test_general_administrative_act#8:79#afschrift_van_de_uitspraak
           - name: besluiten_in_stand
             type: array
             source:
@@ -158,7 +158,7 @@ articles:
                     conditions:
                       - operation: EQUALS
                         subject: $uitspraak.uitspraak_in_de_plaats.basis
-                        value: algemene_wet_bestuursrecht#7:11
+                        value: test_general_administrative_act#7:11
                       - operation: EQUALS
                         subject: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit.basis
                         value: $basis
