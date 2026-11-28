@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::config::wetten_url;
+pub use crate::placement::{Placement, PlacementLevel};
 
 /// Re-export the canonical regulatory layer types from the shared crate.
 pub use regelrecht_shared::RegulatoryLayer;
@@ -307,6 +308,9 @@ pub struct Article {
 
     /// References contained in this article.
     pub references: Vec<Reference>,
+
+    /// The containers that enclose this article; empty when there are none.
+    pub placement: Placement,
 }
 
 impl Article {
@@ -318,6 +322,7 @@ impl Article {
             text: text.into(),
             url: url.into(),
             references: Vec::new(),
+            placement: Placement::default(),
         }
     }
 
@@ -325,6 +330,13 @@ impl Article {
     #[must_use]
     pub fn with_references(mut self, references: Vec<Reference>) -> Self {
         self.references = references;
+        self
+    }
+
+    /// Set the containers that enclose this article.
+    #[must_use]
+    pub fn with_placement(mut self, placement: Placement) -> Self {
+        self.placement = placement;
         self
     }
 }
