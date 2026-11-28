@@ -66,7 +66,7 @@ This distinction matters because third-party organizations may build their own e
 
 ## Cross-organization reproducibility (planned)
 
-When a decision depends on values from other organizations (via [Multi-Org Execution](./multi-org-execution)), the receipt is meant to capture the provenance of each accepted value, so that reproducing the decision uses the value as it was accepted rather than re-calling the other organization. That organization may be running a different engine version by then, and a *beschikking* stands once issued: the accepted value at the time is a legal fact.
+When a decision depends on values from other organizations (the exchange [RFC-009](/rfcs/rfc-009) proposes), the receipt is meant to capture the provenance of each accepted value, so that reproducing the decision uses the value as it was accepted rather than re-calling the other organization. That organization may be running a different engine version by then, and a *beschikking* stands once issued: the accepted value at the time is a legal fact.
 
 None of this is built. `accepted_values` is present in every receipt and always empty, because the multi-organization exchange it would record ([RFC-009](/rfcs/rfc-009)) is not implemented. The intended shape of an entry, from RFC-013:
 
@@ -94,7 +94,7 @@ A citizen can request their trace and see which rules applied. An auditor re-run
 ## Further reading
 
 - [Hooks and Reactive Execution](./hooks-and-reactive-execution) - Awb procedure hooks
-- [Multi-Org Execution](./multi-org-execution) - cross-organization value exchange
+- [Competent Authority](./competent-authority#a-decision-or-a-calculation) - cross-organization value exchange, and what is built of it
 - [RFC-013: Execution Provenance](/rfcs/rfc-013) - full specification
 - [RFC-014: Engine Conformance](/rfcs/rfc-014) - conformance test suite
 - [Rules as Executed, sections 4.4 and 4.5](/research/rules-as-executed#sec:attestation) - the position paper's constitutional case for attestation and the recipient's re-execution check

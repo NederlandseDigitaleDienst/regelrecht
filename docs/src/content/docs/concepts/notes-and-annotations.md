@@ -50,7 +50,7 @@ The fourth, **tagging** (classification), is available but not yet used in the c
 
 Notes live in sidecar YAML keyed by the law's `$id`, not its file path (`corpus/annotations/{law_id}/annotations.yaml`). In a source repository the sidecar sits at the repository root, in `annotations/{law_id}/annotations.yaml`, even when the source's regulations live in a subdirectory such as `regulation/nl` ([RFC-018](/rfcs/rfc-018)). They follow the same [federated](./federated-corpus) model as the corpus: any organization can keep notes on a law in its own repository, and the editor's write path is append-only so parallel edits do not clobber each other.
 
-A note's **authority is derived at display time**, not declared. The resolver compares the note's `creator` against the article's [competent authority](./competent-authority):
+By design, a note's **authority is derived at display time**, not declared. This is not built yet. The resolver would compare the note's `creator` against the article's [competent authority](./competent-authority):
 
 - **authoritative** when the creator is the competent body itself (Dienst Toeslagen on its own act).
 - **advisory** when the creator is another government organization.
